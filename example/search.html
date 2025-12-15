@@ -533,10 +533,12 @@
 <body>
     <div class="container">
         <header>
-            <h1 id="pageTitle"></h1>
-            <p id="pageSubtitle"></p>
+            <h1>🏠 Inventarliste</h1>
+            <p>Søkbar database over bokser og innhold</p>
             <div id="intro" style="display: none; margin-top: 15px; padding: 15px; background: #f8f9fa; border-left: 4px solid #3498db; border-radius: 4px;">
-                <button id="introToggle" onclick="document.getElementById('introText').style.display = document.getElementById('introText').style.display === 'none' ? 'block' : 'none'" style="cursor: pointer; background: none; border: none; color: #3498db; font-size: 14px;"></button>
+                <button onclick="document.getElementById('introText').style.display = document.getElementById('introText').style.display === 'none' ? 'block' : 'none'" style="cursor: pointer; background: none; border: none; color: #3498db; font-size: 14px;">
+                    ▼ Om inventarlisten
+                </button>
                 <div id="introText" style="display: none; margin-top: 10px; font-size: 14px; line-height: 1.6;"></div>
             </div>
         </header>
@@ -546,17 +548,22 @@
                 type="text"
                 id="searchBox"
                 class="search-box"
-                placeholder=""
+                placeholder="Søk etter boksnummer, innhold, beskrivelse..."
                 autocomplete="off"
             >
 
             <div class="filters" id="filters">
-                <!-- Filters will be dynamically generated -->
+                <button class="filter-btn active" data-filter="all">Alle bokser</button>
+                <button class="filter-btn" data-filter="Box">Box-serien</button>
+                <button class="filter-btn" data-filter="A">A-serien</button>
+                <button class="filter-btn" data-filter="H">H-serien</button>
+                <button class="filter-btn" data-filter="C">C-serien</button>
+                <button class="filter-btn" data-filter="B">B-serien</button>
             </div>
 
             <div class="view-toggle">
-                <button class="view-btn active" data-view="containers" id="containerViewBtn"></button>
-                <button class="view-btn" data-view="gallery" id="galleryViewBtn"></button>
+                <button class="view-btn active" data-view="boxes">📦 Boksvisning</button>
+                <button class="view-btn" data-view="gallery">🖼️ Bildevisning</button>
             </div>
 
             <div class="tag-filter" id="tagFilter" style="margin-top: 15px;">
@@ -564,10 +571,12 @@
             </div>
 
             <div class="stats" id="stats">
+                Laster data...
             </div>
         </div>
 
         <div id="results" class="loading">
+            Laster inventardata...
         </div>
 
         <div id="gallery-view" style="display: none;">
@@ -584,81 +593,10 @@
     </div>
 
     <script>
-        // LANGUAGE CONFIGURATION - Change 'en' to 'no' for Norwegian
-        const LANGUAGE = 'no'; // Options: 'en' or 'no'
-
-        const translations = {
-            en: {
-                title: '🏠 Inventory List',
-                subtitle: 'Searchable database of containers and contents',
-                aboutToggle: '▼ About the inventory',
-                searchPlaceholder: 'Search for ID, contents, description...',
-                filterAll: 'All',
-                containerView: '📦 Container View',
-                galleryView: '🖼️ Gallery View',
-                tagFilterLabel: 'Filter by tags (click multiple for AND filter):',
-                tagFilterClearAll: 'Clear all',
-                statsShowing: 'Showing',
-                statsOf: 'of',
-                statsContainers: 'containers',
-                statsImages: 'images',
-                noResults: 'No containers matched the search',
-                noImages: 'No images matched the search',
-                loading: 'Loading inventory data...',
-                errorLoading: 'Error loading data. Check that inventory.json exists.',
-                contents: 'Contents:',
-                viewPhotos: '📷 View all photos in full resolution',
-                goTo: 'Go to',
-                imageOf: 'Image',
-                container: 'Container'
-            },
-            no: {
-                title: '🏠 Inventarliste',
-                subtitle: 'Søkbar database over containere og innhold',
-                aboutToggle: '▼ Om inventarlisten',
-                searchPlaceholder: 'Søk etter ID, innhold, beskrivelse...',
-                filterAll: 'Alle',
-                containerView: '📦 Containervisning',
-                galleryView: '🖼️ Bildevisning',
-                tagFilterLabel: 'Filter etter emneord (klikk flere for AND-filter):',
-                tagFilterClearAll: 'Nullstill alle',
-                statsShowing: 'Viser',
-                statsOf: 'av',
-                statsContainers: 'containere',
-                statsImages: 'bilder',
-                noResults: 'Ingen containere matchet søket',
-                noImages: 'Ingen bilder matchet søket',
-                loading: 'Laster inventardata...',
-                errorLoading: 'Feil ved lasting av data. Sjekk at inventory.json eksisterer.',
-                contents: 'Innhold:',
-                viewPhotos: '📷 Se alle bilder i full oppløsning',
-                goTo: 'Gå til',
-                imageOf: 'Bilde',
-                container: 'Container'
-            }
-        };
-
-        const t = translations[LANGUAGE];
-
-        // Initialize UI text with translations
-        function initializeUI() {
-            document.getElementById('pageTitle').textContent = t.title;
-            document.getElementById('pageSubtitle').textContent = t.subtitle;
-            document.getElementById('introToggle').textContent = t.aboutToggle;
-            document.getElementById('searchBox').placeholder = t.searchPlaceholder;
-            document.getElementById('containerViewBtn').textContent = t.containerView;
-            document.getElementById('galleryViewBtn').textContent = t.galleryView;
-            document.getElementById('stats').textContent = t.loading;
-            document.getElementById('results').textContent = t.loading;
-        }
-
-        // Call initializeUI on page load
-        initializeUI();
-
         let inventoryData = null;
         let currentFilter = 'all';
         let searchTerm = '';
-        let currentView = 'containers';
+        let currentView = 'boxes';
         let allImages = [];
         let currentLightboxIndex = -1;
         let aliasData = null;
@@ -667,7 +605,6 @@
         let containerIds = new Set();
         let allTags = new Map(); // tag -> count
         let selectedTags = new Set(); // currently selected tag filters (AND logic)
-        let containerPrefixes = new Map(); // prefix -> count
 
         // Build flat image index for gallery view
         function buildImageIndex() {
@@ -703,58 +640,6 @@
             });
         }
 
-        // Build container prefix collection
-        function buildContainerPrefixes() {
-            containerPrefixes.clear();
-            if (!inventoryData) return;
-
-            inventoryData.containers.forEach(container => {
-                // Extract prefix from container ID
-                // Common patterns: A1, Box1, Tower-A, Shelf-1, Garasje, etc.
-                const id = container.id || '';
-
-                // Try to match common patterns
-                let prefix = null;
-
-                // Pattern 1: Letter(s) + Number (e.g., A1, AA12, Box1)
-                const match1 = id.match(/^([A-Za-z]+)\d+/);
-                if (match1) {
-                    prefix = match1[1];
-                }
-                // Pattern 2: Word with dash/underscore (e.g., Tower-A, Shelf_1)
-                else if (id.includes('-') || id.includes('_')) {
-                    prefix = id.split(/[-_]/)[0];
-                }
-                // Pattern 3: Single word (e.g., Garasje, Workbench)
-                else if (id.match(/^[A-Za-z]+$/)) {
-                    prefix = id;
-                }
-
-                if (prefix) {
-                    containerPrefixes.set(prefix, (containerPrefixes.get(prefix) || 0) + 1);
-                }
-            });
-        }
-
-        // Display dynamic filters
-        function displayFilters() {
-            const filtersDiv = document.getElementById('filters');
-            if (!filtersDiv) return;
-
-            let html = `<button class="filter-btn active" data-filter="all">${t.filterAll}</button>`;
-
-            // Sort prefixes by count (descending) then alphabetically
-            const sortedPrefixes = Array.from(containerPrefixes.entries())
-                .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-
-            // Add filter buttons for each prefix (limit to top 10)
-            sortedPrefixes.slice(0, 10).forEach(([prefix, count]) => {
-                html += `<button class="filter-btn" data-filter="${prefix}">${prefix} (${count})</button>`;
-            });
-
-            filtersDiv.innerHTML = html;
-        }
-
         // Display tag filter UI
         function displayTagFilter() {
             const tagFilterDiv = document.getElementById('tagFilter');
@@ -770,9 +655,9 @@
                 .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
             let html = '<div style="font-size: 12px; color: #666; margin-bottom: 5px;">';
-            html += t.tagFilterLabel;
+            html += 'Filter etter emneord (klikk flere for AND-filter):';
             if (selectedTags.size > 0) {
-                html += ` <button class="tag-filter-btn" data-tag="" style="font-size: 11px; padding: 3px 8px;">${t.tagFilterClearAll}</button>`;
+                html += ` <button class="tag-filter-btn" data-tag="" style="font-size: 11px; padding: 3px 8px;">Nullstill alle</button>`;
             }
             html += '</div>';
             html += '<div style="display: flex; flex-wrap: wrap; gap: 5px;">';
@@ -916,7 +801,6 @@
                 buildImageIndex();
                 buildSearchIndex();
                 buildTagCollection();
-                buildContainerPrefixes();
 
                 // Build set of all container IDs for linking
                 containerIds.clear();
@@ -926,12 +810,11 @@
                     }
                 });
 
-                displayFilters();
                 displayTagFilter();
                 displayResults();
             } catch (error) {
                 document.getElementById('results').innerHTML =
-                    `<div class="no-results">${t.errorLoading}</div>`;
+                    '<div class="no-results">Feil ved lasting av data. Sjekk at inventory.json eksisterer.</div>';
             }
         }
 
@@ -969,9 +852,9 @@
 
                 // Switch to container view if in gallery mode
                 if (currentView === 'gallery') {
-                    currentView = 'containers';
+                    currentView = 'boxes';
                     document.querySelectorAll('.view-btn').forEach(btn => {
-                        btn.classList.toggle('active', btn.dataset.view === 'containers');
+                        btn.classList.toggle('active', btn.dataset.view === 'boxes');
                     });
                 }
 
@@ -1033,22 +916,10 @@
 
         // Check if container matches current filters
         function containerMatchesFilters(container) {
-            // Filter by prefix
+            // Filter by series
             if (currentFilter !== 'all') {
-                const id = container.id || '';
-
-                // Extract prefix from this container's ID
-                let prefix = null;
-                const match1 = id.match(/^([A-Za-z]+)\d+/);
-                if (match1) {
-                    prefix = match1[1];
-                } else if (id.includes('-') || id.includes('_')) {
-                    prefix = id.split(/[-_]/)[0];
-                } else if (id.match(/^[A-Za-z]+$/)) {
-                    prefix = id;
-                }
-
-                if (prefix !== currentFilter) return false;
+                if (currentFilter === 'Box' && !container.heading.startsWith('Box')) return false;
+                if (currentFilter !== 'Box' && !container.id.startsWith(currentFilter)) return false;
             }
 
             // Filter by selected tags (AND logic - must have ALL selected tags)
@@ -1115,11 +986,11 @@
 
             // Update stats
             document.getElementById('stats').innerHTML = `
-                ${t.statsShowing} ${filteredImages.length} ${t.statsImages} ${t.statsOf} ${filteredContainers.length} ${t.statsContainers}
+                Viser ${filteredImages.length} bilder fra ${filteredContainers.length} containere
             `;
 
             if (filteredImages.length === 0) {
-                galleryDiv.innerHTML = `<div class="no-results">${t.noImages}</div>`;
+                galleryDiv.innerHTML = '<div class="no-results">Ingen bilder matchet søket</div>';
                 return;
             }
 
@@ -1158,14 +1029,13 @@
             const filteredContainers = inventoryData.containers.filter(containerMatchesFilters);
 
             // Update stats
-            const imageCount = filteredContainers.reduce((sum, container) => sum + container.images.length, 0);
             document.getElementById('stats').innerHTML = `
-                ${t.statsShowing} ${filteredContainers.length} ${t.statsOf} ${inventoryData.containers.length} ${t.statsContainers}
-                (${imageCount} ${t.statsImages})
+                Viser ${filteredContainers.length} av ${inventoryData.containers.length} containere
+                (${filteredContainers.reduce((sum, container) => sum + container.images.length, 0)} bilder)
             `;
 
             if (filteredContainers.length === 0) {
-                resultsDiv.innerHTML = `<div class="no-results">${t.noResults}</div>`;
+                resultsDiv.innerHTML = '<div class="no-results">Ingen containere matchet søket</div>';
                 return;
             }
 
@@ -1175,7 +1045,7 @@
                         <span class="container-id" title="Container ID: ${container.id}">${container.id}</span>
                         <span class="container-title">
                             ${highlightText(cleanHeading(container.heading), searchTerm)}
-                            ${container.parent ? `<a href="#${container.parent}" class="parent-link" data-parent-id="${container.parent}" title="${t.goTo} ${container.parent}">📍 ${container.parent}</a>` : ''}
+                            ${container.parent ? `<a href="#${container.parent}" class="parent-link" data-parent-id="${container.parent}" title="Gå til ${container.parent}">📍 ${container.parent}</a>` : ''}
                         </span>
                         <span class="toggle-icon">▼</span>
                     </div>
@@ -1189,7 +1059,7 @@
 
                             ${container.items.length > 0 ? `
                                 <div class="items-list">
-                                    <h3>${t.contents}</h3>
+                                    <h3>Innhold:</h3>
                                     <ul>
                                         ${container.items.map(item => {
                                             // Handle both string (old) and object (new) formats
@@ -1202,7 +1072,7 @@
                                             if (item.id) {
                                                 // Check if this item ID matches a container - make it clickable
                                                 if (containerIds.has(item.id)) {
-                                                    html += `<a href="#${item.id}" class="item-link" data-container-id="${item.id}" title="${t.goTo} ${item.id}">`;
+                                                    html += `<a href="#${item.id}" class="item-link" data-container-id="${item.id}" title="Gå til ${item.id}">`;
                                                     html += `<code class="item-id">${item.id}</code>`;
                                                     html += `</a> `;
                                                 } else {
@@ -1230,7 +1100,7 @@
 
                             ${container.photos_link ? `
                                 <a href="${container.photos_link}" class="photos-link" target="_blank">
-                                    ${t.viewPhotos}
+                                    📷 Se alle bilder i full oppløsning
                                 </a>
                             ` : ''}
 
@@ -1353,8 +1223,8 @@
 
             lightboxImg.src = imgData.image.full;
             lightboxInfo.innerHTML = `
-                ${t.imageOf} ${currentLightboxIndex + 1} ${t.statsOf} ${filteredImages.length} |
-                ${t.container}: ${imgData.containerId} (${imgData.imageIndex}/${imgData.totalInContainer})
+                Bilde ${currentLightboxIndex + 1} av ${filteredImages.length} |
+                Container: ${imgData.containerId} (${imgData.imageIndex}/${imgData.totalInContainer})
             `;
             lightbox.classList.add('active');
         }

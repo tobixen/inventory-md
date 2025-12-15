@@ -94,6 +94,10 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
     current_section_id = None  # Track current section ID for parent inference
     current_top_level_id = None  # Track top-level section (e.g., ID:Garasje)
 
+    # Track heading hierarchy for automatic parent inference
+    # heading_stack[level] = container_id at that heading level
+    heading_stack = {}  # level -> container_id
+
     while i < len(lines):
         line = lines[i]
 
@@ -127,10 +131,49 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
                 container_id = parsed['metadata']['id']
                 current_top_level_id = container_id
 
+                # Update heading stack for H1 level
+                heading_stack = {1: container_id}
+
                 # Create a top-level container
                 result['containers'].append({
                     'id': container_id,
                     'parent': None,  # Top-level containers have no parent
+                    'heading': heading,
+                    'description': '',
+                    'items': [],
+                    'images': [],
+                    'photos_link': ''
+                })
+            i += 1
+            continue
+
+        elif line.startswith('# ') and not line.startswith('## '):
+            # Generic H1 heading (not ID: or Intro/Nummereringsregime)
+            # Use as top-level container if not special section
+            if not (line.startswith('# Intro') or line.startswith('# Nummereringsregime')):
+                heading = line[2:].strip()  # Remove '# '
+                parsed = extract_metadata(heading)
+
+                # Generate container ID from heading
+                if parsed['metadata'].get('id'):
+                    container_id = parsed['metadata']['id']
+                else:
+                    # Sanitize heading to create ID
+                    clean_heading = parsed['name'] if parsed['name'] else heading
+                    import re
+                    sanitized = re.sub(r'[^\w\s-]', '', clean_heading)
+                    sanitized = re.sub(r'\s+', '-', sanitized.strip())
+                    container_id = sanitized[:50] if sanitized else 'Container-1'
+
+                current_top_level_id = container_id
+
+                # Update heading stack for H1 level
+                heading_stack = {1: container_id}
+
+                # Create a top-level container
+                result['containers'].append({
+                    'id': container_id,
+                    'parent': None,
                     'heading': heading,
                     'description': '',
                     'items': [],
@@ -145,26 +188,51 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
             i += 1
             continue
 
-        # Container entries (## headings - could be towers, boxes, shelves, etc.)
-        elif line.startswith('## '):
-            # Parse container heading
-            heading = line[3:].strip()
+        # Container entries (##, ###, ####, etc. - could be towers, boxes, shelves, locations, etc.)
+        elif line.startswith('##') and not line.startswith('#' * 7):  # Support up to H6 (######)
+            # Determine heading level (## = 2, ### = 3, etc.)
+            heading_level = len(line) - len(line.lstrip('#'))
+            heading = line[heading_level:].strip()
 
             # Extract metadata (ID, parent, etc.) from heading
             parsed = extract_metadata(heading)
 
-            # Get container ID - either from metadata or first word
-            container_id = parsed['metadata'].get('id') or (heading.split()[0] if heading else 'Unknown')
+            # Get container ID - either from metadata or generate from heading text
+            if parsed['metadata'].get('id'):
+                container_id = parsed['metadata']['id']
+            else:
+                # Generate ID from heading text
+                # Remove metadata markers and clean the text
+                clean_heading = parsed['name'] if parsed['name'] else heading
+
+                # Sanitize: remove special chars, replace spaces with hyphens
+                import re
+                sanitized = re.sub(r'[^\w\s-]', '', clean_heading)
+                sanitized = re.sub(r'\s+', '-', sanitized.strip())
+
+                # Limit length and ensure it's not empty
+                container_id = sanitized[:50] if sanitized else f'Container-{heading_level}'
 
             # Track this section ID for parent inference
             current_section_id = container_id
 
-            # Infer parent from top-level section if not explicit and not already inferred
+            # Infer parent from heading hierarchy
             parent_id = parsed['metadata'].get('parent')
-            if not parent_id and current_top_level_id and container_id != current_top_level_id:
-                # Only infer if we don't already have a parent for this container
-                if container_id not in inferred_parents:
-                    inferred_parents[container_id] = current_top_level_id
+            if not parent_id:
+                # Look for parent in heading stack (one level up)
+                parent_level = heading_level - 1
+                if parent_level in heading_stack:
+                    parent_id = heading_stack[parent_level]
+                    if container_id not in inferred_parents:
+                        inferred_parents[container_id] = parent_id
+                elif parent_level == 1 and current_top_level_id and container_id != current_top_level_id:
+                    # Fallback to top-level section for H2 headings
+                    if container_id not in inferred_parents:
+                        inferred_parents[container_id] = current_top_level_id
+
+            # Update heading stack - clear all deeper levels
+            heading_stack = {k: v for k, v in heading_stack.items() if k < heading_level}
+            heading_stack[heading_level] = container_id
 
             current_container = {
                 'id': container_id,

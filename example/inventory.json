@@ -1,0 +1,990 @@
+{
+  "intro": "Demo Inventory\n\n## Om inventarlisten\n\nDette er en demo inventarliste som viser funksjonene i Inventory System:\n\n* Hierarkisk organisering med foreldre/barn-relasjoner\n* Tagging av items for enkel søking\n* Support for bilder (når du legger til egne bilder)\n* Multi-tag filtering\n* Alias search\n\n## Hvordan bruke\n\n1. Søk etter innhold i søkefeltet\n2. Filtrer på boksserie (A, B, C, etc)\n3. Klikk på emneord for å filtrere på tags\n4. Klikk på boks-ID for å navigere til forelder/barn-containere",
+  "numbering_scheme": "Denne demoen bruker følgende system:\n\n* **A-serien**: Verktøykasser (A1-A10)\n* **B-serien**: Elektronikk og dataområde (B1-B10)\n* **C-serien**: Sport og friluft (C1-C10)\n* **Locations**: Overordnede plasseringer (Garasje, Loft, Kjeller)",
+  "containers": [
+    {
+      "id": "Garasje",
+      "parent": null,
+      "heading": "ID:Garasje Oversikt over garasjen",
+      "description": "",
+      "items": [],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "Workbench",
+      "parent": "Garasje",
+      "heading": "ID:Workbench parent:Garasje Arbeidsbenk i garasjen",
+      "description": "Permanent arbeidsplass med verktøy.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Hammere (3 stk)",
+          "raw_text": "tag:verktøy,manuell Hammere (3 stk)",
+          "metadata": {
+            "tags": [
+              "verktøy",
+              "manuell"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Skrutrekkere (forskjellige størrelser)",
+          "raw_text": "tag:verktøy,manuell Skrutrekkere (forskjellige størrelser)",
+          "metadata": {
+            "tags": [
+              "verktøy",
+              "manuell"
+            ]
+          }
+        },
+        {
+          "id": "Drill1",
+          "parent": null,
+          "name": "Borhammer Bosch GBH 2-26",
+          "raw_text": "tag:verktøy,elektrisk ID:Drill1 Borhammer Bosch GBH 2-26",
+          "metadata": {
+            "id": "Drill1",
+            "tags": [
+              "verktøy",
+              "elektrisk"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Vater 60cm",
+          "raw_text": "tag:verktøy,måling Vater 60cm",
+          "metadata": {
+            "tags": [
+              "verktøy",
+              "måling"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Tommestokk 2m",
+          "raw_text": "tag:verktøy,måling Tommestokk 2m",
+          "metadata": {
+            "tags": [
+              "verktøy",
+              "måling"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "A1",
+      "parent": "Workbench",
+      "heading": "ID:A1 parent:Workbench Verktøykasse - Skruer og biter",
+      "description": "Organisert kasse med forskjellige skruer og bits.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Maskinskruer M3-M8",
+          "raw_text": "tag:skruer,metall Maskinskruer M3-M8",
+          "metadata": {
+            "tags": [
+              "skruer",
+              "metall"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Treskrewsvarierte lengder",
+          "raw_text": "tag:skruer,tre Treskrewsvarierte lengder",
+          "metadata": {
+            "tags": [
+              "skruer",
+              "tre"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Bitssett 32 deler",
+          "raw_text": "tag:verktøy,bits Bitssett 32 deler",
+          "metadata": {
+            "tags": [
+              "verktøy",
+              "bits"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Hylsesett 1/4\" og 1/2\"",
+          "raw_text": "tag:verktøy,bits Hylsesett 1/4\" og 1/2\"",
+          "metadata": {
+            "tags": [
+              "verktøy",
+              "bits"
+            ]
+          }
+        },
+        {
+          "id": "BitBox1",
+          "parent": null,
+          "name": "Liten plastboks med spesialbiter",
+          "raw_text": "ID:BitBox1 Liten plastboks med spesialbiter",
+          "metadata": {
+            "id": "BitBox1"
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "A2",
+      "parent": "Workbench",
+      "heading": "ID:A2 parent:Workbench Verktøykasse - Elektrisk",
+      "description": "Småelektronikk og kabler.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "USB-kabler (5-10 stk)",
+          "raw_text": "tag:elektronikk,kabel USB-kabler (5-10 stk)",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "kabel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "HDMI-kabler",
+          "raw_text": "tag:elektronikk,kabel HDMI-kabler",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "kabel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Ethernet-kabler",
+          "raw_text": "tag:elektronikk,kabel Ethernet-kabler",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "kabel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Loddbolt 60W",
+          "raw_text": "tag:elektronikk,verktøy Loddbolt 60W",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "verktøy"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Multimeter Fluke",
+          "raw_text": "tag:elektronikk,verktøy Multimeter Fluke",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "verktøy"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Motstander og kondensatorer",
+          "raw_text": "tag:elektronikk,komponenter Motstander og kondensatorer",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "komponenter"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Arduino-brettkort (2 stk)",
+          "raw_text": "tag:elektronikk,komponenter Arduino-brettkort (2 stk)",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "komponenter"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "A3",
+      "parent": "Workbench",
+      "heading": "ID:A3 parent:Workbench Verktøykasse - Maling og lim",
+      "description": "Diverse maling, lim og forseglingsmidler.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Trebeis hvit 0.5L",
+          "raw_text": "tag:maling,tre Trebeis hvit 0.5L",
+          "metadata": {
+            "tags": [
+              "maling",
+              "tre"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Rustbeskyttelse sort",
+          "raw_text": "tag:maling,metall Rustbeskyttelse sort",
+          "metadata": {
+            "tags": [
+              "maling",
+              "metall"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Kontaktlim",
+          "raw_text": "tag:lim,kontakt Kontaktlim",
+          "metadata": {
+            "tags": [
+              "lim",
+              "kontakt"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Epoxy 2-komponent",
+          "raw_text": "tag:lim,epoxy Epoxy 2-komponent",
+          "metadata": {
+            "tags": [
+              "lim",
+              "epoxy"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Silikon transparent og hvit",
+          "raw_text": "tag:lim,silikon Silikon transparent og hvit",
+          "metadata": {
+            "tags": [
+              "lim",
+              "silikon"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Pensel sett (5 deler)",
+          "raw_text": "tag:maling,verktøy Pensel sett (5 deler)",
+          "metadata": {
+            "tags": [
+              "maling",
+              "verktøy"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Malerrulle med stang",
+          "raw_text": "tag:maling,verktøy Malerrulle med stang",
+          "metadata": {
+            "tags": [
+              "maling",
+              "verktøy"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "Drill1",
+      "parent": "Workbench",
+      "heading": "ID:Drill1 parent:Workbench Borhammer Bosch GBH 2-26",
+      "description": "Elektrisk borhammer med tilbehør.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Borkassett SDS-plus",
+          "raw_text": "Borkassett SDS-plus",
+          "metadata": {}
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Meiselsett for betong",
+          "raw_text": "Meiselsett for betong",
+          "metadata": {}
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Dybdeanlegg",
+          "raw_text": "Dybdeanlegg",
+          "metadata": {}
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Sidehåndtak",
+          "raw_text": "Sidehåndtak",
+          "metadata": {}
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Oppbevaringskoffert",
+          "raw_text": "Oppbevaringskoffert",
+          "metadata": {}
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "BitBox1",
+      "parent": "A1",
+      "heading": "ID:BitBox1 parent:A1 Spesialbiter",
+      "description": "Samling av sjeldnere bits.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Torx bits T10-T40",
+          "raw_text": "Torx bits T10-T40",
+          "metadata": {}
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Sekskantnøkler 1.5-10mm",
+          "raw_text": "Sekskantnøkler 1.5-10mm",
+          "metadata": {}
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Pozidriv bits PZ1-PZ3",
+          "raw_text": "Pozidriv bits PZ1-PZ3",
+          "metadata": {}
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "Loft",
+      "parent": null,
+      "heading": "ID:Loft Oversikt over loftet",
+      "description": "",
+      "items": [],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "C1",
+      "parent": "Loft",
+      "heading": "ID:C1 parent:Loft Sport og friluft - Vinter",
+      "description": "Utstyr for vintersport.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Barneski 120cm",
+          "raw_text": "tag:sport,ski,barn Barneski 120cm",
+          "metadata": {
+            "tags": [
+              "sport",
+              "ski",
+              "barn"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Skistaver barn 100cm",
+          "raw_text": "tag:sport,ski,barn Skistaver barn 100cm",
+          "metadata": {
+            "tags": [
+              "sport",
+              "ski",
+              "barn"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Langrennsski 200cm",
+          "raw_text": "tag:sport,ski,voksen Langrennsski 200cm",
+          "metadata": {
+            "tags": [
+              "sport",
+              "ski",
+              "voksen"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Skisko størrelse 42",
+          "raw_text": "tag:sport,ski,voksen Skisko størrelse 42",
+          "metadata": {
+            "tags": [
+              "sport",
+              "ski",
+              "voksen"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Skivoks (rød og blå)",
+          "raw_text": "tag:sport,ski,tilbehør Skivoks (rød og blå)",
+          "metadata": {
+            "tags": [
+              "sport",
+              "ski",
+              "tilbehør"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Smørejern",
+          "raw_text": "tag:sport,ski,tilbehør Smørejern",
+          "metadata": {
+            "tags": [
+              "sport",
+              "ski",
+              "tilbehør"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Vinterdress størrelse 110",
+          "raw_text": "tag:klær,vinter,barn Vinterdress størrelse 110",
+          "metadata": {
+            "tags": [
+              "klær",
+              "vinter",
+              "barn"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Votter og lue",
+          "raw_text": "tag:klær,vinter,barn Votter og lue",
+          "metadata": {
+            "tags": [
+              "klær",
+              "vinter",
+              "barn"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "C2",
+      "parent": "Loft",
+      "heading": "ID:C2 parent:Loft Sport og friluft - Sommer",
+      "description": "Campingutstyr og sommersport.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Sovepose -5°C (2 stk)",
+          "raw_text": "tag:camping,sove Sovepose -5°C (2 stk)",
+          "metadata": {
+            "tags": [
+              "camping",
+              "sove"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Liggeunderlag selvoppblåsbart",
+          "raw_text": "tag:camping,sove Liggeunderlag selvoppblåsbart",
+          "metadata": {
+            "tags": [
+              "camping",
+              "sove"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Trangiakjøkken komplett",
+          "raw_text": "tag:camping,koking Trangiakjøkken komplett",
+          "metadata": {
+            "tags": [
+              "camping",
+              "koking"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Gassbluss og patroner",
+          "raw_text": "tag:camping,koking Gassbluss og patroner",
+          "metadata": {
+            "tags": [
+              "camping",
+              "koking"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Sykkelhjelm voksen",
+          "raw_text": "tag:sport,sykkel Sykkelhjelm voksen",
+          "metadata": {
+            "tags": [
+              "sport",
+              "sykkel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Sykkellås med nøkkel",
+          "raw_text": "tag:sport,sykkel Sykkellås med nøkkel",
+          "metadata": {
+            "tags": [
+              "sport",
+              "sykkel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Sykkellykt LED front og bak",
+          "raw_text": "tag:sport,sykkel Sykkellykt LED front og bak",
+          "metadata": {
+            "tags": [
+              "sport",
+              "sykkel"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "C3",
+      "parent": "Loft",
+      "heading": "ID:C3 parent:Loft Leker og barneting",
+      "description": "Leketøy og barneutstyr i oppbevaring.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "LEGO kasser (3 store)",
+          "raw_text": "tag:leker,barn,bygg LEGO kasser (3 store)",
+          "metadata": {
+            "tags": [
+              "leker",
+              "barn",
+              "bygg"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Dukkehus med møbler",
+          "raw_text": "tag:leker,barn,dukker Dukkehus med møbler",
+          "metadata": {
+            "tags": [
+              "leker",
+              "barn",
+              "dukker"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Biler og tog",
+          "raw_text": "tag:leker,barn,biler Biler og tog",
+          "metadata": {
+            "tags": [
+              "leker",
+              "barn",
+              "biler"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Bildebøker 20+ stk",
+          "raw_text": "tag:bok,barn Bildebøker 20+ stk",
+          "metadata": {
+            "tags": [
+              "bok",
+              "barn"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Høytlesningsbøker",
+          "raw_text": "tag:bok,barn Høytlesningsbøker",
+          "metadata": {
+            "tags": [
+              "bok",
+              "barn"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Vårjakker str 80-110",
+          "raw_text": "tag:klær,barn,vår Vårjakker str 80-110",
+          "metadata": {
+            "tags": [
+              "klær",
+              "barn",
+              "vår"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Sommershorts og t-skjorter",
+          "raw_text": "tag:klær,barn,sommer Sommershorts og t-skjorter",
+          "metadata": {
+            "tags": [
+              "klær",
+              "barn",
+              "sommer"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "Kjeller",
+      "parent": null,
+      "heading": "ID:Kjeller Oversikt over kjelleren",
+      "description": "",
+      "items": [],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "B1",
+      "parent": "Kjeller",
+      "heading": "ID:B1 parent:Kjeller Elektronikk - Datautstyr",
+      "description": "Gamle datamaskiner og tilbehør.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Laptop HP 2015 (defekt)",
+          "raw_text": "tag:elektronikk,pc,gammel Laptop HP 2015 (defekt)",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "pc",
+              "gammel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Desktop PC deler (hovedkort, RAM)",
+          "raw_text": "tag:elektronikk,pc,gammel Desktop PC deler (hovedkort, RAM)",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "pc",
+              "gammel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "LCD-skjerm 24\" (fungerer)",
+          "raw_text": "tag:elektronikk,skjerm LCD-skjerm 24\" (fungerer)",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "skjerm"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Tastatur og mus (5 sett)",
+          "raw_text": "tag:elektronikk,tilbehør Tastatur og mus (5 sett)",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "tilbehør"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Strømkabler og adaptere",
+          "raw_text": "tag:elektronikk,kabel Strømkabler og adaptere",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "kabel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Eksterne harddisker 500GB-2TB",
+          "raw_text": "tag:elektronikk,lagring Eksterne harddisker 500GB-2TB",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "lagring"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "B2",
+      "parent": "Kjeller",
+      "heading": "ID:B2 parent:Kjeller Elektronikk - Audio/Video",
+      "description": "Lydanlegg og videoutstyr.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "Høyttalere stereo",
+          "raw_text": "tag:elektronikk,lyd Høyttalere stereo",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "lyd"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Hodetelefoner (3 par)",
+          "raw_text": "tag:elektronikk,lyd Hodetelefoner (3 par)",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "lyd"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Mikrofon med stativ",
+          "raw_text": "tag:elektronikk,lyd Mikrofon med stativ",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "lyd"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Webkamera HD",
+          "raw_text": "tag:elektronikk,video Webkamera HD",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "video"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "3.5mm jack-kabler",
+          "raw_text": "tag:elektronikk,kabel 3.5mm jack-kabler",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "kabel"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "RCA-kabler",
+          "raw_text": "tag:elektronikk,kabel RCA-kabler",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "kabel"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    },
+    {
+      "id": "B3",
+      "parent": "Kjeller",
+      "heading": "ID:B3 parent:Kjeller Strøm og belysning",
+      "description": "Reserve pærer og lysutstyr.",
+      "items": [
+        {
+          "id": null,
+          "parent": null,
+          "name": "LED-pærer E27 (10 stk)",
+          "raw_text": "tag:belysning,led LED-pærer E27 (10 stk)",
+          "metadata": {
+            "tags": [
+              "belysning",
+              "led"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "LED-strips 5m med strømforsyning",
+          "raw_text": "tag:belysning,led LED-strips 5m med strømforsyning",
+          "metadata": {
+            "tags": [
+              "belysning",
+              "led"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Arbeidslampe LED 20W",
+          "raw_text": "tag:belysning,arbeid Arbeidslampe LED 20W",
+          "metadata": {
+            "tags": [
+              "belysning",
+              "arbeid"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Skjøteledning 10m",
+          "raw_text": "tag:elektronikk,strøm Skjøteledning 10m",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "strøm"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Kabeltrommel 25m",
+          "raw_text": "tag:elektronikk,strøm Kabeltrommel 25m",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "strøm"
+            ]
+          }
+        },
+        {
+          "id": null,
+          "parent": null,
+          "name": "Multistikkontakt (5 stk)",
+          "raw_text": "tag:elektronikk,strøm Multistikkontakt (5 stk)",
+          "metadata": {
+            "tags": [
+              "elektronikk",
+              "strøm"
+            ]
+          }
+        }
+      ],
+      "images": [],
+      "photos_link": ""
+    }
+  ]
+}
