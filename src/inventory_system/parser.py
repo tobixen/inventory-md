@@ -364,8 +364,17 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
     for container in result['containers']:
         container_id = container.get('id')
         if container_id:
+            # Check if there's a photos_link that specifies a different directory
+            photos_link = container.get('photos_link', '')
+            if photos_link:
+                # Extract directory name from photos_link (e.g., "photos/A89" -> "A89")
+                photo_dir = photos_link.replace('photos/', '').strip('/')
+            else:
+                # Use container_id as directory name
+                photo_dir = container_id
+
             # Auto-discover images from photos/resized directories
-            discovered_images = discover_images(container_id, base_path)
+            discovered_images = discover_images(photo_dir, base_path)
             container['images'] = discovered_images
 
     return result
