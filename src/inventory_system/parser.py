@@ -4,6 +4,7 @@ Inventory System Parser
 
 Parses markdown inventory files into structured JSON data.
 Supports hierarchical organization, metadata tags, and automatic image discovery.
+Automatically creates resized thumbnails when missing.
 """
 import re
 import json
@@ -11,6 +12,48 @@ from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Tuple, Optional, Any
 import os
+import sys
+
+
+def create_thumbnail(source_path: Path, dest_path: Path, max_size: int = 800) -> bool:
+    """
+    Create a resized thumbnail from a source image.
+
+    Args:
+        source_path: Path to source image
+        dest_path: Path to save thumbnail
+        max_size: Maximum width or height in pixels
+
+    Returns:
+        True if thumbnail was created, False otherwise
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        print("⚠️  Pillow not installed. Run: pip install Pillow", file=sys.stderr)
+        return False
+
+    try:
+        # Open and resize image
+        with Image.open(source_path) as img:
+            # Convert RGBA to RGB if needed (for JPEG)
+            if img.mode == 'RGBA':
+                rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                rgb_img.paste(img, mask=img.split()[3])
+                img = rgb_img
+
+            # Calculate new size maintaining aspect ratio
+            img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+
+            # Ensure destination directory exists
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Save thumbnail
+            img.save(dest_path, quality=85, optimize=True)
+            return True
+    except Exception as e:
+        print(f"⚠️  Failed to resize {source_path.name}: {e}", file=sys.stderr)
+        return False
 
 
 def discover_images(container_id: str, base_path: Path) -> List[Dict[str, str]]:
@@ -21,6 +64,8 @@ def discover_images(container_id: str, base_path: Path) -> List[Dict[str, str]]:
     - photos/{container_id}/*.{jpg,jpeg,png,gif}
     - resized/{container_id}/*.{jpg,jpeg,png,gif}
 
+    Automatically creates missing thumbnails from photos directory.
+
     Returns list of image dicts with 'alt', 'thumb', and 'full' keys.
     """
     images = []
@@ -28,26 +73,46 @@ def discover_images(container_id: str, base_path: Path) -> List[Dict[str, str]]:
     # Image extensions to look for
     extensions = ('.jpg', '.jpeg', '.png', '.gif', '.JPG', '.JPEG', '.PNG', '.GIF')
 
-    # Look in resized directory (thumbnails)
+    # First, scan photos directory to find all source images
+    photos_dir = base_path / 'photos' / container_id
     resized_dir = base_path / 'resized' / container_id
-    if resized_dir.exists() and resized_dir.is_dir():
-        # Get all image files, sorted by name
-        image_files = sorted([
-            f for f in resized_dir.iterdir()
-            if f.is_file() and f.name.endswith(extensions)
-        ])
 
-        for img_file in image_files:
-            # Construct relative paths
-            thumb_path = f'resized/{container_id}/{img_file.name}'
-            full_path = f'photos/{container_id}/{img_file.name}'
-            alt_text = f'{container_id}/{img_file.name}'
+    if not photos_dir.exists() or not photos_dir.is_dir():
+        # No photos directory - nothing to discover
+        return images
 
-            images.append({
-                'alt': alt_text,
-                'thumb': thumb_path,
-                'full': full_path
-            })
+    # Get all image files from photos directory, sorted by name
+    photo_files = sorted([
+        f for f in photos_dir.iterdir()
+        if f.is_file() and f.name.endswith(extensions)
+    ])
+
+    # Track thumbnails created
+    thumbnails_created = 0
+
+    for photo_file in photo_files:
+        # Check if thumbnail exists
+        thumb_file = resized_dir / photo_file.name
+
+        if not thumb_file.exists():
+            # Create missing thumbnail
+            if create_thumbnail(photo_file, thumb_file):
+                thumbnails_created += 1
+
+        # Add to images list
+        thumb_path = f'resized/{container_id}/{photo_file.name}'
+        full_path = f'photos/{container_id}/{photo_file.name}'
+        alt_text = f'{container_id}/{photo_file.name}'
+
+        images.append({
+            'alt': alt_text,
+            'thumb': thumb_path,
+            'full': full_path
+        })
+
+    # Report thumbnail creation
+    if thumbnails_created > 0:
+        print(f"  ✓ Created {thumbnails_created} thumbnail(s) for {container_id}", file=sys.stderr)
 
     return images
 

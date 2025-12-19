@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Automatic image discovery from filesystem
-  - Parser now scans `resized/{container_id}/` directories for images
+  - Parser now scans `photos/{container_id}/` directories for source images
+  - Automatically creates missing thumbnails in `resized/{container_id}/`
   - No more manual image list maintenance in markdown
   - Supports `.jpg`, `.jpeg`, `.png`, `.gif` formats
   - Images automatically sorted by filename
+  - Uses PIL/Pillow for high-quality resizing (max 800px, quality 85)
 - Support for `photos_link` in image discovery
   - Allows split containers (e.g., A89-1, A89-2, A89-3) to share photo directories
   - Parser respects `[Fotos, full oppløsning](photos/...)` links
