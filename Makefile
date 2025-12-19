@@ -30,18 +30,31 @@ help:
 	@echo "  make stop-chat         Stop chat server only"
 	@echo "  make stop-web          Stop web server only"
 
+# Create inventory user
+create-user:
+	@echo "👤 Creating inventory user..."
+	@if id inventory &>/dev/null; then \
+		echo "   User 'inventory' already exists"; \
+	else \
+		sudo useradd -r -s /usr/bin/nologin -d /nonexistent inventory; \
+		echo "✅ User 'inventory' created"; \
+	fi
+	@echo "📂 Setting permissions on inventory directory..."
+	@sudo chgrp -R inventory /home/tobias/furusetalle9/inventory
+	@sudo chmod -R g+rX /home/tobias/furusetalle9/inventory
+	@echo "✅ Permissions set!"
+
 # Install services
-install-services:
+install-services: create-user
 	@echo "📦 Installing systemd service files..."
-	@mkdir -p ~/.config/systemd/user
 	@if [ -z "$$ANTHROPIC_API_KEY" ]; then \
 		echo "⚠️  Warning: ANTHROPIC_API_KEY not set"; \
 		echo "   The chat service won't work until you set it"; \
 		echo "   Run: make set-api-key API_KEY=your-key-here"; \
 	fi
-	@sed "s|ANTHROPIC_API_KEY=|ANTHROPIC_API_KEY=$$ANTHROPIC_API_KEY|g" systemd/inventory-chat.service > ~/.config/systemd/user/inventory-chat.service
-	@cp systemd/inventory-web.service ~/.config/systemd/user/
-	@systemctl --user daemon-reload
+	@sed "s|ANTHROPIC_API_KEY=|ANTHROPIC_API_KEY=$$ANTHROPIC_API_KEY|g" systemd/inventory-chat.service | sudo tee /etc/systemd/system/inventory-chat.service > /dev/null
+	@sudo cp systemd/inventory-web.service /etc/systemd/system/
+	@sudo systemctl daemon-reload
 	@echo "✅ Services installed!"
 	@echo ""
 	@echo "Next steps:"
@@ -56,55 +69,55 @@ set-api-key:
 		echo "   Usage: make set-api-key API_KEY=your-key-here"; \
 		exit 1; \
 	fi
-	@sed -i "s|ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$(API_KEY)|g" ~/.config/systemd/user/inventory-chat.service
-	@systemctl --user daemon-reload
+	@sudo sed -i "s|ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$(API_KEY)|g" /etc/systemd/system/inventory-chat.service
+	@sudo systemctl daemon-reload
 	@echo "✅ API key updated!"
 	@echo "   Restart chat service: make restart-chat"
 
 # Start services
 start:
 	@echo "🚀 Starting inventory services..."
-	@systemctl --user start inventory-web.service
-	@systemctl --user start inventory-chat.service
+	@sudo systemctl start inventory-web.service
+	@sudo systemctl start inventory-chat.service
 	@echo "✅ Services started!"
 	@echo ""
 	@$(MAKE) status
 
 start-web:
-	@systemctl --user start inventory-web.service
+	@sudo systemctl start inventory-web.service
 	@echo "✅ Web server started on http://localhost:8000"
 
 start-chat:
-	@systemctl --user start inventory-chat.service
+	@sudo systemctl start inventory-chat.service
 	@echo "✅ Chat server started on http://localhost:8765"
 
 # Stop services
 stop:
 	@echo "🛑 Stopping inventory services..."
-	@systemctl --user stop inventory-web.service inventory-chat.service
+	@sudo systemctl stop inventory-web.service inventory-chat.service
 	@echo "✅ Services stopped!"
 
 stop-web:
-	@systemctl --user stop inventory-web.service
+	@sudo systemctl stop inventory-web.service
 	@echo "✅ Web server stopped"
 
 stop-chat:
-	@systemctl --user stop inventory-chat.service
+	@sudo systemctl stop inventory-chat.service
 	@echo "✅ Chat server stopped"
 
 # Restart services
 restart:
 	@echo "🔄 Restarting inventory services..."
-	@systemctl --user restart inventory-web.service inventory-chat.service
+	@sudo systemctl restart inventory-web.service inventory-chat.service
 	@echo "✅ Services restarted!"
 	@$(MAKE) status
 
 restart-web:
-	@systemctl --user restart inventory-web.service
+	@sudo systemctl restart inventory-web.service
 	@echo "✅ Web server restarted"
 
 restart-chat:
-	@systemctl --user restart inventory-chat.service
+	@sudo systemctl restart inventory-chat.service
 	@echo "✅ Chat server restarted"
 
 # Status
@@ -112,35 +125,35 @@ status:
 	@echo "📊 Inventory Services Status:"
 	@echo ""
 	@echo "Web Server (http://localhost:8000):"
-	@systemctl --user status inventory-web.service --no-pager --lines=0 || true
+	@sudo systemctl status inventory-web.service --no-pager --lines=0 || true
 	@echo ""
 	@echo "Chat Server (http://localhost:8765):"
-	@systemctl --user status inventory-chat.service --no-pager --lines=0 || true
+	@sudo systemctl status inventory-chat.service --no-pager --lines=0 || true
 	@echo ""
 	@echo "Access your inventory at: http://localhost:8000/search.html"
 
 # Enable auto-start
 enable:
-	@systemctl --user enable inventory-web.service inventory-chat.service
+	@sudo systemctl enable inventory-web.service inventory-chat.service
 	@echo "✅ Services will auto-start on boot"
 
 # Disable auto-start
 disable:
-	@systemctl --user disable inventory-web.service inventory-chat.service
+	@sudo systemctl disable inventory-web.service inventory-chat.service
 	@echo "✅ Auto-start disabled"
 
 # Logs
 logs:
 	@echo "📜 Showing logs for both services (Ctrl+C to exit)..."
-	@journalctl --user -u inventory-web.service -u inventory-chat.service -f
+	@sudo journalctl -u inventory-web.service -u inventory-chat.service -f
 
 logs-web:
 	@echo "📜 Web server logs (Ctrl+C to exit)..."
-	@journalctl --user -u inventory-web.service -f
+	@sudo journalctl -u inventory-web.service -f
 
 logs-chat:
 	@echo "📜 Chat server logs (Ctrl+C to exit)..."
-	@journalctl --user -u inventory-chat.service -f
+	@sudo journalctl -u inventory-chat.service -f
 
 # Installation shortcut
 install: install-services

@@ -1,15 +1,22 @@
 [Unit]
 Description=Inventory Chatbot Server
-After=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=%u
-WorkingDirectory=%h/furusetalle9/inventory
+User=inventory
+Group=inventory
+WorkingDirectory=/home/tobias/furusetalle9/inventory
 Environment="ANTHROPIC_API_KEY="
 ExecStart=/usr/bin/inventory-system chat
 Restart=on-failure
 RestartSec=5s
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ReadOnlyPaths=/home/tobias/furusetalle9/inventory
 
 # Logging
 StandardOutput=journal
@@ -17,4 +24,4 @@ StandardError=journal
 SyslogIdentifier=inventory-chat
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target

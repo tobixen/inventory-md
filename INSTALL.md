@@ -32,10 +32,13 @@ cd /home/tobias/inventory-system
 make install-services
 ```
 
-This will:
-- Create service files in `~/.config/systemd/user/`
+This will (requires sudo):
+- Create dedicated `inventory` user (system user, no shell access)
+- Set permissions on inventory directory
+- Install service files to `/etc/systemd/system/`
 - Set your API key in the chat service
 - Reload systemd
+- Services will run as user 'inventory' with read-only access
 
 ### 3. Start the services:
 ```bash
@@ -84,43 +87,53 @@ make restart-chat   # Restart to apply changes
 
 If you prefer to set up manually:
 
-### 1. Copy service files:
+### 1. Create inventory user:
 ```bash
-mkdir -p ~/.config/systemd/user
-cp systemd/inventory-web.service ~/.config/systemd/user/
-cp systemd/inventory-chat.service ~/.config/systemd/user/
+sudo useradd -r -s /usr/bin/nologin -d /nonexistent inventory
 ```
 
-### 2. Edit chat service to add your API key:
+### 2. Set permissions:
 ```bash
-nano ~/.config/systemd/user/inventory-chat.service
+sudo chgrp -R inventory /home/tobias/furusetalle9/inventory
+sudo chmod -R g+rX /home/tobias/furusetalle9/inventory
+```
+
+### 3. Copy service files:
+```bash
+sudo cp systemd/inventory-web.service /etc/systemd/system/
+sudo cp systemd/inventory-chat.service /etc/systemd/system/
+```
+
+### 4. Edit chat service to add your API key:
+```bash
+sudo nano /etc/systemd/system/inventory-chat.service
 # Change: Environment="ANTHROPIC_API_KEY="
 # To:     Environment="ANTHROPIC_API_KEY=your-key-here"
 ```
 
-### 3. Reload systemd:
+### 5. Reload systemd:
 ```bash
-systemctl --user daemon-reload
+sudo systemctl daemon-reload
 ```
 
-### 4. Start services:
+### 6. Start services:
 ```bash
-systemctl --user start inventory-web.service
-systemctl --user start inventory-chat.service
+sudo systemctl start inventory-web.service
+sudo systemctl start inventory-chat.service
 ```
 
-### 5. Enable auto-start (optional):
+### 7. Enable auto-start (optional):
 ```bash
-systemctl --user enable inventory-web.service
-systemctl --user enable inventory-chat.service
+sudo systemctl enable inventory-web.service
+sudo systemctl enable inventory-chat.service
 ```
 
 ## Verifying Installation
 
 ### Check service status:
 ```bash
-systemctl --user status inventory-web.service
-systemctl --user status inventory-chat.service
+sudo systemctl status inventory-web.service
+sudo systemctl status inventory-chat.service
 ```
 
 ### Check if servers are running:
@@ -143,12 +156,17 @@ journalctl --user -u inventory-web.service -n 50
 ### Chat service fails to start
 1. **Check API key is set:**
    ```bash
-   systemctl --user cat inventory-chat.service | grep ANTHROPIC_API_KEY
+   sudo systemctl cat inventory-chat.service | grep ANTHROPIC_API_KEY
    ```
 
 2. **Check logs:**
    ```bash
-   journalctl --user -u inventory-chat.service -n 50
+   sudo journalctl -u inventory-chat.service -n 50
+   ```
+
+3. **Check permissions:**
+   ```bash
+   sudo -u inventory ls -la /home/tobias/furusetalle9/inventory/inventory.json
    ```
 
 3. **Verify inventory.json exists:**
@@ -160,16 +178,16 @@ journalctl --user -u inventory-web.service -n 50
 If ports 8000 or 8765 are already in use, edit the service files:
 
 ```bash
-nano ~/.config/systemd/user/inventory-web.service
+sudo nano /etc/systemd/system/inventory-web.service
 # Change: ExecStart=/usr/bin/inventory-system serve
 # To:     ExecStart=/usr/bin/inventory-system serve --port 8080
 
-nano ~/.config/systemd/user/inventory-chat.service
+sudo nano /etc/systemd/system/inventory-chat.service
 # Change: ExecStart=/usr/bin/inventory-system chat
 # To:     ExecStart=/usr/bin/inventory-system chat --port 8866
 
-systemctl --user daemon-reload
-systemctl --user restart inventory-web.service inventory-chat.service
+sudo systemctl daemon-reload
+sudo systemctl restart inventory-web.service inventory-chat.service
 ```
 
 Also update the chat server URL in search.html:
@@ -187,9 +205,14 @@ make disable
 
 ### Remove service files:
 ```bash
-rm ~/.config/systemd/user/inventory-web.service
-rm ~/.config/systemd/user/inventory-chat.service
-systemctl --user daemon-reload
+sudo rm /etc/systemd/system/inventory-web.service
+sudo rm /etc/systemd/system/inventory-chat.service
+sudo systemctl daemon-reload
+```
+
+### Remove inventory user (optional):
+```bash
+sudo userdel inventory
 ```
 
 ## Usage
