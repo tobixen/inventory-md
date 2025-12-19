@@ -3,13 +3,53 @@
 Inventory System Parser
 
 Parses markdown inventory files into structured JSON data.
-Supports hierarchical organization, metadata tags, and image references.
+Supports hierarchical organization, metadata tags, and automatic image discovery.
 """
 import re
 import json
 from pathlib import Path
 from collections import defaultdict
 from typing import Dict, List, Tuple, Optional, Any
+import os
+
+
+def discover_images(container_id: str, base_path: Path) -> List[Dict[str, str]]:
+    """
+    Automatically discover images for a container from filesystem.
+
+    Looks for images in:
+    - photos/{container_id}/*.{jpg,jpeg,png,gif}
+    - resized/{container_id}/*.{jpg,jpeg,png,gif}
+
+    Returns list of image dicts with 'alt', 'thumb', and 'full' keys.
+    """
+    images = []
+
+    # Image extensions to look for
+    extensions = ('.jpg', '.jpeg', '.png', '.gif', '.JPG', '.JPEG', '.PNG', '.GIF')
+
+    # Look in resized directory (thumbnails)
+    resized_dir = base_path / 'resized' / container_id
+    if resized_dir.exists() and resized_dir.is_dir():
+        # Get all image files, sorted by name
+        image_files = sorted([
+            f for f in resized_dir.iterdir()
+            if f.is_file() and f.name.endswith(extensions)
+        ])
+
+        for img_file in image_files:
+            # Construct relative paths
+            thumb_path = f'resized/{container_id}/{img_file.name}'
+            full_path = f'photos/{container_id}/{img_file.name}'
+            alt_text = f'{container_id}/{img_file.name}'
+
+            images.append({
+                'alt': alt_text,
+                'thumb': thumb_path,
+                'full': full_path
+            })
+
+    return images
 
 
 def extract_metadata(text: str) -> Dict[str, Any]:
@@ -257,18 +297,10 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
             while i < len(lines) and not lines[i].startswith('#'):
                 line_content = lines[i]
 
+                # Skip image lines - images will be discovered from filesystem
                 if line_content.startswith('!['):
-                    # Image
-                    match = re.match(r'!\[([^\]]*)\]\(([^)]+)\)', line_content)
-                    if match:
-                        thumb_src = match.group(2)
-                        # Convert resized path to full resolution path
-                        full_src = thumb_src.replace('resized/', 'photos/')
-                        current_container['images'].append({
-                            'alt': match.group(1),
-                            'thumb': thumb_src,
-                            'full': full_src
-                        })
+                    i += 1
+                    continue
                 elif line_content.startswith('* '):
                     # Item - can be nested
                     item_text = line_content[2:].strip()
@@ -326,6 +358,15 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
     for container in result['containers']:
         if not container.get('parent') and container['id'] in inferred_parents:
             container['parent'] = inferred_parents[container['id']]
+
+    # Discover images from filesystem for each container
+    base_path = md_file.parent  # Directory containing the markdown file
+    for container in result['containers']:
+        container_id = container.get('id')
+        if container_id:
+            # Auto-discover images from photos/resized directories
+            discovered_images = discover_images(container_id, base_path)
+            container['images'] = discovered_images
 
     return result
 
