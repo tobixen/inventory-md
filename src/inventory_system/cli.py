@@ -200,6 +200,62 @@ def serve_command(directory: Path = None, port: int = 8000) -> int:
             return 0
 
 
+def chat_command(directory: Path = None, port: int = 8765) -> int:
+    """Start the chatbot server for conversational inventory access."""
+    import os
+
+    # Check for API key
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("❌ ANTHROPIC_API_KEY environment variable not set")
+        print("\nTo use the chatbot, you need a Claude API key from Anthropic.")
+        print("Get one at: https://console.anthropic.com/")
+        print("\nThen set it:")
+        print("  export ANTHROPIC_API_KEY='your-key-here'")
+        return 1
+
+    if directory is None:
+        directory = Path.cwd()
+    else:
+        directory = Path(directory).resolve()
+
+    if not directory.exists():
+        print(f"❌ Directory {directory} does not exist")
+        return 1
+
+    inventory_json = directory / 'inventory.json'
+    if not inventory_json.exists():
+        print(f"❌ inventory.json not found in {directory}")
+        print(f"Run 'inventory-system parse inventory.md' first")
+        return 1
+
+    # Change to directory so chat_server can find inventory.json
+    os.chdir(directory)
+
+    print(f"🤖 Starting Inventory Chatbot Server...")
+    print(f"📂 Using inventory: {inventory_json}")
+    print(f"🌐 Server will run at: http://localhost:{port}")
+    print(f"💬 Chat endpoint: http://localhost:{port}/chat")
+    print(f"❤️  Health check: http://localhost:{port}/health")
+    print(f"\nOpen search.html in your browser and click the chat button (💬)")
+    print(f"Press Ctrl+C to stop\n")
+
+    # Import and run the chat server
+    try:
+        import uvicorn
+        from .chat_server import app
+    except ImportError as e:
+        print(f"❌ Missing required package: {e}")
+        print("\nInstall chat dependencies:")
+        print("  pip install fastapi uvicorn anthropic")
+        return 1
+
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    except KeyboardInterrupt:
+        print("\n\n👋 Chat server stopped")
+        return 0
+
+
 def main() -> int:
     """Main entry point for the CLI."""
     parser_cli = argparse.ArgumentParser(
@@ -218,6 +274,9 @@ Examples:
 
   # Start a local web server
   inventory-system serve ~/my-inventory
+
+  # Start chatbot server (requires ANTHROPIC_API_KEY)
+  inventory-system chat ~/my-inventory
         """
     )
 
@@ -239,6 +298,11 @@ Examples:
     serve_parser.add_argument('directory', type=Path, nargs='?', help='Directory to serve (default: current directory)')
     serve_parser.add_argument('--port', '-p', type=int, default=8000, help='Port number (default: 8000)')
 
+    # Chat command
+    chat_parser = subparsers.add_parser('chat', help='Start chatbot server (requires ANTHROPIC_API_KEY)')
+    chat_parser.add_argument('directory', type=Path, nargs='?', help='Directory with inventory.json (default: current directory)')
+    chat_parser.add_argument('--port', '-p', type=int, default=8765, help='Port number (default: 8765)')
+
     args = parser_cli.parse_args()
 
     if args.command == 'init':
@@ -247,6 +311,8 @@ Examples:
         return parse_command(args.file, args.output, args.validate)
     elif args.command == 'serve':
         return serve_command(args.directory, args.port)
+    elif args.command == 'chat':
+        return chat_command(args.directory, args.port)
     else:
         parser_cli.print_help()
         return 1
