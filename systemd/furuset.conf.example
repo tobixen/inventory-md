@@ -1,0 +1,14 @@
+# Inventory System Configuration for furuset instance
+# Copy to /etc/inventory-system/furuset.conf and edit
+
+# Path to inventory directory (containing inventory.json)
+INVENTORY_PATH=/home/tobias/furusetalle9/inventory
+
+# Web server port
+WEB_PORT=8000
+
+# Chat server port
+CHAT_PORT=8765
+
+# Anthropic API key for chatbot
+ANTHROPIC_API_KEY=

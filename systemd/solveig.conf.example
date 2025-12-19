@@ -1,0 +1,14 @@
+# Inventory System Configuration for solveig instance
+# Copy to /etc/inventory-system/solveig.conf and edit
+
+# Path to inventory directory (containing inventory.json)
+INVENTORY_PATH=/home/tobias/solveig/inventory-web
+
+# Web server port (different from furuset to avoid conflicts)
+WEB_PORT=8001
+
+# Chat server port (different from furuset to avoid conflicts)
+CHAT_PORT=8766
+
+# Anthropic API key for chatbot
+ANTHROPIC_API_KEY=

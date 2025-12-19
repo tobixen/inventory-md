@@ -1,166 +1,272 @@
 # Inventory System Makefile
-# Quick commands for managing the inventory system
+# Quick commands for managing inventory instances
 
-.PHONY: help install install-services start stop restart status logs logs-chat logs-web enable disable
+.PHONY: help install-templates create-instance start stop restart status logs enable disable list-instances
+
+# Configuration
+INSTANCE ?= furuset
+INSTANCES = furuset solveig
 
 # Default target
 help:
-	@echo "Inventory System - Available Commands"
+	@echo "Inventory System - Multi-Instance Management"
 	@echo ""
 	@echo "Installation:"
-	@echo "  make install           Install systemd services (requires ANTHROPIC_API_KEY)"
-	@echo "  make install-services  Install service files to ~/.config/systemd/user/"
+	@echo "  make install-templates             Install systemd template services"
+	@echo "  make create-instance INSTANCE=name Create new instance (user + config)"
 	@echo ""
-	@echo "Service Management:"
-	@echo "  make start             Start both web and chat servers"
-	@echo "  make stop              Stop both servers"
-	@echo "  make restart           Restart both servers"
-	@echo "  make status            Show status of both servers"
-	@echo "  make enable            Enable auto-start on boot"
-	@echo "  make disable           Disable auto-start"
+	@echo "Instance Management:"
+	@echo "  make start INSTANCE=name           Start instance (default: furuset)"
+	@echo "  make stop INSTANCE=name            Stop instance"
+	@echo "  make restart INSTANCE=name         Restart instance"
+	@echo "  make status INSTANCE=name          Show instance status"
+	@echo "  make enable INSTANCE=name          Enable auto-start on boot"
+	@echo "  make disable INSTANCE=name         Disable auto-start"
+	@echo ""
+	@echo "All Instances:"
+	@echo "  make start-all                     Start all instances"
+	@echo "  make stop-all                      Stop all instances"
+	@echo "  make restart-all                   Restart all instances"
+	@echo "  make status-all                    Show all instances status"
+	@echo "  make enable-all                    Enable all instances"
 	@echo ""
 	@echo "Logs:"
-	@echo "  make logs              Show logs for both servers"
-	@echo "  make logs-chat         Show chat server logs"
-	@echo "  make logs-web          Show web server logs"
+	@echo "  make logs INSTANCE=name            Show logs for instance"
+	@echo "  make logs-chat INSTANCE=name       Show chat logs only"
+	@echo "  make logs-web INSTANCE=name        Show web logs only"
 	@echo ""
-	@echo "Individual Services:"
-	@echo "  make start-chat        Start chat server only"
-	@echo "  make start-web         Start web server only"
-	@echo "  make stop-chat         Stop chat server only"
-	@echo "  make stop-web          Stop web server only"
+	@echo "Available instances: $(INSTANCES)"
+	@echo "Default instance: $(INSTANCE)"
 
-# Create inventory user
-create-user:
-	@echo "👤 Creating inventory user..."
-	@if id inventory &>/dev/null; then \
-		echo "   User 'inventory' already exists"; \
-	else \
-		sudo useradd -r -s /usr/bin/nologin -d /nonexistent inventory; \
-		echo "✅ User 'inventory' created"; \
-	fi
-	@echo "📂 Setting permissions on inventory directory..."
-	@sudo chgrp -R inventory /home/tobias/furusetalle9/inventory
-	@sudo chmod -R g+rX /home/tobias/furusetalle9/inventory
-	@echo "✅ Permissions set!"
-
-# Install services
-install-services: create-user
-	@echo "📦 Installing systemd service files..."
-	@if [ -z "$$ANTHROPIC_API_KEY" ]; then \
-		echo "⚠️  Warning: ANTHROPIC_API_KEY not set"; \
-		echo "   The chat service won't work until you set it"; \
-		echo "   Run: make set-api-key API_KEY=your-key-here"; \
-	fi
-	@sed "s|ANTHROPIC_API_KEY=|ANTHROPIC_API_KEY=$$ANTHROPIC_API_KEY|g" systemd/inventory-chat.service | sudo tee /etc/systemd/system/inventory-chat.service > /dev/null
-	@sudo cp systemd/inventory-web.service /etc/systemd/system/
+# Install template services
+install-templates:
+	@echo "📦 Installing systemd template services..."
+	@sudo cp systemd/inventory-web@.service /etc/systemd/system/
+	@sudo cp systemd/inventory-chat@.service /etc/systemd/system/
+	@sudo mkdir -p /etc/inventory-system
 	@sudo systemctl daemon-reload
-	@echo "✅ Services installed!"
+	@echo "✅ Template services installed!"
 	@echo ""
-	@echo "Next steps:"
-	@echo "  1. Start services: make start"
-	@echo "  2. Enable auto-start: make enable"
-	@echo "  3. Check status: make status"
+	@echo "Next: Create instances with 'make create-instance INSTANCE=name'"
 
-# Set API key
-set-api-key:
-	@if [ -z "$(API_KEY)" ]; then \
-		echo "❌ Error: API_KEY not provided"; \
-		echo "   Usage: make set-api-key API_KEY=your-key-here"; \
+# Create instance
+create-instance:
+	@echo "📋 Creating instance: $(INSTANCE)"
+	@echo ""
+	@# Check if config already exists
+	@if [ -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
+		echo "⚠️  Config already exists: /etc/inventory-system/$(INSTANCE).conf"; \
+		read -p "Overwrite? [y/N] " answer; \
+		if [ "$$answer" != "y" ]; then \
+			echo "Aborted."; \
+			exit 1; \
+		fi; \
+	fi
+	@# Create user
+	@echo "👤 Creating user: inventory-$(INSTANCE)..."
+	@if id inventory-$(INSTANCE) &>/dev/null; then \
+		echo "   User already exists"; \
+	else \
+		sudo useradd -r -s /usr/bin/nologin -d /nonexistent inventory-$(INSTANCE); \
+		echo "✅ User created"; \
+	fi
+	@# Create config from example
+	@if [ -f "systemd/$(INSTANCE).conf.example" ]; then \
+		echo "📝 Installing config from example..."; \
+		sudo cp systemd/$(INSTANCE).conf.example /etc/inventory-system/$(INSTANCE).conf; \
+	else \
+		echo "📝 Creating default config..."; \
+		echo "# Inventory System Configuration for $(INSTANCE)" | sudo tee /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
+		echo "INVENTORY_PATH=/path/to/$(INSTANCE)/inventory" | sudo tee -a /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
+		echo "WEB_PORT=8000" | sudo tee -a /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
+		echo "CHAT_PORT=8765" | sudo tee -a /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
+		echo "ANTHROPIC_API_KEY=" | sudo tee -a /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
+	fi
+	@echo "✅ Config created: /etc/inventory-system/$(INSTANCE).conf"
+	@echo ""
+	@echo "⚠️  IMPORTANT: Edit the config file:"
+	@echo "   sudo nano /etc/inventory-system/$(INSTANCE).conf"
+	@echo ""
+	@echo "Then set permissions on inventory directory:"
+	@echo "   sudo chgrp -R inventory-$(INSTANCE) /path/to/inventory"
+	@echo "   sudo chmod -R g+rX /path/to/inventory"
+	@echo ""
+	@echo "Then start the instance:"
+	@echo "   make start INSTANCE=$(INSTANCE)"
+
+# Set permissions for instance
+set-permissions:
+	@if [ ! -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
+		echo "❌ Instance not found: $(INSTANCE)"; \
+		echo "   Run: make create-instance INSTANCE=$(INSTANCE)"; \
 		exit 1; \
 	fi
-	@sudo sed -i "s|ANTHROPIC_API_KEY=.*|ANTHROPIC_API_KEY=$(API_KEY)|g" /etc/systemd/system/inventory-chat.service
-	@sudo systemctl daemon-reload
-	@echo "✅ API key updated!"
-	@echo "   Restart chat service: make restart-chat"
+	@echo "📂 Setting permissions for $(INSTANCE)..."
+	@# Source the config to get INVENTORY_PATH
+	@INVENTORY_PATH=$$(grep INVENTORY_PATH /etc/inventory-system/$(INSTANCE).conf | cut -d= -f2); \
+	if [ -z "$$INVENTORY_PATH" ]; then \
+		echo "❌ INVENTORY_PATH not set in config"; \
+		exit 1; \
+	fi; \
+	if [ ! -d "$$INVENTORY_PATH" ]; then \
+		echo "❌ Directory not found: $$INVENTORY_PATH"; \
+		exit 1; \
+	fi; \
+	echo "   Directory: $$INVENTORY_PATH"; \
+	sudo chgrp -R inventory-$(INSTANCE) "$$INVENTORY_PATH"; \
+	sudo chmod -R g+rX "$$INVENTORY_PATH"; \
+	echo "✅ Permissions set!"
 
-# Start services
+# Start instance
 start:
-	@echo "🚀 Starting inventory services..."
-	@sudo systemctl start inventory-web.service
-	@sudo systemctl start inventory-chat.service
-	@echo "✅ Services started!"
-	@echo ""
-	@$(MAKE) status
+	@echo "🚀 Starting $(INSTANCE)..."
+	@sudo systemctl start inventory-web@$(INSTANCE).service
+	@sudo systemctl start inventory-chat@$(INSTANCE).service
+	@echo "✅ $(INSTANCE) started!"
+	@$(MAKE) status INSTANCE=$(INSTANCE)
 
 start-web:
-	@sudo systemctl start inventory-web.service
-	@echo "✅ Web server started on http://localhost:8000"
+	@sudo systemctl start inventory-web@$(INSTANCE).service
+	@echo "✅ Web server started for $(INSTANCE)"
 
 start-chat:
-	@sudo systemctl start inventory-chat.service
-	@echo "✅ Chat server started on http://localhost:8765"
+	@sudo systemctl start inventory-chat@$(INSTANCE).service
+	@echo "✅ Chat server started for $(INSTANCE)"
 
-# Stop services
+# Stop instance
 stop:
-	@echo "🛑 Stopping inventory services..."
-	@sudo systemctl stop inventory-web.service inventory-chat.service
-	@echo "✅ Services stopped!"
+	@echo "🛑 Stopping $(INSTANCE)..."
+	@sudo systemctl stop inventory-web@$(INSTANCE).service inventory-chat@$(INSTANCE).service
+	@echo "✅ $(INSTANCE) stopped!"
 
 stop-web:
-	@sudo systemctl stop inventory-web.service
-	@echo "✅ Web server stopped"
+	@sudo systemctl stop inventory-web@$(INSTANCE).service
+	@echo "✅ Web server stopped for $(INSTANCE)"
 
 stop-chat:
-	@sudo systemctl stop inventory-chat.service
-	@echo "✅ Chat server stopped"
+	@sudo systemctl stop inventory-chat@$(INSTANCE).service
+	@echo "✅ Chat server stopped for $(INSTANCE)"
 
-# Restart services
+# Restart instance
 restart:
-	@echo "🔄 Restarting inventory services..."
-	@sudo systemctl restart inventory-web.service inventory-chat.service
-	@echo "✅ Services restarted!"
-	@$(MAKE) status
+	@echo "🔄 Restarting $(INSTANCE)..."
+	@sudo systemctl restart inventory-web@$(INSTANCE).service inventory-chat@$(INSTANCE).service
+	@echo "✅ $(INSTANCE) restarted!"
+	@$(MAKE) status INSTANCE=$(INSTANCE)
 
 restart-web:
-	@sudo systemctl restart inventory-web.service
-	@echo "✅ Web server restarted"
+	@sudo systemctl restart inventory-web@$(INSTANCE).service
+	@echo "✅ Web server restarted for $(INSTANCE)"
 
 restart-chat:
-	@sudo systemctl restart inventory-chat.service
-	@echo "✅ Chat server restarted"
+	@sudo systemctl restart inventory-chat@$(INSTANCE).service
+	@echo "✅ Chat server restarted for $(INSTANCE)"
 
 # Status
 status:
-	@echo "📊 Inventory Services Status:"
+	@echo "📊 Status for $(INSTANCE):"
 	@echo ""
-	@echo "Web Server (http://localhost:8000):"
-	@sudo systemctl status inventory-web.service --no-pager --lines=0 || true
+	@echo "Web Server:"
+	@sudo systemctl status inventory-web@$(INSTANCE).service --no-pager --lines=0 || true
 	@echo ""
-	@echo "Chat Server (http://localhost:8765):"
-	@sudo systemctl status inventory-chat.service --no-pager --lines=0 || true
+	@echo "Chat Server:"
+	@sudo systemctl status inventory-chat@$(INSTANCE).service --no-pager --lines=0 || true
 	@echo ""
-	@echo "Access your inventory at: http://localhost:8000/search.html"
+	@# Get ports from config
+	@if [ -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
+		WEB_PORT=$$(grep WEB_PORT /etc/inventory-system/$(INSTANCE).conf | cut -d= -f2); \
+		echo "Access at: http://localhost:$$WEB_PORT/search.html"; \
+	fi
 
 # Enable auto-start
 enable:
-	@sudo systemctl enable inventory-web.service inventory-chat.service
-	@echo "✅ Services will auto-start on boot"
+	@sudo systemctl enable inventory-web@$(INSTANCE).service inventory-chat@$(INSTANCE).service
+	@echo "✅ $(INSTANCE) will auto-start on boot"
 
 # Disable auto-start
 disable:
-	@sudo systemctl disable inventory-web.service inventory-chat.service
-	@echo "✅ Auto-start disabled"
+	@sudo systemctl disable inventory-web@$(INSTANCE).service inventory-chat@$(INSTANCE).service
+	@echo "✅ Auto-start disabled for $(INSTANCE)"
 
 # Logs
 logs:
-	@echo "📜 Showing logs for both services (Ctrl+C to exit)..."
-	@sudo journalctl -u inventory-web.service -u inventory-chat.service -f
+	@echo "📜 Logs for $(INSTANCE) (Ctrl+C to exit)..."
+	@sudo journalctl -u inventory-web@$(INSTANCE).service -u inventory-chat@$(INSTANCE).service -f
 
 logs-web:
-	@echo "📜 Web server logs (Ctrl+C to exit)..."
-	@sudo journalctl -u inventory-web.service -f
+	@echo "📜 Web server logs for $(INSTANCE) (Ctrl+C to exit)..."
+	@sudo journalctl -u inventory-web@$(INSTANCE).service -f
 
 logs-chat:
-	@echo "📜 Chat server logs (Ctrl+C to exit)..."
-	@sudo journalctl -u inventory-chat.service -f
+	@echo "📜 Chat server logs for $(INSTANCE) (Ctrl+C to exit)..."
+	@sudo journalctl -u inventory-chat@$(INSTANCE).service -f
 
-# Installation shortcut
-install: install-services
+# All instances commands
+start-all:
+	@for instance in $(INSTANCES); do \
+		$(MAKE) start INSTANCE=$$instance; \
+	done
+
+stop-all:
+	@for instance in $(INSTANCES); do \
+		$(MAKE) stop INSTANCE=$$instance; \
+	done
+
+restart-all:
+	@for instance in $(INSTANCES); do \
+		$(MAKE) restart INSTANCE=$$instance; \
+	done
+
+enable-all:
+	@for instance in $(INSTANCES); do \
+		$(MAKE) enable INSTANCE=$$instance; \
+	done
+
+status-all:
+	@for instance in $(INSTANCES); do \
+		echo ""; \
+		echo "═══════════════════════════════════════════"; \
+		$(MAKE) status INSTANCE=$$instance; \
+	done
+
+# List instances
+list-instances:
+	@echo "📋 Configured instances:"
 	@echo ""
-	@echo "🎉 Installation complete!"
+	@for conf in /etc/inventory-system/*.conf; do \
+		if [ -f "$$conf" ]; then \
+			instance=$$(basename $$conf .conf); \
+			echo "  $$instance"; \
+			WEB_RUNNING=$$(systemctl is-active inventory-web@$$instance.service 2>/dev/null || echo "inactive"); \
+			CHAT_RUNNING=$$(systemctl is-active inventory-chat@$$instance.service 2>/dev/null || echo "inactive"); \
+			echo "    Web:  $$WEB_RUNNING"; \
+			echo "    Chat: $$CHAT_RUNNING"; \
+		fi; \
+	done
+
+# Quick setup
+quick-setup:
+	@echo "🚀 Quick Setup for Inventory System"
 	@echo ""
-	@echo "Quick start:"
-	@echo "  1. make start    # Start both servers"
-	@echo "  2. Open http://localhost:8000/search.html in your browser"
-	@echo "  3. Click the chat button (💬) to start chatting"
+	@echo "This will:"
+	@echo "  1. Install template services"
+	@echo "  2. Create furuset and solveig instances"
+	@echo ""
+	@read -p "Continue? [y/N] " answer; \
+	if [ "$$answer" = "y" ]; then \
+		$(MAKE) install-templates; \
+		$(MAKE) create-instance INSTANCE=furuset; \
+		$(MAKE) create-instance INSTANCE=solveig; \
+		echo ""; \
+		echo "✅ Setup complete!"; \
+		echo ""; \
+		echo "Next steps:"; \
+		echo "  1. Edit configs:"; \
+		echo "     sudo nano /etc/inventory-system/furuset.conf"; \
+		echo "     sudo nano /etc/inventory-system/solveig.conf"; \
+		echo "  2. Set permissions:"; \
+		echo "     make set-permissions INSTANCE=furuset"; \
+		echo "     make set-permissions INSTANCE=solveig"; \
+		echo "  3. Start instances:"; \
+		echo "     make start-all"; \
+	fi
