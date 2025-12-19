@@ -1,245 +1,383 @@
-# Installation & Setup Guide
+# Installation & Setup Guide - Multi-Instance
 
-This guide shows how to set up the inventory system with systemd services for easy management.
+This guide shows how to set up the inventory system with systemd template services. You can run multiple inventory instances on one server.
 
-## Prerequisites
+## Quick Start
 
-1. **Install the package:**
-   ```bash
-   pip install -e /home/tobias/inventory-system
-   ```
-
-2. **Install chat dependencies:**
-   ```bash
-   pip install fastapi uvicorn anthropic
-   ```
-
-3. **Get your Claude API key:**
-   - Visit https://console.anthropic.com/
-   - Create an API key
-   - Copy it for the next step
-
-## Quick Setup
-
-### 1. Set your API key:
-```bash
-export ANTHROPIC_API_KEY='your-api-key-here'
-```
-
-### 2. Install systemd services:
 ```bash
 cd /home/tobias/inventory-system
-make install-services
+
+# 1. Install template services
+make install-templates
+
+# 2. Create instances
+make create-instance INSTANCE=furuset
+make create-instance INSTANCE=solveig
+
+# 3. Edit configs (set paths and API keys)
+sudo nano /etc/inventory-system/furuset.conf
+sudo nano /etc/inventory-system/solveig.conf
+
+# 4. Set permissions
+make set-permissions INSTANCE=furuset
+make set-permissions INSTANCE=solveig
+
+# 5. Start instances
+make start-all
+
+# 6. Enable auto-start
+make enable-all
 ```
 
-This will (requires sudo):
-- Create dedicated `inventory` user (system user, no shell access)
-- Set permissions on inventory directory
-- Install service files to `/etc/systemd/system/`
-- Set your API key in the chat service
-- Reload systemd
-- Services will run as user 'inventory' with read-only access
+## Concepts
 
-### 3. Start the services:
+### Systemd Templates
+- **Template services**: `inventory-web@.service`, `inventory-chat@.service`
+- **Instance**: `inventory-web@furuset.service` (furuset = instance name)
+- One template, many instances
+
+### Per-Instance Resources
+- **User**: `inventory-{instance}` (e.g., `inventory-furuset`)
+- **Config**: `/etc/inventory-system/{instance}.conf`
+- **Ports**: Unique per instance (avoid conflicts)
+
+### Example Setup
+```
+furuset:
+  - User: inventory-furuset
+  - Config: /etc/inventory-system/furuset.conf
+  - Path: /home/tobias/furusetalle9/inventory
+  - Ports: 8000 (web), 8765 (chat)
+
+solveig:
+  - User: inventory-solveig
+  - Config: /etc/inventory-system/solveig.conf
+  - Path: /home/tobias/solveig/inventory-web
+  - Ports: 8001 (web), 8766 (chat)
+```
+
+## Detailed Setup
+
+### 1. Install Template Services
+
 ```bash
-make start
+make install-templates
 ```
 
-### 4. Access your inventory:
-Open http://localhost:8000/search.html in your browser
+This installs template service files to `/etc/systemd/system/`:
+- `inventory-web@.service`
+- `inventory-chat@.service`
+
+### 2. Create an Instance
+
+```bash
+make create-instance INSTANCE=furuset
+```
+
+This will:
+1. Create system user `inventory-furuset`
+2. Create config `/etc/inventory-system/furuset.conf`
+3. Copy from `furuset.conf.example` if it exists
+
+### 3. Edit Configuration
+
+```bash
+sudo nano /etc/inventory-system/furuset.conf
+```
+
+Configuration file format:
+```bash
+# Path to inventory directory (containing inventory.json)
+INVENTORY_PATH=/home/tobias/furusetalle9/inventory
+
+# Web server port (must be unique)
+WEB_PORT=8000
+
+# Chat server port (must be unique)
+CHAT_PORT=8765
+
+# Anthropic API key for chatbot
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### 4. Set Permissions
+
+```bash
+make set-permissions INSTANCE=furuset
+```
+
+This grants the instance user read access to the inventory directory.
+
+### 5. Start the Instance
+
+```bash
+make start INSTANCE=furuset
+```
+
+Or start both web and chat separately:
+```bash
+make start-web INSTANCE=furuset
+make start-chat INSTANCE=furuset
+```
+
+### 6. Enable Auto-Start
+
+```bash
+make enable INSTANCE=furuset
+```
+
+The instance will now start automatically on boot.
 
 ## Makefile Commands
 
-### Service Management
+### Installation
 ```bash
-make start          # Start both web and chat servers
-make stop           # Stop both servers
-make restart        # Restart both servers
-make status         # Show status of both servers
-make enable         # Enable auto-start on boot
-make disable        # Disable auto-start
+make install-templates              # Install systemd templates (once)
+make create-instance INSTANCE=name  # Create new instance
+make set-permissions INSTANCE=name  # Set directory permissions
+make quick-setup                    # Interactive setup (furuset + solveig)
 ```
 
-### Individual Services
+### Instance Management
 ```bash
-make start-chat     # Start chat server only
-make start-web      # Start web server only
-make stop-chat      # Stop chat server only
-make stop-web       # Stop web server only
-make restart-chat   # Restart chat server only
-make restart-web    # Restart web server only
+make start INSTANCE=name     # Start instance
+make stop INSTANCE=name      # Stop instance
+make restart INSTANCE=name   # Restart instance
+make status INSTANCE=name    # Show status
+make enable INSTANCE=name    # Enable auto-start
+make disable INSTANCE=name   # Disable auto-start
+```
+
+### All Instances
+```bash
+make start-all      # Start all configured instances
+make stop-all       # Stop all instances
+make restart-all    # Restart all instances
+make status-all     # Show status of all instances
+make enable-all     # Enable all instances
+make list-instances # List all configured instances
 ```
 
 ### Logs
 ```bash
-make logs           # Show logs for both servers (follow mode)
-make logs-chat      # Show chat server logs only
-make logs-web       # Show web server logs only
+make logs INSTANCE=name         # Live logs (both services)
+make logs-web INSTANCE=name     # Web server logs only
+make logs-chat INSTANCE=name    # Chat server logs only
 ```
 
-### Updating API Key
+### Individual Services
 ```bash
-make set-api-key API_KEY=your-new-key-here
-make restart-chat   # Restart to apply changes
+make start-web INSTANCE=name
+make start-chat INSTANCE=name
+make stop-web INSTANCE=name
+make stop-chat INSTANCE=name
+make restart-web INSTANCE=name
+make restart-chat INSTANCE=name
 ```
 
-## Manual Setup (without Makefile)
+## Manual Setup
 
-If you prefer to set up manually:
+If you prefer not to use the Makefile:
 
-### 1. Create inventory user:
+### Install Templates
 ```bash
-sudo useradd -r -s /usr/bin/nologin -d /nonexistent inventory
-```
-
-### 2. Set permissions:
-```bash
-sudo chgrp -R inventory /home/tobias/furusetalle9/inventory
-sudo chmod -R g+rX /home/tobias/furusetalle9/inventory
-```
-
-### 3. Copy service files:
-```bash
-sudo cp systemd/inventory-web.service /etc/systemd/system/
-sudo cp systemd/inventory-chat.service /etc/systemd/system/
-```
-
-### 4. Edit chat service to add your API key:
-```bash
-sudo nano /etc/systemd/system/inventory-chat.service
-# Change: Environment="ANTHROPIC_API_KEY="
-# To:     Environment="ANTHROPIC_API_KEY=your-key-here"
-```
-
-### 5. Reload systemd:
-```bash
+sudo cp systemd/inventory-web@.service /etc/systemd/system/
+sudo cp systemd/inventory-chat@.service /etc/systemd/system/
+sudo mkdir -p /etc/inventory-system
 sudo systemctl daemon-reload
 ```
 
-### 6. Start services:
+### Create Instance
 ```bash
-sudo systemctl start inventory-web.service
-sudo systemctl start inventory-chat.service
+# Create user
+sudo useradd -r -s /usr/bin/nologin -d /nonexistent inventory-furuset
+
+# Create config
+sudo cp systemd/furuset.conf.example /etc/inventory-system/furuset.conf
+sudo nano /etc/inventory-system/furuset.conf  # Edit paths and API key
+
+# Set permissions
+sudo chgrp -R inventory-furuset /home/tobias/furusetalle9/inventory
+sudo chmod -R g+rX /home/tobias/furusetalle9/inventory
 ```
 
-### 7. Enable auto-start (optional):
+### Start Services
 ```bash
-sudo systemctl enable inventory-web.service
-sudo systemctl enable inventory-chat.service
+sudo systemctl start inventory-web@furuset.service
+sudo systemctl start inventory-chat@furuset.service
 ```
 
-## Verifying Installation
-
-### Check service status:
+### Enable Auto-Start
 ```bash
-sudo systemctl status inventory-web.service
-sudo systemctl status inventory-chat.service
+sudo systemctl enable inventory-web@furuset.service
+sudo systemctl enable inventory-chat@furuset.service
 ```
 
-### Check if servers are running:
+## Verification
+
+### Check Status
 ```bash
-# Web server
+make status INSTANCE=furuset
+# or
+sudo systemctl status inventory-web@furuset.service
+sudo systemctl status inventory-chat@furuset.service
+```
+
+### Check Logs
+```bash
+make logs INSTANCE=furuset
+# or
+sudo journalctl -u inventory-web@furuset.service -f
+sudo journalctl -u inventory-chat@furuset.service -f
+```
+
+### Test Web Server
+```bash
 curl http://localhost:8000/search.html
-
-# Chat server health check
-curl http://localhost:8765/health
 ```
 
-### View logs:
+### Test Chat Server
 ```bash
-journalctl --user -u inventory-chat.service -n 50
-journalctl --user -u inventory-web.service -n 50
+curl http://localhost:8765/health
 ```
 
 ## Troubleshooting
 
-### Chat service fails to start
-1. **Check API key is set:**
+### Service fails to start
+
+1. **Check config exists**:
    ```bash
-   sudo systemctl cat inventory-chat.service | grep ANTHROPIC_API_KEY
+   ls -l /etc/inventory-system/furuset.conf
    ```
 
-2. **Check logs:**
+2. **Check config is valid**:
    ```bash
-   sudo journalctl -u inventory-chat.service -n 50
+   sudo cat /etc/inventory-system/furuset.conf
    ```
 
-3. **Check permissions:**
+3. **Check inventory directory exists**:
    ```bash
-   sudo -u inventory ls -la /home/tobias/furusetalle9/inventory/inventory.json
+   # Get path from config
+   grep INVENTORY_PATH /etc/inventory-system/furuset.conf
+   ls -la /path/from/config
    ```
 
-3. **Verify inventory.json exists:**
+4. **Check permissions**:
    ```bash
-   ls -lh ~/furusetalle9/inventory/inventory.json
+   sudo -u inventory-furuset ls -la /path/to/inventory/inventory.json
+   ```
+
+5. **Check logs**:
+   ```bash
+   make logs INSTANCE=furuset
    ```
 
 ### Port already in use
-If ports 8000 or 8765 are already in use, edit the service files:
 
+Edit the config and change ports:
 ```bash
-sudo nano /etc/systemd/system/inventory-web.service
-# Change: ExecStart=/usr/bin/inventory-system serve
-# To:     ExecStart=/usr/bin/inventory-system serve --port 8080
-
-sudo nano /etc/systemd/system/inventory-chat.service
-# Change: ExecStart=/usr/bin/inventory-system chat
-# To:     ExecStart=/usr/bin/inventory-system chat --port 8866
-
-sudo systemctl daemon-reload
-sudo systemctl restart inventory-web.service inventory-chat.service
+sudo nano /etc/inventory-system/furuset.conf
+# Change WEB_PORT and/or CHAT_PORT
+make restart INSTANCE=furuset
 ```
 
-Also update the chat server URL in search.html:
-```javascript
-const CHAT_SERVER_URL = 'http://localhost:8866';
+Also update `CHAT_SERVER_URL` in search.html if you change the chat port.
+
+### API key not working
+
+1. **Check key is set**:
+   ```bash
+   sudo grep ANTHROPIC_API_KEY /etc/inventory-system/furuset.conf
+   ```
+
+2. **Update key**:
+   ```bash
+   sudo nano /etc/inventory-system/furuset.conf
+   # Update ANTHROPIC_API_KEY=...
+   make restart-chat INSTANCE=furuset
+   ```
+
+### Permission denied errors
+
+```bash
+# Check user exists
+id inventory-furuset
+
+# Re-apply permissions
+make set-permissions INSTANCE=furuset
+
+# Or manually
+sudo chgrp -R inventory-furuset /path/to/inventory
+sudo chmod -R g+rX /path/to/inventory
+```
+
+## Adding New Instances
+
+To add a new instance (e.g., "myhouse"):
+
+```bash
+# 1. Create instance
+make create-instance INSTANCE=myhouse
+
+# 2. Edit config
+sudo nano /etc/inventory-system/myhouse.conf
+# Set INVENTORY_PATH, WEB_PORT=8002, CHAT_PORT=8767
+
+# 3. Set permissions
+make set-permissions INSTANCE=myhouse
+
+# 4. Start
+make start INSTANCE=myhouse
+
+# 5. Enable
+make enable INSTANCE=myhouse
 ```
 
 ## Uninstallation
 
-### Stop and disable services:
+### Remove Instance
 ```bash
-make stop
-make disable
+# Stop services
+make stop INSTANCE=furuset
+
+# Disable auto-start
+make disable INSTANCE=furuset
+
+# Remove config
+sudo rm /etc/inventory-system/furuset.conf
+
+# Remove user
+sudo userdel inventory-furuset
 ```
 
-### Remove service files:
+### Remove All
 ```bash
-sudo rm /etc/systemd/system/inventory-web.service
-sudo rm /etc/systemd/system/inventory-chat.service
+# Stop all
+make stop-all
+
+# Remove templates
+sudo rm /etc/systemd/system/inventory-web@.service
+sudo rm /etc/systemd/system/inventory-chat@.service
+sudo rm -rf /etc/inventory-system
 sudo systemctl daemon-reload
+
+# Remove users
+sudo userdel inventory-furuset
+sudo userdel inventory-solveig
 ```
 
-### Remove inventory user (optional):
-```bash
-sudo userdel inventory
-```
+## Production Tips
 
-## Usage
-
-Once installed and running:
-
-1. **Access web interface:**
-   - Open http://localhost:8000/search.html
-
-2. **Use the chat:**
-   - Click the green chat button (💬) in bottom-right corner
-   - Ask questions about your inventory
-   - Examples:
-     - "What's in box A78?"
-     - "Where are my winter clothes?"
-     - "Show me all boxes with skiing equipment"
-
-3. **Update inventory:**
-   ```bash
-   cd ~/furusetalle9/inventory
-   # Edit inventory.md
-   inventory-system parse inventory.md
-   make restart  # Reload with new data
-   ```
+1. **Use systemd for process management** - auto-restart on failure
+2. **Enable auto-start** - `make enable-all`
+3. **Monitor logs** - `make logs INSTANCE=name`
+4. **Unique ports** - avoid conflicts between instances
+5. **Firewall** - restrict access if needed
+6. **Backups** - backup `/etc/inventory-system/` configs
+7. **Updates** - `make restart-all` after updating inventory data
 
 ## Next Steps
 
 - See `README.md` for inventory system documentation
 - See `CHANGELOG.md` for recent changes
-- Phase 2 will add write operations (update inventory through chat)
+- Phase 2 will add write operations through chat interface
