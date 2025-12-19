@@ -142,7 +142,8 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
                     'description': '',
                     'items': [],
                     'images': [],
-                    'photos_link': ''
+                    'photos_link': '',
+                    'metadata': parsed['metadata']
                 })
             i += 1
             continue
@@ -178,7 +179,8 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
                     'description': '',
                     'items': [],
                     'images': [],
-                    'photos_link': ''
+                    'photos_link': '',
+                    'metadata': parsed['metadata']
                 })
             i += 1
             continue
@@ -245,7 +247,8 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
                 'description': '',
                 'items': [],
                 'images': [],
-                'photos_link': ''
+                'photos_link': '',
+                'metadata': parsed['metadata']
             }
 
             i += 1
