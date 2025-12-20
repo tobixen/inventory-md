@@ -46,7 +46,7 @@ make enable-all
 furuset:
   - User: inventory-furuset
   - Config: /etc/inventory-system/furuset.conf
-  - Path: /home/tobias/furusetalle9/inventory
+  - Path: /path/to/furuset/inventory
   - Ports: 8000 (web), 8765 (chat)
 
 solveig:
@@ -88,7 +88,7 @@ sudo nano /etc/inventory-system/furuset.conf
 Configuration file format:
 ```bash
 # Path to inventory directory (containing inventory.json)
-INVENTORY_PATH=/home/tobias/furusetalle9/inventory
+INVENTORY_PATH=/path/to/your/inventory
 
 # Web server port (must be unique)
 WEB_PORT=8000
@@ -197,8 +197,8 @@ sudo cp systemd/furuset.conf.example /etc/inventory-system/furuset.conf
 sudo nano /etc/inventory-system/furuset.conf  # Edit paths and API key
 
 # Set permissions
-sudo chgrp -R inventory-furuset /home/tobias/furusetalle9/inventory
-sudo chmod -R g+rX /home/tobias/furusetalle9/inventory
+sudo chgrp -R inventory-furuset /path/to/your/inventory
+sudo chmod -R g+rX /path/to/your/inventory
 ```
 
 ### Start Services

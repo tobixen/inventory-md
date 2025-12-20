@@ -2,7 +2,7 @@
 # Copy to /etc/inventory-system/furuset.conf and edit
 
 # Path to inventory directory (containing inventory.json)
-INVENTORY_PATH=/home/tobias/furusetalle9/inventory
+INVENTORY_PATH=/path/to/your/inventory
 
 # Web server port
 WEB_PORT=8000
