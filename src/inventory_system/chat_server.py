@@ -129,6 +129,46 @@ INVENTORY_TOOLS = [
                 }
             }
         }
+    },
+    {
+        "name": "add_item",
+        "description": "Add a new item to a specific container. This modifies the inventory permanently.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "container_id": {
+                    "type": "string",
+                    "description": "The container ID to add the item to (e.g., 'A23', 'H11')"
+                },
+                "item_description": {
+                    "type": "string",
+                    "description": "Description of the item to add"
+                },
+                "tags": {
+                    "type": "string",
+                    "description": "Optional comma-separated tags (e.g., 'elektronikk,hjem')"
+                }
+            },
+            "required": ["container_id", "item_description"]
+        }
+    },
+    {
+        "name": "remove_item",
+        "description": "Remove an item from a container. This modifies the inventory permanently.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "container_id": {
+                    "type": "string",
+                    "description": "The container ID to remove the item from"
+                },
+                "item_description": {
+                    "type": "string",
+                    "description": "Description of the item to remove (or part of it)"
+                }
+            },
+            "required": ["container_id", "item_description"]
+        }
     }
 ]
 
@@ -264,6 +304,143 @@ def list_containers(parent: Optional[str] = None, tags: Optional[list] = None, p
     }
 
 
+def reload_inventory() -> bool:
+    """Reload inventory.json after markdown changes."""
+    global inventory_data
+
+    if not inventory_path or not inventory_path.exists():
+        return False
+
+    try:
+        with open(inventory_path, 'r', encoding='utf-8') as f:
+            inventory_data = json.load(f)
+        return True
+    except Exception as e:
+        print(f"❌ Error reloading inventory: {e}")
+        return False
+
+
+def add_item_to_container(container_id: str, item_description: str, tags: Optional[str] = None) -> dict:
+    """Add an item to a container by modifying the markdown file."""
+    if not inventory_path:
+        return {"error": "Inventory path not set"}
+
+    markdown_path = inventory_path.parent / "inventory.md"
+    if not markdown_path.exists():
+        return {"error": "inventory.md not found"}
+
+    try:
+        # Read markdown file
+        with open(markdown_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        # Find the container
+        container_line_idx = None
+        for i, line in enumerate(lines):
+            if line.startswith('## ') and f'ID:{container_id}' in line:
+                container_line_idx = i
+                break
+
+        if container_line_idx is None:
+            return {"error": f"Container ID:{container_id} not found in markdown"}
+
+        # Find where to insert the item (after the header, before next ## or end)
+        insert_idx = container_line_idx + 1
+
+        # Skip blank lines and description
+        while insert_idx < len(lines) and (lines[insert_idx].strip() == '' or
+                                           not lines[insert_idx].startswith(('*', '#'))):
+            insert_idx += 1
+
+        # Create the item line
+        if tags:
+            item_line = f"* tag:{tags} {item_description}\n"
+        else:
+            item_line = f"* {item_description}\n"
+
+        # Insert the item
+        lines.insert(insert_idx, item_line)
+
+        # Write back to file
+        with open(markdown_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+
+        # Regenerate JSON
+        from inventory_system import parser
+        parser.parse_inventory(markdown_path, output_path=inventory_path)
+
+        # Reload inventory data
+        reload_inventory()
+
+        return {
+            "success": True,
+            "message": f"Added '{item_description}' to container {container_id}",
+            "container_id": container_id,
+            "item": item_description
+        }
+
+    except Exception as e:
+        return {"error": f"Failed to add item: {str(e)}"}
+
+
+def remove_item_from_container(container_id: str, item_description: str) -> dict:
+    """Remove an item from a container by modifying the markdown file."""
+    if not inventory_path:
+        return {"error": "Inventory path not set"}
+
+    markdown_path = inventory_path.parent / "inventory.md"
+    if not markdown_path.exists():
+        return {"error": "inventory.md not found"}
+
+    try:
+        # Read markdown file
+        with open(markdown_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        # Find the container section
+        container_line_idx = None
+        for i, line in enumerate(lines):
+            if line.startswith('## ') and f'ID:{container_id}' in line:
+                container_line_idx = i
+                break
+
+        if container_line_idx is None:
+            return {"error": f"Container ID:{container_id} not found"}
+
+        # Find and remove the item
+        item_removed = False
+        i = container_line_idx + 1
+        while i < len(lines) and not lines[i].startswith('## '):
+            if lines[i].startswith('* ') and item_description.lower() in lines[i].lower():
+                del lines[i]
+                item_removed = True
+                break
+            i += 1
+
+        if not item_removed:
+            return {"error": f"Item '{item_description}' not found in container {container_id}"}
+
+        # Write back
+        with open(markdown_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+
+        # Regenerate JSON
+        from inventory_system import parser
+        parser.parse_inventory(markdown_path, output_path=inventory_path)
+
+        # Reload
+        reload_inventory()
+
+        return {
+            "success": True,
+            "message": f"Removed '{item_description}' from container {container_id}",
+            "container_id": container_id
+        }
+
+    except Exception as e:
+        return {"error": f"Failed to remove item: {str(e)}"}
+
+
 def execute_tool(tool_name: str, tool_input: dict) -> dict:
     """Execute a tool and return results."""
     if tool_name == "search_inventory":
@@ -275,6 +452,17 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
             parent=tool_input.get('parent'),
             tags=tool_input.get('tags'),
             prefix=tool_input.get('prefix')
+        )
+    elif tool_name == "add_item":
+        return add_item_to_container(
+            container_id=tool_input['container_id'],
+            item_description=tool_input['item_description'],
+            tags=tool_input.get('tags')
+        )
+    elif tool_name == "remove_item":
+        return remove_item_from_container(
+            container_id=tool_input['container_id'],
+            item_description=tool_input['item_description']
         )
     else:
         return {"error": f"Unknown tool: {tool_name}"}
@@ -302,11 +490,16 @@ async def chat(message: ChatMessage) -> ChatResponse:
     client = anthropic.Anthropic(api_key=api_key)
 
     # System prompt with inventory context
-    system_prompt = f"""You are a helpful assistant for querying a personal inventory system.
+    system_prompt = f"""You are a helpful assistant for managing a personal inventory system.
 
 The inventory contains {len(inventory_data.get('containers', []))} containers with various items stored in them.
 
-You have access to tools to search the inventory, get container details, and list containers.
+You have access to tools to:
+- Search and query the inventory
+- Get container details
+- List containers
+- **Add items** to containers
+- **Remove items** from containers
 
 When users ask about their inventory:
 1. Use the appropriate tools to find information
@@ -314,6 +507,12 @@ When users ask about their inventory:
 3. Reference specific container IDs when relevant
 4. If items are in multiple containers, list them all
 5. Be conversational and helpful
+6. Match the user's language (respond in the same language they use)
+
+When users want to modify the inventory:
+1. Confirm what they want to do
+2. Use add_item or remove_item tools
+3. Confirm the change was successful
 
 Important notes:
 - Container IDs like A23, H11, C04 refer to physical boxes/containers
