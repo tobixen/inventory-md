@@ -51,8 +51,17 @@ install-templates:
 
 # Create instance
 create-instance:
+	@# Check if templates are installed
+	@if [ ! -f "/etc/systemd/system/inventory-web@.service" ]; then \
+		echo "⚠️  Systemd templates not installed. Installing now..."; \
+		echo ""; \
+		$(MAKE) install-templates; \
+		echo ""; \
+	fi
 	@echo "📋 Creating instance: $(INSTANCE)"
 	@echo ""
+	@# Ensure config directory exists
+	@sudo mkdir -p /etc/inventory-system
 	@# Check if config already exists
 	@if [ -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
 		echo "⚠️  Config already exists: /etc/inventory-system/$(INSTANCE).conf"; \
