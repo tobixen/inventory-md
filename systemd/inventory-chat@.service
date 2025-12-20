@@ -9,7 +9,7 @@ User=inventory-%i
 Group=inventory-%i
 EnvironmentFile=/etc/inventory-system/%i.conf
 Environment="ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
-ExecStart=/usr/bin/inventory-system chat --port ${CHAT_PORT}
+ExecStart=/opt/inventory-system/venv/bin/inventory-system chat ${INVENTORY_PATH} --port ${CHAT_PORT}
 Restart=on-failure
 RestartSec=5s
 

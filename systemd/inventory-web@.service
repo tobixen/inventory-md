@@ -8,7 +8,7 @@ Type=simple
 User=inventory-%i
 Group=inventory-%i
 EnvironmentFile=/etc/inventory-system/%i.conf
-ExecStart=/usr/bin/inventory-system serve --port ${WEB_PORT}
+ExecStart=/opt/inventory-system/venv/bin/inventory-system serve ${INVENTORY_PATH} --port ${WEB_PORT}
 Restart=on-failure
 RestartSec=5s
 
