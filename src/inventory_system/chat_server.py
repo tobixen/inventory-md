@@ -19,12 +19,13 @@ import anthropic
 # Global inventory data
 inventory_data: Optional[dict] = None
 inventory_path: Optional[Path] = None
+aliases: Optional[dict] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load inventory on startup."""
-    global inventory_data, inventory_path
+    """Load inventory and aliases on startup."""
+    global inventory_data, inventory_path, aliases
 
     # Look for inventory.json in current directory
     inventory_path = Path.cwd() / "inventory.json"
@@ -35,6 +36,16 @@ async def lifespan(app: FastAPI):
         with open(inventory_path, 'r', encoding='utf-8') as f:
             inventory_data = json.load(f)
         print(f"✅ Loaded inventory: {len(inventory_data.get('containers', []))} containers")
+
+    # Load aliases
+    aliases_path = Path.cwd() / "aliases.json"
+    if aliases_path.exists():
+        with open(aliases_path, 'r', encoding='utf-8') as f:
+            aliases = json.load(f)
+        print(f"✅ Loaded {len(aliases)} search aliases")
+    else:
+        print(f"⚠️  aliases.json not found, search aliases disabled")
+        aliases = {}
 
     yield
 
@@ -122,12 +133,29 @@ INVENTORY_TOOLS = [
 ]
 
 
+def expand_query_with_aliases(query: str) -> list[str]:
+    """Expand query with aliases. Returns list of search terms including query and all aliases."""
+    if not aliases:
+        return [query]
+
+    query_lower = query.lower()
+    search_terms = [query_lower]
+
+    # Check if query matches any alias key
+    if query_lower in aliases:
+        search_terms.extend([a.lower() for a in aliases[query_lower]])
+
+    return list(set(search_terms))  # Remove duplicates
+
+
 def search_inventory(query: str) -> dict:
     """Search inventory for matching containers and items."""
     if not inventory_data:
         return {"error": "Inventory not loaded"}
 
-    query_lower = query.lower()
+    # Expand query with aliases
+    search_terms = expand_query_with_aliases(query)
+
     results = {
         "matching_containers": [],
         "matching_items": []
@@ -136,26 +164,33 @@ def search_inventory(query: str) -> dict:
     for container in inventory_data.get('containers', []):
         container_match = False
 
-        # Check container ID, heading, description
-        if (query_lower in container.get('id', '').lower() or
-            query_lower in container.get('heading', '').lower() or
-            query_lower in container.get('description', '').lower()):
-            container_match = True
+        # Check container ID, heading, description with all search terms
+        for term in search_terms:
+            if (term in container.get('id', '').lower() or
+                term in container.get('heading', '').lower() or
+                term in container.get('description', '').lower()):
+                container_match = True
+                break
 
         # Check tags
-        if container.get('metadata', {}).get('tags'):
+        if not container_match and container.get('metadata', {}).get('tags'):
             for tag in container['metadata']['tags']:
-                if query_lower in tag.lower():
-                    container_match = True
+                for term in search_terms:
+                    if term in tag.lower():
+                        container_match = True
+                        break
+                if container_match:
                     break
 
         # Check items
         matching_items_in_container = []
         for item in container.get('items', []):
             item_text = item.get('name', '') or item.get('raw_text', '')
-            if query_lower in item_text.lower():
-                matching_items_in_container.append(item_text)
-                container_match = True
+            for term in search_terms:
+                if term in item_text.lower():
+                    matching_items_in_container.append(item_text)
+                    container_match = True
+                    break  # Don't add same item multiple times
 
         if container_match:
             results['matching_containers'].append({
