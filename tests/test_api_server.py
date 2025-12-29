@@ -222,3 +222,108 @@ class TestExecuteTool:
                 })
 
         assert result.get("success") is True
+
+
+class TestSecurityFunctions:
+    """Tests for security helper functions."""
+
+    def test_sanitize_path_component_basic(self):
+        """Test basic path component sanitization."""
+        from inventory_system.api_server import sanitize_path_component
+
+        assert sanitize_path_component("photo.jpg") == "photo.jpg"
+        assert sanitize_path_component("my-photo_123.png") == "my-photo_123.png"
+
+    def test_sanitize_path_component_removes_path_separators(self):
+        """Test that path separators are removed."""
+        from inventory_system.api_server import sanitize_path_component
+
+        assert sanitize_path_component("../etc/passwd") == "etcpasswd"
+        assert sanitize_path_component("..\\..\\windows\\system32") == "windowssystem32"
+        assert sanitize_path_component("foo/bar/baz.jpg") == "foobarbaz.jpg"
+
+    def test_sanitize_path_component_removes_parent_refs(self):
+        """Test that parent directory references are removed."""
+        from inventory_system.api_server import sanitize_path_component
+
+        assert sanitize_path_component("....test") == "test"
+        assert sanitize_path_component("..photo..") == "photo"
+
+    def test_sanitize_path_component_rejects_empty(self):
+        """Test that empty strings are rejected."""
+        from inventory_system.api_server import sanitize_path_component
+
+        with pytest.raises(ValueError):
+            sanitize_path_component("")
+
+        with pytest.raises(ValueError):
+            sanitize_path_component("...")
+
+        with pytest.raises(ValueError):
+            sanitize_path_component("../")
+
+    def test_sanitize_path_component_removes_null_bytes(self):
+        """Test that null bytes are removed."""
+        from inventory_system.api_server import sanitize_path_component
+
+        assert sanitize_path_component("photo\x00.jpg") == "photo.jpg"
+
+    def test_sanitize_path_component_length_limit(self):
+        """Test that long names are truncated."""
+        from inventory_system.api_server import sanitize_path_component
+
+        long_name = "a" * 200 + ".jpg"
+        result = sanitize_path_component(long_name)
+        assert len(result) <= 100
+
+    def test_validate_container_id_valid(self):
+        """Test valid container IDs."""
+        from inventory_system.api_server import validate_container_id
+
+        assert validate_container_id("A1") == "A1"
+        assert validate_container_id("Box12") == "Box12"
+        assert validate_container_id("GH-Tower-1") == "GH-Tower-1"
+        assert validate_container_id("container_123") == "container_123"
+
+    def test_validate_container_id_rejects_path_traversal(self):
+        """Test that path traversal attempts are rejected."""
+        from inventory_system.api_server import validate_container_id
+
+        with pytest.raises(ValueError):
+            validate_container_id("../etc")
+
+        with pytest.raises(ValueError):
+            validate_container_id("A1/../../etc")
+
+        with pytest.raises(ValueError):
+            validate_container_id("A1\\..\\..\\windows")
+
+    def test_validate_container_id_rejects_special_chars(self):
+        """Test that special characters are rejected."""
+        from inventory_system.api_server import validate_container_id
+
+        with pytest.raises(ValueError):
+            validate_container_id("A1; rm -rf /")
+
+        with pytest.raises(ValueError):
+            validate_container_id("A1 && cat /etc/passwd")
+
+        with pytest.raises(ValueError):
+            validate_container_id("A1|whoami")
+
+    def test_validate_container_id_rejects_empty(self):
+        """Test that empty container IDs are rejected."""
+        from inventory_system.api_server import validate_container_id
+
+        with pytest.raises(ValueError):
+            validate_container_id("")
+
+        with pytest.raises(ValueError):
+            validate_container_id(None)
+
+    def test_validate_container_id_rejects_too_long(self):
+        """Test that overly long container IDs are rejected."""
+        from inventory_system.api_server import validate_container_id
+
+        with pytest.raises(ValueError):
+            validate_container_id("A" * 100)

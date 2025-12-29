@@ -6,6 +6,7 @@ Provides conversational interface for querying inventory.
 """
 import os
 import json
+import re
 from pathlib import Path
 from typing import Optional, Any
 from contextlib import asynccontextmanager
@@ -21,6 +22,81 @@ import shutil
 inventory_data: Optional[dict] = None
 inventory_path: Optional[Path] = None
 aliases: Optional[dict] = None
+
+
+# --- Security helpers ---
+
+def sanitize_path_component(name: str, max_length: int = 100) -> str:
+    """
+    Sanitize a string for safe use as a path component.
+
+    Removes path separators, parent directory references, and other dangerous characters.
+    Raises ValueError if the result is empty or invalid.
+
+    Args:
+        name: The string to sanitize
+        max_length: Maximum allowed length (default 100)
+
+    Returns:
+        Sanitized string safe for use in file paths
+
+    Raises:
+        ValueError: If the input cannot be sanitized to a valid path component
+    """
+    if not name:
+        raise ValueError("Path component cannot be empty")
+
+    # Remove path separators and null bytes
+    sanitized = re.sub(r'[/\\:\x00]', '', name)
+
+    # Remove parent directory references
+    sanitized = sanitized.replace('..', '')
+
+    # Remove leading/trailing dots and spaces
+    sanitized = sanitized.strip('. ')
+
+    # Limit length
+    sanitized = sanitized[:max_length]
+
+    if not sanitized:
+        raise ValueError("Path component cannot be empty after sanitization")
+
+    # Additional check: ensure it doesn't start with a dot (hidden file)
+    if sanitized.startswith('.'):
+        sanitized = sanitized.lstrip('.')
+
+    if not sanitized:
+        raise ValueError("Invalid path component")
+
+    return sanitized
+
+
+def validate_container_id(container_id: str) -> str:
+    """
+    Validate and sanitize a container ID.
+
+    Container IDs should be alphanumeric with optional hyphens/underscores.
+
+    Args:
+        container_id: The container ID to validate
+
+    Returns:
+        The validated container ID
+
+    Raises:
+        ValueError: If the container ID is invalid
+    """
+    if not container_id:
+        raise ValueError("Container ID cannot be empty")
+
+    # Allow alphanumeric, hyphens, underscores
+    if not re.match(r'^[A-Za-z0-9_-]+$', container_id):
+        raise ValueError(f"Invalid container ID: {container_id}")
+
+    if len(container_id) > 50:
+        raise ValueError("Container ID too long (max 50 characters)")
+
+    return container_id
 
 
 @asynccontextmanager
@@ -56,11 +132,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Inventory Chatbot Server", lifespan=lifespan)
 
-# Enable CORS for local development
+# Configure CORS from environment variable
+# CORS_ORIGINS can be a comma-separated list of origins, or "*" for development
+_cors_origins_env = os.environ.get("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000")
+if _cors_origins_env == "*":
+    _cors_origins = ["*"]
+    _cors_credentials = False  # Cannot use credentials with wildcard
+else:
+    _cors_origins = [origin.strip() for origin in _cors_origins_env.split(",") if origin.strip()]
+    _cors_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -374,35 +459,18 @@ def git_commit(message: str) -> bool:
         return False
 
     import subprocess
-    import pwd
 
     try:
         inventory_dir = inventory_path.parent
-        current_uid = os.getuid()
-        current_user = pwd.getpwuid(current_uid).pw_name
 
-        # Get the owner of the inventory directory
-        stat_info = os.stat(inventory_dir)
-        owner_uid = stat_info.st_uid
-        owner_name = pwd.getpwuid(owner_uid).pw_name
-
-        # Check if we're running as a different user than the directory owner
-        if current_uid != owner_uid:
-            # Configure git safe.directory for this directory
-            try:
-                subprocess.run(
-                    ['git', 'config', '--global', '--add', 'safe.directory', str(inventory_dir)],
-                    check=True,
-                    capture_output=True
-                )
-                print(f"ℹ️  Added {inventory_dir} to git safe.directory for {current_user}")
-            except:
-                pass  # May already be added
+        # Build git command with safe.directory set inline (avoids modifying global config)
+        # This allows the service user to operate on directories owned by other users
+        safe_dir_option = ['-c', f'safe.directory={inventory_dir}']
 
         # Add changes (inventory.md, inventory.json, photo-listings/, resized/)
         # Note: photos/ is typically in .gitignore and should not be added
         subprocess.run(
-            ['git', 'add', 'inventory.md', 'inventory.json', 'photo-listings/', 'resized/'],
+            ['git', *safe_dir_option, 'add', 'inventory.md', 'inventory.json', 'photo-listings/', 'resized/'],
             cwd=inventory_dir,
             check=False,  # Don't fail if some files don't exist
             capture_output=True
@@ -410,7 +478,7 @@ def git_commit(message: str) -> bool:
 
         # Commit with message
         result = subprocess.run(
-            ['git', 'commit', '-m', message],
+            ['git', *safe_dir_option, 'commit', '-m', message],
             cwd=inventory_dir,
             capture_output=True
         )
@@ -420,7 +488,7 @@ def git_commit(message: str) -> bool:
 
             # Try to push to remote
             push_result = subprocess.run(
-                ['git', 'push'],
+                ['git', *safe_dir_option, 'push'],
                 cwd=inventory_dir,
                 capture_output=True
             )
@@ -1051,7 +1119,19 @@ async def list_containers_api() -> dict:
 @app.post("/api/items")
 async def add_item_api(container_id: str = Form(...), item_description: str = Form(...), tags: str = Form("")) -> dict:
     """Add an item to a container (mobile-friendly endpoint)."""
-    result = add_item_to_container(container_id, item_description, tags if tags else None)
+    # Validate container_id
+    try:
+        validate_container_id(container_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Basic validation for item_description
+    if not item_description or not item_description.strip():
+        raise HTTPException(status_code=400, detail="Item description cannot be empty")
+    if len(item_description) > 500:
+        raise HTTPException(status_code=400, detail="Item description too long (max 500 characters)")
+
+    result = add_item_to_container(container_id, item_description.strip(), tags.strip() if tags else None)
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -1062,7 +1142,19 @@ async def add_item_api(container_id: str = Form(...), item_description: str = Fo
 @app.post("/api/items/add-child")
 async def add_child_item_api(container_id: str = Form(...), parent_item: str = Form(...), child_description: str = Form(...)) -> dict:
     """Add a child item to a parent item (promotes parent to container if needed)."""
-    result = add_child_to_item(container_id, parent_item, child_description)
+    # Validate container_id
+    try:
+        validate_container_id(container_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Basic validation for descriptions
+    if not parent_item or not parent_item.strip():
+        raise HTTPException(status_code=400, detail="Parent item cannot be empty")
+    if not child_description or not child_description.strip():
+        raise HTTPException(status_code=400, detail="Child description cannot be empty")
+
+    result = add_child_to_item(container_id, parent_item.strip(), child_description.strip())
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -1073,7 +1165,16 @@ async def add_child_item_api(container_id: str = Form(...), parent_item: str = F
 @app.delete("/api/items")
 async def remove_item_api(container_id: str, item_description: str) -> dict:
     """Remove an item from a container (mobile-friendly endpoint)."""
-    result = remove_item_from_container(container_id, item_description)
+    # Validate container_id
+    try:
+        validate_container_id(container_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not item_description or not item_description.strip():
+        raise HTTPException(status_code=400, detail="Item description cannot be empty")
+
+    result = remove_item_from_container(container_id, item_description.strip())
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
@@ -1084,6 +1185,12 @@ async def remove_item_api(container_id: str, item_description: str) -> dict:
 @app.delete("/api/containers")
 async def remove_container_api(container_id: str) -> dict:
     """Remove an entire container from the inventory."""
+    # Validate container_id
+    try:
+        validate_container_id(container_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     result = remove_container(container_id)
 
     if "error" in result:
@@ -1098,23 +1205,37 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
     if not inventory_path:
         raise HTTPException(status_code=500, detail="Inventory path not set")
 
+    # Validate and sanitize container_id (prevent path traversal)
+    try:
+        safe_container_id = validate_container_id(container_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Validate and sanitize filename (prevent path traversal)
+    try:
+        safe_filename = sanitize_path_component(photo.filename or "upload.jpg")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid filename: {e}")
+
     # Validate file type
-    allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.JPG', '.JPEG', '.PNG', '.GIF'}
-    file_ext = Path(photo.filename).suffix
+    allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif'}
+    file_ext = Path(safe_filename).suffix.lower()
     if file_ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail="Invalid file type. Only images allowed.")
 
     # Create photos directory if it doesn't exist
-    photos_dir = inventory_path.parent / "photos" / container_id
+    photos_dir = inventory_path.parent / "photos" / safe_container_id
     photos_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save photo
-    photo_path = photos_dir / photo.filename
+    # Save photo with sanitized filename
+    photo_path = photos_dir / safe_filename
     try:
         with open(photo_path, 'wb') as f:
             shutil.copyfileobj(photo.file, f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save photo: {str(e)}")
+    except PermissionError:
+        raise HTTPException(status_code=500, detail="Permission denied writing photo")
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save photo: {e}")
 
     # Regenerate inventory to discover new photo
     from inventory_system import parser
@@ -1127,12 +1248,12 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
     reload_inventory()
 
     # Git commit
-    git_commit(f"Add photo to {container_id}: {photo.filename}")
+    git_commit(f"Add photo to {safe_container_id}: {safe_filename}")
 
     return {
         "success": True,
-        "message": f"Photo {photo.filename} uploaded to {container_id}",
-        "photo_path": f"photos/{container_id}/{photo.filename}"
+        "message": f"Photo {safe_filename} uploaded to {safe_container_id}",
+        "photo_path": f"photos/{safe_container_id}/{safe_filename}"
     }
 
 
