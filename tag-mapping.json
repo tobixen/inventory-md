@@ -1,0 +1,275 @@
+{
+  "metadata": {
+    "description": "Mapping between Norwegian inventory tags and English equivalents",
+    "hierarchical_separator": "/",
+    "cross_cutting_separator": ",",
+    "note": "Use hierarchical (/) for category/subcategory, comma for cross-cutting attributes"
+  },
+  "categories_no": {
+    "barn": {
+      "en": "children",
+      "description": "Children's items - top category",
+      "subcategories": {
+        "leker": "toys",
+        "kunst": "art",
+        "møbler": "furniture"
+      }
+    },
+    "klær": {
+      "en": "clothes",
+      "subcategories": {
+        "vinter": "winter",
+        "sommer": "summer",
+        "friluft": "outdoor",
+        "pels": "fur",
+        "tekstil": "textile",
+        "undertøy": "underwear"
+      }
+    },
+    "sko": {
+      "en": "shoes",
+      "subcategories": {
+        "vinter": "winter",
+        "sommer": "summer",
+        "sport": "sports"
+      }
+    },
+    "elektronikk": {
+      "en": "electronics",
+      "subcategories": {
+        "belysning": "lighting",
+        "lyd": "audio",
+        "data": "computer",
+        "kabler": "cables"
+      }
+    },
+    "verktøy": {
+      "en": "tools",
+      "subcategories": {
+        "elektrisk": "electric",
+        "hånd": "hand",
+        "måling": "measuring"
+      }
+    },
+    "kjøkken": {
+      "en": "kitchen",
+      "subcategories": {
+        "servise": "tableware",
+        "bestikk": "cutlery",
+        "redskap": "utensils"
+      }
+    },
+    "bad": {
+      "en": "bathroom",
+      "subcategories": {
+        "tekstil": "textile"
+      }
+    },
+    "helse": {
+      "en": "health",
+      "subcategories": {
+        "medisin": "medicine",
+        "pleie": "care"
+      }
+    },
+    "sport": {
+      "en": "sports",
+      "subcategories": {
+        "sykkel": "bicycle",
+        "skøyter": "skates",
+        "ski": "skiing",
+        "trening": "fitness"
+      }
+    },
+    "friluft": {
+      "en": "outdoor",
+      "subcategories": {
+        "camping": "camping",
+        "fiske": "fishing"
+      }
+    },
+    "hage": {
+      "en": "garden",
+      "subcategories": {
+        "verktøy": "tools",
+        "planter": "plants"
+      }
+    },
+    "bil": {
+      "en": "car",
+      "subcategories": {
+        "verktøy": "tools",
+        "deler": "parts"
+      }
+    },
+    "hjem": {
+      "en": "home",
+      "subcategories": {
+        "montering": "mounting",
+        "dekorasjon": "decoration",
+        "oppbevaring": "storage"
+      }
+    },
+    "belysning": {
+      "en": "lighting",
+      "subcategories": {
+        "lampe": "lamp",
+        "pære": "bulb"
+      }
+    },
+    "dokumenter": {
+      "en": "documents",
+      "subcategories": {
+        "personlig": "personal",
+        "kontrakter": "contracts"
+      }
+    },
+    "bok": {
+      "en": "books",
+      "subcategories": {
+        "fagbok": "nonfiction",
+        "roman": "fiction"
+      }
+    },
+    "jul": {
+      "en": "christmas",
+      "subcategories": {
+        "dekorasjon": "decoration",
+        "belysning": "lighting"
+      }
+    },
+    "leker": {
+      "en": "toys",
+      "subcategories": {
+        "brettspill": "boardgames",
+        "utendørs": "outdoor"
+      }
+    },
+    "spill": {
+      "en": "games",
+      "subcategories": {}
+    },
+    "tekstil": {
+      "en": "textile",
+      "subcategories": {}
+    },
+    "hobby": {
+      "en": "hobby",
+      "subcategories": {
+        "håndverk": "crafts",
+        "sy": "sewing"
+      }
+    },
+    "oppbevaring": {
+      "en": "storage",
+      "subcategories": {}
+    },
+    "diverse": {
+      "en": "misc",
+      "subcategories": {}
+    },
+    "veske": {
+      "en": "bags",
+      "subcategories": {}
+    }
+  },
+  "categories_en": {
+    "food": {
+      "no": "mat",
+      "subcategories": {
+        "beverage": "drikke",
+        "canned": "hermetikk",
+        "cereal": "kornvarer",
+        "legumes": "belgfrukter",
+        "pasta": "pasta",
+        "snacks": "snacks",
+        "nuts": "nøtter",
+        "bread": "brød",
+        "milk": "melk",
+        "meat": "kjøtt",
+        "fish": "fisk",
+        "seafood": "sjømat",
+        "spread": "pålegg",
+        "preserves": "syltetøy",
+        "baking": "baking",
+        "condiment": "krydder",
+        "fresh": "ferskvare",
+        "oil": "olje"
+      }
+    },
+    "tools": {
+      "no": "verktøy",
+      "subcategories": {
+        "electric": "elektrisk",
+        "hand": "hånd"
+      }
+    },
+    "electronics": {
+      "no": "elektronikk",
+      "subcategories": {}
+    },
+    "safety": {
+      "no": "sikkerhet",
+      "subcategories": {}
+    },
+    "boat": {
+      "no": "båt",
+      "subcategories": {}
+    },
+    "chemicals": {
+      "no": "kjemikalier",
+      "subcategories": {}
+    },
+    "consumables": {
+      "no": "forbruksvarer",
+      "subcategories": {}
+    },
+    "documents": {
+      "no": "dokumenter",
+      "subcategories": {}
+    }
+  },
+  "cross_cutting_tags": {
+    "no": {
+      "barn": "children",
+      "elektronikk": "electronic",
+      "TODO": "TODO",
+      "pappas": "dad's",
+      "mammas": "mom's",
+      "personlig": "personal"
+    },
+    "en": {
+      "children": "barn",
+      "electronic": "elektronikk",
+      "TODO": "TODO"
+    }
+  },
+  "tag_conversions_no": {
+    "barn,leker": "barn/leker",
+    "leker,barn": "barn/leker",
+    "barn,klær": "klær,barn",
+    "klær,barn": "klær,barn",
+    "barn,sko": "sko,barn",
+    "sko,barn": "sko,barn",
+    "barn,kunst": "barn/kunst",
+    "barn,kjøkken": "kjøkken,barn",
+    "barn,leker,elektronikk": "barn/leker,elektronikk",
+    "klær,tekstil": "klær/tekstil",
+    "klær,friluft": "klær/friluft",
+    "klær,vinterklær": "klær/vinter",
+    "vinterklær,pappas": "klær/vinter,pappas",
+    "klær,pels": "klær/pels",
+    "klær,personlig": "klær,personlig",
+    "elektronikk,belysning": "elektronikk/belysning",
+    "belysning,elektronikk": "elektronikk/belysning",
+    "elektronikk,verktøy": "verktøy,elektronikk",
+    "sport,sykkel": "sport/sykkel",
+    "sport,skøyter": "sport/skøyter",
+    "helse,bad": "helse/bad",
+    "bad,personlig": "bad,personlig",
+    "jul,dekorasjon": "jul/dekorasjon",
+    "hjem,montering": "hjem/montering",
+    "diverse,TODO": "diverse,TODO",
+    "bok,barn": "bok,barn"
+  }
+}

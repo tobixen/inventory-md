@@ -6,4 +6,6 @@
 * Solveig: take photos
 * When the Solveig and Furuset inventory systems look OK, we should make a demo site and make a 1.0-release
 * Consider scrapping the markdown file
+* Add size tagging for clothes (e.g., str:140, str:L, str:42)
+* Consider age ranges for children's items (e.g., age:6-8)
 
