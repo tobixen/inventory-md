@@ -35,6 +35,7 @@ See [awesome-selfhosted](https://awesome-selfhosted.net/tags/inventory-managemen
 | **Offline capable** | Yes (static files) | Partial | Partial | No |
 | **Mobile app** | Web only | Web PWA | Android/iOS | Mobile apps |
 | **Multi-user** | No | Yes | Yes | Yes |
+| **Shopping list** | Yes (script) | No | Yes (automatic) | No |
 | **Human-editable data** | Yes (Markdown) | No | No | No |
 
 ## Analysis by System
@@ -118,9 +119,40 @@ InvenTree provides "intuitive parts management and stock control" with a focus o
 
 4. **Barcode scanning** - Grocy can scan product barcodes to auto-populate item information from databases.
 
-5. **Shopping list integration** - Grocy generates shopping lists automatically from inventory levels and meal plans.
+5. **Automatic shopping list** - Grocy generates shopping lists automatically when stock drops; this system requires running a script manually.
 
 6. **Chore/task tracking** - Grocy includes household task management beyond just inventory.
+
+## Shopping List Comparison: This System vs Grocy
+
+This system includes a `shopping-list.py` script that compares a desired provisions list (`food-list.md`) against the actual inventory. Here's how it compares to Grocy's shopping list:
+
+| Feature | This system (shopping-list.py) | Grocy |
+|---------|-------------------------------|-------|
+| **Approach** | Compare desired list vs inventory | Track stock levels with thresholds |
+| **Desired items** | Manual food-list.md with targets | Per-product "minimum stock" setting |
+| **Stock tracking** | Parses inventory.md tags/qty | Real-time database updates |
+| **Expiry awareness** | Excludes expired items from count | Core feature, also affects "use first" |
+| **Recipe integration** | Separate (suggest-recipe skill) | Built-in: "add missing to shopping list" |
+| **Barcode scanning** | No | Yes (browser camera) |
+| **Store organization** | No | Groups by aisle/section |
+| **Output** | Terminal printout | Interactive UI, mobile app |
+| **Automation** | Run manually | Automatic when stock drops |
+
+**This system's advantages:**
+- **Explicit provisioning targets** in food-list.md - define what you *want* on board, not just minimums
+- **Hierarchical tag matching** - `food/cereal` matches `food/cereal/oats`
+- **Markdown-based** - editable anywhere, version controlled
+- **Offline** - works without server
+
+**Grocy's advantages:**
+- **Automatic triggers** - shopping list updates when stock drops below minimum
+- **Recipe integration** - one click to add missing ingredients
+- **Barcode scanning** - quick product lookup and addition
+- **Store layout** - optimize your shopping route
+- **Mobile app** - check/update list in store
+
+**Verdict:** This system's approach is better for **provisioning a boat** before a voyage (explicit "what should be on board" list). Grocy is better for **ongoing household replenishment** (automatic "we're low on milk" notifications).
 
 ## Recommendations
 
