@@ -472,11 +472,25 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
                         'indented': True
                     })
                 elif line_content.strip() and not line_content.startswith('#'):
-                    # Description line
-                    if not current_container['description']:
-                        current_container['description'] = line_content.strip()
+                    # Check if it's a bold section header like **Arabic:** or **Norwegian:**
+                    stripped = line_content.strip()
+                    if stripped.startswith('**') and stripped.endswith(':**'):
+                        # Section header within container - add as special item
+                        section_name = stripped[2:-3]  # Remove ** and :**
+                        current_container['items'].append({
+                            'id': None,
+                            'parent': None,
+                            'name': section_name,
+                            'raw_text': stripped,
+                            'metadata': {},
+                            'is_section_header': True
+                        })
                     else:
-                        current_container['description'] += ' ' + line_content.strip()
+                        # Regular description line
+                        if not current_container['description']:
+                            current_container['description'] = stripped
+                        else:
+                            current_container['description'] += ' ' + stripped
 
                 i += 1
 
