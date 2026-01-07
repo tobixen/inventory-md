@@ -1,18 +1,38 @@
-# Inventory System - Natural Stupidity notes
+# Inventory System - Human thoughts on it
 
 This is a flexible "vibe-coded" Markdown-based inventory management system with web UI and Claude-backed AI chat-bot.  My "roadmap" is to ensure it works well for two actual inventories, then make a demo and release a v1.0.
 
-## Background and thoughts
+## Problem
 
-The database is in Markdown format, because that's what I started with.  I didn't have any inventory system, I just wrote lists in my editor, eventually adding markdown headers, and using regular search to find things in it.  And then I (with a lot of help from the AI) code up a parser to convert the database to json.  And while doing so, we added tags and IDs and whatnot ... and I allowed the AI to edit the markdown file, and even allowed the markdown file to be edited through the Web-UI.
+I hate throwing things.  My wife also don't like to throw things.  For the last decades we're been living in a place/period of plenty (Norway, 2000-2026), so we've ended up with the garage, attics and other storage spaces filld up with thrash.  Whenever we need something it's way easier to buy it in the shop than to find it in the our thrash - but this certainly only makes the problem bigger.
 
-The advantage of the MD-format is that it's human-readable.  The end-result, after all those machine-edits is that it's not much human readable anymore.  So probably it would be an idea to scrap the markdown file and let the JSON-file be the "single source of truth".  I guess a lot of complexity would be removed by scrapping the markdown.
+With a good inventory system the useless thrash becomes valuable stash, as we easily can find something when we need it.
 
-When I asked the AI how I could improve on my Markdown-based system, it suggested to have it all done through javascript in the browser.  That was a very lazy start, just push out the files to my web server and it was already working without any configuration or server management.  But most likely my family members would not bother to amend the database when moving things around - so I needed a web interface for that.  Considering that I asked Claude to edit the Markdown rather than editing it myself, my first idea was to add a Chatbot for doing this - so that's the rationale behind the chatbot extension.
+## Yet Another Inventory System?
 
-The AI chatbot extension does not do a fraction of the work I had hoped it could do.  I've had Claude help me going through the inventory, adding tags, aliases and doing lots of other "hard lifting".  It even ensured that a search for "voltmeter" would find my multimeters, or that a search for "saw" would find all instances of "Sag" in my Norwegian inventory.  The chatbot failed on such simple tasks.  Now the chatbot has been made aware of the aliases.json file ... but this file is AI-generated, I think an AI chatbot automatically should consider all possible aliases for the search term rather than looking up in a pre-generated aliases.json file.
+Other systems exists.  I should definitively have looked into this before starting with my own system.  The background why I ended up with Yet Another System is that I started out with maintaining a very simple markdown file.  I asked the AI how to improve the system, it suggested to have a use a local static javascript ... and then things grew organically and escalated from there.
 
-Considering that I want to use the system on my boat, which sometimes is completely offline, a chatbot communicating with some "cloud AI" wouldn't work out, and I'm not going to install GPUs and more solar panels locally just to power this stupid chatbot.  So it's back to the drawing board ... and the chatbot will maybe disappear completely, or be an opt-in/opt-out feature.
+## Claude maintenance
+
+Keeping an inventory database up-to-date may require a lot of work.  Luckily Claude can help with it.  There is a maintenance guide and I also have stored "process photos" as a "skill", this skill will also be added to the project at some point.  It makes things much easier - just take good photos of the inventory and ask Claude to process it.  As of 2026-01, manual human verification of the work still seems very much needed, but in general Claude can easily categorize items, look up identifiers like the EAN, translate foreign languages with foreign scripts into a language the user understands, categorize items with correct tags, etc.
+
+Claude can even check what food articles are expiring and suggest recipes based on it
+
+## Web interface
+
+Some of my family members should be able to search for things in the markdown file, browse photos on their laptop and and maintain things - but in practice it didn't work out, so I needed a web interface.
+
+With the help of Claude I also organized tagging, categories, aliases and more - at the end of the day the web interface makes it easy to find whatever I'm searching for, while it's difficult by doing simple text searches in the markdown while browsing photo albums on the laptop.
+
+## Chatbot
+
+I got Claude to help me maintain the markdown file from the terminal window on the laptop, so I thought the inventory should be maintainable by a chatbot.  The current implementation uses the Claude API.  I believe the problem is that for every API call, the AI-thinking starts with blank sheets.  As of 2025-12 the Chatbot is almost useless - it's even unable to find things that can easily be found through the search bar.
+
+## Markdown as a database
+
+The database is in Markdown format ... and then a script was introduced to convert the markdown into JSON.  Now it's also possible to edit the inventory through the web UI, but the markdown gets horrible when doing this.
+
+When all I did was to maintain and search for things using my editor, markdown made great sense. I've considered to scrap the markdown file and let the JSON be the "single source of truth" - or to even push this into a SQL database.  At the end of the day it all boils down to this: for me it's a lot easier to take up the markdown file in an editor and maintain it there than to do things through a web interface.  Claude also seems pretty good at editing markdown files.  So I've decided to stick to it.
 
 # Inventory System - Artificial Intelligence documentation
 
