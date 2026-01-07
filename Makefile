@@ -1,7 +1,7 @@
 # Inventory System Makefile
 # Quick commands for managing inventory instances
 
-.PHONY: help install install-templates create-instance start stop restart status logs enable disable list-instances
+.PHONY: help install install-templates create-instance start stop restart status logs enable disable list-instances install-hook install-hooks
 
 # Configuration
 INSTANCE ?= furuset
@@ -35,6 +35,10 @@ help:
 	@echo "  make logs INSTANCE=name            Show logs for instance"
 	@echo "  make logs-api INSTANCE=name       Show chat logs only"
 	@echo "  make logs-web INSTANCE=name        Show web logs only"
+	@echo ""
+	@echo "Git Hooks:"
+	@echo "  make install-hook INSTANCE=name    Install post-receive hook for instance"
+	@echo "  make install-hooks                 Install hooks for all instances"
 	@echo ""
 	@echo "Available instances: $(INSTANCES)"
 	@echo "Default instance: $(INSTANCE)"
@@ -288,3 +292,37 @@ quick-setup:
 		echo "  3. Start instances:"; \
 		echo "     make start-all"; \
 	fi
+
+# Install git post-receive hook for a single instance
+# The hook template includes "unset GIT_DIR" which is REQUIRED for git pull to work
+install-hook:
+	@echo "Installing post-receive hook for $(INSTANCE)..."
+	@if [ ! -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
+		echo "Error: Instance config not found: /etc/inventory-system/$(INSTANCE).conf"; \
+		exit 1; \
+	fi
+	@# Determine paths based on instance
+	@PROD_DIR=$$(grep INVENTORY_PATH /etc/inventory-system/$(INSTANCE).conf | cut -d= -f2); \
+	if [ "$(INSTANCE)" = "furuset" ]; then \
+		BARE_REPO="/home/tobias/furusetalle9-inventory.git"; \
+	else \
+		BARE_REPO="/home/tobias/$(INSTANCE)-inventory.git"; \
+	fi; \
+	if [ ! -d "$$BARE_REPO" ]; then \
+		echo "Error: Bare repo not found: $$BARE_REPO"; \
+		exit 1; \
+	fi; \
+	echo "  Bare repo: $$BARE_REPO"; \
+	echo "  Prod dir: $$PROD_DIR"; \
+	sed -e "s|__PROD_DIR__|$$PROD_DIR|g" -e "s|__INSTANCE__|$(INSTANCE)|g" \
+		hooks/post-receive.template > /tmp/post-receive.$(INSTANCE); \
+	sudo cp /tmp/post-receive.$(INSTANCE) "$$BARE_REPO/hooks/post-receive"; \
+	sudo chmod +x "$$BARE_REPO/hooks/post-receive"; \
+	rm /tmp/post-receive.$(INSTANCE); \
+	echo "Hook installed for $(INSTANCE)"
+
+# Install hooks for all instances
+install-hooks:
+	@for instance in $(INSTANCES); do \
+		$(MAKE) install-hook INSTANCE=$$instance; \
+	done

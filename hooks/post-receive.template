@@ -1,0 +1,31 @@
+#!/bin/bash
+# Post-receive hook for inventory instance
+# Auto-deploys to production when changes are pushed
+#
+# IMPORTANT: unset GIT_DIR is required! When git calls this hook,
+# GIT_DIR points to the bare repo, which breaks git commands in the worktree.
+#
+# Install: make install-hook INSTANCE=solveig
+
+unset GIT_DIR
+
+PROD_DIR="__PROD_DIR__"
+BRANCH="main"
+
+cd "$PROD_DIR" || exit 1
+
+# Check if production has uncommitted changes
+if ! git diff-index --quiet HEAD --; then
+    echo "Production has uncommitted changes - skipping auto-deploy"
+    exit 0
+fi
+
+# Pull changes (will only work if fast-forward)
+if git pull --ff-only origin "$BRANCH"; then
+    echo "Production updated successfully for __INSTANCE__"
+    # Regenerate inventory.json
+    /opt/inventory-system/venv/bin/inventory-system parse inventory.md
+else
+    echo "Cannot fast-forward __INSTANCE__ - manual merge needed on laptop"
+    exit 1
+fi
