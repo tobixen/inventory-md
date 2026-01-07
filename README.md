@@ -1,16 +1,47 @@
 # Inventory System - Human thoughts on it
 
-This is a flexible "vibe-coded" Markdown-based inventory management system with web UI and Claude-backed AI chat-bot.  My "roadmap" is to ensure it works well for two actual inventories, then make a demo and release a v1.0.
+This is a flexible "vibe-coded" Markdown-based inventory management system with a web UI and (optionally) a Claude-backed AI chat-bot (not working very well, admittedly).  My "roadmap" is to ensure it works well for two actual inventories, then make a demo and release a v1.0.
 
 ## Problem
 
 I hate throwing things.  My wife also don't like to throw things.  For the last decades we're been living in a place/period of plenty (Norway, 2000-2026), so we've ended up with the garage, attics and other storage spaces filld up with thrash.  Whenever we need something it's way easier to buy it in the shop than to find it in the our thrash - but this certainly only makes the problem bigger.
 
-With a good inventory system the useless thrash becomes valuable stash, as we easily can find something when we need it.
+A good inventory system converts the useless thrash into valuable stash, as we easily can find something when we need it.
 
 ## Yet Another Inventory System?
 
-Other systems exists.  I should definitively have looked into this before starting with my own system.  The background why I ended up with Yet Another System is that I started out with maintaining a very simple markdown file.  I asked the AI how to improve the system, it suggested to have a use a local static javascript ... and then things grew organically and escalated from there.
+I started organizing things in a MarkDown file, hacked a bit around it, and suddenly I've ended up implementing "Yet Another Inventory System".
+
+Other systems exist - see [docs/comparison-with-other-systems.md](docs/comparison-with-other-systems.md) for a detailed comparison.  Here are some key aspects:
+
+- I have a database in markdown format, git-backed
+  - **Pro:**  I still prefer updating my inventory list through my editor (or by using Claude Code in the console).
+  - **Con:** Scales badly for multiuser support and huge databases.  Easy to accidentally break things.  Algorithmic editing of the markdown can make it really ugly.
+- Can be used offline. **Pro**: works on a boat without internet.
+- AI-driven maintenance (optional).
+  - **Pro:** Claude has proven to be amazing on tagging and categorizing, as well as analyzing photos - most of the time (so manual verification is recommended).
+  - **Con:** This is a cloud-based service, to use it one needs to send data to the provider.  It also costs money to use.
+- AI Chatbot (optional)
+  - **Pro:** free text sometimes works better, particularly for quick updates of the database.
+  * **Con:** As of 2025-12 I'm underimpressed - and as above, it's a cloud-based paid service.
+- Multilingual search - aliases handle Norwegian/English/Greek synonyms (this can be extended/maintained manually or by Claude).
+- No built-in authentication
+  * **Pro:** keep it simple, and use ssh, basic auth in the web server, etc for this.
+  * **Con:** Not much suitable in settings where security and audit logs are important.
+
+**What the others do better:**
+- QR code/barcode generation and scanning.  I'm considering to add that.
+- Mobile apps.  I will at least optimize the web page better for mobiles.
+- Authentication.  In my usecase it suffices with basic auth configured at the web server.
+- Scalability - My system is made for a small family or team
+- Shopping list integration (Grocy) - my system has a simple script for generating a shopping list
+- More mature and well-tested
+
+**Drawbacks of this system:**
+- Under active development - expect rough edges
+- Under-tested - works for my two inventories, not battle-tested elsewhere
+- No mobile app, no multi-user auth
+
 
 ## Claude maintenance
 
