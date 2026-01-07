@@ -8,6 +8,7 @@ Regular maintenance helps keep your inventory searchable, organized, and useful.
 |------|-----------|----------------|
 | Run quality check | Weekly | `python scripts/check_quality.py` |
 | Full analysis | Monthly | `python scripts/analyze_inventory.py` |
+| Sync EANs from photos | Monthly | `scripts/sync_eans_to_inventory.py` |
 | Process TODO items | As needed | Review items tagged `TODO` |
 | Add missing tags | Monthly | See [Tagging Guidelines](#tagging-guidelines) |
 | Update aliases | Quarterly | Edit `aliases.json` |
@@ -150,6 +151,38 @@ cd ~/solveig-inventory  # or ~/furusetalle9-inventory
 ```
 
 By default, the script shows only items that have already expired. Use `--limit` or `--before` to see items expiring soon.
+
+---
+
+## Barcode Sync (Monthly)
+
+Photos may contain product barcodes (EAN/UPC) that aren't yet recorded in inventory.md. The sync script scans all photo directories, extracts barcodes, and identifies missing EANs:
+
+```bash
+cd ~/solveig-inventory  # or ~/furusetalle9-inventory
+
+# Dry-run: see what would be added
+~/inventory-system/scripts/sync_eans_to_inventory.py
+
+# Actually update inventory.md
+~/inventory-system/scripts/sync_eans_to_inventory.py --apply
+
+# Process only a specific container
+~/inventory-system/scripts/sync_eans_to_inventory.py --container F-01
+```
+
+The script:
+- Scans `photos/{container}/` directories for barcodes
+- Checks if each EAN exists in the corresponding container in inventory.json
+- Looks up unknown products in Open Food Facts
+- Adds missing items to inventory.md (with `--apply`)
+
+After running with `--apply`, regenerate the JSON:
+```bash
+inventory-system parse inventory.md
+```
+
+Items that couldn't be identified online are added with `tag:TODO` - review these manually.
 
 ---
 
