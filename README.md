@@ -20,7 +20,7 @@ Other systems exist - see [docs/comparison-with-other-systems.md](docs/compariso
 - Can be used offline. **Pro**: works on a boat without internet.
 - AI-driven maintenance (optional).
   - **Pro:** Claude has proven to be amazing on tagging and categorizing, as well as analyzing photos - most of the time (so manual verification is recommended).
-  - **Con:** This is a cloud-based service, to use it one needs to send data to the provider.  It also costs money to use.
+  - **Con:** Your data will leak to the cloud, and it costs money to use.
 - AI Chatbot (optional)
   - **Pro:** free text sometimes works better, particularly for quick updates of the database.
   * **Con:** As of 2025-12 I'm underimpressed - and as above, it's a cloud-based paid service.
@@ -28,20 +28,10 @@ Other systems exist - see [docs/comparison-with-other-systems.md](docs/compariso
 - No built-in authentication
   * **Pro:** keep it simple, and use ssh, basic auth in the web server, etc for this.
   * **Con:** Not much suitable in settings where security and audit logs are important.
-
-**What the others do better:**
-- QR code/barcode generation and scanning.  I'm considering to add that.
-- Mobile apps.  I will at least optimize the web page better for mobiles.
-- Authentication.  In my usecase it suffices with basic auth configured at the web server.
-- Scalability - My system is made for a small family or team
-- Shopping list integration (Grocy) - my system has a simple script for generating a shopping list
-- More mature and well-tested
-
-**Drawbacks of this system:**
-- Under active development - expect rough edges
-- Under-tested - works for my two inventories, not battle-tested elsewhere
-- No mobile app, no multi-user auth
-
+- Missing mobile app / mobile optimization - but I'll fix it soon enough
+- Under active development and only tested on two inventories 
+  * **Con:** expect rough edges.
+  * **Pro:** this is a flexible and agile period, as I don't have to care about backward compatibility.
 
 ## Claude maintenance
 
