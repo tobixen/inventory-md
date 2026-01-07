@@ -11,6 +11,7 @@ Regular maintenance helps keep your inventory searchable, organized, and useful.
 | Process TODO items | As needed | Review items tagged `TODO` |
 | Add missing tags | Monthly | See [Tagging Guidelines](#tagging-guidelines) |
 | Update aliases | Quarterly | Edit `aliases.json` |
+| Manual photo check | Quarterly | See [Photo Guidelines](#photo-guidelines) |
 | Backup photos | Monthly | Ensure photos are backed up |
 
 ---
@@ -129,6 +130,45 @@ for c in data['containers']:
         print(f\"{c['id']}: {len(untagged)} untagged\")
 "
 ```
+
+### Food storage due dates
+
+Food items should have a `bb:YYYY-MM` or `bb:YYYY-MM-DD` field for best-before date. Use the expiry script to find items that need to be used:
+
+```bash
+cd ~/solveig-inventory  # or ~/furusetalle9-inventory
+~/inventory-system/scripts/find_expiring_food.py inventory.json
+
+# Show top 10 items by expiry date (including not-yet-expired)
+~/inventory-system/scripts/find_expiring_food.py inventory.json --limit 10
+
+# Show items expiring before a specific date
+~/inventory-system/scripts/find_expiring_food.py inventory.json --before 2026-06
+
+# Show all food with expiry dates
+~/inventory-system/scripts/find_expiring_food.py inventory.json --all
+```
+
+By default, the script shows only items that have already expired. Use `--limit` or `--before` to see items expiring soon.
+
+---
+
+## Photo Guidelines
+
+The content of every box/container/location should have a photo directory `photos/$ID`.  (Downscaled photos are made available by the scripts, mirrored under `resized/`.
+
+Photo directories may be tagged in the markdown file with `photos:$DIRNAME`.  Those taggings are reserved for cases where the photo directory deviates from the ID - typically because one folder contains a mix of photos of different boxes.  Those exceptions should be fixed eventually, the markdown file should ideally not be cluttered with such taggings.  TODO: locating those tags should be scripted, possibly added to one of the existing QA-scripts.  The script should also eliminate redundant photo tagging.
+
+### Regular maintenance
+
+For each photo directory:
+
+* Check if the photo directory matches something in the inventory.  Photo directories that does not match the inventory files either means something is missing in the inventory or that the photo directory should be renamed.  Other times things have simply been removed from the inventory.  Obvious things should be fixed on the go, difficult things should go through the `TODO.md` first
+* Check every photo
+  * Is it likely that the photo is in the wrong directory?  Obvious things should be fixed on the fly, difficult things noted in TODO.md
+  * Does the photo show anything that is not explicitly listed in the inventory list?  If so, add it to the inventory list.
+  * Does the photo show additional details (specifications, colors, brands, etc) in additon to those already listed in inventory.md?  Search the web for specifications if some article number etc is found.  Add to the inventory list.
+  * Are there things that exists in the inventory, but not in the photos?  Add an item to the TODO-list to take more photographs or verify the content.
 
 ---
 
