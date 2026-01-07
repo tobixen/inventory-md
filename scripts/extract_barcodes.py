@@ -100,7 +100,7 @@ def extract_barcodes(image_path: Path) -> list[dict]:
     return results
 
 
-def lookup_ean_online(ean: str) -> dict | None:
+def lookup_openfoodfacts(ean: str) -> dict | None:
     """
     Look up an EAN using Open Food Facts API.
 
@@ -109,7 +109,6 @@ def lookup_ean_online(ean: str) -> dict | None:
     if not HAS_REQUESTS:
         return None
 
-    # Open Food Facts API (free, no API key needed)
     url = f"https://world.openfoodfacts.org/api/v2/product/{ean}.json"
 
     try:
@@ -134,8 +133,67 @@ def lookup_ean_online(ean: str) -> dict | None:
             'source': 'openfoodfacts',
         }
     except requests.RequestException as e:
-        print(f"Lookup failed for {ean}: {e}", file=sys.stderr)
+        print(f"OpenFoodFacts lookup failed for {ean}: {e}", file=sys.stderr)
         return None
+
+
+def lookup_upcitemdb(ean: str) -> dict | None:
+    """
+    Look up an EAN/UPC using UPCitemdb trial API.
+
+    Note: Trial API has rate limits (100 requests/day).
+    Returns product info dict or None if not found.
+    """
+    if not HAS_REQUESTS:
+        return None
+
+    url = f"https://api.upcitemdb.com/prod/trial/lookup?upc={ean}"
+
+    try:
+        response = requests.get(url, timeout=10, headers={
+            'User-Agent': 'InventorySystem/1.0 (https://github.com/tobixen/inventory-system)',
+            'Accept': 'application/json',
+        })
+        response.raise_for_status()
+        data = response.json()
+
+        items = data.get('items', [])
+        if not items:
+            return None
+
+        item = items[0]
+        return {
+            'ean': ean,
+            'name': item.get('title'),
+            'brand': item.get('brand'),
+            'quantity': item.get('size') or item.get('weight'),
+            'categories': item.get('category'),
+            'image_url': (item.get('images') or [None])[0],
+            'source': 'upcitemdb',
+        }
+    except requests.RequestException as e:
+        print(f"UPCitemdb lookup failed for {ean}: {e}", file=sys.stderr)
+        return None
+
+
+def lookup_ean_online(ean: str) -> dict | None:
+    """
+    Look up an EAN using multiple APIs with fallback.
+
+    Tries Open Food Facts first, then UPCitemdb.
+    Returns product info dict or None if not found.
+    """
+    # Try Open Food Facts first (no rate limit, good for food)
+    product = lookup_openfoodfacts(ean)
+    if product and product.get('name'):
+        return product
+
+    # Fallback to UPCitemdb (has rate limit but covers more products)
+    product = lookup_upcitemdb(ean)
+    if product and product.get('name'):
+        return product
+
+    return None
 
 
 def lookup_ean(ean: str, cache: dict, use_cache: bool = True) -> tuple[dict | None, bool]:
@@ -158,12 +216,45 @@ def lookup_ean(ean: str, cache: dict, use_cache: bool = True) -> tuple[dict | No
     return product, False
 
 
+def validate_ean_checksum(ean: str) -> bool:
+    """Validate EAN/UPC check digit."""
+    if not ean.isdigit():
+        return False
+    if len(ean) not in (8, 12, 13):
+        return False
+
+    # EAN-13/UPC-A checksum algorithm
+    digits = [int(d) for d in ean]
+    if len(ean) == 13:
+        # EAN-13: odd positions * 1, even positions * 3
+        total = sum(d * (1 if i % 2 == 0 else 3) for i, d in enumerate(digits[:-1]))
+        check = (10 - (total % 10)) % 10
+        return check == digits[-1]
+    elif len(ean) == 12:
+        # UPC-A: odd positions * 3, even positions * 1
+        total = sum(d * (3 if i % 2 == 0 else 1) for i, d in enumerate(digits[:-1]))
+        check = (10 - (total % 10)) % 10
+        return check == digits[-1]
+    elif len(ean) == 8:
+        # EAN-8: same as EAN-13
+        total = sum(d * (3 if i % 2 == 0 else 1) for i, d in enumerate(digits[:-1]))
+        check = (10 - (total % 10)) % 10
+        return check == digits[-1]
+    return False
+
+
 def is_ean(barcode_type: str, data: str) -> bool:
-    """Check if barcode is a product EAN/UPC that can be looked up."""
+    """Check if barcode is a valid product EAN/UPC that can be looked up."""
     if barcode_type in ('EAN13', 'EAN8', 'UPCA', 'UPCE'):
+        if not validate_ean_checksum(data):
+            print(f"Warning: Invalid checksum for {data}", file=sys.stderr)
+            return False
         return True
     # Some barcodes encode EANs as other types
     if barcode_type == 'CODE128' and data.isdigit() and len(data) in (8, 12, 13):
+        if not validate_ean_checksum(data):
+            print(f"Warning: Invalid checksum for {data}", file=sys.stderr)
+            return False
         return True
     return False
 
