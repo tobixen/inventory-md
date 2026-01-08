@@ -616,18 +616,337 @@
             font-weight: 500;
         }
 
+        /* ==================== MOBILE OVERHAUL ==================== */
+
+        /* Mobile-first: ensure minimum touch targets (44x44px) */
         @media (max-width: 768px) {
-            .images-grid {
-                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            /* Sticky search header */
+            .search-container {
+                position: sticky;
+                top: 0;
+                z-index: 100;
+                margin: 0 -20px 20px -20px;
+                padding: 15px 20px;
+                border-radius: 0;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             }
 
+            .container {
+                padding: 10px;
+            }
+
+            /* Larger search box for mobile */
+            .search-box {
+                font-size: 18px;
+                padding: 16px 20px;
+                border-radius: 8px;
+                margin-bottom: 12px;
+            }
+
+            /* Header adjustments */
+            header {
+                padding: 15px;
+                margin-bottom: 0;
+                border-radius: 0;
+                margin: -10px -10px 0 -10px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            /* View toggle buttons - larger touch targets */
+            .view-toggle {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+                margin-top: 12px;
+            }
+
+            .view-btn {
+                min-height: 48px;
+                font-size: 14px;
+                padding: 12px 16px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Filter buttons - stack and full width */
             .filters {
                 flex-direction: column;
+                gap: 8px;
             }
 
             .filter-btn {
                 width: 100%;
+                min-height: 48px;
+                font-size: 15px;
+                padding: 12px 16px;
             }
+
+            /* Collapsible tag filter */
+            .tag-filter {
+                margin-top: 12px;
+            }
+
+            .tag-filter-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 12px;
+                background: #f8f9fa;
+                border-radius: 8px;
+                cursor: pointer;
+                min-height: 48px;
+            }
+
+            .tag-filter-header::after {
+                content: '▼';
+                font-size: 12px;
+                transition: transform 0.3s;
+            }
+
+            .tag-filter.collapsed .tag-filter-header::after {
+                transform: rotate(-90deg);
+            }
+
+            .tag-filter.collapsed .tag-filter-content {
+                display: none;
+            }
+
+            .tag-filter-content {
+                padding-top: 10px;
+            }
+
+            .tag-filter-btn {
+                min-height: 44px;
+                padding: 10px 14px;
+                font-size: 14px;
+                margin: 4px;
+            }
+
+            /* Container cards - larger tap targets */
+            .container-header {
+                padding: 18px 15px;
+                min-height: 60px;
+            }
+
+            .container-id {
+                font-size: 16px;
+            }
+
+            .container-title {
+                font-size: 13px;
+                margin-left: 10px;
+            }
+
+            .toggle-icon {
+                font-size: 18px;
+                padding: 10px;
+                margin: -10px;
+            }
+
+            .container-details {
+                padding: 15px;
+            }
+
+            /* Image grids */
+            .images-grid {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+                gap: 10px;
+            }
+
+            .gallery-grid {
+                grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+                gap: 12px;
+            }
+
+            .gallery-image-wrapper img {
+                height: 160px;
+            }
+
+            /* Items list - better touch targets for links */
+            .items-list li {
+                padding: 8px 0;
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            .items-list li:last-child {
+                border-bottom: none;
+            }
+
+            .item-link {
+                padding: 8px 4px;
+                margin: -8px -4px;
+            }
+
+            .tag-badge {
+                padding: 6px 12px;
+                font-size: 12px;
+                min-height: 32px;
+                display: inline-flex;
+                align-items: center;
+            }
+
+            /* Parent link - larger touch target */
+            .parent-link {
+                padding: 8px 12px;
+                margin-left: 5px;
+                background: rgba(52, 152, 219, 0.1);
+                border-radius: 6px;
+                min-height: 36px;
+                display: inline-flex;
+                align-items: center;
+            }
+
+            /* Stats bar */
+            .stats {
+                font-size: 13px;
+                padding: 8px;
+            }
+
+            /* Lightbox mobile optimizations */
+            .lightbox img {
+                max-width: 100%;
+                max-height: 80%;
+            }
+
+            .lightbox-close {
+                top: 10px;
+                right: 15px;
+                font-size: 36px;
+                padding: 10px;
+                background: rgba(0, 0, 0, 0.5);
+                border-radius: 50%;
+                width: 56px;
+                height: 56px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            /* Move nav buttons to bottom corners for thumb reach */
+            .lightbox-nav {
+                top: auto;
+                bottom: 80px;
+                transform: none;
+                font-size: 24px;
+                padding: 16px 24px;
+                min-width: 64px;
+                min-height: 64px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.6);
+                border: none;
+                border-radius: 12px;
+            }
+
+            .lightbox-prev {
+                left: 15px;
+            }
+
+            .lightbox-next {
+                right: 15px;
+            }
+
+            .lightbox-info {
+                bottom: 15px;
+                padding: 12px 16px;
+                font-size: 13px;
+                max-width: calc(100% - 30px);
+                text-align: center;
+            }
+
+            /* Photos link - larger button */
+            .photos-link {
+                min-height: 48px;
+                padding: 12px 20px;
+                font-size: 15px;
+                display: inline-flex;
+                align-items: center;
+            }
+
+            /* Error modal mobile */
+            .error-modal-content {
+                margin: 20px;
+                max-width: calc(100% - 40px);
+                max-height: calc(100vh - 40px);
+            }
+
+            .error-modal-btn {
+                min-height: 48px;
+                padding: 12px 20px;
+            }
+
+            /* No results message */
+            .no-results {
+                padding: 30px 20px;
+            }
+
+            /* Intro section */
+            #intro {
+                padding: 12px;
+            }
+
+            #introToggle {
+                min-height: 44px;
+                padding: 10px;
+                margin: -10px;
+                font-size: 15px;
+            }
+        }
+
+        /* Small phones (under 400px) */
+        @media (max-width: 400px) {
+            .search-box {
+                font-size: 16px;
+                padding: 14px 16px;
+            }
+
+            .container-header {
+                flex-wrap: wrap;
+            }
+
+            .container-title {
+                width: 100%;
+                margin-left: 0;
+                margin-top: 8px;
+                font-size: 12px;
+            }
+
+            .images-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .gallery-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        /* Swipe indicator for lightbox */
+        .swipe-indicator {
+            position: absolute;
+            bottom: 130px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .swipe-indicator {
+                display: block;
+            }
+        }
+
+        /* Prevent body scroll when lightbox is open on mobile */
+        body.lightbox-open {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
         }
     </style>
 </head>
@@ -681,6 +1000,7 @@
         <span class="lightbox-nav lightbox-prev" onclick="navigateLightbox(-1)">‹</span>
         <span class="lightbox-nav lightbox-next" onclick="navigateLightbox(1)">›</span>
         <img id="lightboxImg" src="" alt="">
+        <div class="swipe-indicator" id="swipeIndicator"></div>
         <div class="lightbox-info" id="lightboxInfo"></div>
     </div>
 
@@ -726,7 +1046,10 @@
                 viewPhotos: '📷 View all photos in full resolution',
                 goTo: 'Go to',
                 imageOf: 'Image',
-                container: 'Container'
+                container: 'Container',
+                swipeHint: '← swipe to browse →',
+                tagsSelected: 'selected',
+                tagsAvailable: 'available'
             },
             no: {
                 title: '🏠 Inventarliste',
@@ -750,7 +1073,10 @@
                 viewPhotos: '📷 Se alle bilder i full oppløsning',
                 goTo: 'Gå til',
                 imageOf: 'Bilde',
-                container: 'Container'
+                container: 'Container',
+                swipeHint: '← sveip for å bla →',
+                tagsSelected: 'valgt',
+                tagsAvailable: 'tilgjengelig'
             }
         };
 
@@ -766,6 +1092,7 @@
             document.getElementById('galleryViewBtn').textContent = t.galleryView;
             document.getElementById('stats').textContent = t.loading;
             document.getElementById('results').textContent = t.loading;
+            document.getElementById('swipeIndicator').textContent = t.swipeHint;
         }
 
         // Call initializeUI on page load
@@ -871,6 +1198,11 @@
             filtersDiv.innerHTML = html;
         }
 
+        // Check if mobile device
+        function isMobile() {
+            return window.innerWidth <= 768;
+        }
+
         // Display tag filter UI
         function displayTagFilter() {
             const tagFilterDiv = document.getElementById('tagFilter');
@@ -885,13 +1217,38 @@
             const sortedTags = Array.from(allTags.entries())
                 .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
-            let html = '<div style="font-size: 12px; color: #666; margin-bottom: 5px;">';
-            html += t.tagFilterLabel;
-            if (selectedTags.size > 0) {
+            // Check if we should show collapsible UI (mobile) or regular (desktop)
+            const isCollapsible = isMobile();
+            const isCollapsed = tagFilterDiv.classList.contains('collapsed');
+            const hasSelectedTags = selectedTags.size > 0;
+
+            let html = '';
+
+            if (isCollapsible) {
+                // Mobile: collapsible layout
+                const tagSummary = hasSelectedTags
+                    ? `${selectedTags.size} ${t.tagsSelected}`
+                    : `${allTags.size} ${t.tagsAvailable}`;
+
+                html += `<div class="tag-filter-header" onclick="toggleTagFilter()">`;
+                html += `<span>${t.tagFilterLabel.replace(':', '')} (${tagSummary})</span>`;
+                html += `</div>`;
+                html += `<div class="tag-filter-content">`;
+            } else {
+                // Desktop: regular layout
+                html += '<div style="font-size: 12px; color: #666; margin-bottom: 5px;">';
+                html += t.tagFilterLabel;
+            }
+
+            if (hasSelectedTags) {
                 html += ` <button class="tag-filter-btn" data-tag="" style="font-size: 11px; padding: 3px 8px;">${t.tagFilterClearAll}</button>`;
             }
-            html += '</div>';
-            html += '<div style="display: flex; flex-wrap: wrap; gap: 5px;">';
+
+            if (!isCollapsible) {
+                html += '</div>';
+            }
+
+            html += '<div style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px;">';
 
             // Add individual tag buttons (limit to top 20 tags)
             sortedTags.slice(0, 20).forEach(([tag, count]) => {
@@ -902,7 +1259,27 @@
             });
 
             html += '</div>';
+
+            if (isCollapsible) {
+                html += '</div>'; // Close tag-filter-content
+            }
+
             tagFilterDiv.innerHTML = html;
+
+            // Apply collapsed class if on mobile and was collapsed
+            if (isCollapsible && isCollapsed) {
+                tagFilterDiv.classList.add('collapsed');
+            } else if (!isCollapsible) {
+                tagFilterDiv.classList.remove('collapsed');
+            }
+        }
+
+        // Toggle tag filter collapse on mobile
+        function toggleTagFilter() {
+            const tagFilterDiv = document.getElementById('tagFilter');
+            if (tagFilterDiv) {
+                tagFilterDiv.classList.toggle('collapsed');
+            }
         }
 
         // Build search index for faster lookups
@@ -1615,6 +1992,79 @@
             }
         });
 
+        // ==================== SWIPE GESTURES FOR LIGHTBOX ====================
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchEndX = 0;
+        let touchEndY = 0;
+        const MIN_SWIPE_DISTANCE = 50;
+        const MAX_VERTICAL_DISTANCE = 100;
+
+        const lightboxElement = document.getElementById('lightbox');
+
+        lightboxElement.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+
+        lightboxElement.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            touchEndY = e.changedTouches[0].screenY;
+            handleSwipe();
+        }, { passive: true });
+
+        function handleSwipe() {
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = Math.abs(touchEndY - touchStartY);
+
+            // Only handle horizontal swipes (not vertical scrolls)
+            if (Math.abs(deltaX) > MIN_SWIPE_DISTANCE && deltaY < MAX_VERTICAL_DISTANCE) {
+                if (deltaX > 0) {
+                    // Swiped right - previous image
+                    navigateLightbox(-1);
+                } else {
+                    // Swiped left - next image
+                    navigateLightbox(1);
+                }
+
+                // Hide swipe indicator after first successful swipe
+                const indicator = document.getElementById('swipeIndicator');
+                if (indicator) {
+                    indicator.style.display = 'none';
+                }
+            }
+        }
+
+        // Track scroll position for body lock
+        let scrollPosition = 0;
+
+        // Enhanced openLightbox with body scroll lock
+        const originalOpenLightbox = openLightbox;
+        openLightbox = function(src) {
+            scrollPosition = window.pageYOffset;
+            document.body.classList.add('lightbox-open');
+            document.body.style.top = `-${scrollPosition}px`;
+            originalOpenLightbox(src);
+        };
+
+        // Enhanced openLightboxAtIndex with body scroll lock
+        const originalOpenLightboxAtIndex = openLightboxAtIndex;
+        openLightboxAtIndex = function(index) {
+            scrollPosition = window.pageYOffset;
+            document.body.classList.add('lightbox-open');
+            document.body.style.top = `-${scrollPosition}px`;
+            originalOpenLightboxAtIndex(index);
+        };
+
+        // Enhanced closeLightbox with body scroll restore
+        const originalCloseLightbox = closeLightbox;
+        closeLightbox = function() {
+            document.body.classList.remove('lightbox-open');
+            document.body.style.top = '';
+            window.scrollTo(0, scrollPosition);
+            originalCloseLightbox();
+        };
+
         // Event delegation for parent and item links
         document.addEventListener('click', (e) => {
             // Handle parent links
@@ -1635,6 +2085,25 @@
                 const containerId = link.dataset.containerId;
                 if (containerId) {
                     scrollToContainer(containerId);
+                }
+            }
+        });
+
+        // Handle window resize - re-render tag filter for responsive layout
+        let resizeTimeout = null;
+        window.addEventListener('resize', () => {
+            if (resizeTimeout) clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                displayTagFilter();
+            }, 150);
+        });
+
+        // Initialize tag filter as collapsed on mobile
+        document.addEventListener('DOMContentLoaded', () => {
+            if (isMobile()) {
+                const tagFilterDiv = document.getElementById('tagFilter');
+                if (tagFilterDiv) {
+                    tagFilterDiv.classList.add('collapsed');
                 }
             }
         });
