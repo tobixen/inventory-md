@@ -149,6 +149,72 @@
             gap: 20px;
         }
 
+        /* Shopping list styles */
+        .shopping-list {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .shopping-list h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.5em;
+        }
+
+        .shopping-list h2 {
+            color: #34495e;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 5px;
+        }
+
+        .shopping-list p {
+            color: #7f8c8d;
+            margin-bottom: 15px;
+        }
+
+        .shopping-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .shopping-item.missing {
+            background: #ffebee;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .shopping-item.low {
+            background: #fff8e1;
+            border-left: 4px solid #f39c12;
+        }
+
+        .shopping-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .shopping-item.checked {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+
+        .shopping-summary {
+            margin-top: 20px;
+            padding: 15px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
         .gallery-image-wrapper {
             position: relative;
             background: #f0f0f0;
@@ -977,6 +1043,7 @@
             <div class="view-toggle">
                 <button class="view-btn active" data-view="containers" id="containerViewBtn"></button>
                 <button class="view-btn" data-view="gallery" id="galleryViewBtn"></button>
+                <button class="view-btn" data-view="shopping" id="shoppingViewBtn"></button>
             </div>
 
             <div class="tag-filter" id="tagFilter" style="margin-top: 15px;">
@@ -992,6 +1059,10 @@
 
         <div id="gallery-view" style="display: none;">
             <div class="gallery-grid" id="galleryGrid"></div>
+        </div>
+
+        <div id="shopping-view" style="display: none;">
+            <div class="shopping-list" id="shoppingList"></div>
         </div>
     </div>
 
@@ -1032,6 +1103,9 @@
                 filterAll: 'All',
                 containerView: '📦 Container View',
                 galleryView: '🖼️ Gallery View',
+                shoppingView: '🛒 Shopping List',
+                shoppingLoading: 'Loading shopping list...',
+                shoppingError: 'Could not load shopping list. It may not exist yet.',
                 tagFilterLabel: 'Filter by tags (click multiple for AND filter):',
                 tagFilterClearAll: 'Clear all',
                 statsShowing: 'Showing',
@@ -1059,6 +1133,9 @@
                 filterAll: 'Alle',
                 containerView: '📦 Containervisning',
                 galleryView: '🖼️ Bildevisning',
+                shoppingView: '🛒 Handleliste',
+                shoppingLoading: 'Laster handleliste...',
+                shoppingError: 'Kunne ikke laste handleliste. Den eksisterer kanskje ikke ennå.',
                 tagFilterLabel: 'Filter etter emneord (klikk flere for AND-filter):',
                 tagFilterClearAll: 'Nullstill alle',
                 statsShowing: 'Viser',
@@ -1090,6 +1167,7 @@
             document.getElementById('searchBox').placeholder = t.searchPlaceholder;
             document.getElementById('containerViewBtn').textContent = t.containerView;
             document.getElementById('galleryViewBtn').textContent = t.galleryView;
+            document.getElementById('shoppingViewBtn').textContent = t.shoppingView;
             document.getElementById('stats').textContent = t.loading;
             document.getElementById('results').textContent = t.loading;
             document.getElementById('swipeIndicator').textContent = t.swipeHint;
@@ -1634,18 +1712,110 @@
             setupLazyLoading();
         }
 
+        // Shopping list view
+        let shoppingListData = null;
+        let shoppingListLoaded = false;
+
+        async function loadShoppingList() {
+            if (shoppingListLoaded) return;
+            try {
+                const response = await fetch('shopping-list.md');
+                if (!response.ok) throw new Error('Not found');
+                shoppingListData = await response.text();
+                shoppingListLoaded = true;
+            } catch (e) {
+                shoppingListData = null;
+            }
+        }
+
+        function parseShoppingListMarkdown(md) {
+            const lines = md.split('\n');
+            let html = '';
+            let currentSection = '';
+            let itemId = 0;
+
+            for (const line of lines) {
+                // Headers
+                if (line.startsWith('# ')) {
+                    html += `<h1>${line.substring(2)}</h1>`;
+                } else if (line.startsWith('## ')) {
+                    currentSection = line.substring(3);
+                    html += `<h2>${currentSection}</h2>`;
+                } else if (line.startsWith('Generated:')) {
+                    html += `<p>${line}</p>`;
+                } else if (line.startsWith('[!]')) {
+                    // Missing/urgent item
+                    const text = line.substring(4).trim();
+                    const checked = localStorage.getItem(`shopping-${itemId}`) === 'true';
+                    html += `<div class="shopping-item missing ${checked ? 'checked' : ''}" data-item-id="${itemId}">
+                        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleShoppingItem(${itemId}, this.checked)">
+                        <span>${text}</span>
+                    </div>`;
+                    itemId++;
+                } else if (line.startsWith('[ ]')) {
+                    // Low stock item
+                    const text = line.substring(4).trim();
+                    const checked = localStorage.getItem(`shopping-${itemId}`) === 'true';
+                    html += `<div class="shopping-item low ${checked ? 'checked' : ''}" data-item-id="${itemId}">
+                        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleShoppingItem(${itemId}, this.checked)">
+                        <span>${text}</span>
+                    </div>`;
+                    itemId++;
+                } else if (line.startsWith('**Summary:**')) {
+                    html += `<div class="shopping-summary">${line.replace(/\*\*/g, '')}</div>`;
+                } else if (line === '---') {
+                    html += '<hr>';
+                }
+            }
+            return html;
+        }
+
+        function toggleShoppingItem(itemId, checked) {
+            localStorage.setItem(`shopping-${itemId}`, checked);
+            const item = document.querySelector(`.shopping-item[data-item-id="${itemId}"]`);
+            if (item) {
+                item.classList.toggle('checked', checked);
+            }
+        }
+
+        async function displayShoppingView() {
+            const shoppingDiv = document.getElementById('shoppingList');
+            document.getElementById('stats').innerHTML = '';
+
+            if (!shoppingListLoaded) {
+                shoppingDiv.innerHTML = `<p>${t.shoppingLoading}</p>`;
+                await loadShoppingList();
+            }
+
+            if (shoppingListData) {
+                shoppingDiv.innerHTML = parseShoppingListMarkdown(shoppingListData);
+            } else {
+                shoppingDiv.innerHTML = `<p>${t.shoppingError}</p>`;
+            }
+        }
+
         // Display results
         function displayResults() {
             if (currentView === 'gallery') {
                 document.getElementById('results').style.display = 'none';
                 document.getElementById('gallery-view').style.display = 'block';
+                document.getElementById('shopping-view').style.display = 'none';
                 displayGalleryView();
+                return;
+            }
+
+            if (currentView === 'shopping') {
+                document.getElementById('results').style.display = 'none';
+                document.getElementById('gallery-view').style.display = 'none';
+                document.getElementById('shopping-view').style.display = 'block';
+                displayShoppingView();
                 return;
             }
 
             // Container view
             document.getElementById('results').style.display = 'block';
             document.getElementById('gallery-view').style.display = 'none';
+            document.getElementById('shopping-view').style.display = 'none';
 
             const resultsDiv = document.getElementById('results');
             const filteredContainers = inventoryData.containers.filter(containerMatchesFilters);
