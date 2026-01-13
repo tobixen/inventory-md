@@ -7,6 +7,7 @@ import argparse
 import shutil
 from pathlib import Path
 from . import parser
+from . import shopping_list
 
 
 def init_inventory(directory: Path, name: str = "My Inventory") -> int:
@@ -91,7 +92,7 @@ Beskrivelse av container...
     return 0
 
 
-def parse_command(md_file: Path, output: Path = None, validate_only: bool = False) -> int:
+def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
 
@@ -158,6 +159,17 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                 print(f"✅ Created {files_created} photo listing(s) in photo-listings/")
             else:
                 print(f"   No photos found (photo-listings/ not updated)")
+
+            # Generate shopping list if wanted-items file specified
+            if wanted_items:
+                wanted_path = Path(wanted_items).resolve()
+                if not wanted_path.exists():
+                    print(f"\n⚠️  wanted-items file not found: {wanted_path}")
+                else:
+                    output_shopping = md_file.parent / "shopping-list.md"
+                    result = shopping_list.generate_shopping_list(wanted_path, md_file)
+                    output_shopping.write_text(result, encoding="utf-8")
+                    print(f"\n🛒 Generated {output_shopping}")
 
             search_html = md_file.parent / 'search.html'
             print(f"\n📱 To view the searchable inventory, open search.html in your browser:")
@@ -301,6 +313,7 @@ Examples:
     parse_parser.add_argument('file', type=Path, help='Inventory markdown file to parse')
     parse_parser.add_argument('--output', '-o', type=Path, help='Output JSON file (default: inventory.json)')
     parse_parser.add_argument('--validate', action='store_true', help='Validate only, do not generate JSON')
+    parse_parser.add_argument('--wanted-items', '-w', type=Path, help='Wanted items file to generate shopping list')
 
     # Serve command
     serve_parser = subparsers.add_parser('serve', help='Start local web server')
@@ -324,7 +337,7 @@ Examples:
     if args.command == 'init':
         return init_inventory(args.directory, args.name)
     elif args.command == 'parse':
-        return parse_command(args.file, args.output, args.validate)
+        return parse_command(args.file, args.output, args.validate, getattr(args, 'wanted_items', None))
     elif args.command == 'serve':
         return serve_command(args.directory, args.port)
     elif args.command == 'api' or args.command == 'chat':
