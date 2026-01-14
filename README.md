@@ -1,130 +1,97 @@
-# Inventory System - Human thoughts on it
+# Inventory System
 
-This is a flexible "vibe-coded" Markdown-based inventory management system with a web UI and (optionally) a Claude-backed AI chat-bot (not working very well, admittedly).  My "roadmap" is to ensure it works well for two actual inventories, then make a demo and release a v1.0.
+This is a flexible "vibe-coded" inventory management system.
 
-## Problem
+It started out with the inventory kept as simple hand-written markdown files, then I started taking some photografs, then I asked Claude for suggestions on how to improve the searchability and user interface - and it has grown from there.
 
-I hate throwing things.  My wife also don't like to throw things.  For the last decades we're been living in a place/period of plenty (Norway, 2000-2026), so we've ended up with the garage, attics and other storage spaces filld up with thrash.  Whenever we need something it's way easier to buy it in the shop than to find it in the our thrash - but this certainly only makes the problem bigger.
+## Problems
 
-A good inventory system converts the useless thrash into valuable stash, as we easily can find something when we need it.
+I **hate throwing things**.  My wife also don't like to throw things.  The weirdest thing will suddenly become useful at some point - but only if you know what you have and where to find it!  We've ended up with so much thrash that whatever we need, it's way easier to buy it in the shop than to find the thing we need.  Only by having a searchable database, the thrash is converted to useful stash!
+
+We also hate throwing food.  I now take notes of the expiry date of all the food I'm buying and stuffing it into the fridge and food storages.  This way I can keep an overview of what food is expiring.  I've started asking Claude for suggestions on how to use the outdated food - some of the recipes it has come up with has been delicious!
+
+I've also added a shopping list generator.
 
 ## Yet Another Inventory System?
 
-I started organizing things in a MarkDown file, hacked a bit around it, and suddenly I've ended up implementing "Yet Another Inventory System".
+Other systems exist - see [docs/comparison-with-other-systems.md](docs/comparison-with-other-systems.md) for a detailed comparison.
 
-Other systems exist - see [docs/comparison-with-other-systems.md](docs/comparison-with-other-systems.md) for a detailed comparison.  Here are some key aspects:
+### Database in MarkDown format!
 
-- I have a database in markdown format, git-backed
-  - **Pro:**  I still prefer updating my inventory list through my editor (or by using Claude Code in the console).
-  - **Con:** Scales badly for multiuser support and huge databases.  Easy to accidentally break things.  Algorithmic editing of the markdown can make it really ugly.
-- Can be used offline. **Pro**: works on a boat without internet.
-- AI-driven maintenance (optional).
-  - **Pro:** Claude has proven to be amazing on tagging and categorizing, as well as analyzing photos - most of the time (so manual verification is recommended).
-  - **Con:** Your data will leak to the cloud, and it costs money to use.
-- AI Chatbot (optional)
-  - **Pro:** free text sometimes works better, particularly for quick updates of the database.
-  * **Con:** As of 2025-12 I'm underimpressed - and as above, it's a cloud-based paid service.
-- Multilingual search - aliases handle Norwegian/English/Greek synonyms (this can be extended/maintained manually or by Claude).
-- No built-in authentication
-  * **Pro:** keep it simple, and use ssh, basic auth in the web server, etc for this.
-  * **Con:** Not much suitable in settings where security and audit logs are important.
-- Missing mobile app / mobile optimization - but I'll fix it soon enough
-- Under active development and only tested on two inventories 
-  * **Con:** expect rough edges.
-  * **Pro:** this is a flexible and agile period, as I don't have to care about backward compatibility.
+Yes, you heard right!  The biggest difference between this system and other systems is that the **database is a git-backed MarkWown file** - because that's what I started with.  At some point I sat down and wondered - "does this still make sense?" - and actually, for me it does!  I added the possibility to edit the inventory through the web interface, **but I never used it**.  Most of the time I use "Claude Code" to update it for me, except for that I still prefer editing the database from my text editor!
 
-## Claude maintenance
+Of course this does not come without problems.  It doesn't scale very well, neither when it comes to the number of users of the system nor when it comes to the size of the database.  For an inventory system for a person or a family I still think it works out pretty well.
 
-Keeping an inventory database up-to-date may require a lot of work.  Luckily Claude can help with it.  There is a maintenance guide and I also have stored "process photos" as a "skill", this skill will also be added to the project at some point.  It makes things much easier - just take good photos of the inventory and ask Claude to process it.  As of 2026-01, manual human verification of the work still seems very much needed, but in general Claude can easily categorize items, look up identifiers like the EAN, translate foreign languages with foreign scripts into a language the user understands, categorize items with correct tags, etc.
+### Modularity and flexibility
 
-Claude can even check what food articles are expiring and suggest recipes based on it
+The system is very **modular**, most of the system is optional.  The system can work **online or offline**, from  a laptop or a web server or a combination of those!  (No mobile app yet ... but I'll fix it one day).
 
-## Web interface
+The "core" is the command line script "inventory-system" that can parse the markdown and create a json file out of it, optionally also create a shopping list, and do some other maintenance tasks.
 
-Some of my family members should be able to search for things in the markdown file, browse photos on their laptop and and maintain things - but in practice it didn't work out, so I needed a web interface.
+### Features
 
-With the help of Claude I also organized tagging, categories, aliases and more - at the end of the day the web interface makes it easy to find whatever I'm searching for, while it's difficult by doing simple text searches in the markdown while browsing photo albums on the laptop.
+Here are some of the **fully optional** features:
 
-## Chatbot
+* **Javascript-based search page** - makes it a bit easier to search for items, and a bit easier for some of my family members to relate to it.  The alternative is to search through the markdown file - or a json file.
+* Static page built-in **web server** to serve the search page, photos and data to the end user.  This is just a simple file server, any file server may do, like nginx or apache.  Pointing Chromium directly to the HTML-page with javascripts did not work very well, it fails due to CORS problems, even if the files are located in the same directory and hence (in my opinion) should be considered to have the same origin.
+* **API server**.  Fully optional - but it's needed for editing the inventory through the web pages, and it's needed for adding an AI chatbot.
+* **AI-based database population**.  I've been a bit of a Luddite when it comes to AI, but the AI has proven very useful in this project.  Most of the time I'm using claude code for updating the database, I just take photos of the inventory, tell Claude "please process inventory photos for the cupboard under the sink" and it will analyze the photos and do everything for me, even including looking up technical specifications onine and translating from foreign languages.  It's still needed to manually do QA of the work, but it's really amazing me sometimes.
+* **AI-based database maintenance**.  I use Claude for things like adding tags to the inventory listing and creating an aliases file (allowing multi-lingual search and allowing things like the multimeter to show up when searching for a voltmeter).
+* **AI-based recipe suggestions** based on what food is expiring.
+* **AI chatbot** on the web page.  Fully optional.  Requires API-server to run.  This is cloud-based (Claude-based), needs a subscription and it may be a privacy risk.  It doesn't even work very well.
+* Various scripts - like a script checking the photos for bar codes and looking up EAN-codes in public databases.
+* **Multilinguar** support.  Usually I always stick to English - but I decided to make an exception for the house inventory database, it's in Norwegian.  My boat inventory database is however in English as I often have various crew and guests on board.  Both databases can be searched using both English and Norwegian though.
+* Did I mention the **shopping list generator**?
 
-I got Claude to help me maintain the markdown file from the terminal window on the laptop, so I thought the inventory should be maintainable by a chatbot.  The current implementation uses the Claude API.  I believe the problem is that for every API call, the AI-thinking starts with blank sheets.  As of 2025-12 the Chatbot is almost useless - it's even unable to find things that can easily be found through the search bar.
+This is an immature project.  The drawback is that there may be lots of sharp edges and missing features.  The advantage is that development can happen with agility and without being afraid that the big huserbase will disagree with the changes.
 
-## Markdown as a database
+## Data Design
 
-The database is in Markdown format ... and then a script was introduced to convert the markdown into JSON.  Now it's also possible to edit the inventory through the web UI, but the markdown gets horrible when doing this.
+Details are to be found in a [separate document](docs/DATA_DESIGN.md)
 
-When all I did was to maintain and search for things using my editor, markdown made great sense. I've considered to scrap the markdown file and let the JSON be the "single source of truth" - or to even push this into a SQL database.  At the end of the day it all boils down to this: for me it's a lot easier to take up the markdown file in an editor and maintain it there than to do things through a web interface.  Claude also seems pretty good at editing markdown files.  So I've decided to stick to it.
+For me it's important to have a very **generalized** system.  I want a system that is suitable both for the milk in the fridge as well as boxes stored in a basement or a garage.  I started out with some plastic boxes stacked on top of each other in "towers", most of them located in the garage.  Claude was really insisting on making a "garage inventory system" for me with hard-coded concepts like "locations", "towers", "boxes" and "items".  I had to tell it several times that it's not the design I had in mind!
 
-# Inventory System - Artificial Intelligence documentation
+Locations are organized strictly **hierarchical**.  An "inventory line" may be either a "container" or an "item", but the only difference between those two is that the container has children while the item is a leaf node!  Empty a container, and it will become an item.  Add subitems to an item and it's a container!
 
-## Features
+Classification of items is done by slapping a set of **hiearchical tags** to the item.  Inventory lines may have other data attached to them, like a **best before**-date, **quantity**, **price**, **value**, **mass**, **volume**, etc, etc.
 
-- **Markdown-based**: Edit your inventory in plain text markdown files
-- **Hierarchical organization**: Support for parent-child relationships between containers
-- **Metadata tags**: Add searchable tags to items
-- **Image support**: Include photos with automatic thumbnail generation
-- **Web interface**: Searchable, filterable web UI with lightbox image viewer
-- **Multi-tag filtering**: Filter by multiple tags with AND logic
-- **Alias search**: Define search aliases for better discoverability
-- **Gallery view**: Browse all images across containers
+
 
 ## Installation
 
-```bash
-# Install in development mode
-cd inventory-system
-pip install -e .
-```
-
-## Quick Start
-
-```bash
-# Initialize a new inventory
-inventory-system init ~/my-inventory --name "Home Storage"
-
-# Edit the inventory.md file
-cd ~/my-inventory
-editor inventory.md
-
-# Parse and generate JSON
-inventory-system parse inventory.md
-
-# Start local web server
-inventory-system serve
-```
-
-Then open http://localhost:8000/search.html in your browser.
+See the [installation guide](docs/INSTALLATION.md)
 
 ## Markdown Format
 
 ### Basic Structure
+
+The inventory is organized in a markdown file with hierarchical headers representing containers and bullet points representing items.
 
 ```markdown
 # Intro
 
 Description of your inventory...
 
-## About
-
-More information...
-
-# Nummereringsregime
-
-Explanation of your numbering/naming scheme...
-
 # Oversikt
 
-## ID:Box1 (parent:Garage) Storage Box 1
+## ID:Garage Garage
 
-Items in this box:
+Main garage area.
+
+### ID:Shelf1 (parent:Garage) Metal Shelf
+
+Items on this shelf:
 
 * tag:tools,workshop Screwdriver set
 * tag:tools Hammer
-* ID:SubBox1 Small parts container
+* ID:Toolbox1 Red toolbox
 
-![Thumbnail description](resized/box1.jpg)
+#### ID:Toolbox1 (parent:Shelf1) Red Toolbox
 
-[Fotos i full oppløsning](photos/box1/)
+* tag:electrical Multimeter
+* tag:electrical Wire strippers
+
+![Shelf overview](resized/shelf1.jpg)
 ```
 
 ### Metadata Syntax
@@ -141,6 +108,8 @@ Metadata can be placed anywhere in the line:
 - `My Container ID:A1`
 - `ID:A1 (parent:Garage) My Container`
 
+See also the [data design document](docs/DATA_DESIGN.md)
+
 ## CLI Commands
 
 ### `init` - Initialize a new inventory
@@ -154,10 +123,12 @@ Creates a new inventory with template files.
 ### `parse` - Parse inventory markdown
 
 ```bash
-inventory-system parse <file.md> [--output <output.json>] [--validate]
+inventory-system parse <file.md> [--output <output.json>] [--validate] [--wanted-items <wanted.md>]
 ```
 
 Parses the markdown file and generates JSON. Use `--validate` to check for errors without generating output.
+
+Use `--wanted-items` to also generate a shopping list by comparing the wanted items file against current inventory.
 
 ### `serve` - Start web server
 
@@ -166,6 +137,45 @@ inventory-system serve [directory] [--port <port>]
 ```
 
 Starts a local web server to view the inventory. Default port is 8000.
+
+This is basically equivalent with `python -m http.server`, just with a bit of extra sugar.
+
+**It's recommended to use a web server like nginx or apache for this purpose.  If you have anything secret in your inventory, it's also recommended to set up authentication**
+
+### `api` - Start API server
+
+```bash
+inventory-system api [directory] [--port <port>]
+```
+
+This is needed for:
+
+* Allowing edits to be done through the web
+* Having an AI-bot running (requires `ANTHROPIC_API_KEY` environment variable)
+
+It's recommended to set it up to listen only to localhost, and have all external traffic going through a web server like apache or nginx.  **It's also recommended to set up authentication** on the web server, unless you want the whole world to be able to edit your inventory and use up your Claude API credits.
+
+## Utility Scripts
+
+The `scripts/` directory contains various utilities:
+
+* `find_expiring_food.py` - List items expiring soon
+* `extract_barcodes.py` - Extract barcodes from photos
+* `sync_eans_to_inventory.py` - Look up EAN codes and add product info
+* `generate_shopping_list.py` - Generate shopping list from wanted items
+* `check_quality.py` - Check inventory data quality
+* `analyze_inventory.py` - Analyze inventory statistics
+* `export_tags.py` / `migrate-tags.py` - Tag management tools
+
+## Deployment
+
+For server deployment, the system includes:
+
+* **Systemd service templates** (`systemd/inventory-api@.service`, `systemd/inventory-web@.service`)
+* **Makefile** with commands for managing instances
+* **Puppet module** available at [puppet-inventory-system](https://github.com/tobixen/puppet-inventory-system)
+
+See the [installation guide](docs/INSTALLATION.md) for details.
 
 ## License
 
