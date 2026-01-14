@@ -99,6 +99,15 @@ The Puppet module handles:
 - User/group management per instance
 - Git workflow with bare repositories and auto-deploy hooks
 
+The Puppet module does NOT handle:
+- Web server configuration (nginx/Apache) - set up separately
+- SSL/TLS certificates
+- Authentication (basic auth, OAuth, etc.)
+- The actual inventory data (inventory.md)
+- Photo storage and synchronization
+- DNS configuration
+- Firewall rules
+
 ## Server Deployment
 
 ### Systemd Services
