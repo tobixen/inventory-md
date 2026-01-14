@@ -113,7 +113,7 @@ def lookup_openfoodfacts(ean: str) -> dict | None:
 
     try:
         response = requests.get(url, timeout=10, headers={
-            'User-Agent': 'InventorySystem/1.0 (https://github.com/tobixen/inventory-system)'
+            'User-Agent': 'InventorySystem/1.0 (https://github.com/tobixen/inventory-md)'
         })
         response.raise_for_status()
         data = response.json()
@@ -151,7 +151,7 @@ def lookup_upcitemdb(ean: str) -> dict | None:
 
     try:
         response = requests.get(url, timeout=10, headers={
-            'User-Agent': 'InventorySystem/1.0 (https://github.com/tobixen/inventory-system)',
+            'User-Agent': 'InventorySystem/1.0 (https://github.com/tobixen/inventory-md)',
             'Accept': 'application/json',
         })
         response.raise_for_status()
