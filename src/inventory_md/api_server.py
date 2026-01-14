@@ -638,7 +638,7 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
                 f.writelines(lines)
 
             # Regenerate JSON and photo listings
-            from inventory_system import parser
+            from inventory_md import parser
             data = parser.parse_inventory(markdown_path)
             parser.save_json(data, inventory_path)
             parser.generate_photo_listings(markdown_path.parent)
@@ -708,7 +708,7 @@ def add_item_to_container(container_id: str, item_description: str, tags: Option
             f.writelines(lines)
 
         # Regenerate JSON and photo listings
-        from inventory_system import parser
+        from inventory_md import parser
         data = parser.parse_inventory(markdown_path)
         parser.save_json(data, inventory_path)
         parser.generate_photo_listings(markdown_path.parent)
@@ -774,7 +774,7 @@ def remove_container(container_id: str) -> dict:
             f.writelines(lines)
 
         # Regenerate JSON and photo listings
-        from inventory_system import parser
+        from inventory_md import parser
         data = parser.parse_inventory(markdown_path)
         parser.save_json(data, inventory_path)
         parser.generate_photo_listings(markdown_path.parent)
@@ -846,7 +846,7 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
             f.writelines(lines)
 
         # Regenerate JSON and photo listings
-        from inventory_system import parser
+        from inventory_md import parser
         data = parser.parse_inventory(markdown_path)
         parser.save_json(data, inventory_path)
         parser.generate_photo_listings(markdown_path.parent)
@@ -1238,7 +1238,7 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
         raise HTTPException(status_code=500, detail=f"Failed to save photo: {e}")
 
     # Regenerate inventory to discover new photo
-    from inventory_system import parser
+    from inventory_md import parser
     markdown_path = inventory_path.parent / "inventory.md"
     data = parser.parse_inventory(markdown_path)
     parser.save_json(data, inventory_path)

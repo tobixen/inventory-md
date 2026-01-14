@@ -26,7 +26,7 @@ Of course this does not come without problems.  It doesn't scale very well, neit
 
 The system is very **modular**, most of the system is optional.  The system can work **online or offline**, from  a laptop or a web server or a combination of those!  (No mobile app yet ... but I'll fix it one day).
 
-The "core" is the command line script "inventory-system" that can parse the markdown and create a json file out of it, optionally also create a shopping list, and do some other maintenance tasks.
+The "core" is the command line script "inventory-md" that can parse the markdown and create a json file out of it, optionally also create a shopping list, and do some other maintenance tasks.
 
 ### Features
 
@@ -115,7 +115,7 @@ See also the [data design document](docs/DATA_DESIGN.md)
 ### `init` - Initialize a new inventory
 
 ```bash
-inventory-system init <directory> [--name <name>]
+inventory-md init <directory> [--name <name>]
 ```
 
 Creates a new inventory with template files.
@@ -123,7 +123,7 @@ Creates a new inventory with template files.
 ### `parse` - Parse inventory markdown
 
 ```bash
-inventory-system parse <file.md> [--output <output.json>] [--validate] [--wanted-items <wanted.md>]
+inventory-md parse <file.md> [--output <output.json>] [--validate] [--wanted-items <wanted.md>]
 ```
 
 Parses the markdown file and generates JSON. Use `--validate` to check for errors without generating output.
@@ -133,7 +133,7 @@ Use `--wanted-items` to also generate a shopping list by comparing the wanted it
 ### `serve` - Start web server
 
 ```bash
-inventory-system serve [directory] [--port <port>]
+inventory-md serve [directory] [--port <port>]
 ```
 
 Starts a local web server to view the inventory. Default port is 8000.
@@ -145,7 +145,7 @@ This is basically equivalent with `python -m http.server`, just with a bit of ex
 ### `api` - Start API server
 
 ```bash
-inventory-system api [directory] [--port <port>]
+inventory-md api [directory] [--port <port>]
 ```
 
 This is needed for:
@@ -173,7 +173,7 @@ For server deployment, the system includes:
 
 * **Systemd service templates** (`systemd/inventory-api@.service`, `systemd/inventory-web@.service`)
 * **Makefile** with commands for managing instances
-* **Puppet module** available at [puppet-inventory-system](https://github.com/tobixen/puppet-inventory-system)
+* **Puppet module** available at [puppet-inventory-md](https://github.com/tobixen/puppet-inventory-md)
 
 See the [installation guide](docs/INSTALLATION.md) for details.
 

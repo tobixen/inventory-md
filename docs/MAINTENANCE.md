@@ -25,7 +25,7 @@ The `scripts/` directory contains tools for analyzing inventory data quality.
 
 ```bash
 cd ~/your-inventory
-python ~/inventory-system/scripts/check_quality.py
+python ~/inventory-md/scripts/check_quality.py
 ```
 
 This identifies:
@@ -48,7 +48,7 @@ INFO:
 ### Full Analysis (Monthly)
 
 ```bash
-python ~/inventory-system/scripts/analyze_inventory.py
+python ~/inventory-md/scripts/analyze_inventory.py
 ```
 
 Provides comprehensive statistics:
@@ -60,17 +60,17 @@ Provides comprehensive statistics:
 
 Use this to track progress over time. Consider saving reports:
 ```bash
-python ~/inventory-system/scripts/analyze_inventory.py > reports/$(date +%Y-%m).txt
+python ~/inventory-md/scripts/analyze_inventory.py > reports/$(date +%Y-%m).txt
 ```
 
 ### Tag Export
 
 ```bash
 # View all tags sorted by frequency
-python ~/inventory-system/scripts/export_tags.py
+python ~/inventory-md/scripts/export_tags.py
 
 # Export to CSV for spreadsheet analysis
-python ~/inventory-system/scripts/export_tags.py --format csv > tags.csv
+python ~/inventory-md/scripts/export_tags.py --format csv > tags.csv
 ```
 
 ---
@@ -138,16 +138,16 @@ Food items should have a `bb:YYYY-MM` or `bb:YYYY-MM-DD` field for best-before d
 
 ```bash
 cd ~/solveig-inventory  # or ~/furusetalle9-inventory
-~/inventory-system/scripts/find_expiring_food.py inventory.json
+~/inventory-md/scripts/find_expiring_food.py inventory.json
 
 # Show top 10 items by expiry date (including not-yet-expired)
-~/inventory-system/scripts/find_expiring_food.py inventory.json --limit 10
+~/inventory-md/scripts/find_expiring_food.py inventory.json --limit 10
 
 # Show items expiring before a specific date
-~/inventory-system/scripts/find_expiring_food.py inventory.json --before 2026-06
+~/inventory-md/scripts/find_expiring_food.py inventory.json --before 2026-06
 
 # Show all food with expiry dates
-~/inventory-system/scripts/find_expiring_food.py inventory.json --all
+~/inventory-md/scripts/find_expiring_food.py inventory.json --all
 ```
 
 By default, the script shows only items that have already expired. Use `--limit` or `--before` to see items expiring soon.
@@ -162,13 +162,13 @@ Photos may contain product barcodes (EAN/UPC) that aren't yet recorded in invent
 cd ~/solveig-inventory  # or ~/furusetalle9-inventory
 
 # Dry-run: see what would be added
-~/inventory-system/scripts/sync_eans_to_inventory.py
+~/inventory-md/scripts/sync_eans_to_inventory.py
 
 # Actually update inventory.md
-~/inventory-system/scripts/sync_eans_to_inventory.py --apply
+~/inventory-md/scripts/sync_eans_to_inventory.py --apply
 
 # Process only a specific container
-~/inventory-system/scripts/sync_eans_to_inventory.py --container F-01
+~/inventory-md/scripts/sync_eans_to_inventory.py --container F-01
 ```
 
 The script:
@@ -179,7 +179,7 @@ The script:
 
 After running with `--apply`, regenerate the JSON:
 ```bash
-inventory-system parse inventory.md
+inventory-md parse inventory.md
 ```
 
 Items that couldn't be identified online are added with `tag:TODO` - review these manually.
@@ -343,7 +343,7 @@ Basic tools for daily use. Kept in hallway for easy access.
 
 ```bash
 # Containers without photos
-python ~/inventory-system/scripts/analyze_inventory.py | grep "Without images"
+python ~/inventory-md/scripts/analyze_inventory.py | grep "Without images"
 
 # List specific containers missing photos
 python -c "
@@ -361,7 +361,7 @@ for c in data['containers']:
 If photos are added manually (not through the web interface):
 
 ```bash
-inventory-system parse inventory.md
+inventory-md parse inventory.md
 ```
 
 This will:
@@ -421,13 +421,13 @@ grep -n "^## ID:" inventory.md | sort -t: -k3 | uniq -d -f2
 
 1. Check if item is tagged
 2. Check `aliases.json` for missing search terms
-3. Regenerate JSON: `inventory-system parse inventory.md`
+3. Regenerate JSON: `inventory-md parse inventory.md`
 
 ### Photos Not Showing
 
 1. Check photo exists in `photos/{container_id}/`
 2. Check file extension (must be .jpg, .jpeg, .png, or .gif)
-3. Regenerate: `inventory-system parse inventory.md`
+3. Regenerate: `inventory-md parse inventory.md`
 
 ---
 

@@ -78,14 +78,14 @@ python scripts/export_tags.py inventory.json --format json > tags.json
 
 ```bash
 cd ~/furuset-inventory
-python ~/inventory-system/scripts/check_quality.py
+python ~/inventory-md/scripts/check_quality.py
 ```
 
 ### Generate Full Report
 
 ```bash
 cd ~/furuset-inventory
-python ~/inventory-system/scripts/analyze_inventory.py > report.txt
+python ~/inventory-md/scripts/analyze_inventory.py > report.txt
 ```
 
 ### Compare Two Inventories
@@ -105,11 +105,11 @@ diff furuset-stats.txt solveig-stats.txt
 python scripts/export_tags.py inventory.json --format csv | sort -t',' -k2 -nr > tags-sorted.csv
 ```
 
-## Integration with inventory-system
+## Integration with inventory-md
 
-These scripts complement the main `inventory-system` CLI:
+These scripts complement the main `inventory-md` CLI:
 
-1. Run `inventory-system parse` to update JSON from markdown
+1. Run `inventory-md parse` to update JSON from markdown
 2. Run analysis scripts to review the data
 3. Use the insights to improve the inventory
 
@@ -119,7 +119,7 @@ For convenience, add the scripts directory to your PATH:
 
 ```bash
 # Add to ~/.bashrc or ~/.zshrc
-export PATH="$PATH:$HOME/inventory-system/scripts"
+export PATH="$PATH:$HOME/inventory-md/scripts"
 
 # Then use directly
 analyze_inventory.py ~/furuset-inventory/inventory.json

@@ -6,7 +6,7 @@ import argparse
 
 import pytest
 
-from inventory_system import cli
+from inventory_md import cli
 
 
 class TestServeCommand:

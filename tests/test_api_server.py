@@ -55,7 +55,7 @@ class TestRemoveItemFromContainer:
 
     def test_returns_removed_item_text(self, temp_inventory):
         """Test that remove_item_from_container returns the actual removed item text."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         # Set up the module state
         api_server.inventory_path = temp_inventory / "inventory.json"
@@ -76,7 +76,7 @@ class TestRemoveItemFromContainer:
 
     def test_partial_match_returns_full_item(self, temp_inventory):
         """Test that a partial match returns the full item text."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         api_server.inventory_path = temp_inventory / "inventory.json"
         api_server.inventory_data = {
@@ -98,7 +98,7 @@ class TestAddTodo:
 
     def test_add_todo_commits_to_git(self, temp_inventory):
         """Test that add_todo calls git_commit."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         api_server.inventory_path = temp_inventory / "inventory.json"
 
@@ -113,7 +113,7 @@ class TestAddTodo:
 
     def test_add_todo_truncates_long_descriptions_in_commit(self, temp_inventory):
         """Test that long task descriptions are truncated in commit message."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         api_server.inventory_path = temp_inventory / "inventory.json"
 
@@ -129,7 +129,7 @@ class TestAddTodo:
 
     def test_add_todo_writes_to_file(self, temp_inventory):
         """Test that add_todo actually writes to TODO.md."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         api_server.inventory_path = temp_inventory / "inventory.json"
 
@@ -148,7 +148,7 @@ class TestMoveItem:
 
     def test_move_item_success(self, temp_inventory):
         """Test successful item move between containers."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         api_server.inventory_path = temp_inventory / "inventory.json"
         api_server.inventory_data = {
@@ -170,7 +170,7 @@ class TestMoveItem:
 
     def test_move_item_source_not_found(self, temp_inventory):
         """Test move_item fails when source container doesn't exist."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         api_server.inventory_path = temp_inventory / "inventory.json"
         api_server.inventory_data = {"containers": []}
@@ -182,7 +182,7 @@ class TestMoveItem:
 
     def test_move_item_item_not_found(self, temp_inventory):
         """Test move_item fails when item doesn't exist in source."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         api_server.inventory_path = temp_inventory / "inventory.json"
         api_server.inventory_data = {
@@ -203,7 +203,7 @@ class TestExecuteTool:
 
     def test_execute_move_item_tool(self, temp_inventory):
         """Test that execute_tool correctly dispatches move_item."""
-        from inventory_system import api_server
+        from inventory_md import api_server
 
         api_server.inventory_path = temp_inventory / "inventory.json"
         api_server.inventory_data = {
@@ -229,14 +229,14 @@ class TestSecurityFunctions:
 
     def test_sanitize_path_component_basic(self):
         """Test basic path component sanitization."""
-        from inventory_system.api_server import sanitize_path_component
+        from inventory_md.api_server import sanitize_path_component
 
         assert sanitize_path_component("photo.jpg") == "photo.jpg"
         assert sanitize_path_component("my-photo_123.png") == "my-photo_123.png"
 
     def test_sanitize_path_component_removes_path_separators(self):
         """Test that path separators are removed."""
-        from inventory_system.api_server import sanitize_path_component
+        from inventory_md.api_server import sanitize_path_component
 
         assert sanitize_path_component("../etc/passwd") == "etcpasswd"
         assert sanitize_path_component("..\\..\\windows\\system32") == "windowssystem32"
@@ -244,14 +244,14 @@ class TestSecurityFunctions:
 
     def test_sanitize_path_component_removes_parent_refs(self):
         """Test that parent directory references are removed."""
-        from inventory_system.api_server import sanitize_path_component
+        from inventory_md.api_server import sanitize_path_component
 
         assert sanitize_path_component("....test") == "test"
         assert sanitize_path_component("..photo..") == "photo"
 
     def test_sanitize_path_component_rejects_empty(self):
         """Test that empty strings are rejected."""
-        from inventory_system.api_server import sanitize_path_component
+        from inventory_md.api_server import sanitize_path_component
 
         with pytest.raises(ValueError):
             sanitize_path_component("")
@@ -264,13 +264,13 @@ class TestSecurityFunctions:
 
     def test_sanitize_path_component_removes_null_bytes(self):
         """Test that null bytes are removed."""
-        from inventory_system.api_server import sanitize_path_component
+        from inventory_md.api_server import sanitize_path_component
 
         assert sanitize_path_component("photo\x00.jpg") == "photo.jpg"
 
     def test_sanitize_path_component_length_limit(self):
         """Test that long names are truncated."""
-        from inventory_system.api_server import sanitize_path_component
+        from inventory_md.api_server import sanitize_path_component
 
         long_name = "a" * 200 + ".jpg"
         result = sanitize_path_component(long_name)
@@ -278,7 +278,7 @@ class TestSecurityFunctions:
 
     def test_validate_container_id_valid(self):
         """Test valid container IDs."""
-        from inventory_system.api_server import validate_container_id
+        from inventory_md.api_server import validate_container_id
 
         assert validate_container_id("A1") == "A1"
         assert validate_container_id("Box12") == "Box12"
@@ -287,7 +287,7 @@ class TestSecurityFunctions:
 
     def test_validate_container_id_rejects_path_traversal(self):
         """Test that path traversal attempts are rejected."""
-        from inventory_system.api_server import validate_container_id
+        from inventory_md.api_server import validate_container_id
 
         with pytest.raises(ValueError):
             validate_container_id("../etc")
@@ -300,7 +300,7 @@ class TestSecurityFunctions:
 
     def test_validate_container_id_rejects_special_chars(self):
         """Test that special characters are rejected."""
-        from inventory_system.api_server import validate_container_id
+        from inventory_md.api_server import validate_container_id
 
         with pytest.raises(ValueError):
             validate_container_id("A1; rm -rf /")
@@ -313,7 +313,7 @@ class TestSecurityFunctions:
 
     def test_validate_container_id_rejects_empty(self):
         """Test that empty container IDs are rejected."""
-        from inventory_system.api_server import validate_container_id
+        from inventory_md.api_server import validate_container_id
 
         with pytest.raises(ValueError):
             validate_container_id("")
@@ -323,7 +323,7 @@ class TestSecurityFunctions:
 
     def test_validate_container_id_rejects_too_long(self):
         """Test that overly long container IDs are rejected."""
-        from inventory_system.api_server import validate_container_id
+        from inventory_md.api_server import validate_container_id
 
         with pytest.raises(ValueError):
             validate_container_id("A" * 100)

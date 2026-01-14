@@ -182,9 +182,9 @@ Reserve pærer og lysutstyr.
 
 Dette er en demo-inventarliste. For å lage din egen:
 
-1. Kopier denne strukturen eller bruk `inventory-system init`
+1. Kopier denne strukturen eller bruk `inventory-md init`
 2. Rediger markdown-filen med ditt eget innhold
-3. Kjør `inventory-system parse inventory.md`
+3. Kjør `inventory-md parse inventory.md`
 4. Åpne `search.html` i nettleseren
 
 Lykke til med din inventarliste!

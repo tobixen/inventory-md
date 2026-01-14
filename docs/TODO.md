@@ -1,5 +1,6 @@
+* The "quick start" in the installation guide should be made easier, and should rely on a Makefile
 * System is currently used for "Solveig" (boat) and "Furuset" (home).  I don't want to go public with the database here, but it would be nice with a third demo site with demo data.
-* There are some things now that should be included in the inventory-system:
+* There are some things now that should be included in the inventory-md:
   * at Solveig we have a shopping list generator script
   * There are some files under ~/.claude/skills/ that should be included.
   * The integration with the Lidl+ shopping history downloader should also be scripted better and included in the inventory system.

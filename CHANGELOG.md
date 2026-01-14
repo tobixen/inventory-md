@@ -88,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-12-15
 
 ### Added
-- Initial release of inventory-system package
+- Initial release of inventory-md package
 - Markdown-based inventory parser
   - Parse inventory.md files into structured JSON
   - Support for hierarchical containers
@@ -111,6 +111,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic version management with setuptools-scm
 - Ruff configuration for code quality
 
-[unreleased]: https://github.com/yourusername/inventory-system/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/yourusername/inventory-system/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/yourusername/inventory-system/releases/tag/v0.1.0
+[unreleased]: https://github.com/yourusername/inventory-md/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/yourusername/inventory-md/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/yourusername/inventory-md/releases/tag/v0.1.0

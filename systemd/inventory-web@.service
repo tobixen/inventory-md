@@ -7,8 +7,8 @@ Wants=network-online.target
 Type=simple
 User=inventory-%i
 Group=inventory-%i
-EnvironmentFile=/etc/inventory-system/%i.conf
-ExecStart=/opt/inventory-system/venv/bin/inventory-system serve ${INVENTORY_PATH} --port ${WEB_PORT}
+EnvironmentFile=/etc/inventory-md/%i.conf
+ExecStart=/opt/inventory-md/venv/bin/inventory-md serve ${INVENTORY_PATH} --port ${WEB_PORT}
 Restart=on-failure
 RestartSec=5s
 

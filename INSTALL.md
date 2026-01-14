@@ -5,7 +5,7 @@ This guide shows how to set up the inventory system with systemd template servic
 ## Quick Start
 
 ```bash
-cd /home/tobias/inventory-system
+cd /home/tobias/inventory-md
 
 # 1. Install template services
 make install-templates
@@ -15,8 +15,8 @@ make create-instance INSTANCE=furuset
 make create-instance INSTANCE=solveig
 
 # 3. Edit configs (set paths and API keys)
-sudo nano /etc/inventory-system/furuset.conf
-sudo nano /etc/inventory-system/solveig.conf
+sudo nano /etc/inventory-md/furuset.conf
+sudo nano /etc/inventory-md/solveig.conf
 
 # 4. Set permissions
 make set-permissions INSTANCE=furuset
@@ -38,20 +38,20 @@ make enable-all
 
 ### Per-Instance Resources
 - **User**: `inventory-{instance}` (e.g., `inventory-furuset`)
-- **Config**: `/etc/inventory-system/{instance}.conf`
+- **Config**: `/etc/inventory-md/{instance}.conf`
 - **Ports**: Unique per instance (avoid conflicts)
 
 ### Example Setup
 ```
 furuset:
   - User: inventory-furuset
-  - Config: /etc/inventory-system/furuset.conf
+  - Config: /etc/inventory-md/furuset.conf
   - Path: /path/to/furuset/inventory
   - Ports: 8000 (web), 8765 (chat)
 
 solveig:
   - User: inventory-solveig
-  - Config: /etc/inventory-system/solveig.conf
+  - Config: /etc/inventory-md/solveig.conf
   - Path: /home/tobias/solveig/inventory-web
   - Ports: 8001 (web), 8766 (chat)
 ```
@@ -76,13 +76,13 @@ make create-instance INSTANCE=furuset
 
 This will:
 1. Create system user `inventory-furuset`
-2. Create config `/etc/inventory-system/furuset.conf`
+2. Create config `/etc/inventory-md/furuset.conf`
 3. Copy from `furuset.conf.example` if it exists
 
 ### 3. Edit Configuration
 
 ```bash
-sudo nano /etc/inventory-system/furuset.conf
+sudo nano /etc/inventory-md/furuset.conf
 ```
 
 Configuration file format:
@@ -183,7 +183,7 @@ If you prefer not to use the Makefile:
 ```bash
 sudo cp systemd/inventory-web@.service /etc/systemd/system/
 sudo cp systemd/inventory-chat@.service /etc/systemd/system/
-sudo mkdir -p /etc/inventory-system
+sudo mkdir -p /etc/inventory-md
 sudo systemctl daemon-reload
 ```
 
@@ -193,8 +193,8 @@ sudo systemctl daemon-reload
 sudo useradd -r -s /usr/bin/nologin -d /nonexistent inventory-furuset
 
 # Create config
-sudo cp systemd/furuset.conf.example /etc/inventory-system/furuset.conf
-sudo nano /etc/inventory-system/furuset.conf  # Edit paths and API key
+sudo cp systemd/furuset.conf.example /etc/inventory-md/furuset.conf
+sudo nano /etc/inventory-md/furuset.conf  # Edit paths and API key
 
 # Set permissions
 sudo chgrp -R inventory-furuset /path/to/your/inventory
@@ -247,18 +247,18 @@ curl http://localhost:8765/health
 
 1. **Check config exists**:
    ```bash
-   ls -l /etc/inventory-system/furuset.conf
+   ls -l /etc/inventory-md/furuset.conf
    ```
 
 2. **Check config is valid**:
    ```bash
-   sudo cat /etc/inventory-system/furuset.conf
+   sudo cat /etc/inventory-md/furuset.conf
    ```
 
 3. **Check inventory directory exists**:
    ```bash
    # Get path from config
-   grep INVENTORY_PATH /etc/inventory-system/furuset.conf
+   grep INVENTORY_PATH /etc/inventory-md/furuset.conf
    ls -la /path/from/config
    ```
 
@@ -276,7 +276,7 @@ curl http://localhost:8765/health
 
 Edit the config and change ports:
 ```bash
-sudo nano /etc/inventory-system/furuset.conf
+sudo nano /etc/inventory-md/furuset.conf
 # Change WEB_PORT and/or CHAT_PORT
 make restart INSTANCE=furuset
 ```
@@ -287,12 +287,12 @@ Also update `CHAT_SERVER_URL` in search.html if you change the chat port.
 
 1. **Check key is set**:
    ```bash
-   sudo grep ANTHROPIC_API_KEY /etc/inventory-system/furuset.conf
+   sudo grep ANTHROPIC_API_KEY /etc/inventory-md/furuset.conf
    ```
 
 2. **Update key**:
    ```bash
-   sudo nano /etc/inventory-system/furuset.conf
+   sudo nano /etc/inventory-md/furuset.conf
    # Update ANTHROPIC_API_KEY=...
    make restart-chat INSTANCE=furuset
    ```
@@ -320,7 +320,7 @@ To add a new instance (e.g., "myhouse"):
 make create-instance INSTANCE=myhouse
 
 # 2. Edit config
-sudo nano /etc/inventory-system/myhouse.conf
+sudo nano /etc/inventory-md/myhouse.conf
 # Set INVENTORY_PATH, WEB_PORT=8002, CHAT_PORT=8767
 
 # 3. Set permissions
@@ -344,7 +344,7 @@ make stop INSTANCE=furuset
 make disable INSTANCE=furuset
 
 # Remove config
-sudo rm /etc/inventory-system/furuset.conf
+sudo rm /etc/inventory-md/furuset.conf
 
 # Remove user
 sudo userdel inventory-furuset
@@ -358,7 +358,7 @@ make stop-all
 # Remove templates
 sudo rm /etc/systemd/system/inventory-web@.service
 sudo rm /etc/systemd/system/inventory-chat@.service
-sudo rm -rf /etc/inventory-system
+sudo rm -rf /etc/inventory-md
 sudo systemctl daemon-reload
 
 # Remove users
@@ -373,7 +373,7 @@ sudo userdel inventory-solveig
 3. **Monitor logs** - `make logs INSTANCE=name`
 4. **Unique ports** - avoid conflicts between instances
 5. **Firewall** - restrict access if needed
-6. **Backups** - backup `/etc/inventory-system/` configs
+6. **Backups** - backup `/etc/inventory-md/` configs
 7. **Updates** - `make restart-all` after updating inventory data
 
 ## Next Steps

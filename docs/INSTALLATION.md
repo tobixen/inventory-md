@@ -6,24 +6,24 @@ There are several ways to install and run the inventory system, depending on you
 
 ```bash
 # Clone the repository
-git clone https://github.com/tobixen/inventory-system.git
-cd inventory-system
+git clone https://github.com/tobixen/inventory-md.git
+cd inventory-md
 
 # Install in development mode
 pip install -e .
 
 # Initialize a new inventory
-inventory-system init ~/my-inventory --name "Home Storage"
+inventory-md init ~/my-inventory --name "Home Storage"
 
 # Edit the inventory.md file
 cd ~/my-inventory
 $EDITOR inventory.md
 
 # Parse and generate JSON
-inventory-system parse inventory.md
+inventory-md parse inventory.md
 
 # Start local web server
-inventory-system serve
+inventory-md serve
 ```
 
 Then open http://localhost:8000/search.html in your browser.
@@ -58,14 +58,14 @@ make help
 
 A Puppet module is available for automated deployment:
 
-- **GitHub**: https://github.com/tobixen/puppet-inventory-system
-- **Puppet Forge**: `tobixen-inventory_system` (coming soon)
+- **GitHub**: https://github.com/tobixen/puppet-inventory-md
+- **Puppet Forge**: `tobixen-inventory_md` (coming soon)
 
 Example Puppet usage:
 
 ```puppet
-class { 'inventory_system':
-  anthropic_api_key => lookup('inventory_system::anthropic_api_key'),
+class { 'inventory_md':
+  anthropic_api_key => lookup('inventory_md::anthropic_api_key'),
   instances         => {
     'home' => {
       datadir  => '/var/www/inventory/home',
@@ -90,10 +90,10 @@ The system includes template services for running multiple instances:
 - `inventory-api@.service` - API server (for chat and editing)
 - `inventory-web@.service` - Static web server
 
-Configuration files go in `/etc/inventory-system/<instance>.conf`:
+Configuration files go in `/etc/inventory-md/<instance>.conf`:
 
 ```bash
-# Example: /etc/inventory-system/home.conf
+# Example: /etc/inventory-md/home.conf
 INVENTORY_PATH=/var/www/inventory/home
 API_PORT=8765
 ANTHROPIC_API_KEY=sk-ant-...  # Optional, for AI chat
@@ -126,10 +126,10 @@ For simple setups without nginx/Apache, the `serve` command has a built-in proxy
 
 ```bash
 # Start API server in background
-inventory-system api --port 8765 &
+inventory-md api --port 8765 &
 
 # Start web server with proxy to API
-inventory-system serve --port 8000 --api-proxy localhost:8765
+inventory-md serve --port 8000 --api-proxy localhost:8765
 ```
 
 This proxies `/api/*`, `/chat`, and `/health` requests to the API backend.
@@ -280,7 +280,7 @@ make install-hooks
 Push changes from your laptop:
 
 ```bash
-git remote add server user@server:/var/lib/inventory-system/home.git
+git remote add server user@server:/var/lib/inventory-md/home.git
 git push server main
 ```
 
@@ -301,7 +301,7 @@ The system is modular - enable only what you need:
 | Feature | Requires | Description |
 |---------|----------|-------------|
 | Search UI | Web server | JavaScript-based search interface |
-| API Server | `inventory-system api` | Editing, AI chat |
+| API Server | `inventory-md api` | Editing, AI chat |
 | AI Chat | API server + ANTHROPIC_API_KEY | Web-based AI assistant |
 | Shopping List | `--wanted-items` flag | Compare inventory against wanted items |
 | Barcode lookup | Scripts | EAN code lookup from photos |

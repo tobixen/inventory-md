@@ -17,8 +17,8 @@ The inventory system is a well-designed, markdown-based inventory management sol
 ## Architecture Overview
 
 ```
-inventory-system/
-├── src/inventory_system/
+inventory-md/
+├── src/inventory_md/
 │   ├── __init__.py      # Package exports
 │   ├── cli.py           # Command-line interface (339 lines)
 │   ├── parser.py        # Markdown parsing logic (715 lines)
