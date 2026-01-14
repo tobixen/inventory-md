@@ -2,7 +2,25 @@
 
 There are several ways to install and run the inventory system, depending on your needs.
 
-## Quick Start (Local Development)
+## Quick Start (One Command)
+
+Try the system immediately with the included example:
+
+```bash
+git clone https://github.com/tobixen/inventory-md.git
+cd inventory-md
+make quickstart
+```
+
+This will:
+1. Create a Python virtual environment
+2. Install the package in development mode
+3. Parse the example inventory
+4. Start a local web server
+
+Then open http://localhost:8000/search.html in your browser.
+
+## Quick Start (Step by Step)
 
 ```bash
 # Clone the repository
@@ -10,20 +28,20 @@ git clone https://github.com/tobixen/inventory-md.git
 cd inventory-md
 
 # Install in development mode
-pip install -e .
+make dev
 
 # Initialize a new inventory
-inventory-md init ~/my-inventory --name "Home Storage"
+venv/bin/inventory-md init ~/my-inventory --name "Home Storage"
 
 # Edit the inventory.md file
 cd ~/my-inventory
 $EDITOR inventory.md
 
 # Parse and generate JSON
-inventory-md parse inventory.md
+~/inventory-md/venv/bin/inventory-md parse inventory.md
 
 # Start local web server
-inventory-md serve
+~/inventory-md/venv/bin/inventory-md serve
 ```
 
 Then open http://localhost:8000/search.html in your browser.

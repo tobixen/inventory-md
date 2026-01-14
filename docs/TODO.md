@@ -1,8 +1,11 @@
-* The "quick start" in the installation guide should be made easier, and should rely on a Makefile
+* ~~The "quick start" in the installation guide should be made easier, and should rely on a Makefile~~ DONE
 * System is currently used for "Solveig" (boat) and "Furuset" (home).  I don't want to go public with the database here, but it would be nice with a third demo site with demo data.
 * There are some things now that should be included in the inventory-md:
-  * at Solveig we have a shopping list generator script
-  * There are some files under ~/.claude/skills/ that should be included.
+  * ~~at Solveig we have a shopping list generator script~~ DONE: integrated as `inventory-md parse --wanted-items`
+  * There are some files under ~/.claude/skills/ that should be included:
+    * `process-inventory-photos.md` - workflow for processing inventory photos with barcode extraction
+    * `process-lidl-shopping.md` - workflow for Lidl receipt processing
+    * `suggest-recipe.md` - recipe suggestions prioritizing expired items
   * The integration with the Lidl+ shopping history downloader should also be scripted better and included in the inventory system.
   * ~~Make a public puppet-module for rolling out things, too~~ DONE: https://github.com/tobixen/puppet-inventory-md
 * QR label printing: Generate printable QR code labels with unique IDs for containers and items

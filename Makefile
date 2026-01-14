@@ -1,17 +1,27 @@
-# Inventory System Makefile
-# Quick commands for managing inventory instances
+# Inventory-MD Makefile
+# Quick commands for development and server deployment
 
-.PHONY: help install install-templates create-instance start stop restart status logs enable disable list-instances install-hook install-hooks
+.PHONY: help quickstart venv dev dev-install serve-demo test clean
+.PHONY: install install-templates create-instance start stop restart status logs enable disable list-instances install-hook install-hooks
 
 # Configuration
 INSTANCE ?= furuset
 INSTANCES = furuset solveig
+PYTHON ?= python3
+VENV = venv
+EXAMPLE_PORT ?= 8000
 
 # Default target
 help:
-	@echo "Inventory System - Multi-Instance Management"
+	@echo "Inventory-MD - Markdown-based Inventory System"
 	@echo ""
-	@echo "Installation:"
+	@echo "Quick Start (try it now!):"
+	@echo "  make quickstart                    One command demo - install + serve example"
+	@echo "  make dev                           Install in development mode"
+	@echo "  make serve-demo                    Serve the example inventory"
+	@echo "  make test                          Run tests"
+	@echo ""
+	@echo "Server Installation:"
 	@echo "  make install                       Install Python package in venv"
 	@echo "  make install-templates             Install systemd template services"
 	@echo "  make create-instance INSTANCE=name Create new instance (user + config)"
@@ -42,6 +52,72 @@ help:
 	@echo ""
 	@echo "Available instances: $(INSTANCES)"
 	@echo "Default instance: $(INSTANCE)"
+
+# =============================================================================
+# Quick Start Targets (for trying out the system)
+# =============================================================================
+
+# One command to try it out
+quickstart: dev
+	@echo ""
+	@echo "Parsing example inventory..."
+	@$(VENV)/bin/inventory-md parse example/inventory.md
+	@echo ""
+	@echo "Starting web server on http://localhost:$(EXAMPLE_PORT)/search.html"
+	@echo "Press Ctrl+C to stop"
+	@echo ""
+	@$(VENV)/bin/inventory-md serve example --port $(EXAMPLE_PORT)
+
+# Create virtual environment only
+venv:
+	@if [ ! -d "$(VENV)" ]; then \
+		echo "Creating virtual environment..."; \
+		$(PYTHON) -m venv $(VENV); \
+		$(VENV)/bin/pip install --upgrade pip; \
+	else \
+		echo "Virtual environment already exists"; \
+	fi
+
+# Install in development mode (editable)
+dev: venv
+	@echo "Installing in development mode..."
+	@$(VENV)/bin/pip install -e ".[chat,dev]"
+	@echo ""
+	@echo "Installed! You can now run:"
+	@echo "  $(VENV)/bin/inventory-md --help"
+	@echo "  make serve-demo"
+
+# Alias for dev
+dev-install: dev
+
+# Serve the example directory
+serve-demo: venv
+	@if [ ! -f "example/inventory.json" ]; then \
+		echo "Parsing example inventory first..."; \
+		$(VENV)/bin/inventory-md parse example/inventory.md; \
+	fi
+	@echo "Serving example on http://localhost:$(EXAMPLE_PORT)/search.html"
+	@echo "Press Ctrl+C to stop"
+	@$(VENV)/bin/inventory-md serve example --port $(EXAMPLE_PORT)
+
+# Run tests
+test: venv
+	@echo "Running tests..."
+	@$(VENV)/bin/pip install -e ".[dev]" 2>/dev/null || true
+	@$(VENV)/bin/pytest tests/ -v
+
+# Clean up
+clean:
+	@echo "Cleaning up..."
+	@rm -rf $(VENV) build dist *.egg-info src/*.egg-info
+	@rm -f example/inventory.json example/shopping-list.md
+	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@echo "Done"
+
+# =============================================================================
+# Server Deployment Targets
+# =============================================================================
 
 # Install Python package and dependencies
 install:
