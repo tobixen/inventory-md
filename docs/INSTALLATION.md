@@ -164,6 +164,23 @@ This proxies `/api/*`, `/chat`, and `/health` requests to the API backend.
 **Note:** The built-in server is suitable for development and simple deployments.
 For production with SSL/TLS and authentication, use nginx or Apache.
 
+### Network Binding
+
+By default, both `serve` and `api` commands bind to `127.0.0.1` (localhost only).
+To expose the server to your LAN or all network interfaces:
+
+```bash
+# Bind to all interfaces (accessible from LAN)
+inventory-md serve --host 0.0.0.0 --port 8000
+inventory-md api --host 0.0.0.0 --port 8765
+
+# Bind to a specific interface
+inventory-md serve --host 192.168.1.100 --port 8000
+```
+
+**Security warning:** When binding to `0.0.0.0`, the server is accessible from any
+network your machine is connected to. Consider firewall rules and authentication.
+
 ### Web Server (nginx)
 
 For production deployments, put the inventory behind nginx:

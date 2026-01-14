@@ -184,7 +184,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
         return 1
 
 
-def serve_command(directory: Path = None, port: int = 8000, api_proxy: str = None) -> int:
+def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0.1", api_proxy: str = None) -> int:
     """Start a local web server to view the inventory.
 
     If api_proxy is specified (e.g., 'localhost:8765'), requests to /api/ and /chat
@@ -205,7 +205,9 @@ def serve_command(directory: Path = None, port: int = 8000, api_proxy: str = Non
         print(f"Run 'inventory-system init {directory}' first")
         return 1
 
-    print(f"🌐 Starting web server at http://localhost:{port}")
+    # Display the address - show 0.0.0.0 as "all interfaces"
+    display_host = "0.0.0.0 (all interfaces)" if host == "0.0.0.0" else host
+    print(f"🌐 Starting web server at http://{display_host}:{port}")
     print(f"📂 Serving directory: {directory}")
     if api_proxy:
         print(f"🔄 Proxying /api/* and /chat to http://{api_proxy}")
@@ -313,7 +315,7 @@ def serve_command(directory: Path = None, port: int = 8000, api_proxy: str = Non
                 self.end_headers()
 
     Handler = ProxyHTTPRequestHandler
-    with socketserver.TCPServer(("", port), Handler) as httpd:
+    with socketserver.TCPServer((host, port), Handler) as httpd:
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
@@ -420,6 +422,8 @@ Examples:
     serve_parser = subparsers.add_parser('serve', help='Start local web server')
     serve_parser.add_argument('directory', type=Path, nargs='?', help='Directory to serve (default: current directory)')
     serve_parser.add_argument('--port', '-p', type=int, default=8000, help='Port number (default: 8000)')
+    serve_parser.add_argument('--host', type=str, default='127.0.0.1',
+                              help='Host to bind to (default: 127.0.0.1, use 0.0.0.0 for all interfaces)')
     serve_parser.add_argument('--api-proxy', type=str, metavar='HOST:PORT',
                               help='Proxy /api/* and /chat requests to backend (e.g., localhost:8765)')
 
@@ -442,7 +446,7 @@ Examples:
     elif args.command == 'parse':
         return parse_command(args.file, args.output, args.validate, getattr(args, 'wanted_items', None))
     elif args.command == 'serve':
-        return serve_command(args.directory, args.port, getattr(args, 'api_proxy', None))
+        return serve_command(args.directory, args.port, args.host, getattr(args, 'api_proxy', None))
     elif args.command == 'api' or args.command == 'chat':
         return api_command(args.directory, args.port, args.host)
     else:

@@ -2,7 +2,7 @@
 
 This is a flexible "vibe-coded" inventory management system.
 
-It started out with the inventory kept as simple hand-written markdown files, then I started taking some photografs, then I asked Claude for suggestions on how to improve the searchability and user interface - and it has grown from there.
+It started out with the inventory kept as simple hand-written markdown files, then I started taking some photos, then I asked Claude for suggestions on how to improve the searchability and user interface - and it has grown from there.
 
 ## Problems
 
@@ -33,23 +33,23 @@ The "core" is the command line script "inventory-md" that can parse the markdown
 Here are some of the **fully optional** features:
 
 * **Javascript-based search page** - makes it a bit easier to search for items, and a bit easier for some of my family members to relate to it.  The alternative is to search through the markdown file - or a json file.
-* Static page built-in **web server** to serve the search page, photos and data to the end user.  This is just a simple file server, any file server may do, like nginx or apache.  Pointing Chromium directly to the HTML-page with javascripts did not work very well, it fails due to CORS problems, even if the files are located in the same directory and hence (in my opinion) should be considered to have the same origin.
-* **API server**.  Fully optional - but it's needed for editing the inventory through the web pages, and it's needed for adding an AI chatbot.
-* **AI-based database population**.  I've been a bit of a Luddite when it comes to AI, but the AI has proven very useful in this project.  Most of the time I'm using claude code for updating the database, I just take photos of the inventory, tell Claude "please process inventory photos for the cupboard under the sink" and it will analyze the photos and do everything for me, even including looking up technical specifications onine and translating from foreign languages.  It's still needed to manually do QA of the work, but it's really amazing me sometimes.
+* Static page built-in **web server** to serve the search page, photos and data to the end user.  This is just a simple file server, it's recommended to rather use nginx or apache.  Accessing the files directly from the browser didn't work for me due to CORS problems.
+* **API server** - needed for editing the inventory through the web pages, and it's needed for adding an AI chatbot.
+* **AI-based database population**.  For a long time I've been a bit of a Luddite when it comes to AI, but the AI has proven very useful in this project.  Most of the time I'm using Claude Code for updating the database, I just take photos of the inventory, tell Claude "please process inventory photos for the cupboard under the sink" and it will analyze the photos and do everything for me, even including looking up technical specifications online and translating from foreign languages.  It's still needed to manually do QA of the work, but it's really amazing me sometimes.
 * **AI-based database maintenance**.  I use Claude for things like adding tags to the inventory listing and creating an aliases file (allowing multi-lingual search and allowing things like the multimeter to show up when searching for a voltmeter).
 * **AI-based recipe suggestions** based on what food is expiring.
 * **AI chatbot** on the web page.  Fully optional.  Requires API-server to run.  This is cloud-based (Claude-based), needs a subscription and it may be a privacy risk.  It doesn't even work very well.
 * Various scripts - like a script checking the photos for bar codes and looking up EAN-codes in public databases.
-* **Multilinguar** support.  Usually I always stick to English - but I decided to make an exception for the house inventory database, it's in Norwegian.  My boat inventory database is however in English as I often have various crew and guests on board.  Both databases can be searched using both English and Norwegian though.
+* **Multilinguar** support.  Usually I always stick to English - but I decided to make an exception for the house inventory database, it's in Norwegian.  My boat inventory database is however in English as I'm often have various crew and guests on board.  Both databases can be searched using both English and Norwegian though.
 * Did I mention the **shopping list generator**?
 
-This is an immature project.  The drawback is that there may be lots of sharp edges and missing features.  The advantage is that development can happen with agility and without being afraid that the big huserbase will disagree with the changes.
+This is an immature project.  The drawback is that there may be lots of sharp edges and missing features.  The advantage is that development can happen with agility and without being afraid that the big huserbase will disagree with the changes.  Pull requests will be accepted in express speed as long as they make sense to me.
 
 ## Data Design
 
 Details are to be found in a [separate document](docs/DATA_DESIGN.md)
 
-For me it's important to have a very **generalized** system.  I want a system that is suitable both for the milk in the fridge as well as boxes stored in a basement or a garage.  I started out with some plastic boxes stacked on top of each other in "towers", most of them located in the garage.  Claude was really insisting on making a "garage inventory system" for me with hard-coded concepts like "locations", "towers", "boxes" and "items".  I had to tell it several times that it's not the design I had in mind!
+For me it's important to have a very **generalized** system.  I want a system that is suitable both for the milk in the fridge as well as boxes stored in a basement or a garage.  I started out with some plastic boxes stacked on top of each other in "towers", most of them located in the garage.  At first Claude made a "garage inventory system" for me with hard-coded concepts like "locations", "towers", "boxes" and "items".  That's not the design I had in mind!
 
 Locations are organized strictly **hierarchical**.  An "inventory line" may be either a "container" or an "item", but the only difference between those two is that the container has children while the item is a leaf node!  Empty a container, and it will become an item.  Add subitems to an item and it's a container!
 
