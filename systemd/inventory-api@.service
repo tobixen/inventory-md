@@ -9,7 +9,7 @@ User=inventory-%i
 Group=inventory-%i
 EnvironmentFile=/etc/inventory-md/%i.conf
 Environment="ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
-ExecStart=/opt/inventory-md/venv/bin/inventory-md api ${INVENTORY_PATH} --port ${API_PORT}
+ExecStart=/opt/inventory-md/venv/bin/inventory-md api ${INVENTORY_PATH} --port ${API_PORT} --host ${API_HOST:-127.0.0.1}
 Restart=on-failure
 RestartSec=5s
 
