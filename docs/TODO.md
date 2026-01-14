@@ -4,7 +4,7 @@
   * at Solveig we have a shopping list generator script
   * There are some files under ~/.claude/skills/ that should be included.
   * The integration with the Lidl+ shopping history downloader should also be scripted better and included in the inventory system.
-  * Make a public puppet-module for rolling out things, too
+  * ~~Make a public puppet-module for rolling out things, too~~ DONE: https://github.com/tobixen/puppet-inventory-md
 * QR label printing: Generate printable QR code labels with unique IDs for containers and items
   - Pre-print sheets of labels (like Avery 5260) with sequential IDs
   - QR codes should link to the web UI (e.g., https://inventory.example.com/item/ID)
