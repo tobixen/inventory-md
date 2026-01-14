@@ -17,7 +17,7 @@ inventory-system init ~/my-inventory --name "Home Storage"
 
 # Edit the inventory.md file
 cd ~/my-inventory
-editor inventory.md
+$EDITOR inventory.md
 
 # Parse and generate JSON
 inventory-system parse inventory.md
@@ -120,36 +120,143 @@ make enable INSTANCE=home
 make logs INSTANCE=home
 ```
 
-### Web Server (nginx/Apache)
+### Built-in Proxy (Simple Setup)
 
-It's recommended to put the inventory behind a proper web server:
+For simple setups without nginx/Apache, the `serve` command has a built-in proxy:
 
-1. Serve static files (HTML, JS, CSS, images) directly
+```bash
+# Start API server in background
+inventory-system api --port 8765 &
+
+# Start web server with proxy to API
+inventory-system serve --port 8000 --api-proxy localhost:8765
+```
+
+This proxies `/api/*`, `/chat`, and `/health` requests to the API backend.
+
+**Note:** The built-in server is suitable for development and simple deployments.
+For production with SSL/TLS and authentication, use nginx or Apache.
+
+### Web Server (nginx)
+
+For production deployments, put the inventory behind nginx:
+
+1. Serve static files directly (better performance)
 2. Proxy API requests to the inventory-api service
-3. Add authentication (basic auth, OAuth, etc.)
+3. Add SSL/TLS certificates (Let's Encrypt, etc.)
+4. Add authentication (basic auth, OAuth, etc.)
 
 Example nginx configuration:
 
 ```nginx
 server {
-    listen 443 ssl;
+    listen 443 ssl http2;
     server_name inventory.example.com;
 
+    # SSL certificates (e.g., from Let's Encrypt)
+    ssl_certificate /etc/letsencrypt/live/inventory.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/inventory.example.com/privkey.pem;
+
     # Static files
-    location / {
-        root /var/www/inventory/home;
-        index search.html;
+    root /var/www/inventory/home;
+    index search.html;
+
+    # API proxy - all API endpoints
+    location /api/ {
+        proxy_pass http://127.0.0.1:8765/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # API proxy
-    location /api/ {
-        proxy_pass http://127.0.0.1:8765/;
+    # Chat endpoint
+    location /chat {
+        proxy_pass http://127.0.0.1:8765/chat;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 120s;  # Chat responses can take time
+    }
+
+    # Health check
+    location /health {
+        proxy_pass http://127.0.0.1:8765/health;
     }
 
     # Basic auth (recommended!)
     auth_basic "Inventory";
     auth_basic_user_file /etc/nginx/.htpasswd;
+
+    # Exclude health check from auth (for monitoring)
+    location = /health {
+        auth_basic off;
+        proxy_pass http://127.0.0.1:8765/health;
+    }
 }
+
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    server_name inventory.example.com;
+    return 301 https://$server_name$request_uri;
+}
+```
+
+Create the password file:
+```bash
+sudo htpasswd -c /etc/nginx/.htpasswd username
+```
+
+### Web Server (Apache)
+
+Example Apache configuration with mod_proxy:
+
+```apache
+<VirtualHost *:443>
+    ServerName inventory.example.com
+
+    # SSL
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/inventory.example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/inventory.example.com/privkey.pem
+
+    # Static files
+    DocumentRoot /var/www/inventory/home
+    DirectoryIndex search.html
+
+    # API proxy
+    ProxyPreserveHost On
+    ProxyPass /api/ http://127.0.0.1:8765/api/
+    ProxyPassReverse /api/ http://127.0.0.1:8765/api/
+    ProxyPass /chat http://127.0.0.1:8765/chat
+    ProxyPassReverse /chat http://127.0.0.1:8765/chat
+    ProxyPass /health http://127.0.0.1:8765/health
+    ProxyPassReverse /health http://127.0.0.1:8765/health
+
+    # Timeout for chat (can take time)
+    ProxyTimeout 120
+
+    # Basic auth
+    <Location />
+        AuthType Basic
+        AuthName "Inventory"
+        AuthUserFile /etc/apache2/.htpasswd
+        Require valid-user
+    </Location>
+
+    # Exclude health check from auth
+    <Location /health>
+        Require all granted
+    </Location>
+</VirtualHost>
+```
+
+Enable required Apache modules:
+```bash
+sudo a2enmod proxy proxy_http ssl
+sudo systemctl reload apache2
 ```
 
 ## Git Workflow

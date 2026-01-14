@@ -184,8 +184,12 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
         return 1
 
 
-def serve_command(directory: Path = None, port: int = 8000) -> int:
-    """Start a local web server to view the inventory."""
+def serve_command(directory: Path = None, port: int = 8000, api_proxy: str = None) -> int:
+    """Start a local web server to view the inventory.
+
+    If api_proxy is specified (e.g., 'localhost:8765'), requests to /api/ and /chat
+    will be proxied to that backend.
+    """
     if directory is None:
         directory = Path.cwd()
     else:
@@ -203,15 +207,112 @@ def serve_command(directory: Path = None, port: int = 8000) -> int:
 
     print(f"🌐 Starting web server at http://localhost:{port}")
     print(f"📂 Serving directory: {directory}")
+    if api_proxy:
+        print(f"🔄 Proxying /api/* and /chat to http://{api_proxy}")
     print(f"Press Ctrl+C to stop\n")
 
     import http.server
     import socketserver
     import os
+    import urllib.request
+    import urllib.error
 
     os.chdir(directory)
 
-    Handler = http.server.SimpleHTTPRequestHandler
+    class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+        """HTTP handler that can proxy API requests to a backend server."""
+
+        def do_proxy(self, method: str):
+            """Proxy request to the API backend."""
+            if not api_proxy:
+                self.send_error(404, "API proxy not configured")
+                return
+
+            # Build the backend URL
+            backend_url = f"http://{api_proxy}{self.path}"
+
+            # Read request body for POST/PUT
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else None
+
+            # Create the proxy request
+            req = urllib.request.Request(backend_url, data=body, method=method)
+
+            # Copy relevant headers
+            for header, value in self.headers.items():
+                if header.lower() not in ('host', 'content-length'):
+                    req.add_header(header, value)
+
+            try:
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    # Send response status
+                    self.send_response(response.status)
+
+                    # Copy response headers
+                    for header, value in response.headers.items():
+                        if header.lower() not in ('transfer-encoding', 'connection'):
+                            self.send_header(header, value)
+                    self.end_headers()
+
+                    # Send response body
+                    self.wfile.write(response.read())
+
+            except urllib.error.HTTPError as e:
+                self.send_response(e.code)
+                for header, value in e.headers.items():
+                    if header.lower() not in ('transfer-encoding', 'connection'):
+                        self.send_header(header, value)
+                self.end_headers()
+                self.wfile.write(e.read())
+            except urllib.error.URLError as e:
+                self.send_error(502, f"Backend unavailable: {e.reason}")
+            except Exception as e:
+                self.send_error(500, f"Proxy error: {str(e)}")
+
+        def should_proxy(self) -> bool:
+            """Check if this request should be proxied."""
+            return api_proxy and (
+                self.path.startswith('/api/') or
+                self.path.startswith('/chat') or
+                self.path.startswith('/health')
+            )
+
+        def do_GET(self):
+            if self.should_proxy():
+                self.do_proxy('GET')
+            else:
+                super().do_GET()
+
+        def do_POST(self):
+            if self.should_proxy():
+                self.do_proxy('POST')
+            else:
+                self.send_error(405, "Method Not Allowed")
+
+        def do_PUT(self):
+            if self.should_proxy():
+                self.do_proxy('PUT')
+            else:
+                self.send_error(405, "Method Not Allowed")
+
+        def do_DELETE(self):
+            if self.should_proxy():
+                self.do_proxy('DELETE')
+            else:
+                self.send_error(405, "Method Not Allowed")
+
+        def do_OPTIONS(self):
+            if self.should_proxy():
+                self.do_proxy('OPTIONS')
+            else:
+                # Handle CORS preflight for non-proxied requests
+                self.send_response(200)
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+                self.end_headers()
+
+    Handler = ProxyHTTPRequestHandler
     with socketserver.TCPServer(("", port), Handler) as httpd:
         try:
             httpd.serve_forever()
@@ -319,6 +420,8 @@ Examples:
     serve_parser = subparsers.add_parser('serve', help='Start local web server')
     serve_parser.add_argument('directory', type=Path, nargs='?', help='Directory to serve (default: current directory)')
     serve_parser.add_argument('--port', '-p', type=int, default=8000, help='Port number (default: 8000)')
+    serve_parser.add_argument('--api-proxy', type=str, metavar='HOST:PORT',
+                              help='Proxy /api/* and /chat requests to backend (e.g., localhost:8765)')
 
     # API command
     api_parser = subparsers.add_parser('api', help='Start API server (chat, photos, item management)')
@@ -339,7 +442,7 @@ Examples:
     elif args.command == 'parse':
         return parse_command(args.file, args.output, args.validate, getattr(args, 'wanted_items', None))
     elif args.command == 'serve':
-        return serve_command(args.directory, args.port)
+        return serve_command(args.directory, args.port, getattr(args, 'api_proxy', None))
     elif args.command == 'api' or args.command == 'chat':
         return api_command(args.directory, args.port, args.host)
     else:
