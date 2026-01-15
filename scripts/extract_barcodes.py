@@ -3,23 +3,31 @@
 Extract barcodes and QR codes from images and look up product information.
 
 Requires: pip install pyzbar pillow requests
+Optional: pip install easyocr  (for OCR text extraction)
 
 Usage:
     ./extract_barcodes.py image.jpg [image2.jpg ...]
     ./extract_barcodes.py photos/F-01/*.jpg
     ./extract_barcodes.py --lookup 5701234567890
     ./extract_barcodes.py --lookup 978-0-13-468599-1  # ISBN lookup
+    ./extract_barcodes.py --ocr photos/*.jpg  # Use OCR when no barcode found
 
 Options:
     --lookup EAN    Look up a single EAN/ISBN without image processing
     --no-lookup     Extract barcodes but skip online lookup
     --no-cache      Skip local cache, always query online
+    --ocr           Enable OCR fallback when no barcode is detected
+    --ocr-only      Only run OCR, skip barcode extraction
     --json          Output as JSON
     -h, --help      Show this help message
 
 Supported barcodes:
     - EAN-13, EAN-8, UPC-A, UPC-E (products) -> OpenFoodFacts, UPCitemdb
-    - ISBN-10, ISBN-13 (books) -> Open Library
+    - ISBN-10, ISBN-13 (books) -> Open Library, NB.no (Norwegian)
+
+OCR Languages:
+    By default OCR uses: English, Norwegian, Swedish, Russian.
+    Models are downloaded on first use (~100MB).
 
 Local Cache:
     Lookups are cached in ean_cache.json in the current directory.
@@ -53,6 +61,15 @@ try:
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
+
+try:
+    import easyocr
+    HAS_OCR = True
+    # Lazy-loaded reader (initialized on first use)
+    _ocr_reader = None
+except ImportError:
+    HAS_OCR = False
+    _ocr_reader = None
 
 
 # Default cache file location
@@ -103,6 +120,109 @@ def extract_barcodes(image_path: Path) -> list[dict]:
         })
 
     return results
+
+
+def get_ocr_reader(languages: list[str] | None = None) -> 'easyocr.Reader | None':
+    """
+    Get or initialize the OCR reader (lazy loading).
+
+    Args:
+        languages: List of language codes. Default: ['en', 'no', 'sv', 'ru']
+
+    Returns:
+        easyocr.Reader instance or None if OCR not available.
+    """
+    global _ocr_reader
+
+    if not HAS_OCR:
+        return None
+
+    if _ocr_reader is None:
+        if languages is None:
+            languages = ['en', 'no', 'sv', 'ru']
+        print(f"Initializing OCR with languages: {languages}", file=sys.stderr)
+        _ocr_reader = easyocr.Reader(languages, gpu=False)
+
+    return _ocr_reader
+
+
+def extract_text_ocr(image_path: Path, languages: list[str] | None = None,
+                     min_confidence: float = 0.3) -> list[dict]:
+    """
+    Extract text from an image using OCR.
+
+    Args:
+        image_path: Path to the image file.
+        languages: List of language codes for OCR.
+        min_confidence: Minimum confidence threshold (0-1).
+
+    Returns:
+        List of dicts with: text, confidence, bbox (bounding box coordinates).
+    """
+    reader = get_ocr_reader(languages)
+    if reader is None:
+        return []
+
+    try:
+        # easyocr.readtext returns list of (bbox, text, confidence)
+        results = reader.readtext(str(image_path))
+
+        extracted = []
+        for bbox, text, confidence in results:
+            if confidence >= min_confidence:
+                extracted.append({
+                    'text': text,
+                    'confidence': confidence,
+                    'bbox': bbox,
+                })
+
+        return extracted
+    except Exception as e:
+        print(f"OCR failed for {image_path}: {e}", file=sys.stderr)
+        return []
+
+
+def extract_title_from_ocr(ocr_results: list[dict], min_confidence: float = 0.5) -> str | None:
+    """
+    Try to extract a book title from OCR results.
+
+    Heuristic: Look for the largest/most prominent text with high confidence.
+    Usually book titles are in larger fonts.
+
+    Args:
+        ocr_results: Results from extract_text_ocr().
+        min_confidence: Minimum confidence to consider.
+
+    Returns:
+        Best candidate for book title, or None.
+    """
+    if not ocr_results:
+        return None
+
+    # Filter by confidence and sort by text length (longer text more likely to be title)
+    candidates = [r for r in ocr_results if r['confidence'] >= min_confidence]
+
+    if not candidates:
+        return None
+
+    # Sort by a score: prefer longer text with higher confidence
+    # Also prefer text that's not just numbers or single words
+    def score(r):
+        text = r['text'].strip()
+        # Penalize very short text
+        length_score = min(len(text) / 20, 1.0)
+        # Penalize text that's mostly numbers
+        alpha_ratio = sum(c.isalpha() for c in text) / max(len(text), 1)
+        return r['confidence'] * length_score * alpha_ratio
+
+    candidates.sort(key=score, reverse=True)
+
+    # Return the best candidate if it looks like a title
+    best = candidates[0]
+    if len(best['text'].strip()) >= 3:
+        return best['text'].strip()
+
+    return None
 
 
 def lookup_openfoodfacts(ean: str) -> dict | None:
@@ -581,6 +701,8 @@ def main():
     use_cache = True
     output_json = False
     single_lookup = None
+    enable_ocr = False
+    ocr_only = False
     image_paths = []
 
     i = 0
@@ -592,6 +714,11 @@ def main():
             use_cache = False
         elif arg == '--json':
             output_json = True
+        elif arg == '--ocr':
+            enable_ocr = True
+        elif arg == '--ocr-only':
+            enable_ocr = True
+            ocr_only = True
         elif arg == '--lookup' and i + 1 < len(args):
             i += 1
             single_lookup = args[i]
@@ -658,7 +785,31 @@ def main():
             print(f"Warning: {image_path} not found", file=sys.stderr)
             continue
 
-        barcodes = extract_barcodes(image_path)
+        barcodes = []
+        if not ocr_only:
+            barcodes = extract_barcodes(image_path)
+
+        # Try OCR if no barcodes found and OCR is enabled
+        if not barcodes and enable_ocr:
+            if not HAS_OCR:
+                print("Warning: OCR requested but easyocr not installed", file=sys.stderr)
+                print("Run: pip install easyocr", file=sys.stderr)
+            else:
+                ocr_results = extract_text_ocr(image_path)
+                if ocr_results:
+                    # Add OCR results as a special "barcode" type
+                    title = extract_title_from_ocr(ocr_results)
+                    all_text = ' | '.join(r['text'] for r in ocr_results[:5])
+                    result = {
+                        'file': str(image_path),
+                        'type': 'OCR',
+                        'data': title or all_text[:100],
+                        'product': None,
+                        'ocr_results': ocr_results,
+                        'ocr_title': title,
+                    }
+                    all_results.append(result)
+            continue
 
         if not barcodes:
             continue
@@ -697,12 +848,24 @@ def main():
         seen_eans = set()
 
         for result in all_results:
-            ean = result['data']
-            if ean in seen_eans:
-                continue
-            seen_eans.add(ean)
+            data = result['data']
 
-            barcode = {'type': result['type'], 'data': ean}
+            # Handle OCR results differently
+            if result['type'] == 'OCR':
+                print(f"* tag:TODO (OCR detected text)")
+                if result.get('ocr_title'):
+                    print(f"    # Possible title: {result['ocr_title']}")
+                else:
+                    print(f"    # Text detected: {data[:80]}...")
+                print(f"    # Found in: {result['file']}")
+                print()
+                continue
+
+            if data in seen_eans:
+                continue
+            seen_eans.add(data)
+
+            barcode = {'type': result['type'], 'data': data}
             print(format_for_inventory(barcode, result.get('product')))
             print(f"    # Found in: {result['file']}")
             print()
