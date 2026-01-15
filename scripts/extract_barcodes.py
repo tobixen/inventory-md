@@ -8,13 +8,18 @@ Usage:
     ./extract_barcodes.py image.jpg [image2.jpg ...]
     ./extract_barcodes.py photos/F-01/*.jpg
     ./extract_barcodes.py --lookup 5701234567890
+    ./extract_barcodes.py --lookup 978-0-13-468599-1  # ISBN lookup
 
 Options:
-    --lookup EAN    Look up a single EAN without image processing
+    --lookup EAN    Look up a single EAN/ISBN without image processing
     --no-lookup     Extract barcodes but skip online lookup
     --no-cache      Skip local cache, always query online
     --json          Output as JSON
     -h, --help      Show this help message
+
+Supported barcodes:
+    - EAN-13, EAN-8, UPC-A, UPC-E (products) -> OpenFoodFacts, UPCitemdb
+    - ISBN-10, ISBN-13 (books) -> Open Library
 
 Local Cache:
     Lookups are cached in ean_cache.json in the current directory.
@@ -196,24 +201,165 @@ def lookup_ean_online(ean: str) -> dict | None:
     return None
 
 
-def lookup_ean(ean: str, cache: dict, use_cache: bool = True) -> tuple[dict | None, bool]:
+def normalize_isbn(isbn: str) -> str:
+    """Remove hyphens and spaces from ISBN."""
+    return isbn.replace('-', '').replace(' ', '')
+
+
+def validate_isbn10_checksum(isbn: str) -> bool:
+    """Validate ISBN-10 check digit."""
+    if len(isbn) != 10:
+        return False
+
+    total = 0
+    for i, char in enumerate(isbn[:-1]):
+        if not char.isdigit():
+            return False
+        total += int(char) * (10 - i)
+
+    # Last digit can be 'X' (represents 10)
+    last = isbn[-1].upper()
+    if last == 'X':
+        total += 10
+    elif last.isdigit():
+        total += int(last)
+    else:
+        return False
+
+    return total % 11 == 0
+
+
+def validate_isbn13_checksum(isbn: str) -> bool:
+    """Validate ISBN-13 check digit (same as EAN-13)."""
+    if len(isbn) != 13 or not isbn.isdigit():
+        return False
+    if not isbn.startswith(('978', '979')):
+        return False
+    return validate_ean_checksum(isbn)
+
+
+def is_isbn(data: str) -> bool:
+    """Check if a string is a valid ISBN-10 or ISBN-13."""
+    normalized = normalize_isbn(data)
+
+    if len(normalized) == 10:
+        return validate_isbn10_checksum(normalized)
+    elif len(normalized) == 13:
+        return validate_isbn13_checksum(normalized)
+    return False
+
+
+def isbn10_to_isbn13(isbn10: str) -> str:
+    """Convert ISBN-10 to ISBN-13."""
+    isbn10 = normalize_isbn(isbn10)
+    if len(isbn10) != 10:
+        return isbn10
+
+    # Add 978 prefix and recalculate check digit
+    base = '978' + isbn10[:-1]
+    digits = [int(d) for d in base]
+    total = sum(d * (1 if i % 2 == 0 else 3) for i, d in enumerate(digits))
+    check = (10 - (total % 10)) % 10
+    return base + str(check)
+
+
+def lookup_openlibrary(isbn: str) -> dict | None:
     """
-    Look up an EAN, checking cache first.
+    Look up an ISBN using Open Library API.
+
+    Returns book info dict or None if not found.
+    """
+    if not HAS_REQUESTS:
+        return None
+
+    normalized = normalize_isbn(isbn)
+
+    # Convert ISBN-10 to ISBN-13 for consistency
+    if len(normalized) == 10:
+        isbn13 = isbn10_to_isbn13(normalized)
+    else:
+        isbn13 = normalized
+
+    url = f"https://openlibrary.org/isbn/{normalized}.json"
+
+    try:
+        response = requests.get(url, timeout=10, headers={
+            'User-Agent': 'InventorySystem/1.0 (https://github.com/tobixen/inventory-md)'
+        })
+
+        if response.status_code == 404:
+            return None
+
+        response.raise_for_status()
+        data = response.json()
+
+        # Get author information (requires additional API call)
+        authors = []
+        for author_ref in data.get('authors', []):
+            author_key = author_ref.get('key')
+            if author_key:
+                try:
+                    author_resp = requests.get(
+                        f"https://openlibrary.org{author_key}.json",
+                        timeout=5,
+                        headers={'User-Agent': 'InventorySystem/1.0'}
+                    )
+                    if author_resp.status_code == 200:
+                        author_data = author_resp.json()
+                        authors.append(author_data.get('name', ''))
+                except requests.RequestException:
+                    pass
+
+        return {
+            'isbn': isbn13,
+            'isbn_input': isbn,
+            'name': data.get('title'),
+            'authors': authors,
+            'author': ', '.join(authors) if authors else None,
+            'publisher': (data.get('publishers') or [None])[0],
+            'publish_date': data.get('publish_date'),
+            'pages': data.get('number_of_pages'),
+            'subjects': [s.get('name') if isinstance(s, dict) else s
+                        for s in data.get('subjects', [])[:5]],
+            'cover_id': data.get('covers', [None])[0],
+            'source': 'openlibrary',
+            'type': 'book',
+        }
+    except requests.RequestException as e:
+        print(f"Open Library lookup failed for {isbn}: {e}", file=sys.stderr)
+        return None
+
+
+def lookup_code(code: str, cache: dict, use_cache: bool = True) -> tuple[dict | None, bool]:
+    """
+    Look up an EAN or ISBN, checking cache first.
 
     Returns (product_info, was_cached).
     """
+    # Normalize ISBN for cache key
+    cache_key = normalize_isbn(code) if is_isbn(code) else code
+
     # Check cache first
-    if use_cache and ean in cache:
-        cached = cache[ean]
+    if use_cache and cache_key in cache:
+        cached = cache[cache_key]
         # None in cache means "looked up but not found"
         if cached is None:
             return None, True
         return cached, True
 
-    # Look up online
-    product = lookup_ean_online(ean)
+    # Determine lookup type
+    if is_isbn(code):
+        product = lookup_openlibrary(code)
+    else:
+        product = lookup_ean_online(code)
 
     return product, False
+
+
+# Backwards compatibility alias
+def lookup_ean(ean: str, cache: dict, use_cache: bool = True) -> tuple[dict | None, bool]:
+    """Look up an EAN, checking cache first. (Alias for lookup_code)"""
+    return lookup_code(ean, cache, use_cache)
 
 
 def validate_ean_checksum(ean: str) -> bool:
@@ -243,43 +389,92 @@ def validate_ean_checksum(ean: str) -> bool:
     return False
 
 
-def is_ean(barcode_type: str, data: str) -> bool:
-    """Check if barcode is a valid product EAN/UPC that can be looked up."""
+def is_lookupable(barcode_type: str, data: str) -> tuple[bool, str]:
+    """
+    Check if barcode can be looked up online.
+
+    Returns (can_lookup, code_type) where code_type is 'ean', 'isbn', or ''.
+    """
+    # Check for ISBN first (ISBN-13 starts with 978/979)
+    normalized = normalize_isbn(data)
+    if len(normalized) == 13 and normalized.startswith(('978', '979')):
+        if validate_isbn13_checksum(normalized):
+            return True, 'isbn'
+    if len(normalized) == 10 and validate_isbn10_checksum(normalized):
+        return True, 'isbn'
+
+    # Check for EAN/UPC
     if barcode_type in ('EAN13', 'EAN8', 'UPCA', 'UPCE'):
         if not validate_ean_checksum(data):
             print(f"Warning: Invalid checksum for {data}", file=sys.stderr)
-            return False
-        return True
+            return False, ''
+        return True, 'ean'
+
     # Some barcodes encode EANs as other types
     if barcode_type == 'CODE128' and data.isdigit() and len(data) in (8, 12, 13):
         if not validate_ean_checksum(data):
             print(f"Warning: Invalid checksum for {data}", file=sys.stderr)
-            return False
-        return True
-    return False
+            return False, ''
+        return True, 'ean'
+
+    return False, ''
+
+
+def is_ean(barcode_type: str, data: str) -> bool:
+    """Check if barcode is a valid product EAN/UPC that can be looked up. (Legacy)"""
+    can_lookup, _ = is_lookupable(barcode_type, data)
+    return can_lookup
 
 
 def format_for_inventory(barcode: dict, product: dict | None) -> str:
     """Format barcode info for inventory.md."""
-    ean = barcode['data']
+    code = barcode['data']
     barcode_type = barcode['type']
 
     if product and product.get('name'):
         name = product['name']
-        brand = product.get('brand', '')
-        quantity = product.get('quantity', '')
 
-        parts = []
-        if brand:
-            parts.append(brand)
-        parts.append(name)
-        if quantity:
-            parts.append(f"({quantity})")
+        # Handle books differently
+        if product.get('type') == 'book':
+            isbn = product.get('isbn', code)
+            author = product.get('author', '')
+            publisher = product.get('publisher', '')
+            publish_date = product.get('publish_date', '')
 
-        desc = ' '.join(parts)
-        return f"* EAN:{ean} {desc}"
+            parts = [f'tag:book ISBN:{isbn}']
+            if author:
+                parts.append(f'"{name}" by {author}')
+            else:
+                parts.append(f'"{name}"')
+            if publisher:
+                parts.append(f'({publisher}')
+                if publish_date:
+                    parts[-1] += f', {publish_date})'
+                else:
+                    parts[-1] += ')'
+            elif publish_date:
+                parts.append(f'({publish_date})')
+
+            return '* ' + ' '.join(parts)
+        else:
+            # Regular product
+            brand = product.get('brand', '')
+            quantity = product.get('quantity', '')
+
+            parts = []
+            if brand:
+                parts.append(brand)
+            parts.append(name)
+            if quantity:
+                parts.append(f"({quantity})")
+
+            desc = ' '.join(parts)
+            return f"* EAN:{code} {desc}"
     else:
-        return f"* EAN:{ean} (unknown product, type: {barcode_type})"
+        # Check if it's an ISBN
+        if is_isbn(code):
+            return f"* tag:book ISBN:{normalize_isbn(code)} (unknown book)"
+        return f"* EAN:{code} (unknown product, type: {barcode_type})"
 
 
 def main():
@@ -315,31 +510,48 @@ def main():
     cache = load_cache(CACHE_FILE) if use_cache else {}
     cache_modified = False
 
-    # Single EAN lookup mode
+    # Single EAN/ISBN lookup mode
     if single_lookup:
-        if not HAS_REQUESTS and single_lookup not in cache:
+        # Determine cache key
+        cache_key = normalize_isbn(single_lookup) if is_isbn(single_lookup) else single_lookup
+
+        if not HAS_REQUESTS and cache_key not in cache:
             print("Error: requests package required for lookup", file=sys.stderr)
             print("Run: pip install requests", file=sys.stderr)
             sys.exit(1)
 
-        product, was_cached = lookup_ean(single_lookup, cache, use_cache)
+        product, was_cached = lookup_code(single_lookup, cache, use_cache)
 
         # Save to cache if new lookup
         if not was_cached and use_cache:
-            cache[single_lookup] = product
+            cache[cache_key] = product
             save_cache(cache, CACHE_FILE)
 
         if output_json:
             print(json.dumps(product, indent=2))
         elif product:
-            print(f"EAN: {single_lookup}")
-            print(f"Name: {product.get('name', 'Unknown')}")
-            print(f"Brand: {product.get('brand', 'Unknown')}")
-            print(f"Quantity: {product.get('quantity', 'Unknown')}")
-            print(f"Categories: {product.get('categories', 'Unknown')}")
-            print(f"Source: {product.get('source', 'unknown')}")
+            if product.get('type') == 'book':
+                # Book output
+                print(f"ISBN: {product.get('isbn', single_lookup)}")
+                print(f"Title: {product.get('name', 'Unknown')}")
+                print(f"Author: {product.get('author', 'Unknown')}")
+                print(f"Publisher: {product.get('publisher', 'Unknown')}")
+                print(f"Published: {product.get('publish_date', 'Unknown')}")
+                print(f"Pages: {product.get('pages', 'Unknown')}")
+                if product.get('subjects'):
+                    print(f"Subjects: {', '.join(str(s) for s in product['subjects'][:3])}")
+                print(f"Source: {product.get('source', 'unknown')}")
+            else:
+                # Product output
+                print(f"EAN: {single_lookup}")
+                print(f"Name: {product.get('name', 'Unknown')}")
+                print(f"Brand: {product.get('brand', 'Unknown')}")
+                print(f"Quantity: {product.get('quantity', 'Unknown')}")
+                print(f"Categories: {product.get('categories', 'Unknown')}")
+                print(f"Source: {product.get('source', 'unknown')}")
         else:
-            print(f"Product not found: {single_lookup}")
+            code_type = "ISBN" if is_isbn(single_lookup) else "Product"
+            print(f"{code_type} not found: {single_lookup}")
         sys.exit(0)
 
     if not image_paths:
