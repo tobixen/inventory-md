@@ -330,6 +330,99 @@ def lookup_openlibrary(isbn: str) -> dict | None:
         return None
 
 
+def lookup_nb_no(isbn: str) -> dict | None:
+    """
+    Look up an ISBN using Norwegian National Library (nb.no) API.
+
+    Best for Norwegian books (ISBN starting with 978-82-).
+    Returns book info dict or None if not found.
+    """
+    if not HAS_REQUESTS:
+        return None
+
+    normalized = normalize_isbn(isbn)
+
+    # Convert ISBN-10 to ISBN-13 for consistency
+    if len(normalized) == 10:
+        isbn13 = isbn10_to_isbn13(normalized)
+    else:
+        isbn13 = normalized
+
+    url = f"https://api.nb.no/catalog/v1/items?q=isbn:{normalized}"
+
+    try:
+        response = requests.get(url, timeout=10, headers={
+            'User-Agent': 'InventorySystem/1.0 (https://github.com/tobixen/inventory-md)'
+        })
+
+        if response.status_code == 404:
+            return None
+
+        response.raise_for_status()
+        data = response.json()
+
+        # Check if we got results
+        embedded = data.get('_embedded', {})
+        items = embedded.get('items', [])
+
+        if not items:
+            return None
+
+        item = items[0]
+        metadata = item.get('metadata', {})
+
+        # Extract authors from creators (list of strings)
+        creators = metadata.get('creators', [])
+        authors = [c for c in creators if isinstance(c, str)]
+
+        # Extract title
+        title = metadata.get('title')
+
+        # Extract publisher and date from originInfo (dict, not list)
+        origin_info = metadata.get('originInfo', {})
+        publisher = origin_info.get('publisher')
+        publish_date = origin_info.get('issued')
+
+        return {
+            'isbn': isbn13,
+            'isbn_input': isbn,
+            'name': title,
+            'authors': authors,
+            'author': ', '.join(authors) if authors else None,
+            'publisher': publisher,
+            'publish_date': publish_date,
+            'pages': None,  # Not available in this API response
+            'subjects': [],
+            'source': 'nb.no',
+            'type': 'book',
+        }
+    except requests.RequestException as e:
+        print(f"NB.no lookup failed for {isbn}: {e}", file=sys.stderr)
+        return None
+
+
+def lookup_isbn(isbn: str) -> dict | None:
+    """
+    Look up an ISBN using multiple APIs with fallback.
+
+    Tries Open Library first, then Norwegian National Library for 978-82-* ISBNs.
+    Returns book info dict or None if not found.
+    """
+    # Try Open Library first (international coverage)
+    product = lookup_openlibrary(isbn)
+    if product and product.get('name'):
+        return product
+
+    # For Norwegian ISBNs (978-82-*), try nb.no as fallback
+    normalized = normalize_isbn(isbn)
+    if normalized.startswith('97882'):
+        product = lookup_nb_no(isbn)
+        if product and product.get('name'):
+            return product
+
+    return None
+
+
 def lookup_code(code: str, cache: dict, use_cache: bool = True) -> tuple[dict | None, bool]:
     """
     Look up an EAN or ISBN, checking cache first.
@@ -349,7 +442,7 @@ def lookup_code(code: str, cache: dict, use_cache: bool = True) -> tuple[dict | 
 
     # Determine lookup type
     if is_isbn(code):
-        product = lookup_openlibrary(code)
+        product = lookup_isbn(code)
     else:
         product = lookup_ean_online(code)
 

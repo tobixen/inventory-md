@@ -15,6 +15,8 @@ from extract_barcodes import (
     is_lookupable,
     is_ean,
     lookup_code,
+    lookup_isbn,
+    lookup_nb_no,
     format_for_inventory,
 )
 
@@ -208,37 +210,37 @@ class TestIsEan:
 class TestLookupCode:
     """Tests for code lookup routing."""
 
-    def test_isbn_routes_to_openlibrary(self):
-        """Test that ISBNs are routed to Open Library, not OpenFoodFacts."""
-        with patch('extract_barcodes.lookup_openlibrary') as mock_ol, \
+    def test_isbn_routes_to_lookup_isbn(self):
+        """Test that ISBNs are routed to lookup_isbn, not OpenFoodFacts."""
+        with patch('extract_barcodes.lookup_isbn') as mock_isbn, \
              patch('extract_barcodes.lookup_ean_online') as mock_ean:
-            mock_ol.return_value = {'name': 'Test Book', 'type': 'book'}
+            mock_isbn.return_value = {'name': 'Test Book', 'type': 'book'}
 
             product, cached = lookup_code("9780134685991", {}, use_cache=False)
 
-            mock_ol.assert_called_once_with("9780134685991")
+            mock_isbn.assert_called_once_with("9780134685991")
             mock_ean.assert_not_called()
             assert product['type'] == 'book'
 
     def test_ean_routes_to_openfoodfacts(self):
         """Test that EANs are routed to OpenFoodFacts."""
-        with patch('extract_barcodes.lookup_openlibrary') as mock_ol, \
+        with patch('extract_barcodes.lookup_isbn') as mock_isbn, \
              patch('extract_barcodes.lookup_ean_online') as mock_ean:
             mock_ean.return_value = {'name': 'Test Product', 'source': 'openfoodfacts'}
 
             product, cached = lookup_code("5901234123457", {}, use_cache=False)
 
             mock_ean.assert_called_once_with("5901234123457")
-            mock_ol.assert_not_called()
+            mock_isbn.assert_not_called()
 
     def test_cache_hit_returns_cached(self):
         """Test that cache hits return cached data without API call."""
         cache = {"9780134685991": {'name': 'Cached Book', 'type': 'book'}}
 
-        with patch('extract_barcodes.lookup_openlibrary') as mock_ol:
+        with patch('extract_barcodes.lookup_isbn') as mock_isbn:
             product, cached = lookup_code("9780134685991", cache, use_cache=True)
 
-            mock_ol.assert_not_called()
+            mock_isbn.assert_not_called()
             assert cached is True
             assert product['name'] == 'Cached Book'
 
@@ -339,3 +341,116 @@ class TestRealWorldIsbns:
     def test_real_eans_not_isbns(self, ean):
         assert is_isbn(ean) is False
         assert validate_ean_checksum(ean) is True
+
+
+class TestLookupIsbn:
+    """Tests for ISBN lookup with fallback."""
+
+    def test_openlibrary_success_no_fallback(self):
+        """When Open Library succeeds, NB.no is not called."""
+        with patch('extract_barcodes.lookup_openlibrary') as mock_ol, \
+             patch('extract_barcodes.lookup_nb_no') as mock_nb:
+            mock_ol.return_value = {'name': 'Test Book', 'type': 'book'}
+
+            result = lookup_isbn("9780134685991")
+
+            mock_ol.assert_called_once()
+            mock_nb.assert_not_called()
+            assert result['name'] == 'Test Book'
+
+    def test_norwegian_isbn_fallback_to_nb(self):
+        """Norwegian ISBNs fall back to NB.no when Open Library fails."""
+        with patch('extract_barcodes.lookup_openlibrary') as mock_ol, \
+             patch('extract_barcodes.lookup_nb_no') as mock_nb:
+            mock_ol.return_value = None  # Not found
+            mock_nb.return_value = {'name': 'Norwegian Book', 'type': 'book', 'source': 'nb.no'}
+
+            result = lookup_isbn("9788248936688")  # Norwegian ISBN (978-82-*)
+
+            mock_ol.assert_called_once()
+            mock_nb.assert_called_once_with("9788248936688")
+            assert result['source'] == 'nb.no'
+
+    def test_non_norwegian_isbn_no_nb_fallback(self):
+        """Non-Norwegian ISBNs don't fall back to NB.no."""
+        with patch('extract_barcodes.lookup_openlibrary') as mock_ol, \
+             patch('extract_barcodes.lookup_nb_no') as mock_nb:
+            mock_ol.return_value = None  # Not found
+
+            result = lookup_isbn("9780134685991")  # US ISBN
+
+            mock_ol.assert_called_once()
+            mock_nb.assert_not_called()
+            assert result is None
+
+    def test_norwegian_isbn_prefix_detection(self):
+        """Test that 978-82-* prefix correctly triggers NB.no fallback."""
+        with patch('extract_barcodes.lookup_openlibrary') as mock_ol, \
+             patch('extract_barcodes.lookup_nb_no') as mock_nb:
+            mock_ol.return_value = None
+
+            # These should trigger NB.no fallback
+            lookup_isbn("9788248936688")
+            lookup_isbn("9788205389724")
+
+            assert mock_nb.call_count == 2
+
+
+class TestLookupNbNo:
+    """Tests for Norwegian National Library API lookup."""
+
+    def test_returns_book_type(self):
+        """NB.no results should have type='book'."""
+        with patch('extract_barcodes.requests.get') as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = {
+                '_embedded': {
+                    'items': [{
+                        'metadata': {
+                            'title': 'Test Book',
+                            'creators': ['Author Name'],
+                            'originInfo': {'publisher': 'Publisher', 'issued': '2020'}
+                        }
+                    }]
+                }
+            }
+
+            result = lookup_nb_no("9788248936688")
+
+            assert result['type'] == 'book'
+            assert result['source'] == 'nb.no'
+            assert result['name'] == 'Test Book'
+            assert result['author'] == 'Author Name'
+
+    def test_returns_none_for_empty_results(self):
+        """NB.no returns None when no items found."""
+        with patch('extract_barcodes.requests.get') as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = {
+                '_embedded': {'items': []}
+            }
+
+            result = lookup_nb_no("9789999999999")
+
+            assert result is None
+
+    def test_handles_multiple_authors(self):
+        """NB.no correctly joins multiple authors."""
+        with patch('extract_barcodes.requests.get') as mock_get:
+            mock_get.return_value.status_code = 200
+            mock_get.return_value.json.return_value = {
+                '_embedded': {
+                    'items': [{
+                        'metadata': {
+                            'title': 'Collaborative Book',
+                            'creators': ['Author One', 'Author Two', 'Author Three'],
+                            'originInfo': {}
+                        }
+                    }]
+                }
+            }
+
+            result = lookup_nb_no("9788248936688")
+
+            assert result['author'] == 'Author One, Author Two, Author Three'
+            assert len(result['authors']) == 3
