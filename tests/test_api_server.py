@@ -6,6 +6,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Skip all tests if fastapi is not available
+fastapi = pytest.importorskip("fastapi", reason="fastapi not installed (install with pip install inventory-md[chat])")
+
 # Mock python-multipart before importing FastAPI-based modules
 # Need to set __version__ to pass FastAPI's version check
 mock_multipart = MagicMock()

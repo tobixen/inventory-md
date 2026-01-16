@@ -11,7 +11,6 @@ import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import anthropic
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -998,7 +997,14 @@ async def chat(message: ChatMessage) -> ChatResponse:
             detail="Inventory data not loaded. Ensure inventory.json exists in the current directory."
         )
 
-    # Initialize Claude client
+    # Initialize Claude client (lazy import)
+    try:
+        import anthropic
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="anthropic package not installed. Install with: pip install inventory-md[chat]"
+        ) from None
     client = anthropic.Anthropic(api_key=api_key)
 
     # System prompt with inventory context
