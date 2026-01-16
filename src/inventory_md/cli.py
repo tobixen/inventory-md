@@ -92,7 +92,7 @@ Beskrivelse av container...
     return 0
 
 
-def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None) -> int:
+def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
 
@@ -167,9 +167,10 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                     print(f"\n⚠️  wanted-items file not found: {wanted_path}")
                 else:
                     output_shopping = md_file.parent / "shopping-list.md"
-                    result = shopping_list.generate_shopping_list(wanted_path, md_file)
+                    result = shopping_list.generate_shopping_list(wanted_path, md_file, include_dated=include_dated)
                     output_shopping.write_text(result, encoding="utf-8")
-                    print(f"\n🛒 Generated {output_shopping}")
+                    dated_note = " (including dated files)" if include_dated else ""
+                    print(f"\n🛒 Generated {output_shopping}{dated_note}")
 
             search_html = md_file.parent / 'search.html'
             print(f"\n📱 To view the searchable inventory, open search.html in your browser:")
@@ -417,6 +418,7 @@ Examples:
     parse_parser.add_argument('--output', '-o', type=Path, help='Output JSON file (default: inventory.json)')
     parse_parser.add_argument('--validate', action='store_true', help='Validate only, do not generate JSON')
     parse_parser.add_argument('--wanted-items', '-w', type=Path, help='Wanted items file to generate shopping list')
+    parse_parser.add_argument('--no-dated', action='store_true', help='Exclude dated wanted-items files (wanted-items-YYYY-MM-DD.md)')
 
     # Serve command
     serve_parser = subparsers.add_parser('serve', help='Start local web server')
@@ -444,7 +446,8 @@ Examples:
     if args.command == 'init':
         return init_inventory(args.directory, args.name)
     elif args.command == 'parse':
-        return parse_command(args.file, args.output, args.validate, getattr(args, 'wanted_items', None))
+        include_dated = not getattr(args, 'no_dated', False)
+        return parse_command(args.file, args.output, args.validate, getattr(args, 'wanted_items', None), include_dated)
     elif args.command == 'serve':
         return serve_command(args.directory, args.port, args.host, getattr(args, 'api_proxy', None))
     elif args.command == 'api' or args.command == 'chat':

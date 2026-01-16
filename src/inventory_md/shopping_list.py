@@ -3,8 +3,12 @@ Shopping list generator for inventory system.
 
 Compares wanted-items.md (target stock levels) with inventory.md to generate
 a shopping list organized by section.
+
+Supports dated wanted-items files (wanted-items-YYYY-MM-DD.md) for temporary
+shopping needs like recipe ingredients.
 """
 
+import glob
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -293,9 +297,50 @@ def evaluate_item(desired: DesiredItem, inventory: list[InventoryItem]) -> tuple
     return "ok", ""
 
 
-def generate_shopping_list(wanted_path: Path, inventory_path: Path) -> str:
-    """Generate shopping list markdown from wanted-items.md and inventory.md."""
-    sections = parse_wanted_items(wanted_path.read_text(encoding="utf-8"))
+def find_dated_wanted_files(base_path: Path) -> list[Path]:
+    """Find dated wanted-items files in same directory (wanted-items-YYYY-MM-DD.md)."""
+    directory = base_path.parent
+    pattern = directory / "wanted-items-*.md"
+
+    dated_files = []
+    for filepath in glob.glob(str(pattern)):
+        path = Path(filepath)
+        if re.match(r'wanted-items-\d{4}-\d{2}-\d{2}\.md$', path.name):
+            dated_files.append(path)
+
+    return sorted(dated_files)
+
+
+def merge_sections(all_sections: list[list[Section]]) -> list[Section]:
+    """Merge sections from multiple wanted-items files."""
+    merged: dict[str, Section] = {}
+
+    for sections in all_sections:
+        for section in sections:
+            if section.name in merged:
+                merged[section.name].items.extend(section.items)
+            else:
+                merged[section.name] = Section(
+                    name=section.name,
+                    items=list(section.items)
+                )
+
+    return list(merged.values())
+
+
+def generate_shopping_list(wanted_path: Path, inventory_path: Path, include_dated: bool = False) -> str:
+    """Generate shopping list markdown from wanted-items.md and inventory.md.
+
+    If include_dated=True, also includes any wanted-items-YYYY-MM-DD.md files.
+    """
+    all_sections = [parse_wanted_items(wanted_path.read_text(encoding="utf-8"))]
+
+    if include_dated:
+        for dated_path in find_dated_wanted_files(wanted_path):
+            if dated_path.exists():
+                all_sections.append(parse_wanted_items(dated_path.read_text(encoding="utf-8")))
+
+    sections = merge_sections(all_sections) if include_dated else all_sections[0]
     inventory = parse_inventory_for_shopping(inventory_path.read_text(encoding="utf-8"))
 
     lines = []
@@ -341,8 +386,11 @@ def generate_shopping_list(wanted_path: Path, inventory_path: Path) -> str:
     return "\n".join(lines)
 
 
-def generate_shopping_list_if_needed(inventory_dir: Path) -> bool:
-    """Generate shopping list if wanted-items.md exists. Returns True if generated."""
+def generate_shopping_list_if_needed(inventory_dir: Path, include_dated: bool = True) -> bool:
+    """Generate shopping list if wanted-items.md exists. Returns True if generated.
+
+    By default, includes dated wanted-items files (wanted-items-YYYY-MM-DD.md).
+    """
     wanted_path = inventory_dir / "wanted-items.md"
     inventory_path = inventory_dir / "inventory.md"
     output_path = inventory_dir / "shopping-list.md"
@@ -353,6 +401,6 @@ def generate_shopping_list_if_needed(inventory_dir: Path) -> bool:
     if not inventory_path.exists():
         return False
 
-    output = generate_shopping_list(wanted_path, inventory_path)
+    output = generate_shopping_list(wanted_path, inventory_path, include_dated=include_dated)
     output_path.write_text(output, encoding="utf-8")
     return True
