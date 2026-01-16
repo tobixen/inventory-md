@@ -5,11 +5,17 @@ with inventory.md (actual items).
 
 Outputs organized by section from the wanted-items file.
 
+Supports multiple wanted-items files:
+- Main file: wanted-items.md (permanent target stock)
+- Dated files: wanted-items-YYYY-MM-DD.md (temporary items for specific day)
+
 Usage:
     ./generate_shopping_list.py wanted-items.md inventory.md [--output shopping-list.md]
+    ./generate_shopping_list.py wanted-items.md inventory.md --include-dated
 """
 
 import argparse
+import glob
 import re
 import sys
 from dataclasses import dataclass, field
@@ -410,6 +416,49 @@ def generate_shopping_list(sections: list[Section], inventory: list[InventoryIte
     return "\n".join(lines)
 
 
+def find_dated_wanted_files(base_path: Path) -> list[Path]:
+    """
+    Find dated wanted-items files in the same directory as the main file.
+
+    Looks for files matching wanted-items-YYYY-MM-DD.md pattern.
+    Returns sorted list (oldest first).
+    """
+    directory = base_path.parent
+    pattern = directory / "wanted-items-*.md"
+
+    dated_files = []
+    for filepath in glob.glob(str(pattern)):
+        path = Path(filepath)
+        # Verify it matches the date pattern
+        if re.match(r'wanted-items-\d{4}-\d{2}-\d{2}\.md$', path.name):
+            dated_files.append(path)
+
+    return sorted(dated_files)
+
+
+def merge_sections(all_sections: list[list[Section]]) -> list[Section]:
+    """
+    Merge sections from multiple wanted-items files.
+
+    Sections with the same name are combined.
+    """
+    merged: dict[str, Section] = {}
+
+    for sections in all_sections:
+        for section in sections:
+            if section.name in merged:
+                # Add items to existing section
+                merged[section.name].items.extend(section.items)
+            else:
+                # Create new section (copy to avoid mutation)
+                merged[section.name] = Section(
+                    name=section.name,
+                    items=list(section.items)
+                )
+
+    return list(merged.values())
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate shopping list from wanted-items and inventory"
@@ -417,6 +466,11 @@ def main():
     parser.add_argument("wanted_items", help="Path to wanted-items.md")
     parser.add_argument("inventory", help="Path to inventory.md")
     parser.add_argument("--output", "-o", help="Output file (default: stdout)")
+    parser.add_argument(
+        "--include-dated", "-d",
+        action="store_true",
+        help="Include dated wanted-items files (wanted-items-YYYY-MM-DD.md)"
+    )
 
     args = parser.parse_args()
 
@@ -430,7 +484,19 @@ def main():
         print(f"Error: {inventory_path} not found", file=sys.stderr)
         sys.exit(1)
 
-    sections = parse_wanted_items(wanted_path.read_text(encoding="utf-8"))
+    # Parse main wanted-items file
+    all_sections = [parse_wanted_items(wanted_path.read_text(encoding="utf-8"))]
+
+    # Optionally include dated wanted-items files
+    if args.include_dated:
+        dated_files = find_dated_wanted_files(wanted_path)
+        for dated_path in dated_files:
+            if dated_path.exists():
+                print(f"Including: {dated_path.name}", file=sys.stderr)
+                all_sections.append(parse_wanted_items(dated_path.read_text(encoding="utf-8")))
+
+    # Merge all sections
+    sections = merge_sections(all_sections)
     inventory = parse_inventory(inventory_path.read_text(encoding="utf-8"))
 
     output = generate_shopping_list(sections, inventory)
