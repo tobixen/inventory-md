@@ -26,7 +26,6 @@ classifiers = [
 ]
 dependencies = [
     "Pillow>=10.0.0",
-    "pyzbar"
 ]
 
 [project.optional-dependencies]
@@ -35,6 +34,9 @@ chat = [
     "uvicorn[standard]>=0.24.0",
     "anthropic>=0.39.0",
     "python-multipart>=0.0.6",
+]
+barcode = [
+    "pyzbar",
 ]
 ocr = [
     "easyocr>=1.7.0",
@@ -87,3 +89,9 @@ known-first-party = ["inventory_md"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+# Don't collect from scripts/ which has optional dependencies
+collect_ignore = ["scripts"]
