@@ -1,15 +1,27 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "inventory-md"
 dynamic = ["version"]
 description = "A flexible markdown-based inventory management system"
 readme = "README.md"
-requires-python = ">=3.10,<4.0"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
 authors = [
-    {name = "Tobias"}
+    {name = "Tobias Brox", email = "tobias@tobixen.no"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Topic :: Home Automation",
+    "Topic :: Database",
 ]
 dependencies = [
     "Pillow>=10.0.0",
@@ -26,31 +38,43 @@ ocr = [
     "easyocr>=1.7.0",
 ]
 dev = [
-    "pytest>=7.0.0",
+    "pytest>=8.0",
+    "ruff>=0.8",
+    "pre-commit>=4.0",
 ]
 
 [project.scripts]
 inventory-md = "inventory_md.cli:main"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
+[project.urls]
+Repository = "https://github.com/tobixen/inventory-md"
+Issues = "https://github.com/tobixen/inventory-md/issues"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.version]
+source = "vcs"
 
-[tool.setuptools.package-data]
-inventory_md = ["templates/*"]
+[tool.hatch.build.hooks.vcs]
+version-file = "src/inventory_md/_version.py"
 
-[tool.setuptools_scm]
-version_file = "src/inventory_md/_version.py"
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/example",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/inventory_md"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["ALL"]
-ignore = []
+select = ["E", "F", "W", "I", "UP", "B", "C4", "PT"]
+ignore = ["E501"]  # Line length handled separately
+
+[tool.ruff.lint.isort]
+known-first-party = ["inventory_md"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]

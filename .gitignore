@@ -29,3 +29,4 @@ htmlcov/
 venv/
 env/
 ENV/
+ean_cache.json

@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `--host` option for `serve` and `api` commands to bind to specific interfaces
+- `--api-proxy` option for built-in reverse proxy in `serve` command
+- Quick Start Makefile targets (`make quickstart`, `make dev`, `make serve-demo`)
+- OCR support for text extraction from images
+- Norwegian National Library (nb.no) API for ISBN lookup
+- Support for dated wanted-items files in shopping list generator
+- Puppet module for automated deployment (puppet-inventory-md)
+- GitHub Actions workflows for CI and PyPI publishing
+- Pre-commit hooks configuration
+
+### Changed
+- Migrated build system from setuptools to Hatch with hatch-vcs
+- Renamed package from `inventory-system` to `inventory-md`
+- Default binding changed to localhost (127.0.0.1) for security
+- Ruff configuration updated to use recommended rule sets
+
+### Added (earlier)
 - Automatic image discovery from filesystem
   - Parser now scans `photos/{container_id}/` directories for source images
   - Automatically creates missing thumbnails in `resized/{container_id}/`
@@ -111,6 +128,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic version management with setuptools-scm
 - Ruff configuration for code quality
 
-[unreleased]: https://github.com/yourusername/inventory-md/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/yourusername/inventory-md/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/yourusername/inventory-md/releases/tag/v0.1.0
+[unreleased]: https://github.com/tobixen/inventory-md/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/tobixen/inventory-md/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/tobixen/inventory-md/releases/tag/v0.1.0
