@@ -29,7 +29,7 @@ from pathlib import Path
 
 def load_inventory(path: Path) -> dict:
     """Load inventory data from JSON file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -44,7 +44,7 @@ def check_duplicate_ids(data: dict) -> list:
 def check_missing_parents(data: dict) -> list:
     """Check for parent references that don't exist."""
     containers = data.get("containers", [])
-    all_ids = set(c["id"] for c in containers)
+    all_ids = {c["id"] for c in containers}
 
     issues = []
     for container in containers:
@@ -191,7 +191,7 @@ def main():
 
     data = load_inventory(inventory_path)
     results = run_all_checks(data)
-    has_issues = print_results(results, verbose)
+    print_results(results, verbose)
 
     # Exit code
     sys.exit(1 if results["errors"] else 0)

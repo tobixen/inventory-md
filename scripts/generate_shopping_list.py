@@ -21,7 +21,6 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 
 def parse_amount(value: str | None) -> tuple[float | None, str | None]:
@@ -78,9 +77,9 @@ class DesiredItem:
     tag: str
     description: str
     section: str = ""
-    target_qty: Optional[int] = None
-    target_mass_g: Optional[float] = None
-    target_volume_ml: Optional[float] = None
+    target_qty: int | None = None
+    target_mass_g: float | None = None
+    target_volume_ml: float | None = None
 
 
 @dataclass
@@ -90,9 +89,9 @@ class InventoryItem:
     item_id: str
     description: str
     qty: int = 1
-    mass_g: Optional[float] = None
-    volume_ml: Optional[float] = None
-    bb: Optional[str] = None
+    mass_g: float | None = None
+    volume_ml: float | None = None
+    bb: str | None = None
     expired: bool = False
 
 

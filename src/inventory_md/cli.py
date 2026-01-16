@@ -2,12 +2,12 @@
 """
 Command-line interface for Inventory System
 """
-import sys
 import argparse
 import shutil
+import sys
 from pathlib import Path
-from . import parser
-from . import shopping_list
+
+from . import parser, shopping_list
 
 
 def init_inventory(directory: Path, name: str = "My Inventory") -> int:
@@ -31,13 +31,13 @@ def init_inventory(directory: Path, name: str = "My Inventory") -> int:
     search_html = templates_dir / 'search.html'
     if search_html.exists():
         shutil.copy(search_html, directory / 'search.html')
-        print(f"✅ Created search.html")
+        print("✅ Created search.html")
 
     # Copy aliases.json template (if it exists)
     aliases_template = templates_dir / 'aliases.json.template'
     if aliases_template.exists():
         shutil.copy(aliases_template, directory / 'aliases.json')
-        print(f"✅ Created aliases.json")
+        print("✅ Created aliases.json")
 
     # Create inventory.md from template or create basic one
     inventory_md = directory / 'inventory.md'
@@ -76,15 +76,15 @@ Beskrivelse av container...
 
 [Fotos i full oppløsning](photos/)
 """)
-        print(f"✅ Created inventory.md")
+        print("✅ Created inventory.md")
 
     # Create directories for images
     (directory / 'photos').mkdir(exist_ok=True)
     (directory / 'resized').mkdir(exist_ok=True)
-    print(f"✅ Created image directories (photos/, resized/)")
+    print("✅ Created image directories (photos/, resized/)")
 
     print(f"\n🎉 Inventory initialized in {directory}")
-    print(f"\nNext steps:")
+    print("\nNext steps:")
     print(f"1. Edit {directory / 'inventory.md'} to add your items")
     print(f"2. Run: inventory-system parse {directory / 'inventory.md'}")
     print(f"3. Open {directory / 'search.html'} in your browser")
@@ -106,18 +106,18 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
     try:
         # Add ID: prefixes to container headers if not validating
         if not validate_only:
-            print(f"🔍 Checking for duplicate container IDs...")
+            print("🔍 Checking for duplicate container IDs...")
             changes, duplicates = parser.add_container_id_prefixes(md_file)
 
             if duplicates:
-                print(f"⚠️  Found duplicate container IDs:")
+                print("⚠️  Found duplicate container IDs:")
                 for orig_id, new_ids in duplicates.items():
                     print(f"   {orig_id} → {', '.join(new_ids)}")
 
             if changes > 0:
                 print(f"✏️  Added ID: prefix to {changes} container headers")
             else:
-                print(f"✅ All container headers already have ID: prefix")
+                print("✅ All container headers already have ID: prefix")
 
         print(f"\n🔄 Parsing {md_file}...")
         data = parser.parse_inventory(md_file)
@@ -135,7 +135,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
         print(f"   - {items_with_parent} items with parent references")
 
         # Validate and print issues
-        print(f"\n🔍 Validating inventory...")
+        print("\n🔍 Validating inventory...")
         issues = parser.validate_inventory(data)
 
         if issues:
@@ -145,7 +145,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
             if len(issues) > 20:
                 print(f"   ... and {len(issues) - 20} more")
         else:
-            print(f"✅ No validation issues found!")
+            print("✅ No validation issues found!")
 
         # Save to JSON if not validating
         if not validate_only:
@@ -153,12 +153,12 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
             print(f"\n✅ Success! {output} has been updated.")
 
             # Generate photo directory listings for backup
-            print(f"\n📸 Generating photo directory listings...")
+            print("\n📸 Generating photo directory listings...")
             containers_processed, files_created = parser.generate_photo_listings(md_file.parent)
             if files_created > 0:
                 print(f"✅ Created {files_created} photo listing(s) in photo-listings/")
             else:
-                print(f"   No photos found (photo-listings/ not updated)")
+                print("   No photos found (photo-listings/ not updated)")
 
             # Generate shopping list if wanted-items file specified
             if wanted_items:
@@ -173,7 +173,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                     print(f"\n🛒 Generated {output_shopping}{dated_note}")
 
             search_html = md_file.parent / 'search.html'
-            print(f"\n📱 To view the searchable inventory, open search.html in your browser:")
+            print("\n📱 To view the searchable inventory, open search.html in your browser:")
             print(f"   xdg-open {search_html}")
 
         return 0
@@ -212,13 +212,13 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
     print(f"📂 Serving directory: {directory}")
     if api_proxy:
         print(f"🔄 Proxying /api/* and /chat to http://{api_proxy}")
-    print(f"Press Ctrl+C to stop\n")
+    print("Press Ctrl+C to stop\n")
 
     import http.server
-    import socketserver
     import os
-    import urllib.request
+    import socketserver
     import urllib.error
+    import urllib.request
 
     os.chdir(directory)
 
@@ -348,25 +348,26 @@ def api_command(directory: Path = None, port: int = 8765, host: str = "127.0.0.1
     inventory_json = directory / 'inventory.json'
     if not inventory_json.exists():
         print(f"❌ inventory.json not found in {directory}")
-        print(f"Run 'inventory-system parse inventory.md' first")
+        print("Run 'inventory-system parse inventory.md' first")
         return 1
 
     # Change to directory so API server can find inventory.json
     os.chdir(directory)
 
-    print(f"🚀 Starting Inventory API Server...")
+    print("🚀 Starting Inventory API Server...")
     print(f"📂 Using inventory: {inventory_json}")
     print(f"🌐 Server will run at: http://{host}:{port}")
     print(f"💬 Chat endpoint: http://localhost:{port}/chat")
     print(f"📸 Photo upload: http://localhost:{port}/api/photos")
     print(f"➕ Add/remove items: http://localhost:{port}/api/items")
     print(f"❤️  Health check: http://localhost:{port}/health")
-    print(f"\nOpen search.html in your browser to use the interface")
-    print(f"Press Ctrl+C to stop\n")
+    print("\nOpen search.html in your browser to use the interface")
+    print("Press Ctrl+C to stop\n")
 
     # Import and run the API server
     try:
         import uvicorn
+
         from .api_server import app
     except ImportError as e:
         print(f"❌ Missing required package: {e}")

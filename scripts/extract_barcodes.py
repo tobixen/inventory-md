@@ -43,14 +43,14 @@ Local Cache:
     }
 """
 
-import sys
 import json
+import sys
 import time
 from pathlib import Path
 
 try:
     from PIL import Image
-    from pyzbar.pyzbar import decode, ZBarSymbol
+    from pyzbar.pyzbar import decode
 except ImportError:
     print("Error: Required packages not installed.", file=sys.stderr)
     print("Run: pip install pyzbar pillow", file=sys.stderr)
@@ -82,7 +82,7 @@ def load_cache(cache_path: Path) -> dict:
         try:
             with open(cache_path) as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load cache: {e}", file=sys.stderr)
     return {}
 
@@ -92,7 +92,7 @@ def save_cache(cache: dict, cache_path: Path):
     try:
         with open(cache_path, 'w') as f:
             json.dump(cache, f, indent=2, ensure_ascii=False)
-    except IOError as e:
+    except OSError as e:
         print(f"Warning: Could not save cache: {e}", file=sys.stderr)
 
 
@@ -852,7 +852,7 @@ def main():
 
             # Handle OCR results differently
             if result['type'] == 'OCR':
-                print(f"* tag:TODO (OCR detected text)")
+                print("* tag:TODO (OCR detected text)")
                 if result.get('ocr_title'):
                     print(f"    # Possible title: {result['ocr_title']}")
                 else:

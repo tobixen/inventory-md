@@ -1,10 +1,7 @@
 """Tests for CLI module."""
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 import argparse
-
-import pytest
+from pathlib import Path
+from unittest.mock import patch
 
 from inventory_md import cli
 

@@ -6,13 +6,12 @@ Parses markdown inventory files into structured JSON data.
 Supports hierarchical organization, metadata tags, and automatic image discovery.
 Automatically creates resized thumbnails when missing.
 """
-import re
 import json
-from pathlib import Path
-from collections import defaultdict
-from typing import Dict, List, Tuple, Optional, Any
-import os
+import re
 import sys
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
 
 
 def create_thumbnail(source_path: Path, dest_path: Path, max_size: int = 800) -> bool:
@@ -56,7 +55,7 @@ def create_thumbnail(source_path: Path, dest_path: Path, max_size: int = 800) ->
         return False
 
 
-def discover_images(container_id: str, base_path: Path) -> List[Dict[str, str]]:
+def discover_images(container_id: str, base_path: Path) -> list[dict[str, str]]:
     """
     Automatically discover images for a container from filesystem.
 
@@ -117,7 +116,7 @@ def discover_images(container_id: str, base_path: Path) -> List[Dict[str, str]]:
     return images
 
 
-def extract_metadata(text: str) -> Dict[str, Any]:
+def extract_metadata(text: str) -> dict[str, Any]:
     """
     Extract all key:value pairs from text.
 
@@ -169,7 +168,7 @@ def extract_metadata(text: str) -> Dict[str, Any]:
     }
 
 
-def parse_inventory(md_file: Path) -> Dict[str, Any]:
+def parse_inventory(md_file: Path) -> dict[str, Any]:
     """
     Parse the markdown inventory file into structured data.
 
@@ -180,7 +179,7 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
             'containers': [...]
         }
     """
-    with open(md_file, 'r', encoding='utf-8') as f:
+    with open(md_file, encoding='utf-8') as f:
         content = f.read()
 
     result = {
@@ -194,7 +193,6 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
 
     lines = content.split('\n')
     i = 0
-    current_section = None
     current_container = None
     current_section_id = None  # Track current section ID for parent inference
     current_top_level_id = None  # Track top-level section (e.g., ID:Garasje)
@@ -208,7 +206,6 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
 
         # Main sections
         if line.startswith('# Intro'):
-            current_section = 'intro'
             i += 1
             intro_lines = []
             while i < len(lines) and not lines[i].startswith('# '):
@@ -218,7 +215,6 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
             continue
 
         elif line.startswith('# Nummereringsregime'):
-            current_section = 'numbering'
             i += 1
             num_lines = []
             while i < len(lines) and not lines[i].startswith('# '):
@@ -540,13 +536,13 @@ def parse_inventory(md_file: Path) -> Dict[str, Any]:
     return result
 
 
-def add_container_id_prefixes(md_file: Path) -> Tuple[int, Dict[str, List[str]]]:
+def add_container_id_prefixes(md_file: Path) -> tuple[int, dict[str, list[str]]]:
     """
     Add ID: prefix to all container headers and handle duplicates.
 
     Returns: (num_changes, duplicate_map)
     """
-    with open(md_file, 'r', encoding='utf-8') as f:
+    with open(md_file, encoding='utf-8') as f:
         lines = f.readlines()
 
     # First pass: collect all container IDs and detect duplicates
@@ -620,7 +616,7 @@ def add_container_id_prefixes(md_file: Path) -> Tuple[int, Dict[str, List[str]]]
     return changes, duplicate_map
 
 
-def validate_inventory(data: Dict[str, Any]) -> List[str]:
+def validate_inventory(data: dict[str, Any]) -> list[str]:
     """
     Validate inventory data and return list of issues.
     """
@@ -659,19 +655,19 @@ def validate_inventory(data: Dict[str, Any]) -> List[str]:
     return issues
 
 
-def save_json(data: Dict[str, Any], output_file: Path) -> None:
+def save_json(data: dict[str, Any], output_file: Path) -> None:
     """Save inventory data to JSON file."""
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
-def load_json(json_file: Path) -> Dict[str, Any]:
+def load_json(json_file: Path) -> dict[str, Any]:
     """Load inventory data from JSON file."""
-    with open(json_file, 'r', encoding='utf-8') as f:
+    with open(json_file, encoding='utf-8') as f:
         return json.load(f)
 
 
-def generate_photo_listings(base_path: Path) -> Tuple[int, int]:
+def generate_photo_listings(base_path: Path) -> tuple[int, int]:
     """
     Generate photo directory listings for backup purposes.
 

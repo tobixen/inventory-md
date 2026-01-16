@@ -1,11 +1,10 @@
 """Tests for api_server modifications functions."""
+import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import sys
+from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # Mock python-multipart before importing FastAPI-based modules
 # Need to set __version__ to pass FastAPI's version check

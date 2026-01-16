@@ -1,23 +1,24 @@
 """Tests for barcode extraction and ISBN/EAN lookup functionality."""
-import pytest
-from unittest.mock import patch, MagicMock
-
 # Import the module under test
 import sys
+from unittest.mock import patch
+
+import pytest
+
 sys.path.insert(0, str(__file__).rsplit('/tests/', 1)[0] + '/scripts')
 from extract_barcodes import (
-    normalize_isbn,
-    validate_isbn10_checksum,
-    validate_isbn13_checksum,
-    validate_ean_checksum,
-    is_isbn,
-    isbn10_to_isbn13,
-    is_lookupable,
+    format_for_inventory,
     is_ean,
+    is_isbn,
+    is_lookupable,
+    isbn10_to_isbn13,
     lookup_code,
     lookup_isbn,
     lookup_nb_no,
-    format_for_inventory,
+    normalize_isbn,
+    validate_ean_checksum,
+    validate_isbn10_checksum,
+    validate_isbn13_checksum,
 )
 
 

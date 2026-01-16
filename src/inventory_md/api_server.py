@@ -4,24 +4,22 @@ FastAPI server for inventory chatbot with Claude integration.
 
 Provides conversational interface for querying inventory.
 """
-import os
 import json
+import os
 import re
-from pathlib import Path
-from typing import Optional, Any
+import shutil
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+import anthropic
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import anthropic
-import shutil
-
 
 # Global inventory data
-inventory_data: Optional[dict] = None
-inventory_path: Optional[Path] = None
-aliases: Optional[dict] = None
+inventory_data: dict | None = None
+inventory_path: Path | None = None
+aliases: dict | None = None
 
 
 # --- Security helpers ---
@@ -110,18 +108,18 @@ async def lifespan(app: FastAPI):
         print(f"⚠️  Warning: inventory.json not found at {inventory_path}")
         print("   Server will start but chatbot won't work until inventory.json is available")
     else:
-        with open(inventory_path, 'r', encoding='utf-8') as f:
+        with open(inventory_path, encoding='utf-8') as f:
             inventory_data = json.load(f)
         print(f"✅ Loaded inventory: {len(inventory_data.get('containers', []))} containers")
 
     # Load aliases
     aliases_path = Path.cwd() / "aliases.json"
     if aliases_path.exists():
-        with open(aliases_path, 'r', encoding='utf-8') as f:
+        with open(aliases_path, encoding='utf-8') as f:
             aliases = json.load(f)
         print(f"✅ Loaded {len(aliases)} search aliases")
     else:
-        print(f"⚠️  aliases.json not found, search aliases disabled")
+        print("⚠️  aliases.json not found, search aliases disabled")
         aliases = {}
 
     yield
@@ -154,7 +152,7 @@ app.add_middleware(
 class ChatMessage(BaseModel):
     """Chat message from user."""
     message: str
-    conversation_id: Optional[str] = None
+    conversation_id: str | None = None
     model: str = "claude-3-haiku-20240307"  # Default to cheapest model
 
 
@@ -400,7 +398,7 @@ def get_container(container_id: str) -> dict:
     return {"error": f"Container '{container_id}' not found"}
 
 
-def list_containers(parent: Optional[str] = None, tags: Optional[list] = None, prefix: Optional[str] = None) -> dict:
+def list_containers(parent: str | None = None, tags: list | None = None, prefix: str | None = None) -> dict:
     """List containers with optional filters."""
     if not inventory_data:
         return {"error": "Inventory not loaded"}
@@ -445,7 +443,7 @@ def reload_inventory() -> bool:
         return False
 
     try:
-        with open(inventory_path, 'r', encoding='utf-8') as f:
+        with open(inventory_path, encoding='utf-8') as f:
             inventory_data = json.load(f)
         return True
     except Exception as e:
@@ -494,14 +492,14 @@ def git_commit(message: str) -> bool:
             )
 
             if push_result.returncode == 0:
-                print(f"✅ Git push successful")
+                print("✅ Git push successful")
             else:
                 # Push failed - log but don't fail the operation
                 stderr = push_result.stderr.decode() if push_result.stderr else ''
                 if 'rejected' in stderr or 'non-fast-forward' in stderr:
-                    print(f"⚠️  Git push rejected - pull needed. Resolve conflicts on laptop.")
+                    print("⚠️  Git push rejected - pull needed. Resolve conflicts on laptop.")
                 elif 'No configured push destination' in stderr or 'no upstream' in stderr:
-                    print(f"ℹ️  No git remote configured - commits are local only")
+                    print("ℹ️  No git remote configured - commits are local only")
                 else:
                     print(f"ℹ️  Git push failed: {stderr.strip()}")
 
@@ -512,7 +510,7 @@ def git_commit(message: str) -> bool:
             stdout = result.stdout.decode() if result.stdout else ''
             output = stderr + stdout
             if 'nothing to commit' in output or 'no changes added' in output:
-                print(f"ℹ️  Git commit skipped: no changes")
+                print("ℹ️  Git commit skipped: no changes")
                 return True  # Not an error
             else:
                 print(f"ℹ️  Git commit skipped: {output.strip()}")
@@ -539,7 +537,7 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
 
     try:
         # Read markdown file
-        with open(markdown_path, 'r', encoding='utf-8') as f:
+        with open(markdown_path, encoding='utf-8') as f:
             lines = f.readlines()
 
         # Find the parent container
@@ -662,7 +660,7 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
         return {"error": f"Failed to add child item: {str(e)}"}
 
 
-def add_item_to_container(container_id: str, item_description: str, tags: Optional[str] = None) -> dict:
+def add_item_to_container(container_id: str, item_description: str, tags: str | None = None) -> dict:
     """Add an item to a container by modifying the markdown file."""
     if not inventory_path:
         return {"error": "Inventory path not set"}
@@ -673,7 +671,7 @@ def add_item_to_container(container_id: str, item_description: str, tags: Option
 
     try:
         # Read markdown file
-        with open(markdown_path, 'r', encoding='utf-8') as f:
+        with open(markdown_path, encoding='utf-8') as f:
             lines = f.readlines()
 
         # Find the container (can be # or ## heading)
@@ -741,7 +739,7 @@ def remove_container(container_id: str) -> dict:
 
     try:
         # Read markdown file
-        with open(markdown_path, 'r', encoding='utf-8') as f:
+        with open(markdown_path, encoding='utf-8') as f:
             lines = f.readlines()
 
         # Find the container section (can be # or ## heading)
@@ -806,7 +804,7 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
 
     try:
         # Read markdown file
-        with open(markdown_path, 'r', encoding='utf-8') as f:
+        with open(markdown_path, encoding='utf-8') as f:
             lines = f.readlines()
 
         # Find the container section (can be # or ## heading)
@@ -878,7 +876,7 @@ def add_todo(task_description: str, priority: str = "medium") -> dict:
     try:
         # Read existing TODO.md or create new one
         if todo_path.exists():
-            with open(todo_path, 'r', encoding='utf-8') as f:
+            with open(todo_path, encoding='utf-8') as f:
                 content = f.read()
         else:
             content = "# TODO\n\nInventory change requests and tasks.\n\n"
@@ -1123,7 +1121,7 @@ async def add_item_api(container_id: str = Form(...), item_description: str = Fo
     try:
         validate_container_id(container_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
     # Basic validation for item_description
     if not item_description or not item_description.strip():
@@ -1146,7 +1144,7 @@ async def add_child_item_api(container_id: str = Form(...), parent_item: str = F
     try:
         validate_container_id(container_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
     # Basic validation for descriptions
     if not parent_item or not parent_item.strip():
@@ -1169,7 +1167,7 @@ async def remove_item_api(container_id: str, item_description: str) -> dict:
     try:
         validate_container_id(container_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
     if not item_description or not item_description.strip():
         raise HTTPException(status_code=400, detail="Item description cannot be empty")
@@ -1189,7 +1187,7 @@ async def remove_container_api(container_id: str) -> dict:
     try:
         validate_container_id(container_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
     result = remove_container(container_id)
 
@@ -1209,13 +1207,13 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
     try:
         safe_container_id = validate_container_id(container_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
 
     # Validate and sanitize filename (prevent path traversal)
     try:
         safe_filename = sanitize_path_component(photo.filename or "upload.jpg")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid filename: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid filename: {e}") from None
 
     # Validate file type
     allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif'}
@@ -1233,9 +1231,9 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
         with open(photo_path, 'wb') as f:
             shutil.copyfileobj(photo.file, f)
     except PermissionError:
-        raise HTTPException(status_code=500, detail="Permission denied writing photo")
+        raise HTTPException(status_code=500, detail="Permission denied writing photo") from None
     except OSError as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save photo: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save photo: {e}") from None
 
     # Regenerate inventory to discover new photo
     from inventory_md import parser

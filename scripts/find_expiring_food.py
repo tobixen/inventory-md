@@ -138,7 +138,7 @@ def main():
         print("No matching food items found.")
         sys.exit(0)
 
-    print(f"Food items to use first (by expiry date):")
+    print("Food items to use first (by expiry date):")
     print()
 
     for item in items:

@@ -19,7 +19,7 @@ from pathlib import Path
 
 def load_inventory(path: Path) -> dict:
     """Load inventory data from JSON file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -82,7 +82,7 @@ def analyze_hierarchy(data: dict) -> dict:
     """Analyze container hierarchy."""
     containers = data.get("containers", [])
 
-    all_ids = set(c["id"] for c in containers)
+    all_ids = {c["id"] for c in containers}
     parents = Counter()
     orphans = []
     missing_parents = []
@@ -129,9 +129,9 @@ def find_todo_items(data: dict) -> list:
 
 def print_report(inventory_path: Path, data: dict):
     """Print analysis report."""
-    print(f"=" * 60)
+    print("=" * 60)
     print(f"Inventory Analysis: {inventory_path.name}")
-    print(f"=" * 60)
+    print("=" * 60)
     print()
 
     # Container stats
@@ -185,7 +185,7 @@ def print_report(inventory_path: Path, data: dict):
     if duplicates:
         print(f"  Duplicate IDs: {duplicates}")
     else:
-        print(f"  Duplicate IDs: None")
+        print("  Duplicate IDs: None")
 
     todo_items = find_todo_items(data)
     print(f"  TODO items: {len(todo_items)}")

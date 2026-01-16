@@ -13,17 +13,17 @@ Formats:
     json           - JSON format for further processing
 """
 
+import csv
 import json
 import sys
-import csv
 from collections import Counter
-from pathlib import Path
 from io import StringIO
+from pathlib import Path
 
 
 def load_inventory(path: Path) -> dict:
     """Load inventory data from JSON file."""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 

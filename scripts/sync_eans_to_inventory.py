@@ -286,7 +286,7 @@ def main():
 
     # Group additions by container
     by_container = {}
-    for container_id, line, source in additions:
+    for container_id, line, _source in additions:
         if container_id not in by_container:
             by_container[container_id] = []
         by_container[container_id].append(line)
