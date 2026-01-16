@@ -18,7 +18,7 @@ Other systems exist - see [docs/comparison-with-other-systems.md](docs/compariso
 
 ### Database in MarkDown format!
 
-Yes, you heard right!  The biggest difference between this system and other systems is that the **database is a git-backed MarkWown file** - because that's what I started with.  At some point I sat down and wondered - "does this still make sense?" - and actually, for me it does!  I added the possibility to edit the inventory through the web interface, **but I never used it**.  Most of the time I use "Claude Code" to update it for me, except for that I still prefer editing the database from my text editor!
+Yes, you heard right!  The biggest difference between this system and other systems is that the **database is a git-backed MarkWown file** - because that's what I started with.  At some point I sat down and wondered - "does this still make sense?" - and actually, for me it does!  I added the possibility to edit the inventory through the web interface, **but I never used it**.  Most of the time I use "Claude Code" to update it for me, except for that I still prefer editing the database from my text editor.  Even though the MarkDown may end up beeing quite cluttered with metadata, I still prefer to work with the markdown as compared to working with yaml or json in the text editor.
 
 Of course this does not come without problems.  It doesn't scale very well, neither when it comes to the number of users of the system nor when it comes to the size of the database.  For an inventory system for a person or a family I still think it works out pretty well.
 
@@ -38,8 +38,8 @@ Here are some of the **fully optional** features:
 * **AI-based database population**.  For a long time I've been a bit of a Luddite when it comes to AI, but the AI has proven very useful in this project.  Most of the time I'm using Claude Code for updating the database, I just take photos of the inventory, tell Claude "please process inventory photos for the cupboard under the sink" and it will analyze the photos and do everything for me, even including looking up technical specifications online and translating from foreign languages.  It's still needed to manually do QA of the work, but it's really amazing me sometimes.
 * **AI-based database maintenance**.  I use Claude for things like adding tags to the inventory listing and creating an aliases file (allowing multi-lingual search and allowing things like the multimeter to show up when searching for a voltmeter).
 * **AI-based recipe suggestions** based on what food is expiring.
-* **AI chatbot** on the web page.  Fully optional.  Requires API-server to run.  This is cloud-based (Claude-based), needs a subscription and it may be a privacy risk.  It doesn't even work very well.
-* Various scripts - like a script checking the photos for bar codes and looking up EAN-codes in public databases.
+* **AI chatbot** on the web page.  Fully optional. This is cloud-based (Claude-based), needs a subscription and it may be a privacy risk.  It doesn't even work very well.
+* Various scripts - like a script checking the photos for bar codes and looking up EAN-codes and ISBNs in public databases.  It may also do OCR from photos.
 * **Multilinguar** support.  Usually I always stick to English - but I decided to make an exception for the house inventory database, it's in Norwegian.  My boat inventory database is however in English as I'm often have various crew and guests on board.  Both databases can be searched using both English and Norwegian though.
 * Did I mention the **shopping list generator**?
 

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-01-16
 
 ### Added
 - `--host` option for `serve` and `api` commands to bind to specific interfaces
@@ -17,14 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Puppet module for automated deployment (puppet-inventory-md)
 - GitHub Actions workflows for CI and PyPI publishing
 - Pre-commit hooks configuration
-
-### Changed
-- Migrated build system from setuptools to Hatch with hatch-vcs
-- Renamed package from `inventory-system` to `inventory-md`
-- Default binding changed to localhost (127.0.0.1) for security
-- Ruff configuration updated to use recommended rule sets
-
-### Added (earlier)
 - Automatic image discovery from filesystem
   - Parser now scans `photos/{container_id}/` directories for source images
   - Automatically creates missing thumbnails in `resized/{container_id}/`
@@ -34,9 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Uses PIL/Pillow for high-quality resizing (max 800px, quality 85)
 - Photo directory metadata support
   - Containers can specify photo directory via `photos:dirname` in heading
-  - Allows split containers (e.g., A78-1, A78-2) to share photo directories
-  - Priority: photos metadata → photos_link (legacy) → container_id
-  - Example: `## ID:A78-1 photos:A78 A78 - stor`
+  - Allows split containers to share photo directories
 - Container-level tag support
   - Tags can be added to container headings (e.g., `tag:jul,påske`)
   - Search interface shows container-level tag badges when filtering
@@ -47,22 +37,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Provides access to original unscaled images
 
 ### Changed
-- **Breaking:** Image references in markdown are now ignored
+- Migrated build system from setuptools to Hatch with hatch-vcs
+- Renamed package from `inventory-system` to `inventory-md` as inventory-system is occupied on pypi.
+- Default binding changed to localhost (127.0.0.1) for security
+- Ruff configuration updated to use recommended rule sets
+- **Breaking:** Image references and photo links in markdown are now ignored
   - Images are discovered from filesystem instead of markdown `![...]` syntax
   - Workflow: copy photos to directories → re-parse → done
-  - Removed 1,851 image reference lines from markdown (43% file size reduction)
-- **Breaking:** Photo links removed from markdown
-  - Removed 172 `[Fotos, full oppløsning](photos/...)` link lines
-  - Migrated to `photos:dirname` metadata in container headings (37 containers)
+  - Optional `photos:dirname` metadata may be included
   - Parser no longer parses photo link lines
   - Cleaner markdown files with less clutter
 - Parser creates `metadata` field for all containers
   - Includes tags, parent, type, photos, and other metadata from headings
-
-### Fixed
-- Split containers (relabeled IDs) now find their photos correctly
-  - Added photos metadata to H11-2, A78-1/2, A89-3, C18-2, C19-1/2, C20-1/2, C21-1/2, C23-2
-  - Images discovered increased from 1,297 to 2,082 (+785 images)
 
 ## [0.2.0] - 2025-12-15
 
@@ -127,7 +113,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Example inventory.md template
 - Automatic version management with setuptools-scm
 - Ruff configuration for code quality
-
-[unreleased]: https://github.com/tobixen/inventory-md/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/tobixen/inventory-md/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/tobixen/inventory-md/releases/tag/v0.1.0

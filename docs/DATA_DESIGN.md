@@ -48,7 +48,7 @@ There is a script to list out (food) items sorted/filtered by the best before da
 
 Those are used by the shopping list generator to see if the stocks are sufficient or if it's needed to restock.
 
-This may be a bit tricky.  `mass:500g qty:3` should be read as "three packages, totally 1.5 kg", it makes perfect sense when stocking a pile of 500g-packages of oats from the shop.  It's more difficult when it comes to fruits and vegetables, one would typically buy a bag of ten tomatoes, totally one kilogram.
+This may be a bit tricky.  `mass:500g qty:3` should be read as "three packages, totally 1.5 kg", it makes perfect sense when stocking a pile of 500g-packages of oats from the shop.  It's more difficult when it comes to fruits and vegetables, one would typically buy a bag of ten tomatoes, totally one kilogram.  It's OK when adding new vegetables - the shopping receipt will tell that I bought 1kg of tomatoes - but it gets difficult when I spent 6 tomatoes and have 3 left.  How many grams are left?  So the way to handle this is to do `mass:1.36kg/9 qty:9` to indicate that we have nine tomatoes weighting approximately 151 grams each, or 9 tomates weighting exactly 1.36 kg.  When spending tomatoes it's just to adjust, `mass:1.36kg/9 qty:3`.  Adding more tomatoes, and it may be done at a separate line (and stacked up so that the old tomatoes will be spent before the new ones).
 
 If different items of the same type have different expiry date, then it should be split up into two inventory lines.
 
