@@ -5,6 +5,9 @@ from unittest.mock import patch
 
 import pytest
 
+# Skip all tests in this module if pyzbar is not available
+pytest.importorskip("pyzbar", reason="pyzbar not installed")
+
 sys.path.insert(0, str(__file__).rsplit('/tests/', 1)[0] + '/scripts')
 from extract_barcodes import (
     format_for_inventory,
