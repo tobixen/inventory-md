@@ -414,11 +414,13 @@ Examples:
 
     # Parse command
     parse_parser = subparsers.add_parser('parse', help='Parse inventory markdown file')
-    parse_parser.add_argument('file', type=Path, help='Inventory markdown file to parse')
+    parse_parser.add_argument('file', type=Path, nargs='?', help='Inventory markdown file to parse (default: inventory.md with --auto)')
     parse_parser.add_argument('--output', '-o', type=Path, help='Output JSON file (default: inventory.json)')
     parse_parser.add_argument('--validate', action='store_true', help='Validate only, do not generate JSON')
     parse_parser.add_argument('--wanted-items', '-w', type=Path, help='Wanted items file to generate shopping list')
     parse_parser.add_argument('--no-dated', action='store_true', help='Exclude dated wanted-items files (wanted-items-YYYY-MM-DD.md)')
+    parse_parser.add_argument('--auto', '-a', action='store_true',
+                              help='Auto-detect files: inventory.md and wanted-items.md in current directory')
 
     # Serve command
     serve_parser = subparsers.add_parser('serve', help='Start local web server')
@@ -447,7 +449,26 @@ Examples:
         return init_inventory(args.directory, args.name)
     elif args.command == 'parse':
         include_dated = not getattr(args, 'no_dated', False)
-        return parse_command(args.file, args.output, args.validate, getattr(args, 'wanted_items', None), include_dated)
+        auto_mode = getattr(args, 'auto', False)
+
+        # Handle --auto mode
+        if auto_mode:
+            cwd = Path.cwd()
+            md_file = args.file or cwd / 'inventory.md'
+            wanted_items = getattr(args, 'wanted_items', None)
+            if wanted_items is None:
+                # Auto-detect wanted-items.md
+                wanted_path = cwd / 'wanted-items.md'
+                if wanted_path.exists():
+                    wanted_items = wanted_path
+        else:
+            md_file = args.file
+            wanted_items = getattr(args, 'wanted_items', None)
+            if md_file is None:
+                print("Error: inventory file required (or use --auto)", file=sys.stderr)
+                return 1
+
+        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated)
     elif args.command == 'serve':
         return serve_command(args.directory, args.port, args.host, getattr(args, 'api_proxy', None))
     elif args.command == 'api' or args.command == 'chat':

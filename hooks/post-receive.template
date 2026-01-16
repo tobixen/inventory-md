@@ -23,12 +23,8 @@ fi
 # Pull changes (will only work if fast-forward)
 if git pull --ff-only origin "$BRANCH"; then
     echo "Production updated successfully for __INSTANCE__"
-    # Regenerate inventory.json (and shopping-list.md if wanted-items.md exists)
-    if [ -f "wanted-items.md" ]; then
-        /opt/inventory-system/venv/bin/inventory-system parse inventory.md --wanted-items wanted-items.md
-    else
-        /opt/inventory-system/venv/bin/inventory-system parse inventory.md
-    fi
+    # Regenerate inventory.json and shopping list (auto-detects wanted-items.md)
+    /opt/inventory-md/venv/bin/inventory-md parse --auto
 else
     echo "Cannot fast-forward __INSTANCE__ - manual merge needed on laptop"
     exit 1
