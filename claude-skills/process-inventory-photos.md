@@ -1,0 +1,200 @@
+# Process Inventory Photos
+
+Process photos of inventory locations (boxes, shelves, cupboards, storage areas) and update the inventory system.
+
+## Trigger
+Use when the user asks to process inventory photos, e.g.:
+- "process photos from ~/s/photos.tobixen/newmi/IMG_2026*"
+- "there are new inventory photos"
+- "process the new photos"
+
+## Workflow
+
+### 1. Find and count photos
+```bash
+ls ~/s/photos.tobixen/newmi/PATTERN* | wc -l
+ls ~/s/photos.tobixen/newmi/PATTERN*
+```
+
+or, if no pattern is given:
+
+```bash
+find ~/s/photos.tobixen/ -type f -mmin -60
+```
+
+ALL photos have to be processed.
+
+### 2. Extract barcodes FIRST
+Before analyzing photos visually, extract any barcodes to get product info:
+```bash
+~/inventory-system/scripts/extract_barcodes.py ~/s/photos.tobixen/newmi/PATTERN*.jpg
+```
+
+This will:
+- Extract any EAN/UPC barcodes visible in the photos
+- Look up product info in Open Food Facts
+- Output product names, brands, and quantities
+
+**Use this output while analyzing photos** - you'll already know what many products are.
+
+### 3. View photos to identify boxes and items
+- Look for labels, or ask the user about container/location.  The labels are often on the format A-03, TB-42, etc
+- When some pictures are missing label, quite often the label will be the same as on the previous box
+- Identify items with details: brand, model, specifications, part numbers
+- Use the barcode extraction output from step 2 for product identification
+- Text should be saved both in the original language and the inventory language (English for Solveig, Norwegian for Furuset).
+- Note items that are unclear with TODO tag
+
+### 4. Create/update photo-registry.md
+Map each photo to visible items:
+```markdown
+| Photo | Items Visible |
+|-------|--------------|
+| IMG_xxx.jpg | Item description, another item |
+```
+
+### 5. Copy photos to correct directories
+```bash
+mkdir -p photos/{BOX-ID}
+cp SOURCE_PHOTOS photos/{BOX-ID}/
+```
+
+### 6. Update inventory.md
+Add items with tags, IDs, quantities, and measurements:
+```markdown
+* tag:category/subcategory/type ID:category-shortname qty:N mass:Xg Item description (brand, model)
+```
+
+**Hierarchical tags** use `/` for categories within a domain:
+- `tag:food/cereal/oats` - oat flakes
+- `tag:food/milk/uht` - UHT milk
+
+**Comma-separated tags** for items in multiple categories:
+- `tag:food/canned,food/fish` - canned fish (both canned AND fish)
+- `tag:food/canned,food/meat` - canned meat
+- `tag:tools,electric` - electric tools
+- `tag:safety,boat` - boat safety equipment
+
+Common top-level tags: food, tools, electronics, safety, boat, chemicals, consumables, documents
+Cross-cutting tags: electric, battery, manual, consumable, spare
+
+**Quantity and measurements:**
+- `qty:N` - number of identical items (e.g., `qty:3` for 3 packs)
+- `mass:Xg` or `mass:Xkg` - weight per unit (e.g., `mass:500g`, `mass:1kg`)
+- `volume:Xl` or `volume:Xml` - volume per unit (e.g., `volume:1l`, `volume:400ml`)
+
+### 7. Commit changes
+```bash
+git add inventory.md photo-registry.md
+git commit -m "Add BOX-ID items from photo session DATE"
+```
+
+## Barcode Lookup
+
+If you can see an EAN/barcode in a photo that wasn't automatically extracted, look it up manually:
+```bash
+~/inventory-system/scripts/extract_barcodes.py --lookup 5701234567890
+```
+
+This queries Open Food Facts and returns the product name, brand, and quantity.
+
+**In inventory.md**, include EAN when available:
+```markdown
+* tag:food/condiment ID:ketchup-heinz EAN:5000157024671 bb:2027-03 Heinz Tomato Ketchup (570g)
+```
+
+## Notes
+- Photos are NOT stored in git (listed in .gitignore)
+- Use sync-photos.sh to rsync photos to server
+- Items needing clarification get tag:TODO
+
+## Language per instance
+- **solveig-inventory**: English tags and descriptions
+- **furusetalle9-inventory**: Norwegian tags and descriptions
+
+### Norwegian tags (furusetalle9-inventory)
+
+**Hierarchical tags** (category/subcategory):
+- `tag:barn/leker` - children's toys
+- `tag:barn/kunst` - children's art
+- `tag:klær/vinter` - winter clothes
+- `tag:klær/friluft` - outdoor clothes
+- `tag:elektronikk/belysning` - electronic lighting
+- `tag:sport/sykkel` - bicycle/cycling
+- `tag:kjøkken/servise` - kitchen tableware
+- `tag:hjem/oppbevaring` - home storage
+
+**Cross-cutting tags** (comma-separated):
+- `tag:klær,barn` - children's clothes (clothes + cross-cutting "barn")
+- `tag:sko,barn` - children's shoes
+- `tag:verktøy,elektronikk` - electronic tools
+- `tag:diverse,TODO` - miscellaneous needing review
+
+**Common Norwegian categories:**
+barn (children), klær (clothes), sko (shoes), elektronikk (electronics), verktøy (tools), kjøkken (kitchen), bad (bathroom), helse (health), sport, friluft (outdoor), hage (garden), bil (car), hjem (home), belysning (lighting), dokumenter (documents), bok (books), jul (christmas), leker (toys), tekstil (textile), hobby, oppbevaring (storage), diverse (misc), veske (bags)
+
+**Cross-cutting modifiers:**
+barn (children's), elektronikk (electronic), TODO, pappas (dad's), mammas (mom's), personlig (personal)
+
+Reference: See `inventory-system/tag-mapping.json` for full Norwegian-English mappings.
+
+## Item IDs for cross-referencing
+
+Use unique IDs to link items between inventory.md and photo-registry.md.
+
+**ID format:** `ID:category-shortname` or `ID:category-shortname-number`
+
+Examples: `ID:drill-einhell1`, `ID:wrench-force17`, `ID:gloves-nyroca1`
+
+Make sure the IDs are unique, add some postfix like `-02` if necessary
+
+**In inventory.md:**
+```markdown
+* tag:tools,electric ID:drill-einhell1 Einhell TC-ID 650 E impact drill (650W, 230V, 13mm chuck)
+* tag:tools ID:wrench-force17 Force combination wrench 17mm
+* tag:food/cereal/oats ID:oatflakes-fine bb:2026-10 qty:8 mass:500g Fine Oat Flakes
+* tag:food/bread/rusks ID:rusks-tastino bb:2026-08 qty:3 mass:360g Tastino Wheat & Rye rusks
+```
+
+**In photo-registry.md:**
+```markdown
+| IMG_20260103_233627.jpg | ID:drill-einhell1 |
+| IMG_20260103_225647.jpg | ID:wrench-force17, ID:wrench-force18 |
+```
+
+Benefits:
+- Short, unique references instead of repeating long descriptions
+- Easy to grep/search across files
+- Descriptions can be updated without breaking registry links
+- Multiple items per photo: comma-separated IDs
+
+## Storage locations
+Not limited to boxes - can be:
+- Temporary boxes (TA-01, TB-02, etc.)
+- Shelves (e.g., "Garage shelf 3")
+- Cupboards, drawers, boat compartments
+- Any named storage area
+
+If no label is visible, ask the user for the location name.
+
+## Best-before dates (bb:)
+
+Food products and other perishables should include a best-before date tag.
+
+**Format:** `bb:YYYY-MM` or `bb:YYYY-MM-DD` or `bb:YYYY-MM-DDTHH:MM`
+
+Examples:
+- `bb:2026-10` - October 2026
+- `bb:2026-01-15` - January 15, 2026
+- `bb:2026-01-04T15:44` - with time (rare)
+
+**In inventory.md:**
+```markdown
+* tag:food ID:pasta-barilla bb:2026-10 Barilla spaghetti (500g)
+* tag:food ID:tuna-canned bb:2027-03 Canned tuna in oil (3-pack)
+```
+
+This enables:
+- Sorting items by expiration date
+- Alerts for soon-to-expire products
+- Inventory rotation planning

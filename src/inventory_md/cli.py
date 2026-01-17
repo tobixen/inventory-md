@@ -316,12 +316,19 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
                 self.end_headers()
 
     Handler = ProxyHTTPRequestHandler
-    with socketserver.TCPServer((host, port), Handler) as httpd:
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\n\n👋 Server stopped")
-            return 0
+    try:
+        with socketserver.TCPServer((host, port), Handler) as httpd:
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("\n\n👋 Server stopped")
+                return 0
+    except Exception as e:
+        import traceback
+        print(f"\n❌ Server failed to start: {e}")
+        print("\nFull traceback:")
+        traceback.print_exc()
+        return 1
 
 
 def api_command(directory: Path = None, port: int = 8765, host: str = "127.0.0.1") -> int:
@@ -380,6 +387,12 @@ def api_command(directory: Path = None, port: int = 8765, host: str = "127.0.0.1
     except KeyboardInterrupt:
         print("\n\n👋 Chat server stopped")
         return 0
+    except Exception as e:
+        import traceback
+        print(f"\n❌ Server failed to start: {e}")
+        print("\nFull traceback:")
+        traceback.print_exc()
+        return 1
 
 
 def main() -> int:
