@@ -17,7 +17,7 @@ The Lidl receipt is stored at `~/shopping-analyzer/lidl_receipts.json`. Read the
 
 Receipt fields:
 - `purchase_date`: Date in format "YYYY.MM.DD"
-- `total_price_no_saving`: Total amount in BGN
+- `total_price_no_saving`: Total amount in local currency. EUR for Bulgaria
 - `store`: Store location
 - `items`: Array of purchased items with `name`, `price`, `quantity`
 
@@ -41,16 +41,15 @@ This script uses the `lidl_receipt_name` field in `ean_cache.json` to match Bulg
 
 ### 4. Ask user for storage locations
 
+See if the item already exists in the inventory.  Suggest storage space for the items and ask the user where things are going.
+
 Common locations on the boat:
 - `ID:pantry-fridge` - Refrigerator (for milk, dairy, fresh items)
 - 'ID:food1` - storage aft of mast
-- `ID:food1-container` - Box inside storage aft of mast (oats)
 - `ID:food2` - Storage fore of mast (dry goods)
-- `ID:food2-bag` - Bag in the storage fore of mast (dry goods, legumes)
 - `ID:food3` - Storage under floor (canned goods, preserves)
-- `ID:pantry-under-stove` - Under stove storage
+- `ID:pantry-behind-stove` - fruits and vegetables are often stored behind the stove
 
-Ask the user which items go where if not obvious.
 
 ### 5. Check expiry dates
 
@@ -102,29 +101,33 @@ Add new products to `~/solveig-inventory/ean_cache.json` with `lidl_receipt_name
 
 ### 8. Update diary with expenses
 
-Add expense to `~/solveig/diary-2026.md` under the appropriate date.
+Use the `~/bin/update-diary` script to add the expense:
 
-Note: The Lidl receipt JSON already contains prices in EUR.
+```bash
+~/bin/update-diary --amount 23.08 --description "Lidl (milk, yogurt, spaghetti, bread, rum, meat)"
+```
 
-```markdown
-### Expenses
+Options:
+- `--amount` / `-a`: Amount spent
+- `--currency` / `-c`: Currency (default: EUR)
+- `--type` / `-t`: Expense type (default: groceries)
+- `--description`: Brief description of what was bought
+- `--date` / `-d`: Date if not today (YYYY-MM-DD)
+- `--commit`: Auto-commit the diary change
+- `--dry-run` / `-n`: Preview without making changes
 
-* EUR AMOUNT - groceries - Lidl (brief item list)
+Or use the full line format:
+```bash
+~/bin/update-diary --line "EUR 23.08 - groceries - Lidl (milk, yogurt, spaghetti)"
 ```
 
 ### 9. Commit changes
 
-Commit to both repositories:
+Commit to solveig-inventory (diary is committed separately via update-diary --commit):
 ```bash
-# solveig-inventory
 cd ~/solveig-inventory
 git add inventory.md ean_cache.json
 git commit -m "Add Lidl shopping YYYY-MM-DD to inventory"
-
-# solveig (diary)
-cd ~/solveig
-git add diary-2026.md
-git commit -m "Add YYYY-MM-DD expenses: Lidl shopping BGN X.XX"
 ```
 
 ## Scripts location
