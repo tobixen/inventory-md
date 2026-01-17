@@ -2,6 +2,8 @@
 
 There are several ways to install and run the inventory system, depending on your needs.
 
+The package is available through pypi and AUR, as well as [GitHub](https://github.com/tobixen/inventory-md)
+
 ## Quick Start (One Command)
 
 Try the system immediately with the included example:

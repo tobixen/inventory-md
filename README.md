@@ -90,8 +90,6 @@ Items on this shelf:
 
 * tag:electrical Multimeter
 * tag:electrical Wire strippers
-
-![Shelf overview](resized/shelf1.jpg)
 ```
 
 ### Metadata Syntax
