@@ -450,6 +450,59 @@ def reload_inventory() -> bool:
         return False
 
 
+def git_pull() -> bool:
+    """Pull latest changes from remote before making modifications.
+
+    This reduces the chance of conflicts by ensuring we have the latest
+    version before making changes.
+    """
+    if not inventory_path:
+        return False
+
+    import subprocess
+
+    try:
+        inventory_dir = inventory_path.parent
+        safe_dir_option = ['-c', f'safe.directory={inventory_dir}']
+
+        # Check if there's a remote configured
+        result = subprocess.run(
+            ['git', *safe_dir_option, 'remote'],
+            cwd=inventory_dir,
+            capture_output=True
+        )
+
+        if not result.stdout.decode().strip():
+            # No remote configured, nothing to pull
+            return True
+
+        # Pull latest changes
+        result = subprocess.run(
+            ['git', *safe_dir_option, 'pull', '--ff-only'],
+            cwd=inventory_dir,
+            capture_output=True
+        )
+
+        if result.returncode == 0:
+            stdout = result.stdout.decode().strip()
+            if 'Already up to date' not in stdout:
+                print(f"✅ Git pull: {stdout}")
+                # Reload inventory after pull in case files changed
+                reload_inventory()
+            return True
+        else:
+            stderr = result.stderr.decode() if result.stderr else ''
+            if 'Not possible to fast-forward' in stderr or 'diverged' in stderr:
+                print("⚠️  Git pull failed: branches have diverged. Manual merge needed.")
+            else:
+                print(f"⚠️  Git pull failed: {stderr.strip()}")
+            return False
+
+    except Exception as e:
+        print(f"⚠️  Git pull failed: {e}")
+        return False
+
+
 def git_commit(message: str) -> bool:
     """Create a git commit for inventory changes."""
     if not inventory_path:
@@ -533,6 +586,9 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
     markdown_path = inventory_path.parent / "inventory.md"
     if not markdown_path.exists():
         return {"error": "inventory.md not found"}
+
+    # Pull latest changes before modifying
+    git_pull()
 
     try:
         # Read markdown file
@@ -668,6 +724,9 @@ def add_item_to_container(container_id: str, item_description: str, tags: str | 
     if not markdown_path.exists():
         return {"error": "inventory.md not found"}
 
+    # Pull latest changes before modifying
+    git_pull()
+
     try:
         # Read markdown file
         with open(markdown_path, encoding='utf-8') as f:
@@ -736,6 +795,9 @@ def remove_container(container_id: str) -> dict:
     if not markdown_path.exists():
         return {"error": "inventory.md not found"}
 
+    # Pull latest changes before modifying
+    git_pull()
+
     try:
         # Read markdown file
         with open(markdown_path, encoding='utf-8') as f:
@@ -800,6 +862,9 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
     markdown_path = inventory_path.parent / "inventory.md"
     if not markdown_path.exists():
         return {"error": "inventory.md not found"}
+
+    # Pull latest changes before modifying
+    git_pull()
 
     try:
         # Read markdown file
@@ -871,6 +936,9 @@ def add_todo(task_description: str, priority: str = "medium") -> dict:
         return {"error": "Inventory path not set"}
 
     todo_path = inventory_path.parent / "TODO.md"
+
+    # Pull latest changes before modifying
+    git_pull()
 
     try:
         # Read existing TODO.md or create new one
@@ -1208,6 +1276,9 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
     """Upload a photo to a container."""
     if not inventory_path:
         raise HTTPException(status_code=500, detail="Inventory path not set")
+
+    # Pull latest changes before modifying
+    git_pull()
 
     # Validate and sanitize container_id (prevent path traversal)
     try:
