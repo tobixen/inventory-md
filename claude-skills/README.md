@@ -1,0 +1,2 @@
+2026-01-18: I do have some "skills" that are prompts that I personally use for getting the AI to help me maintaining my boat inventory.  I'v copied my personal setup here as for now - it for sure needs to be edited to make it suitable for the public, and you may need to edit it again to make it suitable for your setup.  TODO: work more on this.  There is also ../docs/MAINTENANCE.md, all the suggested work there is nearly impossible for a human to do (like, maintaining tagging and aliases for everything) - but an AI can do it easily!
+
