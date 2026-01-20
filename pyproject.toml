@@ -101,4 +101,4 @@ indent-style = "space"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 # Don't collect from scripts/ which has optional dependencies
-collect_ignore = ["scripts"]
+norecursedirs = ["scripts"]
