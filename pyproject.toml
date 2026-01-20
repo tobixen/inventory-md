@@ -38,6 +38,10 @@ chat = [
 barcode = [
     "pyzbar",
 ]
+labels = [
+    "qrcode[pil]>=7.4",
+    "reportlab>=4.0",
+]
 ocr = [
     "easyocr>=1.7.0",
 ]

@@ -399,6 +399,130 @@ def api_command(directory: Path = None, port: int = 8765, host: str = "127.0.0.1
         return 1
 
 
+def labels_generate(
+    series: str | None = None,
+    start: str | None = None,
+    ids: str | None = None,
+    count: int = 1,
+    style: str = "standard",
+    sheet_format: str = "48x25-40",
+    output: Path | None = None,
+    output_format: str = "pdf",
+    base_url: str = "https://inventory.example.com/search.html",
+    show_date: bool = True,
+    custom_formats: dict | None = None,
+) -> int:
+    """Generate label sheet or PNG images."""
+    try:
+        from . import labels
+    except ImportError as e:
+        print(f"Missing required package: {e}")
+        print("\nInstall labels dependencies:")
+        print('  pip install "inventory-md[labels]"')
+        return 1
+
+    # Determine label IDs
+    try:
+        if ids:
+            label_ids = [id.strip().upper() for id in ids.split(",")]
+            # Validate all IDs
+            for lid in label_ids:
+                if not labels.validate_label_id(lid):
+                    print(f"Invalid label ID: {lid}")
+                    print("Format must be: [A-Z][A-Z][0-9] (e.g., AA0, BC5)")
+                    return 1
+        else:
+            label_ids = labels.generate_id_sequence(series=series, start=start, count=count)
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
+
+    # Default output
+    if output is None:
+        if output_format == "png":
+            output = Path("labels")
+        else:
+            output = Path("labels.pdf")
+
+    # Generate
+    try:
+        if output_format == "png":
+            fmt = labels.get_sheet_format(sheet_format, custom_formats)
+            created_files = labels.save_labels_as_png(
+                label_ids,
+                base_url,
+                str(output),
+                style=style,
+                width_mm=fmt["label_width_mm"],
+                height_mm=fmt["label_height_mm"],
+            )
+            print(f"Created {len(created_files)} PNG files in {output}/")
+            for f in created_files[:5]:
+                print(f"  {f}")
+            if len(created_files) > 5:
+                print(f"  ... and {len(created_files) - 5} more")
+        else:
+            pdf_bytes = labels.create_label_sheet(
+                label_ids,
+                base_url,
+                sheet_format=sheet_format,
+                style=style,
+                custom_formats=custom_formats,
+            )
+            output.write_bytes(pdf_bytes)
+            print(f"Created {output} with {len(label_ids)} labels")
+            print(f"  IDs: {label_ids[0]} - {label_ids[-1]}")
+
+        return 0
+    except Exception as e:
+        import traceback
+        print(f"Error generating labels: {e}")
+        traceback.print_exc()
+        return 1
+
+
+def labels_formats(custom_formats: dict | None = None) -> int:
+    """List available label sheet formats."""
+    try:
+        from . import labels
+    except ImportError as e:
+        print(f"Missing required package: {e}")
+        print("\nInstall labels dependencies:")
+        print('  pip install "inventory-md[labels]"')
+        return 1
+
+    print("Available label sheet formats:\n")
+    formats = labels.list_formats(custom_formats)
+    for name, description in formats:
+        print(f"  {name:15} {description}")
+
+    print("\nUse with: inventory-md labels generate --sheet-format FORMAT")
+    return 0
+
+
+def labels_preview(
+    series: str | None = None,
+    start: str | None = None,
+    count: int = 1,
+) -> int:
+    """Preview label IDs without generating."""
+    try:
+        from . import labels
+    except ImportError as e:
+        print(f"Missing required package: {e}")
+        print("\nInstall labels dependencies:")
+        print('  pip install "inventory-md[labels]"')
+        return 1
+
+    try:
+        label_ids = labels.generate_id_sequence(series=series, start=start, count=count)
+        print(" ".join(label_ids))
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}")
+        return 1
+
+
 def config_command(show: bool = False, show_path: bool = False) -> int:
     """Show configuration information."""
     config = Config()
@@ -496,6 +620,35 @@ Examples:
     chat_parser.add_argument('--port', '-p', type=int, default=None, help=f'Port number (default: {config.api_port})')
     chat_parser.add_argument('--host', type=str, default=None, help=f'Host to bind to (default: {config.api_host})')
 
+    # Labels command with subcommands
+    labels_parser = subparsers.add_parser('labels', help='Generate QR code labels for printing')
+    labels_subparsers = labels_parser.add_subparsers(dest='labels_command', help='Labels subcommand')
+
+    # labels generate
+    labels_gen = labels_subparsers.add_parser('generate', help='Generate label sheet or PNG images')
+    labels_gen.add_argument('--series', '-s', type=str, help='Series letter (A-Z), starts at {series}A0')
+    labels_gen.add_argument('--start', type=str, help='Starting ID (e.g., AB5)')
+    labels_gen.add_argument('--ids', type=str, help='Comma-separated list of specific IDs')
+    labels_gen.add_argument('--count', '-n', type=int, default=30, help='Number of labels (default: 30)')
+    labels_gen.add_argument('--style', type=str, choices=['standard', 'compact', 'duplicate'],
+                            default=None, help=f'Label style (default: from config or standard)')
+    labels_gen.add_argument('--sheet-format', type=str, default=None,
+                            help=f'Sheet format (default: from config or 48x25-40)')
+    labels_gen.add_argument('--output', '-o', type=Path, help='Output file (default: labels.pdf or labels/)')
+    labels_gen.add_argument('--format', '-f', type=str, choices=['pdf', 'png'], default='pdf',
+                            help='Output format (default: pdf)')
+    labels_gen.add_argument('--base-url', type=str, default=None,
+                            help='Base URL for QR codes (default: from config)')
+
+    # labels formats
+    labels_subparsers.add_parser('formats', help='List available sheet formats')
+
+    # labels preview
+    labels_prev = labels_subparsers.add_parser('preview', help='Preview label IDs without generating')
+    labels_prev.add_argument('--series', '-s', type=str, help='Series letter (A-Z)')
+    labels_prev.add_argument('--start', type=str, help='Starting ID (e.g., AB5)')
+    labels_prev.add_argument('--count', '-n', type=int, default=10, help='Number of IDs to show (default: 10)')
+
     args = parser_cli.parse_args()
 
     if args.command == 'config':
@@ -540,6 +693,35 @@ Examples:
         port = args.port if args.port is not None else config.api_port
         host = args.host if args.host is not None else config.api_host
         return api_command(args.directory, port, host)
+    elif args.command == 'labels':
+        if args.labels_command == 'generate':
+            style = args.style if args.style else config.labels_style
+            sheet_format = args.sheet_format if args.sheet_format else config.labels_sheet_format
+            base_url = args.base_url if args.base_url else config.labels_base_url
+            return labels_generate(
+                series=args.series,
+                start=args.start,
+                ids=args.ids,
+                count=args.count,
+                style=style,
+                sheet_format=sheet_format,
+                output=args.output,
+                output_format=args.format,
+                base_url=base_url,
+                show_date=config.labels_show_date,
+                custom_formats=config.labels_custom_formats,
+            )
+        elif args.labels_command == 'formats':
+            return labels_formats(custom_formats=config.labels_custom_formats)
+        elif args.labels_command == 'preview':
+            return labels_preview(
+                series=args.series,
+                start=args.start,
+                count=args.count,
+            )
+        else:
+            labels_parser.print_help()
+            return 1
     else:
         parser_cli.print_help()
         return 1

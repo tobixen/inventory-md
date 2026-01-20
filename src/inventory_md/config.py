@@ -21,7 +21,13 @@ CONFIG_USER_FILENAMES = ["config.yaml", "config.json"]
 DEFAULTS: dict[str, Any] = {
     "api": {"host": "127.0.0.1", "port": 8765},
     "serve": {"host": "127.0.0.1", "port": 8000},
-    "labels": {"format": "avery5260"},
+    "labels": {
+        "sheet_format": "48x25-40",
+        "base_url": "https://inventory.example.com/search.html",
+        "style": "standard",
+        "show_date": True,
+        "duplicate_qr": False,
+    },
 }
 
 
@@ -263,3 +269,33 @@ class Config:
     def serve_port(self) -> int:
         """Return web server port."""
         return self.get("serve.port", 8000)
+
+    @property
+    def labels_base_url(self) -> str:
+        """Return labels base URL."""
+        return self.get("labels.base_url", "https://inventory.example.com/search.html")
+
+    @property
+    def labels_sheet_format(self) -> str:
+        """Return default label sheet format."""
+        return self.get("labels.sheet_format", "48x25-40")
+
+    @property
+    def labels_style(self) -> str:
+        """Return default label style."""
+        return self.get("labels.style", "standard")
+
+    @property
+    def labels_show_date(self) -> bool:
+        """Return whether to show date on labels."""
+        return self.get("labels.show_date", True)
+
+    @property
+    def labels_duplicate_qr(self) -> bool:
+        """Return whether to duplicate QR codes on labels."""
+        return self.get("labels.duplicate_qr", False)
+
+    @property
+    def labels_custom_formats(self) -> dict:
+        """Return custom label sheet formats from config."""
+        return self.get("labels.custom_formats", {})
