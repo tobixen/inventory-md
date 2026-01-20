@@ -2,12 +2,16 @@
 """
 Command-line interface for Inventory System
 """
+from __future__ import annotations
+
 import argparse
+import json
 import shutil
 import sys
 from pathlib import Path
 
 from . import parser, shopping_list
+from .config import Config
 
 
 def init_inventory(directory: Path, name: str = "My Inventory") -> int:
@@ -395,31 +399,66 @@ def api_command(directory: Path = None, port: int = 8765, host: str = "127.0.0.1
         return 1
 
 
+def config_command(show: bool = False, show_path: bool = False) -> int:
+    """Show configuration information."""
+    config = Config()
+
+    if show_path:
+        if config.path:
+            print(config.path)
+        else:
+            print("No configuration file found")
+        return 0
+
+    if show or (not show_path):
+        # Show merged config
+        if config.path:
+            print(f"# Configuration loaded from: {config.path}")
+        else:
+            print("# No configuration file found, showing defaults")
+        print()
+        print(json.dumps(config.data, indent=2))
+        return 0
+
+    return 0
+
+
 def main() -> int:
     """Main entry point for the CLI."""
+    # Load configuration (used for defaults)
+    config = Config()
+
     parser_cli = argparse.ArgumentParser(
         description="Inventory System - Manage markdown-based inventories",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Initialize a new inventory
-  inventory-system init ~/my-inventory --name "Home Storage"
+  inventory-md init ~/my-inventory --name "Home Storage"
 
   # Parse inventory and generate JSON
-  inventory-system parse ~/my-inventory/inventory.md
+  inventory-md parse ~/my-inventory/inventory.md
 
   # Validate inventory without generating JSON
-  inventory-system parse ~/my-inventory/inventory.md --validate
+  inventory-md parse ~/my-inventory/inventory.md --validate
 
   # Start a local web server
-  inventory-system serve ~/my-inventory
+  inventory-md serve ~/my-inventory
 
   # Start API server for chat, photos, and item management (requires ANTHROPIC_API_KEY)
-  inventory-system api ~/my-inventory
+  inventory-md api ~/my-inventory
+
+  # Show current configuration
+  inventory-md config --show
         """
     )
 
     subparsers = parser_cli.add_subparsers(dest='command', help='Command to run')
+
+    # Config command
+    config_parser = subparsers.add_parser('config', help='Show configuration')
+    config_parser.add_argument('--show', action='store_true', help='Show merged configuration')
+    config_parser.add_argument('--path', action='store_true', help='Show config file path')
 
     # Init command
     init_parser = subparsers.add_parser('init', help='Initialize a new inventory')
@@ -428,7 +467,7 @@ Examples:
 
     # Parse command
     parse_parser = subparsers.add_parser('parse', help='Parse inventory markdown file')
-    parse_parser.add_argument('file', type=Path, nargs='?', help='Inventory markdown file to parse (default: inventory.md with --auto)')
+    parse_parser.add_argument('file', type=Path, nargs='?', help='Inventory markdown file to parse (default: from config or inventory.md with --auto)')
     parse_parser.add_argument('--output', '-o', type=Path, help='Output JSON file (default: inventory.json)')
     parse_parser.add_argument('--validate', action='store_true', help='Validate only, do not generate JSON')
     parse_parser.add_argument('--wanted-items', '-w', type=Path, help='Wanted items file to generate shopping list')
@@ -439,27 +478,32 @@ Examples:
     # Serve command
     serve_parser = subparsers.add_parser('serve', help='Start local web server')
     serve_parser.add_argument('directory', type=Path, nargs='?', help='Directory to serve (default: current directory)')
-    serve_parser.add_argument('--port', '-p', type=int, default=8000, help='Port number (default: 8000)')
-    serve_parser.add_argument('--host', type=str, default='127.0.0.1',
-                              help='Host to bind to (default: 127.0.0.1, use 0.0.0.0 for all interfaces)')
+    serve_parser.add_argument('--port', '-p', type=int, default=None, help=f'Port number (default: {config.serve_port})')
+    serve_parser.add_argument('--host', type=str, default=None,
+                              help=f'Host to bind to (default: {config.serve_host}, use 0.0.0.0 for all interfaces)')
     serve_parser.add_argument('--api-proxy', type=str, metavar='HOST:PORT',
                               help='Proxy /api/* and /chat requests to backend (e.g., localhost:8765)')
 
     # API command
     api_parser = subparsers.add_parser('api', help='Start API server (chat, photos, item management)')
     api_parser.add_argument('directory', type=Path, nargs='?', help='Directory with inventory.json (default: current directory)')
-    api_parser.add_argument('--port', '-p', type=int, default=8765, help='Port number (default: 8765)')
-    api_parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind to (default: 127.0.0.1)')
+    api_parser.add_argument('--port', '-p', type=int, default=None, help=f'Port number (default: {config.api_port})')
+    api_parser.add_argument('--host', type=str, default=None, help=f'Host to bind to (default: {config.api_host})')
 
     # Chat command (backwards compatibility alias for 'api')
     chat_parser = subparsers.add_parser('chat', help='[Deprecated] Use "api" instead')
     chat_parser.add_argument('directory', type=Path, nargs='?', help='Directory with inventory.json (default: current directory)')
-    chat_parser.add_argument('--port', '-p', type=int, default=8765, help='Port number (default: 8765)')
-    chat_parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to bind to (default: 127.0.0.1)')
+    chat_parser.add_argument('--port', '-p', type=int, default=None, help=f'Port number (default: {config.api_port})')
+    chat_parser.add_argument('--host', type=str, default=None, help=f'Host to bind to (default: {config.api_host})')
 
     args = parser_cli.parse_args()
 
-    if args.command == 'init':
+    if args.command == 'config':
+        return config_command(
+            show=getattr(args, 'show', False),
+            show_path=getattr(args, 'path', False)
+        )
+    elif args.command == 'init':
         return init_inventory(args.directory, args.name)
     elif args.command == 'parse':
         include_dated = not getattr(args, 'no_dated', False)
@@ -476,17 +520,26 @@ Examples:
                 if wanted_path.exists():
                     wanted_items = wanted_path
         else:
+            # Try config values, then CLI args
             md_file = args.file
-            wanted_items = getattr(args, 'wanted_items', None)
             if md_file is None:
-                print("Error: inventory file required (or use --auto)", file=sys.stderr)
+                md_file = config.inventory_file
+            wanted_items = getattr(args, 'wanted_items', None)
+            if wanted_items is None:
+                wanted_items = config.wanted_file
+            if md_file is None:
+                print("Error: inventory file required (or use --auto, or set inventory_file in config)", file=sys.stderr)
                 return 1
 
         return parse_command(md_file, args.output, args.validate, wanted_items, include_dated)
     elif args.command == 'serve':
-        return serve_command(args.directory, args.port, args.host, getattr(args, 'api_proxy', None))
+        port = args.port if args.port is not None else config.serve_port
+        host = args.host if args.host is not None else config.serve_host
+        return serve_command(args.directory, port, host, getattr(args, 'api_proxy', None))
     elif args.command == 'api' or args.command == 'chat':
-        return api_command(args.directory, args.port, args.host)
+        port = args.port if args.port is not None else config.api_port
+        host = args.host if args.host is not None else config.api_host
+        return api_command(args.directory, port, host)
     else:
         parser_cli.print_help()
         return 1
