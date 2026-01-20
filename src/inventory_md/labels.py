@@ -216,6 +216,52 @@ def generate_qr(url: str, box_size: int = 10, border: int = 1) -> "PILImage.Imag
     return qr.make_image(fill_color="black", back_color="white")
 
 
+def _calculate_optimal_qr_layout(
+    width_px: int,
+    height_px: int,
+    margin: int,
+    text_width_ratio: float = 0.3,
+) -> tuple[int, int, int]:
+    """Calculate optimal QR code layout for a rectangular label.
+
+    Determines how many QR codes fit best on a label while leaving space for text.
+
+    Args:
+        width_px: Label width in pixels.
+        height_px: Label height in pixels.
+        margin: Margin in pixels.
+        text_width_ratio: Ratio of label width reserved for text (0.2-0.4).
+
+    Returns:
+        Tuple of (qr_count, qr_size, text_section_width).
+    """
+    # Reserve space for text in the center
+    text_width = int(width_px * text_width_ratio)
+    available_width = width_px - text_width - 2 * margin
+
+    # QR codes are square, so max size is constrained by height
+    qr_max_size = height_px - 2 * margin
+
+    # Try different QR counts and find the best fit
+    best_count = 1
+    best_size = 0
+
+    for count in range(1, 10):
+        # Split available width among QR codes
+        qr_section_width = available_width // count
+        qr_size = min(qr_max_size, qr_section_width - margin)
+
+        if qr_size < 50:  # Minimum usable QR size in pixels
+            break
+
+        # Prefer larger QR codes, but allow more if they still fit well
+        if qr_size >= qr_max_size * 0.7 or qr_size > best_size * 0.9:
+            best_count = count
+            best_size = qr_size
+
+    return best_count, best_size, text_width
+
+
 def generate_label(
     label_id: str,
     base_url: str,
@@ -230,14 +276,18 @@ def generate_label(
     Args:
         label_id: The label ID (e.g., "AA0").
         base_url: Base URL for the QR code (e.g., "https://inventory.example.com/search.html").
-        style: Label style - "standard", "compact", or "duplicate".
-        label_date: Date string to show (default: today's date if style is standard/duplicate).
+        style: Label style - "standard", "compact", or "multi-qr".
+        label_date: Date string to show (default: today's date if style is standard/multi-qr).
         width_mm: Label width in millimeters.
         height_mm: Label height in millimeters.
         dpi: Resolution in dots per inch.
 
     Returns:
         PIL Image of the label.
+
+    Note:
+        The "multi-qr" style (previously "duplicate") automatically calculates
+        the optimal number of QR codes based on label dimensions.
     """
     from PIL import Image, ImageDraw, ImageFont
 
@@ -268,31 +318,50 @@ def generate_label(
         y = (height_px - qr_size) // 2
         img.paste(qr_img, (x, y))
 
-    elif style == "duplicate":
-        # Two QR codes + ID + date
-        # Layout: [QR] [ID/Date] [QR]
-        section_width = width_px // 3
-        qr_size = min(qr_max_size, section_width - 2 * margin)
+    elif style in ("duplicate", "multi-qr"):
+        # Auto-calculate optimal QR code count based on label dimensions
+        qr_count, qr_size, text_width = _calculate_optimal_qr_layout(
+            width_px, height_px, margin
+        )
+
         qr_box_size = max(1, qr_size // 25)
         qr_img = generate_qr(url, box_size=qr_box_size, border=1)
         qr_img = qr_img.resize((qr_size, qr_size), Image.Resampling.LANCZOS)
 
-        # Left QR code
-        x1 = (section_width - qr_size) // 2
-        y = (height_px - qr_size) // 2
-        img.paste(qr_img, (x1, y))
+        # Calculate layout: QR codes on sides, text in center
+        # For even count: split evenly left/right
+        # For odd count: more on one side
+        left_count = qr_count // 2
+        right_count = qr_count - left_count
 
-        # Right QR code
-        x2 = 2 * section_width + (section_width - qr_size) // 2
-        img.paste(qr_img, (x2, y))
+        available_left = (width_px - text_width) // 2
+        available_right = width_px - text_width - available_left
+
+        y = (height_px - qr_size) // 2
+
+        # Place left QR codes
+        if left_count > 0:
+            spacing = available_left // left_count
+            for i in range(left_count):
+                x = margin + i * spacing + (spacing - qr_size) // 2
+                img.paste(qr_img, (x, y))
+
+        # Place right QR codes
+        if right_count > 0:
+            right_start = width_px - available_right
+            spacing = available_right // right_count
+            for i in range(right_count):
+                x = right_start + i * spacing + (spacing - qr_size) // 2
+                img.paste(qr_img, (x, y))
 
         # Center text area
+        text_x = available_left
         _draw_label_text(
             draw,
             label_id,
             label_date,
-            section_width,
-            section_width,
+            text_x,
+            text_width,
             0,
             height_px,
             dpi,
@@ -419,6 +488,7 @@ def create_label_sheet(
     style: str = "standard",
     label_date: str | None = None,
     custom_formats: dict | None = None,
+    duplicates: int = 1,
 ) -> bytes:
     """Create a PDF with labels arranged on a sheet.
 
@@ -426,13 +496,24 @@ def create_label_sheet(
         label_ids: List of label IDs to print.
         base_url: Base URL for QR codes.
         sheet_format: Format name or format dict.
-        style: Label style ("standard", "compact", "duplicate").
+        style: Label style ("standard", "compact", "multi-qr").
+            - "standard": QR code on left, ID/date on right.
+            - "compact": QR code only, centered.
+            - "multi-qr": Auto-calculated optimal number of QR codes based on
+              label dimensions, with ID/date in center. Alias: "duplicate".
         label_date: Date to show on labels (default: today).
         custom_formats: Optional custom formats from config.
+        duplicates: Number of copies to print for each label ID (default: 1).
 
     Returns:
         PDF file contents as bytes.
     """
+    # Expand label_ids with duplicates
+    if duplicates > 1:
+        expanded_ids = []
+        for label_id in label_ids:
+            expanded_ids.extend([label_id] * duplicates)
+        label_ids = expanded_ids
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
 

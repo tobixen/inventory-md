@@ -411,6 +411,7 @@ def labels_generate(
     base_url: str = "https://inventory.example.com/search.html",
     show_date: bool = True,
     custom_formats: dict | None = None,
+    dupes: int | None = None,
 ) -> int:
     """Generate label sheet or PNG images."""
     try:
@@ -421,28 +422,40 @@ def labels_generate(
         print('  pip install "inventory-md[labels]"')
         return 1
 
-    # Determine label IDs
+    # Determine label IDs (unique)
     try:
         if ids:
-            label_ids = [id.strip().upper() for id in ids.split(",")]
+            unique_ids = [id.strip().upper() for id in ids.split(",")]
             # Validate all IDs
-            for lid in label_ids:
+            for lid in unique_ids:
                 if not labels.validate_label_id(lid):
                     print(f"Invalid label ID: {lid}")
                     print("Format must be: [A-Z][A-Z][0-9] (e.g., AA0, BC5)")
                     return 1
         else:
-            label_ids = labels.generate_id_sequence(series=series, start=start, count=count)
+            unique_ids = labels.generate_id_sequence(series=series, start=start, count=count)
     except ValueError as e:
         print(f"Error: {e}")
         return 1
 
-    # Default output
+    # Determine number of duplicates per label
+    if dupes is None:
+        # Default: 5 for standard (label each side of container), 1 for compact/duplicate
+        dupes = 5 if style == "standard" else 1
+
+    # Expand IDs with duplicates
+    label_ids = []
+    for lid in unique_ids:
+        label_ids.extend([lid] * dupes)
+
+    # Default output path: labels/labels-{start}-{end}.pdf
     if output is None:
+        labels_dir = Path("labels")
+        labels_dir.mkdir(exist_ok=True)
         if output_format == "png":
-            output = Path("labels")
+            output = labels_dir
         else:
-            output = Path("labels.pdf")
+            output = labels_dir / f"labels-{unique_ids[0]}-{unique_ids[-1]}.pdf"
 
     # Generate
     try:
@@ -469,9 +482,10 @@ def labels_generate(
                 style=style,
                 custom_formats=custom_formats,
             )
+            output.parent.mkdir(parents=True, exist_ok=True)
             output.write_bytes(pdf_bytes)
-            print(f"Created {output} with {len(label_ids)} labels")
-            print(f"  IDs: {label_ids[0]} - {label_ids[-1]}")
+            print(f"Created {output} with {len(label_ids)} labels ({len(unique_ids)} unique x {dupes} dupes)")
+            print(f"  IDs: {unique_ids[0]} - {unique_ids[-1]}")
 
         return 0
     except Exception as e:
@@ -625,16 +639,34 @@ Examples:
     labels_subparsers = labels_parser.add_subparsers(dest='labels_command', help='Labels subcommand')
 
     # labels generate
-    labels_gen = labels_subparsers.add_parser('generate', help='Generate label sheet or PNG images')
+    labels_gen = labels_subparsers.add_parser(
+        'generate',
+        help='Generate label sheet or PNG images',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Label styles:
+  standard   QR code + large ID + date (default for labeling containers)
+  compact    QR code only (for small labels)
+  duplicate  Two identical QR codes + ID + date (for wide labels, can cut/tear)
+
+Examples:
+  inventory-md labels generate --series A --count 10
+  inventory-md labels generate --start AB5 --count 5 --style compact
+  inventory-md labels generate --ids AA0,AB0,AC0 --dupes 3
+        """,
+    )
     labels_gen.add_argument('--series', '-s', type=str, help='Series letter (A-Z), starts at {series}A0')
     labels_gen.add_argument('--start', type=str, help='Starting ID (e.g., AB5)')
     labels_gen.add_argument('--ids', type=str, help='Comma-separated list of specific IDs')
-    labels_gen.add_argument('--count', '-n', type=int, default=30, help='Number of labels (default: 30)')
+    labels_gen.add_argument('--count', '-n', type=int, default=30, help='Number of unique IDs to generate (default: 30)')
+    labels_gen.add_argument('--dupes', '-d', type=int, default=None,
+                            help='Duplicates per label (default: 5 for standard, 1 for compact/duplicate)')
     labels_gen.add_argument('--style', type=str, choices=['standard', 'compact', 'duplicate'],
-                            default=None, help=f'Label style (default: from config or standard)')
+                            default=None, help='Label style (default: from config or standard)')
     labels_gen.add_argument('--sheet-format', type=str, default=None,
-                            help=f'Sheet format (default: from config or 48x25-40)')
-    labels_gen.add_argument('--output', '-o', type=Path, help='Output file (default: labels.pdf or labels/)')
+                            help='Sheet format (default: from config or 48x25-40)')
+    labels_gen.add_argument('--output', '-o', type=Path,
+                            help='Output file (default: labels/labels-{start}-{end}.pdf)')
     labels_gen.add_argument('--format', '-f', type=str, choices=['pdf', 'png'], default='pdf',
                             help='Output format (default: pdf)')
     labels_gen.add_argument('--base-url', type=str, default=None,
@@ -710,6 +742,7 @@ Examples:
                 base_url=base_url,
                 show_date=config.labels_show_date,
                 custom_formats=config.labels_custom_formats,
+                dupes=args.dupes,
             )
         elif args.labels_command == 'formats':
             return labels_formats(custom_formats=config.labels_custom_formats)
