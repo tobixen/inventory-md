@@ -366,11 +366,11 @@ class TestSheetFormats:
     def test_all_formats_have_positive_values(self):
         """Test that all format values are positive."""
         for name, fmt in labels.SHEET_FORMATS.items():
-            assert fmt["cols"] > 0
-            assert fmt["rows"] > 0
-            assert fmt["label_width_mm"] > 0
-            assert fmt["label_height_mm"] > 0
-            assert fmt["page_width_mm"] > 0
-            assert fmt["page_height_mm"] > 0
-            assert fmt["margin_top_mm"] >= 0
-            assert fmt["margin_left_mm"] >= 0
+            assert fmt["cols"] > 0, f"{name}: cols must be positive"
+            assert fmt["rows"] > 0, f"{name}: rows must be positive"
+            assert fmt["label_width_mm"] > 0, f"{name}: label_width_mm must be positive"
+            assert fmt["label_height_mm"] > 0, f"{name}: label_height_mm must be positive"
+            assert fmt["page_width_mm"] > 0, f"{name}: page_width_mm must be positive"
+            assert fmt["page_height_mm"] > 0, f"{name}: page_height_mm must be positive"
+            assert fmt["margin_top_mm"] >= 0, f"{name}: margin_top_mm must be non-negative"
+            assert fmt["margin_left_mm"] >= 0, f"{name}: margin_left_mm must be non-negative"

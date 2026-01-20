@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PIL import Image as PILImage
+    from PIL import ImageDraw
 
 # Sheet format registry - dimensions in millimeters
 # Format name pattern: {width}x{height}-{count} for easy identification
@@ -192,7 +193,7 @@ def generate_id_sequence(
     return result
 
 
-def generate_qr(url: str, box_size: int = 10, border: int = 1) -> "PILImage.Image":
+def generate_qr(url: str, box_size: int = 10, border: int = 1) -> PILImage.Image:
     """Generate a QR code image for the given URL.
 
     Args:
@@ -270,7 +271,7 @@ def generate_label(
     width_mm: float = 48.5,
     height_mm: float = 25.4,
     dpi: int = 300,
-) -> "PILImage.Image":
+) -> PILImage.Image:
     """Generate a single label image.
 
     Args:
@@ -289,7 +290,7 @@ def generate_label(
         The "multi-qr" style (previously "duplicate") automatically calculates
         the optimal number of QR codes based on label dimensions.
     """
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
 
     # Convert mm to pixels
     width_px = int(width_mm * dpi / 25.4)
@@ -388,7 +389,7 @@ def generate_label(
 
 
 def _draw_label_text(
-    draw: "ImageDraw.Draw",
+    draw: ImageDraw.ImageDraw,
     label_id: str,
     label_date: str | None,
     x: int,
@@ -534,7 +535,6 @@ def create_label_sheet(
     # Grid
     cols = fmt["cols"]
     rows = fmt["rows"]
-    labels_per_page = cols * rows
 
     # Margins and gaps
     margin_top = fmt["margin_top_mm"] * mm
