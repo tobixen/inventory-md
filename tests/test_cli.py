@@ -106,3 +106,59 @@ class TestInitCommand:
         assert (inventory_dir / "inventory.md").exists()
         assert (inventory_dir / "photos").exists()
         assert (inventory_dir / "resized").exists()
+
+
+class TestUpdateTemplate:
+    """Tests for update_template function."""
+
+    def test_update_template_creates_file(self, tmp_path):
+        """Test that update_template creates search.html."""
+        result = cli.update_template(tmp_path, force=True)
+
+        assert result == 0
+        assert (tmp_path / "search.html").exists()
+
+    def test_update_template_overwrites_with_force(self, tmp_path):
+        """Test that update_template overwrites with --force."""
+        existing = tmp_path / "search.html"
+        existing.write_text("old content")
+
+        result = cli.update_template(tmp_path, force=True)
+
+        assert result == 0
+        content = existing.read_text()
+        assert "old content" not in content
+        assert "<!DOCTYPE html>" in content  # New template starts with this
+
+    def test_update_template_prompts_without_force(self, tmp_path):
+        """Test that update_template prompts when file exists."""
+        existing = tmp_path / "search.html"
+        existing.write_text("old content")
+
+        # User says no
+        with patch('builtins.input', return_value='n'):
+            result = cli.update_template(tmp_path, force=False)
+
+        assert result == 1
+        assert existing.read_text() == "old content"  # Not overwritten
+
+        # User says yes
+        with patch('builtins.input', return_value='y'):
+            result = cli.update_template(tmp_path, force=False)
+
+        assert result == 0
+        assert "old content" not in existing.read_text()
+
+    def test_update_template_fails_for_nonexistent_directory(self, tmp_path):
+        """Test that update_template fails if directory doesn't exist."""
+        result = cli.update_template(tmp_path / "nonexistent", force=True)
+        assert result == 1
+
+    def test_update_template_uses_cwd_by_default(self, tmp_path, monkeypatch):
+        """Test that update_template uses current directory by default."""
+        monkeypatch.chdir(tmp_path)
+
+        result = cli.update_template(force=True)
+
+        assert result == 0
+        assert (tmp_path / "search.html").exists()

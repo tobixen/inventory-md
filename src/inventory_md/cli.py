@@ -96,6 +96,46 @@ Beskrivelse av container...
     return 0
 
 
+def update_template(directory: Path = None, force: bool = False) -> int:
+    """Update search.html template to the latest version from the package.
+
+    Args:
+        directory: Target directory (default: current directory)
+        force: Overwrite without prompting
+
+    Returns:
+        0 on success, 1 on error
+    """
+    if directory is None:
+        directory = Path.cwd()
+    else:
+        directory = Path(directory).resolve()
+
+    templates_dir = Path(__file__).parent / 'templates'
+    source = templates_dir / 'search.html'
+    target = directory / 'search.html'
+
+    if not source.exists():
+        print(f"❌ Template not found: {source}")
+        return 1
+
+    if not directory.exists():
+        print(f"❌ Directory not found: {directory}")
+        return 1
+
+    # Check if target exists and prompt if not forcing
+    if target.exists() and not force:
+        print(f"⚠️  {target} already exists")
+        response = input("Overwrite? [y/N] ")
+        if response.lower() != 'y':
+            print("Aborted.")
+            return 1
+
+    shutil.copy(source, target)
+    print(f"✅ Updated {target}")
+    return 0
+
+
 def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
@@ -629,6 +669,11 @@ Examples:
     parse_parser.add_argument('--auto', '-a', action='store_true',
                               help='Auto-detect files: inventory.md and wanted-items.md in current directory')
 
+    # Update-template command
+    update_parser = subparsers.add_parser('update-template', help='Update search.html to latest version')
+    update_parser.add_argument('directory', type=Path, nargs='?', help='Target directory (default: current directory)')
+    update_parser.add_argument('--force', '-f', action='store_true', help='Overwrite without prompting')
+
     # Serve command
     serve_parser = subparsers.add_parser('serve', help='Start local web server')
     serve_parser.add_argument('directory', type=Path, nargs='?', help='Directory to serve (default: current directory)')
@@ -733,6 +778,8 @@ Examples:
                 return 1
 
         return parse_command(md_file, args.output, args.validate, wanted_items, include_dated)
+    elif args.command == 'update-template':
+        return update_template(args.directory, args.force)
     elif args.command == 'serve':
         port = args.port if args.port is not None else config.serve_port
         host = args.host if args.host is not None else config.serve_host
