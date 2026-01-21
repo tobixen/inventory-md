@@ -61,8 +61,18 @@ Add items to the appropriate sections in `~/solveig-inventory/inventory.md`.
 
 Format for food items:
 ```
-* tag:food/CATEGORY ID:ITEM-ID EAN:EANCODE bb:YYYY-MM qty:N mass:Xg price:EUR:XXX PRODUCT NAME
+* tag:food/CATEGORY ID:ITEM-ID EAN:EANCODE bb:YYYY-MM qty:N mass:Xg volume:Xl price:EUR:XXX/YYY PRODUCT NAME
 ```
+
+Volume is typically used for liquids and mass for solid stuff.  They are rarely combined.
+
+YYY is typically "pcs" or "kg"
+
+Qty is typically not known and should not be specified for vegetables, fruits, etc.  The Lidl shopping receipt says "stk", but in the description it says "per kg", so then the unit is actually kilograms.
+
+If Qty is given on a line, then mass is considered to be "per piece".  So 2 packages @ 500 gram (total mass 1kg) should be specified as `mass:500g qty:2`.
+
+If the user is counting things and informing that he bought 4 onions and it says 521 grams on the receipt, then `qty:4 mass:521/4`
 
 Tags by category:
 - Dairy: `tag:food/dairy/milk`, `tag:food/dairy/cheese`
