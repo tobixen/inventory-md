@@ -8,8 +8,77 @@ import pytest
 from inventory_md import config
 
 
+class TestFindConfigFiles:
+    """Tests for find_config_files function."""
+
+    def test_find_config_files_in_cwd(self, tmp_path, monkeypatch):
+        """Test finding config file in current directory."""
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "inventory-md.json"
+        config_file.write_text('{"test": true}')
+
+        with patch.object(config, '_get_config_dirs', return_value=[tmp_path]):
+            result = config.find_config_files()
+
+        assert result == [config_file]
+
+    def test_find_config_files_yaml_preferred(self, tmp_path, monkeypatch):
+        """Test that YAML is preferred over JSON in same directory."""
+        monkeypatch.chdir(tmp_path)
+        json_file = tmp_path / "inventory-md.json"
+        yaml_file = tmp_path / "inventory-md.yaml"
+        json_file.write_text('{"test": "json"}')
+        yaml_file.write_text('test: yaml')
+
+        with patch.object(config, '_get_config_dirs', return_value=[tmp_path]):
+            result = config.find_config_files()
+
+        assert result == [yaml_file]  # YAML preferred, JSON ignored
+
+    def test_find_config_files_multiple_locations(self, tmp_path, monkeypatch):
+        """Test finding config files from multiple locations."""
+        monkeypatch.chdir(tmp_path)
+
+        # Create three config directories
+        etc_dir = tmp_path / "etc"
+        user_dir = tmp_path / "user"
+        cwd_dir = tmp_path / "cwd"
+        for d in [etc_dir, user_dir, cwd_dir]:
+            d.mkdir()
+
+        # Create config in each
+        etc_config = etc_dir / "config.json"
+        etc_config.write_text('{"source": "etc"}')
+        user_config = user_dir / "config.yaml"
+        user_config.write_text('source: user')
+        cwd_config = cwd_dir / "inventory-md.json"
+        cwd_config.write_text('{"source": "cwd"}')
+
+        # Mock to use our directories (in merge order: etc, user, cwd)
+        with patch.object(config, '_get_config_dirs', return_value=[etc_dir, user_dir, cwd_dir]):
+            with patch.object(config, 'CONFIG_FILENAMES', ["inventory-md.yaml", "inventory-md.json"]):
+                with patch.object(config, 'CONFIG_USER_FILENAMES', ["config.yaml", "config.json"]):
+                    # Need to reset cwd check
+                    with patch.object(Path, 'cwd', return_value=cwd_dir):
+                        result = config.find_config_files()
+
+        assert len(result) == 3
+        assert result[0] == etc_config  # lowest priority
+        assert result[1] == user_config  # medium priority
+        assert result[2] == cwd_config  # highest priority
+
+    def test_find_config_files_returns_empty_when_not_found(self, tmp_path, monkeypatch):
+        """Test that empty list is returned when no config file exists."""
+        monkeypatch.chdir(tmp_path)
+
+        with patch.object(config, '_get_config_dirs', return_value=[tmp_path]):
+            result = config.find_config_files()
+
+        assert result == []
+
+
 class TestFindConfigFile:
-    """Tests for find_config_file function."""
+    """Tests for find_config_file function (returns highest priority file)."""
 
     def test_find_config_in_cwd_json(self, tmp_path, monkeypatch):
         """Test finding config file in current directory (JSON)."""
@@ -31,25 +100,23 @@ class TestFindConfigFile:
         result = config.find_config_file()
         assert result == yaml_file
 
-    def test_find_config_in_user_dir(self, tmp_path, monkeypatch):
-        """Test finding config in user config directory."""
-        monkeypatch.chdir(tmp_path)  # Empty cwd, no config there
+    def test_find_config_returns_highest_priority(self, tmp_path, monkeypatch):
+        """Test that find_config_file returns highest priority (cwd) file."""
+        monkeypatch.chdir(tmp_path)
 
-        user_config_dir = tmp_path / ".config" / "inventory-md"
-        user_config_dir.mkdir(parents=True)
-        config_file = user_config_dir / "config.json"
-        config_file.write_text('{"test": true}')
+        etc_dir = tmp_path / "etc"
+        cwd_dir = tmp_path
+        etc_dir.mkdir()
 
-        with patch.object(config, '_get_config_dirs', return_value=[
-            tmp_path,  # cwd (empty)
-            user_config_dir.parent.parent / ".config" / "inventory-md",
-            Path("/etc/inventory-md"),
-        ]):
-            # Need to mock the home path used for user config
-            with patch.object(Path, 'home', return_value=tmp_path):
-                result = config.find_config_file()
+        etc_config = etc_dir / "config.json"
+        etc_config.write_text('{"source": "etc"}')
+        cwd_config = cwd_dir / "inventory-md.json"
+        cwd_config.write_text('{"source": "cwd"}')
 
-        assert result == config_file
+        with patch.object(config, '_get_config_dirs', return_value=[etc_dir, cwd_dir]):
+            result = config.find_config_file()
+
+        assert result == cwd_config  # highest priority
 
     def test_find_config_returns_none_when_not_found(self, tmp_path, monkeypatch):
         """Test that None is returned when no config file exists."""
@@ -120,7 +187,7 @@ class TestLoadConfig:
         """Test loading config when no file exists."""
         monkeypatch.chdir(tmp_path)
 
-        with patch.object(config, 'find_config_file', return_value=None):
+        with patch.object(config, 'find_config_files', return_value=[]):
             result = config.load_config()
 
         # Should return defaults
@@ -136,6 +203,63 @@ class TestLoadConfig:
         with patch.dict('sys.modules', {'yaml': None}):
             with pytest.raises(ImportError, match="PyYAML required"):
                 config.load_config(config_file)
+
+    def test_load_config_merges_multiple_files(self, tmp_path):
+        """Test that configs from multiple locations are merged."""
+        etc_dir = tmp_path / "etc"
+        user_dir = tmp_path / "user"
+        etc_dir.mkdir()
+        user_dir.mkdir()
+
+        # /etc config: sets base values
+        etc_config = etc_dir / "config.json"
+        etc_config.write_text(json.dumps({
+            "api": {"host": "0.0.0.0", "port": 8000},
+            "base_url": "https://etc.example.com",
+            "custom_etc": "from_etc",
+        }))
+
+        # user config: overrides some values
+        user_config = user_dir / "config.json"
+        user_config.write_text(json.dumps({
+            "api": {"port": 9000},  # override port, keep host
+            "custom_user": "from_user",
+        }))
+
+        # cwd config: overrides more values
+        cwd_config = tmp_path / "inventory-md.json"
+        cwd_config.write_text(json.dumps({
+            "base_url": "https://local.example.com",  # override base_url
+            "custom_cwd": "from_cwd",
+        }))
+
+        with patch.object(config, 'find_config_files', return_value=[
+            etc_config, user_config, cwd_config
+        ]):
+            result = config.load_config()
+
+        # Check merged values
+        assert result["api"]["host"] == "0.0.0.0"  # from etc
+        assert result["api"]["port"] == 9000  # overridden by user
+        assert result["base_url"] == "https://local.example.com"  # overridden by cwd
+        assert result["custom_etc"] == "from_etc"  # only in etc
+        assert result["custom_user"] == "from_user"  # only in user
+        assert result["custom_cwd"] == "from_cwd"  # only in cwd
+
+    def test_load_config_explicit_path_skips_merging(self, tmp_path):
+        """Test that explicit path only loads that file, not merging."""
+        etc_config = tmp_path / "etc-config.json"
+        etc_config.write_text('{"source": "etc", "api": {"port": 1111}}')
+
+        explicit_config = tmp_path / "explicit.json"
+        explicit_config.write_text('{"source": "explicit", "api": {"port": 2222}}')
+
+        # Load with explicit path - should NOT merge etc_config
+        result = config.load_config(explicit_config)
+
+        assert result["source"] == "explicit"
+        assert result["api"]["port"] == 2222
+        assert result["api"]["host"] == "127.0.0.1"  # from defaults
 
 
 class TestEnvOverrides:
@@ -240,6 +364,7 @@ class TestConfigClass:
         cfg = config.Config()
 
         assert cfg.path == config_file
+        assert cfg.paths == [config_file]
         assert cfg.inventory_file == Path("/custom/path.md")
         assert cfg.api_port == 9999
         assert cfg.api_host == "127.0.0.1"  # From defaults
@@ -252,6 +377,7 @@ class TestConfigClass:
         cfg = config.Config(config_file)
 
         assert cfg.path == config_file
+        assert cfg.paths == [config_file]
         assert cfg.base_url == "https://test.example.com"
 
     def test_config_get_method(self, tmp_path, monkeypatch):
@@ -294,6 +420,53 @@ class TestConfigClass:
         cfg = config.Config()
 
         assert cfg.path is None
+        assert cfg.paths == []
         assert cfg.inventory_file is None
         assert cfg.api_port == 8765
         assert cfg.serve_port == 8000
+
+    def test_config_merges_multiple_files(self, tmp_path, monkeypatch):
+        """Test Config merges config from multiple locations."""
+        monkeypatch.chdir(tmp_path)
+
+        # Create mock directories
+        etc_dir = tmp_path / "etc"
+        user_dir = tmp_path / "user"
+        etc_dir.mkdir()
+        user_dir.mkdir()
+
+        etc_config = etc_dir / "config.json"
+        etc_config.write_text('{"api": {"host": "0.0.0.0"}, "from_etc": true}')
+
+        user_config = user_dir / "config.json"
+        user_config.write_text('{"api": {"port": 9000}, "from_user": true}')
+
+        cwd_config = tmp_path / "inventory-md.json"
+        cwd_config.write_text('{"base_url": "https://local.example.com"}')
+
+        with patch.object(config, 'find_config_files', return_value=[
+            etc_config, user_config, cwd_config
+        ]):
+            cfg = config.Config()
+
+        assert cfg.paths == [etc_config, user_config, cwd_config]
+        assert cfg.path == cwd_config  # highest priority
+        assert cfg.api_host == "0.0.0.0"  # from etc
+        assert cfg.api_port == 9000  # from user
+        assert cfg.base_url == "https://local.example.com"  # from cwd
+        assert cfg.get("from_etc") is True
+        assert cfg.get("from_user") is True
+
+    def test_config_paths_returns_copy(self, tmp_path, monkeypatch):
+        """Test that Config.paths returns a copy, not the internal list."""
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "inventory-md.json"
+        config_file.write_text('{}')
+
+        cfg = config.Config()
+
+        paths1 = cfg.paths
+        paths1.append(Path("/fake"))
+        paths2 = cfg.paths
+
+        assert paths2 == [config_file]  # Not modified by append

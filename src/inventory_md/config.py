@@ -1,12 +1,14 @@
 """
 Configuration file system for inventory-md.
 
-Supports loading configuration from:
-1. ./inventory-md.yaml or ./inventory-md.json (current directory)
+Supports loading configuration from multiple locations, merged with precedence:
+1. /etc/inventory-md/config.yaml or config.json (lowest priority)
 2. ~/.config/inventory-md/config.yaml or config.json
-3. /etc/inventory-md/config.yaml or config.json
+3. ./inventory-md.yaml or ./inventory-md.json (highest priority)
 
-First found file wins. YAML is checked before JSON at each location.
+All found config files are merged, with later files overriding earlier ones.
+YAML is checked before JSON at each location. Environment variables
+(INVENTORY_MD_*) have the highest priority.
 """
 from __future__ import annotations
 
@@ -32,25 +34,27 @@ DEFAULTS: dict[str, Any] = {
 
 
 def _get_config_dirs() -> list[Path]:
-    """Get list of config directories to search, in priority order."""
+    """Get list of config directories to search, in merge order (lowest priority first)."""
     return [
-        Path.cwd(),
-        Path.home() / ".config" / "inventory-md",
         Path("/etc/inventory-md"),
+        Path.home() / ".config" / "inventory-md",
+        Path.cwd(),
     ]
 
 
-def find_config_file() -> Path | None:
-    """Find first existing config file.
+def find_config_files() -> list[Path]:
+    """Find all existing config files, in merge order (lowest priority first).
 
     Searches in order:
-    1. ./inventory-md.yaml, ./inventory-md.json
+    1. /etc/inventory-md/config.yaml, config.json (lowest priority)
     2. ~/.config/inventory-md/config.yaml, config.json
-    3. /etc/inventory-md/config.yaml, config.json
+    3. ./inventory-md.yaml, ./inventory-md.json (highest priority)
 
-    Returns the first found file, or None if no config file exists.
+    Returns list of found files. At each location, only the first found
+    file (YAML before JSON) is included.
     """
     config_dirs = _get_config_dirs()
+    found_files = []
 
     for dir_path in config_dirs:
         # Use different filenames for cwd vs standard config dirs
@@ -58,8 +62,20 @@ def find_config_file() -> Path | None:
         for filename in filenames:
             path = dir_path / filename
             if path.exists():
-                return path
-    return None
+                found_files.append(path)
+                break  # Only use first found file at each location
+    return found_files
+
+
+def find_config_file() -> Path | None:
+    """Find the highest-priority existing config file.
+
+    Returns the config file that would take precedence (from current directory
+    if present, otherwise ~/.config, otherwise /etc), or None if no config
+    file exists.
+    """
+    files = find_config_files()
+    return files[-1] if files else None
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -83,12 +99,49 @@ def _deep_copy(d: dict) -> dict:
     return result
 
 
-def load_config(path: Path | None = None) -> dict[str, Any]:
-    """Load config from file, merging with defaults.
+def _load_config_file(path: Path) -> dict[str, Any]:
+    """Load a single config file and return its contents.
 
     Args:
-        path: Optional explicit path to config file. If None, searches
-              standard locations.
+        path: Path to config file (YAML or JSON).
+
+    Returns:
+        Parsed configuration dictionary.
+
+    Raises:
+        ImportError: If YAML config is found but PyYAML is not installed.
+        json.JSONDecodeError: If JSON config file is malformed.
+    """
+    if path.suffix in (".yaml", ".yml"):
+        try:
+            import yaml
+        except ImportError as e:
+            raise ImportError(
+                "PyYAML required for .yaml config files. "
+                "Install with: pip install inventory-md[yaml]"
+            ) from e
+        with open(path, encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    else:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+
+def load_config(path: Path | None = None) -> dict[str, Any]:
+    """Load config from file(s), merging with defaults.
+
+    If path is provided, only that file is loaded. Otherwise, all config
+    files from standard locations are merged with precedence:
+    1. Built-in defaults (lowest priority)
+    2. /etc/inventory-md/config.yaml or config.json
+    3. ~/.config/inventory-md/config.yaml or config.json
+    4. ./inventory-md.yaml or ./inventory-md.json
+    5. Environment variables INVENTORY_MD_* (highest priority)
+
+    Args:
+        path: Optional explicit path to config file. If provided, only this
+              file is loaded (plus defaults and env vars). If None, all
+              standard locations are searched and merged.
 
     Returns:
         Merged configuration dictionary with defaults applied.
@@ -97,28 +150,19 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
         ImportError: If YAML config is found but PyYAML is not installed.
         json.JSONDecodeError: If JSON config file is malformed.
     """
-    if path is None:
-        path = find_config_file()
-
     # Start with a deep copy of defaults
     config = _deep_copy(DEFAULTS)
 
-    if path and path.exists():
-        if path.suffix in (".yaml", ".yml"):
-            try:
-                import yaml
-            except ImportError as e:
-                raise ImportError(
-                    "PyYAML required for .yaml config files. "
-                    "Install with: pip install inventory-md[yaml]"
-                ) from e
-            with open(path, encoding="utf-8") as f:
-                file_config = yaml.safe_load(f) or {}
-        else:
-            with open(path, encoding="utf-8") as f:
-                file_config = json.load(f)
-
-        _deep_merge(config, file_config)
+    if path is not None:
+        # Explicit path provided - load only that file
+        if path.exists():
+            file_config = _load_config_file(path)
+            _deep_merge(config, file_config)
+    else:
+        # Load and merge all config files from standard locations
+        for config_path in find_config_files():
+            file_config = _load_config_file(config_path)
+            _deep_merge(config, file_config)
 
     # Apply environment variable overrides (INVENTORY_MD_*)
     _apply_env_overrides(config)
@@ -202,18 +246,29 @@ class Config:
     """Configuration holder with convenient access methods."""
 
     def __init__(self, path: Path | None = None):
-        """Initialize config, loading from file if found.
+        """Initialize config, loading from file(s).
 
         Args:
-            path: Optional explicit path to config file.
+            path: Optional explicit path to config file. If provided, only
+                  this file is loaded. Otherwise, all standard locations
+                  are searched and merged.
         """
-        self._path = path if path else find_config_file()
-        self._data = load_config(self._path)
+        self._explicit_path = path
+        if path is not None:
+            self._paths = [path] if path.exists() else []
+        else:
+            self._paths = find_config_files()
+        self._data = load_config(path)
 
     @property
     def path(self) -> Path | None:
-        """Return the path to the loaded config file, or None."""
-        return self._path
+        """Return the highest-priority loaded config file, or None."""
+        return self._paths[-1] if self._paths else None
+
+    @property
+    def paths(self) -> list[Path]:
+        """Return all loaded config file paths, in merge order."""
+        return self._paths.copy()
 
     @property
     def data(self) -> dict[str, Any]:

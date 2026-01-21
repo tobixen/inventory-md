@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configuration file system for CLI defaults
   - Supports `inventory-md.json`, `inventory-md.yaml`, and `~/.config/inventory-md/config.yaml`
   - All CLI options can be set as defaults in config
+  - Config files are merged with precedence: `/etc` → `~/.config` → current directory
+  - Environment variables (`INVENTORY_MD_*`) have highest priority
 - Photo registry integration for item-specific photo viewing
   - New `photo_registry.py` parser converts `photo-registry.md` to JSON
   - Parse command generates `photo-registry.json` alongside other files
