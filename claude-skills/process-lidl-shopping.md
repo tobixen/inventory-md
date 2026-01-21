@@ -111,10 +111,10 @@ Add new products to `~/solveig-inventory/ean_cache.json` with `lidl_receipt_name
 
 ### 8. Update diary with expenses
 
-Use the `~/bin/update-diary` script to add the expense:
+Use the `diary-update` command to add the expense:
 
 ```bash
-~/bin/update-diary --amount 23.08 --description "Lidl (milk, yogurt, spaghetti, bread, rum, meat)"
+diary-update -a 34.39 -c EUR -t food --description "Lidl groceries (rice, beans, lentils, beer, meat, milk, mayo, bread, vegetables)"
 ```
 
 Options:
@@ -123,12 +123,13 @@ Options:
 - `--type` / `-t`: Expense type (default: groceries)
 - `--description`: Brief description of what was bought
 - `--date` / `-d`: Date if not today (YYYY-MM-DD)
+- `--section` / `-s`: Section name (default: expenses)
 - `--commit`: Auto-commit the diary change
 - `--dry-run` / `-n`: Preview without making changes
 
 Or use the full line format:
 ```bash
-~/bin/update-diary --line "EUR 23.08 - groceries - Lidl (milk, yogurt, spaghetti)"
+diary-update --line "EUR 23.08 - groceries - Lidl (milk, yogurt, spaghetti)"
 ```
 
 ### 9. Commit changes
