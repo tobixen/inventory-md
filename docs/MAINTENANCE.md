@@ -13,6 +13,7 @@ Regular maintenance helps keep your inventory searchable, organized, and useful.
 | Add missing tags | Monthly | See [Tagging Guidelines](#tagging-guidelines) |
 | Update aliases | Quarterly | Edit `aliases.json` |
 | Manual photo check | Quarterly | See [Photo Guidelines](#photo-guidelines) |
+| AI photo verification | As needed | See [AI-Assisted Photo Verification](#ai-assisted-photo-verification) |
 | Backup photos | Monthly | Ensure photos are backed up |
 
 ---
@@ -202,6 +203,32 @@ For each photo directory:
   * Does the photo show anything that is not explicitly listed in the inventory list?  If so, add it to the inventory list.
   * Does the photo show additional details (specifications, colors, brands, etc) in additon to those already listed in inventory.md?  Search the web for specifications if some article number etc is found.  Add to the inventory list.
   * Are there things that exists in the inventory, but not in the photos?  Add an item to the TODO-list to take more photographs or verify the content.
+
+### AI-Assisted Photo Verification
+
+Claude Code can help with photo verification by viewing photos and comparing them against inventory entries. See `~/inventory-system/claude-skills/process-inventory-photos.md` for detailed instructions.
+
+**Basic workflow:**
+
+1. **Check photo timestamps**: `ls -la photos/{BOX_ID}/` to see when photos were taken
+2. **Check git history for removed items**: Photos may show items that have since been removed from inventory
+   ```bash
+   git log -p --all -S "ID:{BOX_ID}" -- inventory.md | head -100
+   ```
+3. **View photos and compare**: Claude reads photos and compares visible items against current inventory
+4. **Update inventory.md**: Add missing items, enhance descriptions with brand names/specifications
+5. **Update photo-registry.md**: Map each photo to the items visible in it
+6. **Commit changes**: Document what was verified
+
+**Important considerations:**
+
+* If photos are older than recent inventory changes, items may have been removed - check git history before adding "missing" items back
+* Mark removed items in photo-registry.md with a note like "(removed)" rather than re-adding them to inventory
+* Add brand names, model numbers, colors, and other details visible in photos
+* Match the language style used elsewhere in the inventory (some instances use Norwegian, others English)
+* Run the barcode extractor on photos to find EAN/UPC codes (see [Barcode Sync](#barcode-sync-monthly))
+* Look up barcodes, product numbers, and article numbers on the internet to find full specifications
+* Search for visible text like article numbers, model numbers, or brand names to identify items precisely
 
 ---
 
