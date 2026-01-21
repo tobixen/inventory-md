@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Item-specific lightbox mode for viewing only photos of a specific item
 - Release script for automated versioning and AUR publishing
 - Proper error handling with tracebacks for server startup
+- `update-template` command to refresh search.html to latest version
+- Document-level metadata in inventory.md
+  - Add `lang: no` or `lang: en` at top of inventory.md to set UI language
+  - Language is included in inventory.json and read by search.html
+  - Falls back to browser language detection if not specified
 
 ### Changed
 - Systemd service config path changed to `/etc/inventory-system/`
