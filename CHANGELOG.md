@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- QR label generation feature for printing inventory labels (NOT TESTED!)
+  - New `labels` command with `generate`, `formats`, and `preview` subcommands
+  - Support for label sheets (configurable formats in mm)
+  - Three label styles: standard (QR + ID + date), compact (QR only), duplicate (two QRs)
+  - Configurable via config file (`labels.base_url`, `labels.sheet_format`, etc.)
+  - `--dupes` option to print multiple copies of each label
+- Configuration file system for CLI defaults
+  - Supports `inventory-md.json`, `inventory-md.yaml`, and `~/.config/inventory-md/config.yaml`
+  - All CLI options can be set as defaults in config
+- Photo registry integration for item-specific photo viewing
+  - New `photo_registry.py` parser converts `photo-registry.md` to JSON
+  - Parse command generates `photo-registry.json` alongside other files
+  - Search interface shows 📷 icon next to items with photos in registry
+  - Item-specific lightbox mode for viewing only photos of a specific item
+- Release script for automated versioning and AUR publishing
+- Proper error handling with tracebacks for server startup
+
+### Changed
+- Systemd service config path changed to `/etc/inventory-system/`
+
+### Fixed
+- Pytest config warning: use `norecursedirs` instead of `collect_ignore`
+
 ## [0.3.0] - 2026-01-16
 
 ### Added
