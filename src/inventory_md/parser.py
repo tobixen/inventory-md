@@ -168,12 +168,59 @@ def extract_metadata(text: str) -> dict[str, Any]:
     }
 
 
+def extract_document_metadata(lines: list[str]) -> tuple[dict[str, str], int]:
+    """
+    Extract document-level metadata from the beginning of the file.
+
+    Looks for key: value lines at the very top, before any markdown content.
+    Supported keys: lang, language, title
+
+    Args:
+        lines: List of lines from the file
+
+    Returns:
+        Tuple of (metadata dict, number of lines consumed)
+    """
+    metadata = {}
+    consumed = 0
+
+    for line in lines:
+        stripped = line.strip()
+        # Stop at empty line, markdown heading, or non-metadata content
+        if not stripped:
+            consumed += 1
+            continue
+        if stripped.startswith('#') or stripped.startswith('*') or stripped.startswith('-'):
+            break
+
+        # Check for key: value pattern
+        if ':' in stripped and not stripped.startswith('http'):
+            key, _, value = stripped.partition(':')
+            key = key.strip().lower()
+            value = value.strip()
+
+            if key in ('lang', 'language'):
+                metadata['lang'] = value
+            elif key == 'title':
+                metadata['title'] = value
+            else:
+                # Unknown key, stop processing metadata
+                break
+            consumed += 1
+        else:
+            # Not a metadata line, stop
+            break
+
+    return metadata, consumed
+
+
 def parse_inventory(md_file: Path) -> dict[str, Any]:
     """
     Parse the markdown inventory file into structured data.
 
     Returns:
         {
+            'lang': str (optional, e.g., 'no' or 'en'),
             'intro': str,
             'numbering_scheme': str,
             'containers': [...]
@@ -182,17 +229,28 @@ def parse_inventory(md_file: Path) -> dict[str, Any]:
     with open(md_file, encoding='utf-8') as f:
         content = f.read()
 
+    lines = content.split('\n')
+
+    # Extract document-level metadata from the top of the file
+    doc_metadata, metadata_lines = extract_document_metadata(lines)
+
     result = {
         'intro': '',
         'numbering_scheme': '',
         'containers': []
     }
 
+    # Add document metadata to result
+    if 'lang' in doc_metadata:
+        result['lang'] = doc_metadata['lang']
+    if 'title' in doc_metadata:
+        result['title'] = doc_metadata['title']
+
     # Track inferred parent relationships from section listings
     inferred_parents = {}  # container_id -> parent_id
 
-    lines = content.split('\n')
-    i = 0
+    # Start parsing after document metadata
+    i = metadata_lines
     current_container = None
     current_section_id = None  # Track current section ID for parent inference
     current_top_level_id = None  # Track top-level section (e.g., ID:Garasje)

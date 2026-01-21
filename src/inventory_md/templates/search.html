@@ -1103,8 +1103,10 @@
     </div>
 
     <script>
-        // LANGUAGE CONFIGURATION - Change 'en' to 'no' for Norwegian
-        const LANGUAGE = 'no'; // Options: 'en' or 'no'
+        // LANGUAGE CONFIGURATION
+        // Language is determined by: 1) inventory.json 'lang' field, 2) browser language, 3) fallback to 'en'
+        const browserLang = navigator.language || navigator.userLanguage || 'en';
+        let LANGUAGE = browserLang.startsWith('no') || browserLang.startsWith('nb') || browserLang.startsWith('nn') ? 'no' : 'en';
 
         const translations = {
             en: {
@@ -1566,6 +1568,12 @@
                 // Load inventory data
                 const response = await fetch('inventory.json');
                 inventoryData = await response.json();
+
+                // Update language from inventory if specified
+                if (inventoryData.lang) {
+                    LANGUAGE = inventoryData.lang;
+                    console.log('📝 Using language from inventory:', LANGUAGE);
+                }
 
                 // Load aliases (optional - don't fail if not available)
                 try {
