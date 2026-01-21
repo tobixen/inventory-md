@@ -396,6 +396,34 @@ This will:
 - Generate thumbnails in `resized/`
 - Update `inventory.json`
 - Create photo listings
+- Parse `photo-registry.md` and generate `photo-registry.json`
+
+### Photo Registry
+
+The `photo-registry.md` file maps individual photos to specific items, enabling:
+- Photo icons (📷) next to items in search results
+- Clicking to view only photos of that specific item
+- Filtered photo galleries based on search/tag filters
+
+**Format:**
+```markdown
+## Session: 2026-01-03
+
+### TB-03
+
+| Photo | Item IDs |
+|-------|----------|
+| IMG_001.jpg | ID:drill-bosch |
+| IMG_002.jpg | ID:wrench-force17, ID:drill-bosch |
+| IMG_003.jpg | (overview) |
+```
+
+When you run `inventory-md parse`, it automatically generates `photo-registry.json` containing:
+- `photos`: Map of filename → {items, container, session, notes}
+- `items`: Reverse index of item ID → list of photo filenames
+- `containers`: Map of container ID → list of photo filenames
+
+See `claude-skills/process-inventory-photos.md` for detailed instructions on maintaining the photo registry.
 
 ### Photo Organization
 
@@ -418,9 +446,11 @@ photos/
 | Directory/File | Priority | Notes |
 |----------------|----------|-------|
 | `inventory.md` | Critical | Source of truth |
+| `photo-registry.md` | Critical | Photo-to-item mappings |
 | `photos/` | Critical | Original photos (large) |
 | `aliases.json` | High | Search configuration |
 | `inventory.json` | Low | Can be regenerated |
+| `photo-registry.json` | Low | Can be regenerated |
 | `resized/` | Low | Can be regenerated |
 
 ### Backup Commands

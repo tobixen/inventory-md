@@ -103,6 +103,53 @@ This queries Open Food Facts and returns the product name, brand, and quantity.
 * tag:food/condiment ID:ketchup-heinz EAN:5000157024671 bb:2027-03 Heinz Tomato Ketchup (570g)
 ```
 
+## Photo Registry Format
+
+The `photo-registry.md` file maps photos to items using markdown tables:
+
+```markdown
+# Photo-Item Registry
+
+## Session: 2026-01-03
+
+### TB-03 (Box description)
+
+| Photo | Item IDs |
+|-------|----------|
+| IMG_20260103_224919.jpg | ID:drill-bosch |
+| IMG_20260103_225014.jpg | ID:gloves-nyroca, ID:goggles-tb03 |
+| IMG_20260103_225018.jpg | (overview) |
+| IMG_20260103_225031.jpg | ID:tea-caykur (best-before label: 2028-10-04) |
+```
+
+**Structure:**
+- Session headers with dates (`## Session: YYYY-MM-DD`)
+- Container/location headers (`### CONTAINER-ID`)
+- Tables with `| Photo | Item IDs |` columns
+
+**Item IDs format:** `ID:category-shortname` (e.g., `ID:drill-bosch`, `ID:wrench-force17`)
+
+**Special entries:**
+- `(overview)` - Overview photo of entire container
+- `(box label)` - Photo of the container label
+- `(blurry)` - Unusable photo
+- `(not in inventory)` - Item visible but not tracked
+- `(best-before: DATE)` - Notes about visible labels
+
+## Photo Registry JSON Generation
+
+When running `inventory-md parse`, the system automatically:
+1. Parses `photo-registry.md` if it exists
+2. Generates `photo-registry.json` with:
+   - `photos`: Map of filename → {items, container, session, notes}
+   - `items`: Reverse index of item ID → [filenames]
+   - `containers`: Map of container → [filenames]
+
+This JSON enables the search.html web interface to:
+- Show a 📷 icon next to items that have photos
+- Display item-specific photos when clicking the icon
+- Filter gallery view to show only photos of matching items
+
 ## Notes
 - Photos are NOT stored in git (listed in .gitignore)
 - Use sync-photos.sh to rsync photos to server

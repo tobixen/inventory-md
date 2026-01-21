@@ -164,6 +164,22 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
             else:
                 print("   No photos found (photo-listings/ not updated)")
 
+            # Parse photo registry if it exists
+            photo_registry_md = md_file.parent / "photo-registry.md"
+            if photo_registry_md.exists():
+                import json as json_module
+
+                from . import photo_registry
+                print("\n📷 Parsing photo registry...")
+                registry_data = photo_registry.parse_photo_registry(photo_registry_md)
+                registry_output = md_file.parent / "photo-registry.json"
+                registry_output.write_text(
+                    json_module.dumps(registry_data, indent=2, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                print(f"✅ Found {len(registry_data['photos'])} photos mapped to {len(registry_data['items'])} items")
+                print(f"   Saved to {registry_output}")
+
             # Generate shopping list if wanted-items file specified
             if wanted_items:
                 wanted_path = Path(wanted_items).resolve()
