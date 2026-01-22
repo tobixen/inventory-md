@@ -1468,9 +1468,15 @@
             inventoryData.containers.forEach(container => {
                 const containerId = container.id;
                 const searchableText = [
+                    container.id,  // Include container ID in search
                     container.heading,
                     container.description,
-                    ...container.items.map(item => item.raw_text || item.name || item)
+                    ...container.items.map(item => {
+                        // Include item ID and text
+                        const parts = [item.raw_text || item.name || item];
+                        if (item.id) parts.unshift(item.id);
+                        return parts.join(' ');
+                    })
                 ].join(' ').toLowerCase();
 
                 searchIndex.set(containerId, searchableText);
