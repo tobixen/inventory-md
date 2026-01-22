@@ -189,11 +189,18 @@ Reference: See `inventory-system/tag-mapping.json` for full Norwegian-English ma
 
 Use unique IDs to link items between inventory.md and photo-registry.md.
 
+**IMPORTANT:** When you assign an ID in photo-registry.md, you MUST also add that same ID to the corresponding item in inventory.md. The ID must exist in BOTH files for cross-referencing to work. Failing to do this will break photo-to-item linking.
+
 **ID format:** `ID:category-shortname` or `ID:category-shortname-number`
 
 Examples: `ID:drill-einhell1`, `ID:wrench-force17`, `ID:gloves-nyroca1`
 
 Make sure the IDs are unique, add some postfix like `-02` if necessary
+
+**Workflow for assigning IDs:**
+1. Choose a descriptive ID for the item (e.g., `ID:bagasjevekt-travel-scale`)
+2. Add the ID to the item line in **inventory.md** (after tag:, before description)
+3. Use the same ID in **photo-registry.md** to reference the item in photos
 
 **In inventory.md:**
 ```markdown

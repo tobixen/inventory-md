@@ -405,6 +405,12 @@ The `photo-registry.md` file maps individual photos to specific items, enabling:
 - Clicking to view only photos of that specific item
 - Filtered photo galleries based on search/tag filters
 
+**IMPORTANT:** When assigning an `ID:xxx` in photo-registry.md, that same ID must also be added to the corresponding item in inventory.md. The ID must exist in BOTH files:
+- In inventory.md: `* tag:category ID:item-name Item description`
+- In photo-registry.md: `| IMG_xxx.jpg | ID:item-name |`
+
+Without this, the photo-to-item cross-referencing will not work.
+
 **Format:**
 ```markdown
 ## Session: 2026-01-03
