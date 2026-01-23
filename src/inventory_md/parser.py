@@ -594,6 +594,187 @@ def parse_inventory(md_file: Path) -> dict[str, Any]:
     return result
 
 
+def parse_inventory_v2(md_file: Path) -> dict[str, Any]:
+    """
+    Parse the markdown inventory file into structured data using markdown-it-py.
+
+    This is a refactored version that uses the markdown-it-py library for base parsing.
+    It maintains backward compatibility with the original parse_inventory output format.
+
+    Returns:
+        {
+            'lang': str (optional, e.g., 'no' or 'en'),
+            'title': str (optional),
+            'intro': str,
+            'numbering_scheme': str,
+            'containers': [...]
+        }
+    """
+    from . import md_adapter
+
+    with open(md_file, encoding='utf-8') as f:
+        content = f.read()
+
+    lines = content.split('\n')
+
+    # Extract document-level metadata from the top of the file (before any headings)
+    doc_metadata, _ = extract_document_metadata(lines)
+
+    result: dict[str, Any] = {
+        'intro': '',
+        'numbering_scheme': '',
+        'containers': []
+    }
+
+    # Add document metadata to result
+    if 'lang' in doc_metadata:
+        result['lang'] = doc_metadata['lang']
+    if 'title' in doc_metadata:
+        result['title'] = doc_metadata['title']
+
+    # Parse the markdown structure using markdown-it-py
+    sections = md_adapter.parse_markdown_string(content)
+
+    # Track parent relationships from heading hierarchy
+    inferred_parents: dict[str, str] = {}
+
+    def process_section(
+        section: md_adapter.MarkdownSection,
+        parent_container_id: str | None = None
+    ) -> None:
+        """Process a section and its subsections recursively."""
+        heading = section.heading
+
+        # Skip special sections
+        if heading.strip().startswith('Intro'):
+            result['intro'] = '\n\n'.join(section.paragraphs)
+            return
+        if heading.strip().startswith('Nummereringsregime'):
+            result['numbering_scheme'] = '\n\n'.join(section.paragraphs)
+            return
+        if heading.strip().startswith('Oversikt over'):
+            return
+
+        # Extract metadata from heading
+        parsed = extract_metadata(heading)
+
+        # Get container ID
+        if parsed['metadata'].get('id'):
+            container_id = parsed['metadata']['id']
+        else:
+            # Generate ID from heading text
+            clean_heading = parsed['name'] if parsed['name'] else heading
+            sanitized = re.sub(r'[^\w\s-]', '', clean_heading)
+            sanitized = re.sub(r'\s+', '-', sanitized.strip())
+            container_id = sanitized[:50] if sanitized else f'Container-{section.level}'
+
+        # Determine parent
+        parent_id = parsed['metadata'].get('parent')
+        if not parent_id and parent_container_id:
+            parent_id = parent_container_id
+            inferred_parents[container_id] = parent_id
+
+        # Parse items from the section's list_items
+        items = []
+        for list_item in section.list_items:
+            item_text = list_item['text']
+            item_parsed = extract_metadata(item_text)
+
+            # Track parent inference for items with IDs
+            if item_parsed['metadata'].get('id'):
+                item_id = item_parsed['metadata']['id']
+                inferred_parents[item_id] = container_id
+
+            items.append({
+                'id': item_parsed['metadata'].get('id'),
+                'parent': item_parsed['metadata'].get('parent'),
+                'name': item_parsed['name'],
+                'raw_text': item_text,
+                'metadata': item_parsed['metadata'],
+                'indented': False
+            })
+
+            # Handle nested items
+            for nested_item in list_item.get('nested', []):
+                nested_text = nested_item['text']
+                nested_parsed = extract_metadata(nested_text)
+                items.append({
+                    'id': nested_parsed['metadata'].get('id'),
+                    'parent': nested_parsed['metadata'].get('parent'),
+                    'name': nested_parsed['name'],
+                    'raw_text': nested_text,
+                    'metadata': nested_parsed['metadata'],
+                    'indented': True
+                })
+
+        # Handle section headers in paragraphs (like **Arabic:**)
+        for para in section.paragraphs:
+            if para.startswith('**') and para.endswith(':**'):
+                section_name = para[2:-3]
+                items.append({
+                    'id': None,
+                    'parent': None,
+                    'name': section_name,
+                    'raw_text': para,
+                    'metadata': {},
+                    'is_section_header': True
+                })
+
+        # Get description from paragraphs (excluding section headers and images)
+        description_parts = []
+        for para in section.paragraphs:
+            if para.startswith('**') and para.endswith(':**'):
+                continue
+            if para.startswith('!['):
+                continue
+            description_parts.append(para)
+
+        # Create container
+        container = {
+            'id': container_id,
+            'parent': parent_id,
+            'heading': parsed['name'],
+            'description': ' '.join(description_parts),
+            'items': items,
+            'images': [],
+            'photos_link': '',
+            'metadata': parsed['metadata']
+        }
+        result['containers'].append(container)
+
+        # Process subsections with this container as parent
+        for subsection in section.subsections:
+            process_section(subsection, container_id)
+
+    # Process all top-level sections
+    for section in sections:
+        process_section(section)
+
+    # Apply inferred parent relationships (for cases not handled during recursion)
+    for container in result['containers']:
+        if not container.get('parent') and container['id'] in inferred_parents:
+            container['parent'] = inferred_parents[container['id']]
+
+    # Discover images from filesystem for each container
+    base_path = md_file.parent
+    for container in result['containers']:
+        container_id = container.get('id')
+        if container_id:
+            photo_dir = None
+            if container.get('metadata') and container['metadata'].get('photos'):
+                photo_dir = container['metadata']['photos']
+            if not photo_dir:
+                photos_link = container.get('photos_link', '')
+                if photos_link:
+                    photo_dir = photos_link.replace('photos/', '').strip('/')
+            if not photo_dir:
+                photo_dir = container_id
+            discovered_images = discover_images(photo_dir, base_path)
+            container['images'] = discovered_images
+
+    return result
+
+
 def add_container_id_prefixes(md_file: Path) -> tuple[int, dict[str, list[str]]]:
     """
     Add ID: prefix to all container headers and handle duplicates.
