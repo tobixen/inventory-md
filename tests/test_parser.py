@@ -107,8 +107,8 @@ class TestParseInventoryDocumentMetadata:
         assert len(result['containers']) == 1
 
 
-class TestParseInventoryV2:
-    """Tests for the markdown-to-json based parser."""
+class TestParseInventoryMarkdownItPy:
+    """Tests for the markdown-it-py based parser."""
 
     def test_parse_simple_container(self, tmp_path):
         """Test parsing a simple container with items."""
@@ -120,7 +120,7 @@ Description of the box
 * Item one
 * Item two
 """)
-        result = parser.parse_inventory_v2(md_file)
+        result = parser.parse_inventory(md_file)
 
         assert len(result['containers']) == 1
         container = result['containers'][0]
@@ -128,21 +128,6 @@ Description of the box
         assert container['heading'] == 'Storage Box'
         assert 'Description of the box' in container['description']
         assert len(container['items']) == 2
-
-    def test_parse_with_metadata(self, tmp_path):
-        """Test parsing with document metadata."""
-        md_file = tmp_path / "inventory.md"
-        md_file.write_text("""lang: no
-title: My Inventory
-
-# ID:test Test container
-
-* item 1
-""")
-        result = parser.parse_inventory_v2(md_file)
-
-        assert result.get('lang') == 'no'
-        assert result.get('title') == 'My Inventory'
 
     def test_parse_nested_hierarchy(self, tmp_path):
         """Test parsing nested container hierarchy."""
@@ -157,7 +142,7 @@ title: My Inventory
 
 * Item in box
 """)
-        result = parser.parse_inventory_v2(md_file)
+        result = parser.parse_inventory(md_file)
 
         assert len(result['containers']) == 3
 
@@ -181,7 +166,7 @@ title: My Inventory
 * tag:tools,hardware Screwdriver set
 * ID:wrench My wrench
 """)
-        result = parser.parse_inventory_v2(md_file)
+        result = parser.parse_inventory(md_file)
 
         container = result['containers'][0]
         assert len(container['items']) == 2
@@ -205,7 +190,7 @@ This is the introduction.
 
 * item
 """)
-        result = parser.parse_inventory_v2(md_file)
+        result = parser.parse_inventory(md_file)
 
         assert result['intro'] == 'This is the introduction.'
         assert len(result['containers']) == 1
@@ -219,42 +204,10 @@ This is the introduction.
   * Nested item 1
   * Nested item 2
 """)
-        result = parser.parse_inventory_v2(md_file)
+        result = parser.parse_inventory(md_file)
 
         container = result['containers'][0]
         assert len(container['items']) == 3
         assert container['items'][0]['indented'] is False
         assert container['items'][1]['indented'] is True
         assert container['items'][2]['indented'] is True
-
-
-class TestParseInventoryV1V2Compatibility:
-    """Tests to verify v2 produces compatible output with v1."""
-
-    def test_basic_compatibility(self, tmp_path):
-        """Test that v1 and v2 produce compatible output for basic input."""
-        md_file = tmp_path / "inventory.md"
-        md_file.write_text("""lang: en
-
-# ID:container1 Test Container
-
-A description here.
-
-* Item one
-* tag:test Item two
-""")
-        result_v1 = parser.parse_inventory(md_file)
-        result_v2 = parser.parse_inventory_v2(md_file)
-
-        # Check top-level fields
-        assert result_v1.get('lang') == result_v2.get('lang')
-
-        # Check container count
-        assert len(result_v1['containers']) == len(result_v2['containers'])
-
-        # Check container fields
-        c1 = result_v1['containers'][0]
-        c2 = result_v2['containers'][0]
-        assert c1['id'] == c2['id']
-        assert c1['heading'] == c2['heading']
-        assert len(c1['items']) == len(c2['items'])

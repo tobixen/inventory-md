@@ -15,14 +15,12 @@ from .parser import (
     extract_metadata,
     load_json,
     parse_inventory,
-    parse_inventory_v2,
     save_json,
     validate_inventory,
 )
 
 __all__ = [
     "parse_inventory",
-    "parse_inventory_v2",
     "extract_metadata",
     "validate_inventory",
     "add_container_id_prefixes",
