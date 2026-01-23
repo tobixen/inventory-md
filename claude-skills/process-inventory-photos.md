@@ -37,6 +37,26 @@ This will:
 
 **Use this output while analyzing photos** - you'll already know what many products are.
 
+### 2b. Manual barcode/article lookups
+For items not in Open Food Facts, try manual lookups:
+
+**BILTEMA articles** (Art. XX-XXXXX format):
+- Try: `https://www.biltema.no/search?q=XXXXX` (note: search pages may not render well)
+- Record article number in inventory as `biltema:XX-XXXXX`
+
+**Clas Ohlson articles** (XX.XXXX-X format):
+- Try: `https://www.clasohlson.com/no/search?q=XXXXXXX`
+
+**EAN codes**: Always include in inventory as `EAN:XXXXXXXXXXXXX`
+
+**Always record from photos:**
+- EAN/UPC barcodes
+- Article/product numbers (Art., Prod.nr, Item No.)
+- Model numbers
+- Serial numbers (for valuable items)
+- Best-before dates (bb:YYYY-MM-DD)
+- Batch/lot numbers (for recalls)
+
 ### 3. View photos to identify boxes and items
 - Look for labels, or ask the user about container/location.  The labels are often on the format A-03, TB-42, etc
 - When some pictures are missing label, quite often the label will be the same as on the previous box
