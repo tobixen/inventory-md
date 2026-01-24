@@ -94,7 +94,7 @@ If estimated, the best before should be postfixed with `:EST`.  `bb:2026-12-13:E
 
 ### 7. Update EAN cache
 
-Add new products to `~/solveig-inventory/ean_cache.json` with `lidl_receipt_name` field:
+Add new products to `~/solveig-inventory/ean_cache.json` with `lidl_receipt_name` field and price history:
 ```json
 {
   "EAN_CODE": {
@@ -104,10 +104,22 @@ Add new products to `~/solveig-inventory/ean_cache.json` with `lidl_receipt_name
     "quantity": "amount",
     "categories": "Category",
     "lidl_receipt_name": "BULGARIAN RECEIPT NAME",
-    "source": "manual"
+    "source": "manual",
+    "prices": [
+      {"date": "2026-01-24", "shop": "Lidl Varna", "price": 1.02, "currency": "EUR", "unit": "pcs"}
+    ]
   }
 }
 ```
+
+**Price history format:**
+- `date`: Purchase date (YYYY-MM-DD)
+- `shop`: Store name/location
+- `price`: Unit price (per piece or per kg depending on `unit`)
+- `currency`: Currency code (EUR, BGN, etc.)
+- `unit`: "pcs" for per-piece, "kg" for per-kilogram
+
+Add new price entries to existing products to track price changes over time.
 
 ### 8. Update diary with expenses
 
@@ -132,12 +144,31 @@ Or use the full line format:
 diary-update --line "EUR 23.08 - groceries - Lidl (milk, yogurt, spaghetti)"
 ```
 
-### 9. Commit changes
+### 9. Copy photos to storage location directories
+
+Photos should be organized by **storage location**, not by shopping trip. Copy each item's photos to the directory matching where it's stored:
+
+```bash
+# Example: nutmeg goes to spices container F-13
+cp ~/s/photos.tobixen/newmi/IMG_nutmeg*.jpg ~/solveig-inventory/photos/F-13/
+
+# Example: milk goes to fridge
+cp ~/s/photos.tobixen/newmi/IMG_milk*.jpg ~/solveig-inventory/photos/pantry-fridge/
+
+# Example: sauces go to food2-spreads
+cp ~/s/photos.tobixen/newmi/IMG_sauce*.jpg ~/solveig-inventory/photos/food2-spreads/
+```
+
+Create the directory if it doesn't exist: `mkdir -p ~/solveig-inventory/photos/LOCATION-ID/`
+
+**Do NOT** create shopping-date directories like `lidl-2026-01-24/`.
+
+### 10. Commit changes
 
 Commit to solveig-inventory (diary is committed separately via update-diary --commit):
 ```bash
 cd ~/solveig-inventory
-git add inventory.md ean_cache.json
+git add inventory.md ean_cache.json photo-registry.md
 git commit -m "Add Lidl shopping YYYY-MM-DD to inventory"
 ```
 
