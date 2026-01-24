@@ -72,7 +72,7 @@ class TestSKOSClient:
         assert client.cache_dir == skos.DEFAULT_CACHE_DIR
         assert "agrovoc" in client.endpoints
         assert "dbpedia" in client.endpoints
-        assert client.timeout == 10.0
+        assert client.timeout == 30.0
 
     def test_init_custom(self, tmp_path):
         """Test client initialization with custom settings."""

@@ -32,6 +32,7 @@ ENDPOINTS = {
 # Cache settings
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "inventory-md" / "skos"
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
+DEFAULT_TIMEOUT = 30.0  # SPARQL endpoints can be slow
 
 
 def _get_cache_path(cache_dir: Path, key: str) -> Path:
@@ -76,7 +77,7 @@ class SKOSClient:
         self,
         cache_dir: Path | None = None,
         endpoints: dict[str, str] | None = None,
-        timeout: float = 10.0,
+        timeout: float = DEFAULT_TIMEOUT,
         enabled_sources: list[str] | None = None,
     ):
         """Initialize SKOS client.

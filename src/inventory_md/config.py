@@ -33,7 +33,7 @@ DEFAULTS: dict[str, Any] = {
     "skos": {
         "enabled_sources": ["agrovoc", "dbpedia"],
         "cache_ttl_days": 30,
-        "timeout": 10.0,
+        "timeout": 30.0,
         "default_lang": "en",
     },
 }
