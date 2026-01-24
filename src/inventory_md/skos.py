@@ -166,7 +166,8 @@ class SKOSClient:
         if not endpoint:
             return None
 
-        # First, find the concept URI by label
+        # First, find the concept URI by label (case-insensitive)
+        label_lower = label.lower()
         query = f"""
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
@@ -174,10 +175,10 @@ class SKOSClient:
         SELECT DISTINCT ?concept ?prefLabel WHERE {{
             {{
                 ?concept skosxl:prefLabel/skosxl:literalForm ?label .
-                FILTER(lcase(str(?label)) = "{label.lower()}"@{lang} || lcase(str(?label)) = "{label.lower()}")
+                FILTER(lcase(str(?label)) = "{label_lower}")
             }} UNION {{
                 ?concept skosxl:altLabel/skosxl:literalForm ?label .
-                FILTER(lcase(str(?label)) = "{label.lower()}"@{lang} || lcase(str(?label)) = "{label.lower()}")
+                FILTER(lcase(str(?label)) = "{label_lower}")
             }}
             ?concept skosxl:prefLabel/skosxl:literalForm ?prefLabel .
             FILTER(lang(?prefLabel) = "{lang}" || lang(?prefLabel) = "")
@@ -231,16 +232,17 @@ class SKOSClient:
         if not endpoint:
             return None
 
-        # DBpedia uses Wikipedia article names, try to find matching resource
+        # DBpedia uses Wikipedia article names (Title Case)
+        # Use exact match for performance - case-insensitive search is too slow
+        label_title = label.title()  # "potato" -> "Potato"
         query = f"""
         PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
         PREFIX dct: <http://purl.org/dc/terms/>
-        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-        PREFIX dbo: <http://dbpedia.org/ontology/>
 
         SELECT DISTINCT ?resource ?label ?category WHERE {{
+            ?resource rdfs:label "{label_title}"@{lang} .
             ?resource rdfs:label ?label .
-            FILTER(lcase(str(?label)) = "{label.lower()}"@{lang})
+            FILTER(lang(?label) = "{lang}")
             OPTIONAL {{ ?resource dct:subject ?category }}
         }}
         LIMIT 1
@@ -264,23 +266,23 @@ class SKOSClient:
         }
 
     def _get_broader_dbpedia(self, resource_uri: str, lang: str) -> list[dict]:
-        """Get broader (parent) categories from DBpedia."""
+        """Get direct categories from DBpedia (not broader hierarchy)."""
         endpoint = self.endpoints.get("dbpedia")
         if not endpoint:
             return []
 
-        # Get categories and their parent categories
+        # Get direct categories only - traversing broader* is too slow and returns
+        # very generic categories. Direct categories are more useful.
         query = f"""
         PREFIX dct: <http://purl.org/dc/terms/>
-        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
         PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
         SELECT DISTINCT ?category ?label WHERE {{
-            <{resource_uri}> dct:subject/skos:broader* ?category .
+            <{resource_uri}> dct:subject ?category .
             ?category rdfs:label ?label .
             FILTER(lang(?label) = "{lang}")
         }}
-        LIMIT 20
+        LIMIT 10
         """
 
         results = self._sparql_query(endpoint, query)
