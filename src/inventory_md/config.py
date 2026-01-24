@@ -30,6 +30,12 @@ DEFAULTS: dict[str, Any] = {
         "show_date": True,
         "duplicate_qr": False,
     },
+    "skos": {
+        "enabled_sources": ["agrovoc", "dbpedia"],
+        "cache_ttl_days": 30,
+        "timeout": 10.0,
+        "default_lang": "en",
+    },
 }
 
 

@@ -8,13 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- QR label generation feature for printing inventory labels (NOT TESTED!)
+- QR label generation feature for printing inventory labels **Not tested at all** (sorry - I'll get to it)
   - New `labels` command with `generate`, `formats`, and `preview` subcommands
   - Support for label sheets (configurable formats in mm)
   - Three label styles: standard (QR + ID + date), compact (QR only), duplicate (two QRs)
   - Configurable via config file (`labels.base_url`, `labels.sheet_format`, etc.)
   - `--dupes` option to print multiple copies of each label
-- Configuration file system for CLI defaults
+- Configuration file system for CLI defaults (Not much tested yet)
   - Supports `inventory-md.json`, `inventory-md.yaml`, and `~/.config/inventory-md/config.yaml`
   - All CLI options can be set as defaults in config
   - Config files are merged with precedence: `/etc` → `~/.config` → current directory
@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Add `lang: no` or `lang: en` at top of inventory.md to set UI language
   - Language is included in inventory.json and read by search.html
   - Falls back to browser language detection if not specified
+- SKOS vocabulary support for hierarchical tag expansion
+  - New `skos` command with `expand`, `lookup`, and `cache` subcommands
+  - Queries AGROVOC and DBpedia SPARQL endpoints
+  - On-demand lookups with local caching (~/.cache/inventory-md/skos/)
+  - Expands simple tags to hierarchical paths (e.g., "potatoes" → "vegetables/potatoes")
 
 ### Changed
 - Systemd service config path changed to `/etc/inventory-system/`

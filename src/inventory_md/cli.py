@@ -742,6 +742,43 @@ Examples:
     labels_prev.add_argument('--start', type=str, help='Starting ID (e.g., AB5)')
     labels_prev.add_argument('--count', '-n', type=int, default=10, help='Number of IDs to show (default: 10)')
 
+    # SKOS command with subcommands
+    skos_parser = subparsers.add_parser('skos', help='SKOS vocabulary lookups for tag hierarchies')
+    skos_subparsers = skos_parser.add_subparsers(dest='skos_command', help='SKOS subcommand')
+
+    # skos expand
+    skos_expand = skos_subparsers.add_parser(
+        'expand',
+        help='Expand tags to hierarchical paths using SKOS vocabularies',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Queries AGROVOC and DBpedia SPARQL endpoints to find hierarchical paths
+for tags. Results are cached locally for faster subsequent lookups.
+
+Examples:
+  inventory-md skos expand potatoes
+  inventory-md skos expand --lang no poteter
+  inventory-md skos expand screwdriver hammer wrench
+        """,
+    )
+    skos_expand.add_argument('tags', nargs='+', help='Tags to expand')
+    skos_expand.add_argument('--lang', '-l', type=str, default='en', help='Language code (default: en)')
+    skos_expand.add_argument('--sources', type=str, default='agrovoc,dbpedia',
+                             help='Comma-separated sources to query (default: agrovoc,dbpedia)')
+    skos_expand.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+
+    # skos lookup
+    skos_lookup = skos_subparsers.add_parser('lookup', help='Look up a single concept with full details')
+    skos_lookup.add_argument('label', help='Label to look up')
+    skos_lookup.add_argument('--lang', '-l', type=str, default='en', help='Language code (default: en)')
+    skos_lookup.add_argument('--source', '-s', type=str, default='agrovoc',
+                             help='Source to query (default: agrovoc)')
+
+    # skos cache
+    skos_cache = skos_subparsers.add_parser('cache', help='Manage SKOS lookup cache')
+    skos_cache.add_argument('--clear', action='store_true', help='Clear all cached lookups')
+    skos_cache.add_argument('--path', action='store_true', help='Show cache directory path')
+
     args = parser_cli.parse_args()
 
     if args.command == 'config':
@@ -818,8 +855,87 @@ Examples:
         else:
             labels_parser.print_help()
             return 1
+    elif args.command == 'skos':
+        return skos_command(args, config)
     else:
         parser_cli.print_help()
+        return 1
+
+
+def skos_command(args, config: Config) -> int:
+    """Handle SKOS subcommands."""
+    try:
+        from . import skos
+    except ImportError as e:
+        print(f"Missing required package: {e}")
+        print("\nInstall SKOS dependencies:")
+        print('  pip install "inventory-md[skos]"')
+        return 1
+
+    skos_config = config.get("skos", {})
+    default_lang = skos_config.get("default_lang", "en")
+
+    if args.skos_command == 'expand':
+        lang = getattr(args, 'lang', default_lang)
+        sources = getattr(args, 'sources', 'agrovoc,dbpedia').split(',')
+        output_json = getattr(args, 'json', False)
+
+        client = skos.SKOSClient(enabled_sources=sources)
+        result = client.expand_tags(args.tags, lang=lang)
+
+        if output_json:
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+        else:
+            for tag, paths in result.items():
+                print(f"{tag}:")
+                for path in paths:
+                    print(f"  → {path}")
+
+        return 0
+
+    elif args.skos_command == 'lookup':
+        lang = getattr(args, 'lang', default_lang)
+        source = getattr(args, 'source', 'agrovoc')
+
+        client = skos.SKOSClient(enabled_sources=[source])
+        concept = client.lookup_concept(args.label, lang=lang, source=source)
+
+        if concept and concept.get('uri'):
+            print(json.dumps(concept, indent=2, ensure_ascii=False))
+        else:
+            print(f"No concept found for '{args.label}' in {source}")
+            return 1
+
+        return 0
+
+    elif args.skos_command == 'cache':
+        if getattr(args, 'clear', False):
+            client = skos.SKOSClient()
+            count = client.clear_cache()
+            print(f"Cleared {count} cached lookups")
+            return 0
+        elif getattr(args, 'path', False):
+            print(skos.DEFAULT_CACHE_DIR)
+            return 0
+        else:
+            # Show cache stats
+            cache_dir = skos.DEFAULT_CACHE_DIR
+            if cache_dir.exists():
+                cache_files = list(cache_dir.glob("*.json"))
+                print(f"Cache directory: {cache_dir}")
+                print(f"Cached lookups: {len(cache_files)}")
+            else:
+                print(f"Cache directory: {cache_dir} (not created yet)")
+            return 0
+
+    else:
+        # No subcommand - show help
+        print("SKOS vocabulary lookups for tag hierarchies")
+        print("\nSubcommands:")
+        print("  expand  Expand tags to hierarchical paths")
+        print("  lookup  Look up a single concept with full details")
+        print("  cache   Manage SKOS lookup cache")
+        print("\nUse 'inventory-md skos <command> --help' for more info")
         return 1
 
 
