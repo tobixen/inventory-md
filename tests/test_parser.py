@@ -211,3 +211,89 @@ This is the introduction.
         assert container['items'][0]['indented'] is False
         assert container['items'][1]['indented'] is True
         assert container['items'][2]['indented'] is True
+
+    def test_parse_item_categories(self, tmp_path):
+        """Test parsing items with category metadata."""
+        md_file = tmp_path / "inventory.md"
+        md_file.write_text("""# ID:box1 Box
+
+* category:food/vegetables/potatoes Potatoes from garden
+* category:tools/hand-tools Hammer
+""")
+        result = parser.parse_inventory(md_file)
+
+        container = result['containers'][0]
+        assert len(container['items']) == 2
+
+        # First item has category
+        assert container['items'][0]['metadata'].get('categories') == ['food/vegetables/potatoes']
+        assert container['items'][0]['name'] == 'Potatoes from garden'
+
+        # Second item has category
+        assert container['items'][1]['metadata'].get('categories') == ['tools/hand-tools']
+        assert container['items'][1]['name'] == 'Hammer'
+
+    def test_parse_item_multiple_categories(self, tmp_path):
+        """Test parsing items with multiple categories."""
+        md_file = tmp_path / "inventory.md"
+        md_file.write_text("""# ID:box1 Box
+
+* category:food/vegetables,food/staples Potatoes
+""")
+        result = parser.parse_inventory(md_file)
+
+        container = result['containers'][0]
+        assert container['items'][0]['metadata'].get('categories') == ['food/vegetables', 'food/staples']
+
+    def test_parse_item_with_category_and_tag(self, tmp_path):
+        """Test parsing items with both category and tag metadata."""
+        md_file = tmp_path / "inventory.md"
+        md_file.write_text("""# ID:box1 Box
+
+* category:food/vegetables tag:condition:new,packaging:glass Organic potatoes
+""")
+        result = parser.parse_inventory(md_file)
+
+        container = result['containers'][0]
+        item = container['items'][0]
+
+        assert item['metadata'].get('categories') == ['food/vegetables']
+        assert item['metadata'].get('tags') == ['condition:new', 'packaging:glass']
+        assert item['name'] == 'Organic potatoes'
+
+
+class TestExtractMetadata:
+    """Tests for extract_metadata function."""
+
+    def test_extract_simple_category(self):
+        """Test extracting a simple category."""
+        result = parser.extract_metadata("category:food/vegetables Potatoes")
+        assert result['metadata'].get('categories') == ['food/vegetables']
+        assert result['name'] == 'Potatoes'
+
+    def test_extract_multiple_categories(self):
+        """Test extracting multiple categories."""
+        result = parser.extract_metadata("category:food/vegetables,food/staples Potatoes")
+        assert result['metadata'].get('categories') == ['food/vegetables', 'food/staples']
+        assert result['name'] == 'Potatoes'
+
+    def test_extract_category_and_tag(self):
+        """Test extracting both category and tag."""
+        result = parser.extract_metadata("category:tools/hand-tools tag:condition:new Hammer")
+        assert result['metadata'].get('categories') == ['tools/hand-tools']
+        assert result['metadata'].get('tags') == ['condition:new']
+        assert result['name'] == 'Hammer'
+
+    def test_extract_category_with_id(self):
+        """Test extracting category with ID."""
+        result = parser.extract_metadata("ID:item1 category:food/vegetables Potatoes")
+        assert result['metadata'].get('id') == 'item1'
+        assert result['metadata'].get('categories') == ['food/vegetables']
+        assert result['name'] == 'Potatoes'
+
+    def test_extract_no_category(self):
+        """Test extracting without category."""
+        result = parser.extract_metadata("tag:tools Hammer")
+        assert result['metadata'].get('categories') is None
+        assert result['metadata'].get('tags') == ['tools']
+        assert result['name'] == 'Hammer'

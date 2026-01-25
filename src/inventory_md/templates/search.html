@@ -694,6 +694,153 @@
             font-weight: 500;
         }
 
+        /* ==================== CATEGORY BROWSER ==================== */
+
+        .category-browser {
+            margin-top: 15px;
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .category-browser-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #e0e0e0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .category-browser-header:hover {
+            background: #eeeeee;
+        }
+
+        .category-browser-title {
+            font-weight: 500;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .category-browser-clear {
+            padding: 4px 10px;
+            font-size: 12px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .category-browser-clear:hover {
+            background: #f5f5f5;
+            border-color: #aaa;
+        }
+
+        .category-browser-content {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+
+        .category-browser.collapsed .category-browser-content {
+            display: none;
+        }
+
+        .category-browser.collapsed .category-browser-header::after {
+            transform: rotate(-90deg);
+        }
+
+        .category-browser-header::after {
+            content: '▼';
+            font-size: 10px;
+            color: #666;
+            transition: transform 0.2s;
+        }
+
+        .category-node {
+            padding: 4px 0;
+        }
+
+        .category-node-header {
+            display: flex;
+            align-items: center;
+            padding: 6px 15px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .category-node-header:hover {
+            background: #e8f5e9;
+        }
+
+        .category-node-header.selected {
+            background: #c8e6c9;
+            font-weight: 500;
+        }
+
+        .category-toggle {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #666;
+            flex-shrink: 0;
+            transition: transform 0.2s;
+        }
+
+        .category-toggle.expanded {
+            transform: rotate(90deg);
+        }
+
+        .category-toggle.empty {
+            visibility: hidden;
+        }
+
+        .category-label {
+            flex: 1;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .category-count {
+            font-size: 11px;
+            color: #888;
+            margin-left: 8px;
+        }
+
+        .category-children {
+            display: none;
+            padding-left: 20px;
+        }
+
+        .category-children.expanded {
+            display: block;
+        }
+
+        .category-badge {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            margin-left: 4px;
+            font-weight: 500;
+        }
+
+        .category-badge:hover {
+            background: #bbdefb;
+            cursor: pointer;
+        }
+
         /* ==================== MOBILE OVERHAUL ==================== */
 
         /* Mobile-first: ensure minimum touch targets (44x44px) */
@@ -1062,6 +1209,16 @@
                 <!-- Tag filter buttons will be inserted here -->
             </div>
 
+            <div class="category-browser" id="categoryBrowser" style="display: none;">
+                <div class="category-browser-header" onclick="toggleCategoryBrowser()">
+                    <span class="category-browser-title" id="categoryBrowserTitle"></span>
+                    <button class="category-browser-clear" onclick="clearCategoryFilter(event)" id="categoryClearBtn" style="display: none;">Clear</button>
+                </div>
+                <div class="category-browser-content" id="categoryTree">
+                    <!-- Category tree will be inserted here -->
+                </div>
+            </div>
+
             <div class="stats" id="stats">
             </div>
         </div>
@@ -1204,6 +1361,10 @@
         let allTags = new Map(); // tag -> count
         let selectedTags = new Set(); // currently selected tag filters (AND logic)
         let containerPrefixes = new Map(); // prefix -> count
+        let vocabularyData = null; // SKOS vocabulary for categories
+        let selectedCategory = null; // currently selected category path
+        let categoryCounts = new Map(); // category -> item count
+        let expandedCategories = new Set(); // expanded tree nodes
 
         // Get photos for a specific item from photo registry
         function getItemPhotos(itemId) {
@@ -1321,6 +1482,201 @@
                         });
                     }
                 });
+            });
+        }
+
+        // Build category counts from inventory
+        function buildCategoryCounts() {
+            categoryCounts.clear();
+            if (!inventoryData) return;
+
+            inventoryData.containers.forEach(container => {
+                container.items.forEach(item => {
+                    if (item.metadata && item.metadata.categories) {
+                        item.metadata.categories.forEach(category => {
+                            // Count the category itself
+                            categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+                            // Also count parent categories
+                            const parts = category.split('/');
+                            for (let i = 0; i < parts.length - 1; i++) {
+                                const parent = parts.slice(0, i + 1).join('/');
+                                categoryCounts.set(parent, (categoryCounts.get(parent) || 0) + 1);
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
+        // Toggle category browser collapse
+        function toggleCategoryBrowser() {
+            const browser = document.getElementById('categoryBrowser');
+            if (browser) {
+                browser.classList.toggle('collapsed');
+            }
+        }
+
+        // Clear category filter
+        function clearCategoryFilter(event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            selectedCategory = null;
+            updateCategoryBrowserTitle();
+            renderCategoryTree();
+            displayResults();
+        }
+
+        // Update category browser title
+        function updateCategoryBrowserTitle() {
+            const titleEl = document.getElementById('categoryBrowserTitle');
+            const clearBtn = document.getElementById('categoryClearBtn');
+
+            if (selectedCategory && vocabularyData && vocabularyData.concepts[selectedCategory]) {
+                const concept = vocabularyData.concepts[selectedCategory];
+                const count = categoryCounts.get(selectedCategory) || 0;
+                titleEl.innerHTML = `📁 ${concept.prefLabel} <span style="color: #666; font-weight: normal;">(${count} items)</span>`;
+                if (clearBtn) clearBtn.style.display = 'block';
+            } else {
+                const totalCategories = vocabularyData ? Object.keys(vocabularyData.concepts).length : 0;
+                titleEl.textContent = `📁 Categories (${totalCategories})`;
+                if (clearBtn) clearBtn.style.display = 'none';
+            }
+        }
+
+        // Toggle category tree node expansion
+        function toggleCategoryNode(categoryId, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            if (expandedCategories.has(categoryId)) {
+                expandedCategories.delete(categoryId);
+            } else {
+                expandedCategories.add(categoryId);
+            }
+            renderCategoryTree();
+        }
+
+        // Select a category for filtering
+        function selectCategory(categoryId, event) {
+            if (event) {
+                event.stopPropagation();
+            }
+            if (selectedCategory === categoryId) {
+                // Clicking same category clears the filter
+                selectedCategory = null;
+            } else {
+                selectedCategory = categoryId;
+                // Auto-expand parent categories
+                if (vocabularyData && vocabularyData.concepts[categoryId]) {
+                    const parts = categoryId.split('/');
+                    for (let i = 0; i < parts.length - 1; i++) {
+                        expandedCategories.add(parts.slice(0, i + 1).join('/'));
+                    }
+                }
+            }
+            updateCategoryBrowserTitle();
+            renderCategoryTree();
+            displayResults();
+        }
+
+        // Render category tree node recursively
+        function renderCategoryNode(conceptId, depth = 0) {
+            const concept = vocabularyData.concepts[conceptId];
+            if (!concept) return '';
+
+            const hasChildren = concept.narrower && concept.narrower.length > 0;
+            const isExpanded = expandedCategories.has(conceptId);
+            const isSelected = selectedCategory === conceptId;
+            const count = categoryCounts.get(conceptId) || 0;
+
+            // Skip categories with no items
+            if (count === 0) return '';
+
+            let html = `<div class="category-node" data-category="${conceptId}">`;
+            html += `<div class="category-node-header ${isSelected ? 'selected' : ''}" onclick="selectCategory('${conceptId}', event)">`;
+
+            // Toggle arrow
+            if (hasChildren) {
+                html += `<span class="category-toggle ${isExpanded ? 'expanded' : ''}" onclick="toggleCategoryNode('${conceptId}', event)">▶</span>`;
+            } else {
+                html += `<span class="category-toggle empty"></span>`;
+            }
+
+            // Label
+            html += `<span class="category-label">${concept.prefLabel}</span>`;
+            html += `<span class="category-count">(${count})</span>`;
+            html += `</div>`;
+
+            // Children
+            if (hasChildren) {
+                html += `<div class="category-children ${isExpanded ? 'expanded' : ''}">`;
+                // Sort children alphabetically
+                const sortedChildren = concept.narrower
+                    .filter(childId => vocabularyData.concepts[childId] && (categoryCounts.get(childId) || 0) > 0)
+                    .sort((a, b) => {
+                        const labelA = vocabularyData.concepts[a]?.prefLabel || a;
+                        const labelB = vocabularyData.concepts[b]?.prefLabel || b;
+                        return labelA.localeCompare(labelB);
+                    });
+                for (const childId of sortedChildren) {
+                    html += renderCategoryNode(childId, depth + 1);
+                }
+                html += `</div>`;
+            }
+
+            html += `</div>`;
+            return html;
+        }
+
+        // Render full category tree
+        function renderCategoryTree() {
+            const treeEl = document.getElementById('categoryTree');
+            if (!treeEl || !vocabularyData || !vocabularyData.roots) {
+                return;
+            }
+
+            let html = '';
+            // Sort roots alphabetically
+            const sortedRoots = vocabularyData.roots
+                .filter(rootId => vocabularyData.concepts[rootId] && (categoryCounts.get(rootId) || 0) > 0)
+                .sort((a, b) => {
+                    const labelA = vocabularyData.concepts[a]?.prefLabel || a;
+                    const labelB = vocabularyData.concepts[b]?.prefLabel || b;
+                    return labelA.localeCompare(labelB);
+                });
+
+            for (const rootId of sortedRoots) {
+                html += renderCategoryNode(rootId);
+            }
+
+            treeEl.innerHTML = html || '<div style="padding: 15px; color: #666;">No categories found</div>';
+        }
+
+        // Display category browser
+        function displayCategoryBrowser() {
+            const browserEl = document.getElementById('categoryBrowser');
+            if (!browserEl) return;
+
+            // Hide if no vocabulary or no categories with items
+            if (!vocabularyData || categoryCounts.size === 0) {
+                browserEl.style.display = 'none';
+                return;
+            }
+
+            browserEl.style.display = 'block';
+            updateCategoryBrowserTitle();
+            renderCategoryTree();
+        }
+
+        // Check if item matches selected category (including children)
+        function itemMatchesCategory(item) {
+            if (!selectedCategory) return true;
+            if (!item.metadata || !item.metadata.categories) return false;
+
+            // Check if any of the item's categories match or are children of the selected category
+            return item.metadata.categories.some(cat => {
+                return cat === selectedCategory || cat.startsWith(selectedCategory + '/');
             });
         }
 
@@ -1599,6 +1955,15 @@
                     console.log('⚠️  Photo registry not available:', photoError.message);
                 }
 
+                // Load vocabulary (optional - don't fail if not available)
+                try {
+                    const vocabResponse = await fetch('vocabulary.json');
+                    vocabularyData = await vocabResponse.json();
+                    console.log('✅ Loaded vocabulary:', Object.keys(vocabularyData.concepts || {}).length, 'categories');
+                } catch (vocabError) {
+                    console.log('⚠️  Vocabulary not available:', vocabError.message);
+                }
+
                 // Display intro text if available
                 if (inventoryData.intro) {
                     document.getElementById('intro').style.display = 'block';
@@ -1609,6 +1974,7 @@
                 buildSearchIndex();
                 buildTagCollection();
                 buildContainerPrefixes();
+                buildCategoryCounts();
 
                 // Build set of all container IDs for linking
                 containerIds.clear();
@@ -1620,6 +1986,7 @@
 
                 displayFilters();
                 displayTagFilter();
+                displayCategoryBrowser();
                 displayResults();
             } catch (error) {
                 document.getElementById('results').innerHTML =
@@ -1758,6 +2125,15 @@
                     if (!containerTags.has(tag)) {
                         return false;
                     }
+                }
+            }
+
+            // Filter by selected category
+            if (selectedCategory) {
+                // Check if any item in container matches the selected category
+                const hasMatchingItem = container.items.some(item => itemMatchesCategory(item));
+                if (!hasMatchingItem) {
+                    return false;
                 }
             }
 
@@ -2007,6 +2383,15 @@
                                                 html += ' <span class="item-tags">';
                                                 item.metadata.tags.forEach(tag => {
                                                     html += `<span class="tag-badge">${tag}</span>`;
+                                                });
+                                                html += '</span>';
+                                            }
+                                            // Display categories as badges
+                                            if (item.metadata && item.metadata.categories && item.metadata.categories.length > 0) {
+                                                html += ' <span class="item-categories">';
+                                                item.metadata.categories.forEach(cat => {
+                                                    const label = vocabularyData?.concepts?.[cat]?.prefLabel || cat.split('/').pop();
+                                                    html += `<span class="category-badge" onclick="selectCategory('${cat}', event)" title="${cat}">${label}</span>`;
                                                 });
                                                 html += '</span>';
                                             }

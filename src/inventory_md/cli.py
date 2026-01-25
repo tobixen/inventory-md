@@ -10,7 +10,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from . import parser, shopping_list
+from . import parser, shopping_list, vocabulary
 from .config import Config
 
 
@@ -219,6 +219,34 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                 )
                 print(f"✅ Found {len(registry_data['photos'])} photos mapped to {len(registry_data['items'])} items")
                 print(f"   Saved to {registry_output}")
+
+            # Generate vocabulary.json for category browser
+            print("\n🏷️  Generating category vocabulary...")
+            local_vocab_yaml = md_file.parent / "local-vocabulary.yaml"
+            local_vocab_json = md_file.parent / "local-vocabulary.json"
+
+            # Load local vocabulary if present
+            local_vocab = {}
+            if local_vocab_yaml.exists():
+                local_vocab = vocabulary.load_local_vocabulary(local_vocab_yaml)
+                print(f"   Loaded {len(local_vocab)} concepts from local-vocabulary.yaml")
+            elif local_vocab_json.exists():
+                local_vocab = vocabulary.load_local_vocabulary(local_vocab_json)
+                print(f"   Loaded {len(local_vocab)} concepts from local-vocabulary.json")
+
+            # Build vocabulary from inventory categories
+            vocab = vocabulary.build_vocabulary_from_inventory(data, local_vocab=local_vocab)
+            category_counts = vocabulary.count_items_per_category(data)
+
+            if vocab:
+                vocab_output = md_file.parent / "vocabulary.json"
+                vocabulary.save_vocabulary_json(vocab, vocab_output)
+                print(f"✅ Generated {vocab_output} with {len(vocab)} categories")
+                if category_counts:
+                    top_categories = sorted(category_counts.items(), key=lambda x: -x[1])[:5]
+                    print(f"   Top categories: {', '.join(f'{c}({n})' for c, n in top_categories)}")
+            else:
+                print("   No categories found in inventory")
 
             # Generate shopping list if wanted-items file specified
             if wanted_items:
@@ -779,6 +807,35 @@ Examples:
     skos_cache.add_argument('--clear', action='store_true', help='Clear all cached lookups')
     skos_cache.add_argument('--path', action='store_true', help='Show cache directory path')
 
+    # Vocabulary command with subcommands
+    vocab_parser = subparsers.add_parser('vocabulary', help='Manage local category vocabulary')
+    vocab_subparsers = vocab_parser.add_subparsers(dest='vocab_command', help='Vocabulary subcommand')
+
+    # vocabulary list
+    vocab_list = vocab_subparsers.add_parser(
+        'list',
+        help='List all concepts in vocabulary',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Lists all concepts from the local vocabulary and inventory categories.
+
+Examples:
+  inventory-md vocabulary list
+  inventory-md vocabulary list --directory ~/my-inventory
+        """,
+    )
+    vocab_list.add_argument('--directory', '-d', type=Path, help='Inventory directory (default: current)')
+    vocab_list.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+
+    # vocabulary lookup
+    vocab_lookup = vocab_subparsers.add_parser('lookup', help='Look up a concept by label')
+    vocab_lookup.add_argument('label', help='Label to look up (prefLabel or altLabel)')
+    vocab_lookup.add_argument('--directory', '-d', type=Path, help='Inventory directory (default: current)')
+
+    # vocabulary tree
+    vocab_tree = vocab_subparsers.add_parser('tree', help='Show category hierarchy as tree')
+    vocab_tree.add_argument('--directory', '-d', type=Path, help='Inventory directory (default: current)')
+
     args = parser_cli.parse_args()
 
     if args.command == 'config':
@@ -857,6 +914,8 @@ Examples:
             return 1
     elif args.command == 'skos':
         return skos_command(args, config)
+    elif args.command == 'vocabulary':
+        return vocabulary_command(args, config)
     else:
         parser_cli.print_help()
         return 1
@@ -936,6 +995,110 @@ def skos_command(args, config: Config) -> int:
         print("  lookup  Look up a single concept with full details")
         print("  cache   Manage SKOS lookup cache")
         print("\nUse 'inventory-md skos <command> --help' for more info")
+        return 1
+
+
+def vocabulary_command(args, config: Config) -> int:
+    """Handle vocabulary subcommands."""
+    directory = getattr(args, 'directory', None)
+    if directory is None:
+        directory = Path.cwd()
+    else:
+        directory = Path(directory).resolve()
+
+    # Load vocabulary from directory
+    local_vocab_yaml = directory / "local-vocabulary.yaml"
+    local_vocab_json = directory / "local-vocabulary.json"
+    inventory_json = directory / "inventory.json"
+
+    local_vocab = {}
+    if local_vocab_yaml.exists():
+        local_vocab = vocabulary.load_local_vocabulary(local_vocab_yaml)
+    elif local_vocab_json.exists():
+        local_vocab = vocabulary.load_local_vocabulary(local_vocab_json)
+
+    # Also load from inventory if it exists
+    if inventory_json.exists():
+        with open(inventory_json, encoding="utf-8") as f:
+            inventory_data = json.load(f)
+        vocab = vocabulary.build_vocabulary_from_inventory(inventory_data, local_vocab=local_vocab)
+    else:
+        vocab = local_vocab
+
+    if args.vocab_command == 'list':
+        output_json = getattr(args, 'json', False)
+
+        if not vocab:
+            print("No vocabulary found. Create local-vocabulary.yaml or run 'inventory-md parse' first.")
+            return 1
+
+        if output_json:
+            tree = vocabulary.build_category_tree(vocab)
+            print(json.dumps(tree.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(f"Vocabulary: {len(vocab)} concepts\n")
+            # Sort by ID
+            for concept_id in sorted(vocab.keys()):
+                concept = vocab[concept_id]
+                alt_str = f" (aka: {', '.join(concept.altLabels)})" if concept.altLabels else ""
+                print(f"  {concept_id}: {concept.prefLabel}{alt_str}")
+
+        return 0
+
+    elif args.vocab_command == 'lookup':
+        label = args.label
+
+        if not vocab:
+            print("No vocabulary found. Create local-vocabulary.yaml or run 'inventory-md parse' first.")
+            return 1
+
+        concept = vocabulary.lookup_concept(label, vocab)
+
+        if concept:
+            print(f"Found: {concept.id}")
+            print(f"  prefLabel: {concept.prefLabel}")
+            if concept.altLabels:
+                print(f"  altLabels: {', '.join(concept.altLabels)}")
+            if concept.broader:
+                print(f"  broader: {', '.join(concept.broader)}")
+            if concept.narrower:
+                print(f"  narrower: {', '.join(concept.narrower)}")
+            print(f"  source: {concept.source}")
+        else:
+            print(f"No concept found for '{label}'")
+            return 1
+
+        return 0
+
+    elif args.vocab_command == 'tree':
+        if not vocab:
+            print("No vocabulary found. Create local-vocabulary.yaml or run 'inventory-md parse' first.")
+            return 1
+
+        tree = vocabulary.build_category_tree(vocab)
+
+        def print_tree(concept_id: str, indent: int = 0) -> None:
+            concept = tree.concepts[concept_id]
+            prefix = "  " * indent
+            print(f"{prefix}{'▼' if concept.narrower else '○'} {concept.prefLabel} [{concept_id}]")
+            for child_id in sorted(concept.narrower):
+                if child_id in tree.concepts:
+                    print_tree(child_id, indent + 1)
+
+        print("Category Tree:\n")
+        for root_id in tree.roots:
+            print_tree(root_id)
+
+        return 0
+
+    else:
+        # No subcommand - show help
+        print("Local vocabulary management")
+        print("\nSubcommands:")
+        print("  list    List all concepts in vocabulary")
+        print("  lookup  Look up a concept by label")
+        print("  tree    Show category hierarchy as tree")
+        print("\nUse 'inventory-md vocabulary <command> --help' for more info")
         return 1
 
 

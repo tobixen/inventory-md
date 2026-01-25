@@ -124,14 +124,16 @@ def extract_metadata(text: str) -> dict[str, Any]:
     - key:value (space-separated)
     - (key:value) (parenthesized)
     - Special handling for tags: tag:value1,value2,value3 becomes ["value1", "value2", "value3"]
+    - Special handling for categories: category:path1,path2 becomes ["path1", "path2"]
 
     Returns: {
-        "metadata": {"id": "...", "parent": "...", "type": "...", "tags": [...]},
+        "metadata": {"id": "...", "parent": "...", "type": "...", "tags": [...], "categories": [...]},
         "name": "remaining text after extraction"
     }
     """
     metadata = {}
     tags = []
+    categories = []
     remaining = text
 
     # Match key:value patterns (with or without parentheses)
@@ -146,6 +148,9 @@ def extract_metadata(text: str) -> dict[str, Any]:
         # Special handling for tags: split by comma
         if key == 'tag':
             tags.extend([tag.strip() for tag in value.split(',') if tag.strip()])
+        # Special handling for categories: split by comma
+        elif key == 'category':
+            categories.extend([cat.strip() for cat in value.split(',') if cat.strip()])
         else:
             metadata[key] = value
         matches.append(match)
@@ -153,6 +158,10 @@ def extract_metadata(text: str) -> dict[str, Any]:
     # Add tags to metadata if any were found
     if tags:
         metadata['tags'] = tags
+
+    # Add categories to metadata if any were found
+    if categories:
+        metadata['categories'] = categories
 
     # Remove matched patterns from text to get clean name
     # Go in reverse to maintain positions
