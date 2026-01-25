@@ -161,8 +161,8 @@ class TestSKOSClient:
     @patch("inventory_md.skos.SKOSClient._sparql_query")
     def test_lookup_concept_agrovoc(self, mock_query, tmp_path):
         """Test AGROVOC concept lookup via SPARQL."""
-        # Disable REST API to test SPARQL path
-        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False)
+        # Disable REST API and Oxigraph to test SPARQL path
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
 
         # Mock SPARQL responses - first call returns concept, second returns broader
         mock_query.side_effect = [
@@ -443,7 +443,7 @@ class TestRESTAPI:
     @patch("inventory_md.skos.SKOSClient._rest_api_get_concept")
     def test_lookup_agrovoc_rest(self, mock_get_concept, mock_search, tmp_path):
         """Test AGROVOC lookup via REST API."""
-        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True)
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
 
         # Mock search response
         mock_search.return_value = [
@@ -479,7 +479,7 @@ class TestRESTAPI:
     @patch("inventory_md.skos.SKOSClient._lookup_agrovoc_sparql")
     def test_lookup_agrovoc_fallback_to_sparql(self, mock_sparql, mock_search, tmp_path):
         """Test fallback to SPARQL when REST API fails."""
-        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True)
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
 
         # REST API returns None (failure)
         mock_search.return_value = None
@@ -519,18 +519,24 @@ class TestOxigraphStore:
 
     @pytest.fixture
     def sample_ntriples(self, tmp_path):
-        """Create a sample N-Triples file with SKOS data."""
+        """Create a sample N-Triples file with SKOS-XL data (AGROVOC format)."""
+        # AGROVOC uses SKOS-XL format with separate label nodes
         nt_content = """
 <http://example.org/concept/potato> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .
-<http://example.org/concept/potato> <http://www.w3.org/2004/02/skos/core#prefLabel> "potato"@en .
-<http://example.org/concept/potato> <http://www.w3.org/2004/02/skos/core#prefLabel> "potatis"@sv .
-<http://example.org/concept/potato> <http://www.w3.org/2004/02/skos/core#altLabel> "spud"@en .
+<http://example.org/concept/potato> <http://www.w3.org/2008/05/skos-xl#prefLabel> <http://example.org/label/potato_en> .
+<http://example.org/concept/potato> <http://www.w3.org/2008/05/skos-xl#prefLabel> <http://example.org/label/potato_sv> .
+<http://example.org/concept/potato> <http://www.w3.org/2008/05/skos-xl#altLabel> <http://example.org/label/spud_en> .
 <http://example.org/concept/potato> <http://www.w3.org/2004/02/skos/core#broader> <http://example.org/concept/vegetable> .
+<http://example.org/label/potato_en> <http://www.w3.org/2008/05/skos-xl#literalForm> "potato"@en .
+<http://example.org/label/potato_sv> <http://www.w3.org/2008/05/skos-xl#literalForm> "potatis"@sv .
+<http://example.org/label/spud_en> <http://www.w3.org/2008/05/skos-xl#literalForm> "spud"@en .
 <http://example.org/concept/vegetable> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .
-<http://example.org/concept/vegetable> <http://www.w3.org/2004/02/skos/core#prefLabel> "vegetable"@en .
+<http://example.org/concept/vegetable> <http://www.w3.org/2008/05/skos-xl#prefLabel> <http://example.org/label/vegetable_en> .
 <http://example.org/concept/vegetable> <http://www.w3.org/2004/02/skos/core#broader> <http://example.org/concept/food> .
+<http://example.org/label/vegetable_en> <http://www.w3.org/2008/05/skos-xl#literalForm> "vegetable"@en .
 <http://example.org/concept/food> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .
-<http://example.org/concept/food> <http://www.w3.org/2004/02/skos/core#prefLabel> "food"@en .
+<http://example.org/concept/food> <http://www.w3.org/2008/05/skos-xl#prefLabel> <http://example.org/label/food_en> .
+<http://example.org/label/food_en> <http://www.w3.org/2008/05/skos-xl#literalForm> "food"@en .
 """
         nt_file = tmp_path / "test.nt"
         nt_file.write_text(nt_content.strip())
@@ -561,11 +567,11 @@ class TestOxigraphStore:
         assert store.is_loaded
         assert len(store) > 0
 
-        # Query for potato concept
+        # Query for potato concept using SKOS-XL (AGROVOC format)
         results = store.query("""
-            PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+            PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
             SELECT ?label WHERE {
-                <http://example.org/concept/potato> skos:prefLabel ?label .
+                <http://example.org/concept/potato> skosxl:prefLabel/skosxl:literalForm ?label .
                 FILTER(lang(?label) = "en")
             }
         """)

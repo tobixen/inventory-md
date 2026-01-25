@@ -536,19 +536,20 @@ class SKOSClient:
         label_lower = label.lower()
 
         # Query for concept by prefLabel or altLabel (case-insensitive)
-        # AGROVOC Core uses standard SKOS predicates
+        # AGROVOC uses SKOS-XL (extended) with skosxl:prefLabel/skosxl:literalForm
         query = f"""
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
 
         SELECT DISTINCT ?concept ?prefLabel WHERE {{
             {{
-                ?concept skos:prefLabel ?label .
+                ?concept skosxl:prefLabel/skosxl:literalForm ?label .
                 FILTER(lcase(str(?label)) = "{label_lower}")
             }} UNION {{
-                ?concept skos:altLabel ?label .
+                ?concept skosxl:altLabel/skosxl:literalForm ?label .
                 FILTER(lcase(str(?label)) = "{label_lower}")
             }}
-            ?concept skos:prefLabel ?prefLabel .
+            ?concept skosxl:prefLabel/skosxl:literalForm ?prefLabel .
             FILTER(lang(?prefLabel) = "{lang}" || lang(?prefLabel) = "")
         }}
         LIMIT 1
@@ -582,12 +583,14 @@ class SKOSClient:
             return []
 
         # Get transitive broader concepts
+        # AGROVOC uses SKOS-XL for labels but standard skos:broader for hierarchy
         query = f"""
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
 
         SELECT DISTINCT ?broader ?label WHERE {{
             <{concept_uri}> skos:broader+ ?broader .
-            ?broader skos:prefLabel ?label .
+            ?broader skosxl:prefLabel/skosxl:literalForm ?label .
             FILTER(lang(?label) = "{lang}" || lang(?label) = "")
         }}
         LIMIT 20
