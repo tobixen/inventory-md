@@ -62,6 +62,55 @@ class TestCacheFunctions:
         assert loaded["uri"] == "http://example.com/concept"
         assert "_cached_at" in loaded
 
+    def test_not_found_cache_add_and_check(self, tmp_path):
+        """Test adding to and checking the not-found cache."""
+        key = "concept:agrovoc:en:nonexistent"
+
+        # Initially not in cache
+        assert not skos._is_in_not_found_cache(tmp_path, key)
+
+        # Add to cache
+        skos._add_to_not_found_cache(tmp_path, key)
+
+        # Now should be in cache
+        assert skos._is_in_not_found_cache(tmp_path, key)
+
+        # Check file structure
+        cache_path = skos._get_not_found_cache_path(tmp_path)
+        assert cache_path.exists()
+        data = json.loads(cache_path.read_text())
+        assert key in data["entries"]
+        assert "cached_at" in data["entries"][key]
+
+    def test_not_found_cache_multiple_entries(self, tmp_path):
+        """Test multiple entries in not-found cache."""
+        keys = ["concept:agrovoc:en:a", "concept:agrovoc:en:b", "concept:dbpedia:en:c"]
+
+        for key in keys:
+            skos._add_to_not_found_cache(tmp_path, key)
+
+        for key in keys:
+            assert skos._is_in_not_found_cache(tmp_path, key)
+
+        # Check only one file exists
+        cache_path = skos._get_not_found_cache_path(tmp_path)
+        assert cache_path.exists()
+        data = json.loads(cache_path.read_text())
+        assert len(data["entries"]) == 3
+
+    def test_not_found_cache_expired(self, tmp_path):
+        """Test that expired not-found entries are not returned."""
+        key = "concept:agrovoc:en:expired"
+
+        # Add with old timestamp
+        cache_path = skos._get_not_found_cache_path(tmp_path)
+        tmp_path.mkdir(parents=True, exist_ok=True)
+        data = {"entries": {key: {"cached_at": time.time() - 100000}}}
+        cache_path.write_text(json.dumps(data))
+
+        # Should not be found with short TTL
+        assert not skos._is_in_not_found_cache(tmp_path, key, ttl=1)
+
 
 class TestSKOSClient:
     """Tests for SKOSClient class."""
@@ -72,7 +121,9 @@ class TestSKOSClient:
         assert client.cache_dir == skos.DEFAULT_CACHE_DIR
         assert "agrovoc" in client.endpoints
         assert "dbpedia" in client.endpoints
-        assert client.timeout == 30.0
+        assert client.timeout == skos.DEFAULT_TIMEOUT
+        assert client.use_rest_api is True
+        assert "agrovoc" in client.rest_endpoints
 
     def test_init_custom(self, tmp_path):
         """Test client initialization with custom settings."""
@@ -109,8 +160,9 @@ class TestSKOSClient:
 
     @patch("inventory_md.skos.SKOSClient._sparql_query")
     def test_lookup_concept_agrovoc(self, mock_query, tmp_path):
-        """Test AGROVOC concept lookup."""
-        client = skos.SKOSClient(cache_dir=tmp_path)
+        """Test AGROVOC concept lookup via SPARQL."""
+        # Disable REST API to test SPARQL path
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False)
 
         # Mock SPARQL responses - first call returns concept, second returns broader
         mock_query.side_effect = [
@@ -138,11 +190,42 @@ class TestSKOSClient:
     @patch("inventory_md.skos.SKOSClient._sparql_query")
     def test_lookup_concept_not_found(self, mock_query, tmp_path):
         """Test handling of concept not found."""
-        client = skos.SKOSClient(cache_dir=tmp_path)
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False)
         mock_query.return_value = []
 
         result = client.lookup_concept("xyznonexistent", lang="en", source="agrovoc")
         assert result is None
+
+        # Should be added to not-found cache
+        assert skos._is_in_not_found_cache(tmp_path, "concept:agrovoc:en:xyznonexistent")
+
+        # Second lookup should use cache without calling SPARQL again
+        mock_query.reset_mock()
+        result2 = client.lookup_concept("xyznonexistent", lang="en", source="agrovoc")
+        assert result2 is None
+        mock_query.assert_not_called()
+
+    def test_get_cache_stats(self, tmp_path):
+        """Test cache statistics."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        # Initially empty
+        stats = client.get_cache_stats()
+        assert stats["found"] == 0
+        assert stats["not_found"] == 0
+
+        # Add a found concept
+        cache_key = "concept:agrovoc:en:potato"
+        cache_path = skos._get_cache_path(tmp_path, cache_key)
+        skos._save_to_cache(cache_path, {"uri": "http://example.com/potato"})
+
+        # Add not-found entries
+        skos._add_to_not_found_cache(tmp_path, "concept:agrovoc:en:abc")
+        skos._add_to_not_found_cache(tmp_path, "concept:agrovoc:en:xyz")
+
+        stats = client.get_cache_stats()
+        assert stats["found"] == 1
+        assert stats["not_found"] == 2
 
     def test_get_hierarchy_path_no_broader(self):
         """Test hierarchy path with no broader concepts."""
@@ -286,11 +369,146 @@ class TestSPARQLQuery:
 
     @patch("requests.get")
     def test_sparql_query_network_error(self, mock_get, tmp_path):
-        """Test handling of network errors."""
+        """Test handling of network errors - returns None (not cached)."""
         import requests
 
         client = skos.SKOSClient(cache_dir=tmp_path)
         mock_get.side_effect = requests.RequestException("Network error")
 
         result = client._sparql_query("http://example.com", "SELECT ?x WHERE {}")
-        assert result == []
+        assert result is None  # None indicates error, won't be cached
+
+
+class TestRESTAPI:
+    """Tests for REST API functionality."""
+
+    @patch("requests.get")
+    def test_rest_api_search_success(self, mock_get, tmp_path):
+        """Test successful REST API search."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "results": [
+                {
+                    "uri": "http://aims.fao.org/aos/agrovoc/c_6219",
+                    "prefLabel": "potatoes",
+                    "altLabel": ["potato", "spud"],
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+
+        result = client._rest_api_search("https://agrovoc.fao.org/browse/rest/v1", "potatoes", "en")
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["prefLabel"] == "potatoes"
+
+    @patch("requests.get")
+    def test_rest_api_search_timeout(self, mock_get, tmp_path):
+        """Test REST API search timeout returns None."""
+        import requests
+
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        mock_get.side_effect = requests.Timeout("Connection timed out")
+
+        result = client._rest_api_search("https://agrovoc.fao.org/browse/rest/v1", "potatoes", "en")
+        assert result is None
+
+    @patch("requests.get")
+    def test_rest_api_get_concept_success(self, mock_get, tmp_path):
+        """Test successful REST API concept data fetch."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "graph": [
+                {
+                    "uri": "http://aims.fao.org/aos/agrovoc/c_6219",
+                    "prefLabel": [{"value": "potatoes", "lang": "en"}],
+                    "broader": ["http://aims.fao.org/aos/agrovoc/c_8174"],
+                }
+            ]
+        }
+        mock_get.return_value = mock_response
+
+        result = client._rest_api_get_concept(
+            "https://agrovoc.fao.org/browse/rest/v1",
+            "http://aims.fao.org/aos/agrovoc/c_6219"
+        )
+        assert result is not None
+        assert "graph" in result
+
+    @patch("inventory_md.skos.SKOSClient._rest_api_search")
+    @patch("inventory_md.skos.SKOSClient._rest_api_get_concept")
+    def test_lookup_agrovoc_rest(self, mock_get_concept, mock_search, tmp_path):
+        """Test AGROVOC lookup via REST API."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True)
+
+        # Mock search response
+        mock_search.return_value = [
+            {
+                "uri": "http://aims.fao.org/aos/agrovoc/c_6219",
+                "prefLabel": "potatoes",
+            }
+        ]
+
+        # Mock concept data response
+        mock_get_concept.return_value = {
+            "graph": [
+                {
+                    "uri": "http://aims.fao.org/aos/agrovoc/c_6219",
+                    "prefLabel": [{"value": "potatoes", "lang": "en"}],
+                    "broader": ["http://aims.fao.org/aos/agrovoc/c_8174"],
+                },
+                {
+                    "uri": "http://aims.fao.org/aos/agrovoc/c_8174",
+                    "prefLabel": [{"value": "vegetables", "lang": "en"}],
+                },
+            ]
+        }
+
+        result = client.lookup_concept("potatoes", lang="en", source="agrovoc")
+
+        assert result is not None
+        assert result["uri"] == "http://aims.fao.org/aos/agrovoc/c_6219"
+        assert result["prefLabel"] == "potatoes"
+        assert result["source"] == "agrovoc"
+
+    @patch("inventory_md.skos.SKOSClient._rest_api_search")
+    @patch("inventory_md.skos.SKOSClient._lookup_agrovoc_sparql")
+    def test_lookup_agrovoc_fallback_to_sparql(self, mock_sparql, mock_search, tmp_path):
+        """Test fallback to SPARQL when REST API fails."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True)
+
+        # REST API returns None (failure)
+        mock_search.return_value = None
+
+        # SPARQL fallback succeeds
+        mock_sparql.return_value = (
+            {
+                "uri": "http://aims.fao.org/aos/agrovoc/c_6219",
+                "prefLabel": "potatoes",
+                "source": "agrovoc",
+                "broader": [],
+            },
+            False,
+        )
+
+        result = client.lookup_concept("potatoes", lang="en", source="agrovoc")
+
+        assert result is not None
+        assert result["uri"] == "http://aims.fao.org/aos/agrovoc/c_6219"
+        mock_sparql.assert_called_once()
+
+    def test_lookup_agrovoc_rest_disabled(self, tmp_path):
+        """Test that REST API is not used when disabled."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False)
+
+        with patch.object(client, "_rest_api_search") as mock_rest:
+            with patch.object(client, "_lookup_agrovoc_sparql") as mock_sparql:
+                mock_sparql.return_value = (None, False)
+                client.lookup_concept("potatoes", lang="en", source="agrovoc")
+
+                mock_rest.assert_not_called()
+                mock_sparql.assert_called_once()

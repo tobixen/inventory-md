@@ -29,10 +29,15 @@ ENDPOINTS = {
     "dbpedia": "https://dbpedia.org/sparql",
 }
 
+# REST API endpoints (Skosmos)
+REST_ENDPOINTS = {
+    "agrovoc": "https://agrovoc.fao.org/browse/rest/v1",
+}
+
 # Cache settings
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "inventory-md" / "skos"
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
-DEFAULT_TIMEOUT = 30.0  # SPARQL endpoints can be slow
+DEFAULT_TIMEOUT = 300.0  # SPARQL endpoints can be slow
 
 
 def _get_cache_path(cache_dir: Path, key: str) -> Path:
@@ -41,6 +46,11 @@ def _get_cache_path(cache_dir: Path, key: str) -> Path:
     key_hash = hashlib.sha256(key.encode()).hexdigest()[:16]
     safe_key = "".join(c if c.isalnum() else "_" for c in key[:50])
     return cache_dir / f"{safe_key}_{key_hash}.json"
+
+
+def _get_not_found_cache_path(cache_dir: Path) -> Path:
+    """Get path to consolidated not-found cache file."""
+    return cache_dir / "_not_found.json"
 
 
 def _load_from_cache(cache_path: Path, ttl: int = CACHE_TTL_SECONDS) -> dict | None:
@@ -70,6 +80,53 @@ def _save_to_cache(cache_path: Path, data: dict) -> None:
         logger.warning("Cache write failed for %s: %s", cache_path, e)
 
 
+def _is_in_not_found_cache(cache_dir: Path, key: str, ttl: int = CACHE_TTL_SECONDS) -> bool:
+    """Check if a key is in the not-found cache."""
+    cache_path = _get_not_found_cache_path(cache_dir)
+    if not cache_path.exists():
+        return False
+    try:
+        with open(cache_path, encoding="utf-8") as f:
+            data = json.load(f)
+        entry = data.get("entries", {}).get(key)
+        if entry is None:
+            return False
+        # Check TTL for this entry
+        if time.time() - entry.get("cached_at", 0) > ttl:
+            return False
+        return True
+    except (json.JSONDecodeError, OSError) as e:
+        logger.debug("Not-found cache read failed: %s", e)
+        return False
+
+
+def _add_to_not_found_cache(cache_dir: Path, key: str) -> None:
+    """Add a key to the consolidated not-found cache."""
+    cache_path = _get_not_found_cache_path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load existing data
+    data = {"entries": {}}
+    if cache_path.exists():
+        try:
+            with open(cache_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {"entries": {}}
+
+    # Add new entry
+    if "entries" not in data:
+        data["entries"] = {}
+    data["entries"][key] = {"cached_at": time.time()}
+
+    # Save
+    try:
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        logger.warning("Not-found cache write failed: %s", e)
+
+
 class SKOSClient:
     """Client for querying SKOS vocabularies with caching."""
 
@@ -79,6 +136,8 @@ class SKOSClient:
         endpoints: dict[str, str] | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         enabled_sources: list[str] | None = None,
+        use_rest_api: bool = True,
+        rest_endpoints: dict[str, str] | None = None,
     ):
         """Initialize SKOS client.
 
@@ -87,13 +146,86 @@ class SKOSClient:
             endpoints: Custom SPARQL endpoints. Default: AGROVOC and DBpedia.
             timeout: Request timeout in seconds.
             enabled_sources: List of sources to query. Default: ["agrovoc", "dbpedia"]
+            use_rest_api: If True, prefer REST API over SPARQL for AGROVOC (faster).
+            rest_endpoints: Custom REST API endpoints. Default: AGROVOC Skosmos.
         """
         self.cache_dir = cache_dir or DEFAULT_CACHE_DIR
         self.endpoints = endpoints or ENDPOINTS.copy()
         self.timeout = timeout
         self.enabled_sources = enabled_sources or ["agrovoc", "dbpedia"]
+        self.use_rest_api = use_rest_api
+        self.rest_endpoints = rest_endpoints or REST_ENDPOINTS.copy()
 
-    def _sparql_query(self, endpoint: str, query: str) -> list[dict]:
+    def _rest_api_search(
+        self, base_url: str, query: str, lang: str = "en"
+    ) -> list[dict] | None:
+        """Search for concepts via Skosmos REST API.
+
+        Args:
+            base_url: REST API base URL (e.g., https://agrovoc.fao.org/browse/rest/v1)
+            query: Search term.
+            lang: Language code.
+
+        Returns:
+            List of search results, or None if request failed.
+        """
+        try:
+            import requests
+        except ImportError as e:
+            raise ImportError(
+                "requests required for SKOS lookups. "
+                "Install with: pip install inventory-md[skos]"
+            ) from e
+
+        # Use exact match search (no wildcard for precision)
+        url = f"{base_url}/search/"
+        params = {"query": query, "lang": lang}
+
+        try:
+            response = requests.get(url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("results", [])
+        except requests.Timeout as e:
+            logger.warning("REST API search timed out for %s: %s", base_url, e)
+            return None
+        except requests.RequestException as e:
+            logger.warning("REST API search failed for %s: %s", base_url, e)
+            return None
+
+    def _rest_api_get_concept(self, base_url: str, uri: str) -> dict | None:
+        """Get concept data via Skosmos REST API.
+
+        Args:
+            base_url: REST API base URL.
+            uri: Concept URI.
+
+        Returns:
+            Concept data dict, or None if request failed.
+        """
+        try:
+            import requests
+        except ImportError as e:
+            raise ImportError(
+                "requests required for SKOS lookups. "
+                "Install with: pip install inventory-md[skos]"
+            ) from e
+
+        url = f"{base_url}/data/"
+        params = {"uri": uri}
+
+        try:
+            response = requests.get(url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.Timeout as e:
+            logger.warning("REST API data fetch timed out for %s: %s", uri, e)
+            return None
+        except requests.RequestException as e:
+            logger.warning("REST API data fetch failed for %s: %s", uri, e)
+            return None
+
+    def _sparql_query(self, endpoint: str, query: str) -> list[dict] | None:
         """Execute a SPARQL query and return results.
 
         Args:
@@ -101,7 +233,8 @@ class SKOSClient:
             query: SPARQL query string.
 
         Returns:
-            List of result bindings (dicts with variable names as keys).
+            List of result bindings (dicts with variable names as keys),
+            or None if query failed due to timeout/network error.
         """
         try:
             import requests
@@ -121,9 +254,12 @@ class SKOSClient:
             response.raise_for_status()
             data = response.json()
             return data.get("results", {}).get("bindings", [])
+        except requests.Timeout as e:
+            logger.warning("SPARQL query timed out for %s: %s", endpoint, e)
+            return None  # None = error, don't cache
         except requests.RequestException as e:
             logger.warning("SPARQL query failed for %s: %s", endpoint, e)
-            return []
+            return None  # None = error, don't cache
 
     def lookup_concept(
         self, label: str, lang: str = "en", source: str = "agrovoc"
@@ -137,34 +273,173 @@ class SKOSClient:
 
         Returns:
             Concept data dict with uri, prefLabel, altLabels, broader, narrower,
-            or None if not found.
+            or None if not found or query failed.
         """
         cache_key = f"concept:{source}:{lang}:{label.lower()}"
         cache_path = _get_cache_path(self.cache_dir, cache_key)
 
-        # Check cache
+        # Check positive cache (found concepts)
         cached = _load_from_cache(cache_path)
         if cached is not None:
             return cached if cached.get("uri") else None
 
+        # Check not-found cache (consolidated file for 404s)
+        if _is_in_not_found_cache(self.cache_dir, cache_key):
+            return None
+
         # Query the appropriate endpoint
         if source == "agrovoc":
-            concept = self._lookup_agrovoc(label, lang)
+            concept, query_failed = self._lookup_agrovoc(label, lang)
         elif source == "dbpedia":
-            concept = self._lookup_dbpedia(label, lang)
+            concept, query_failed = self._lookup_dbpedia(label, lang)
         else:
             logger.warning("Unknown source: %s", source)
             return None
 
-        # Cache result (even if None, to avoid repeated lookups)
-        _save_to_cache(cache_path, concept or {"uri": None})
+        # Only cache if query succeeded (don't cache timeouts/errors)
+        if not query_failed:
+            if concept:
+                # Found: save to individual cache file
+                _save_to_cache(cache_path, concept)
+            else:
+                # Not found: add to consolidated not-found cache
+                _add_to_not_found_cache(self.cache_dir, cache_key)
+
         return concept
 
-    def _lookup_agrovoc(self, label: str, lang: str) -> dict | None:
-        """Look up concept in AGROVOC."""
+    def _lookup_agrovoc(self, label: str, lang: str) -> tuple[dict | None, bool]:
+        """Look up concept in AGROVOC.
+
+        Uses REST API if enabled (faster), falls back to SPARQL.
+
+        Returns:
+            Tuple of (concept_dict, query_failed). query_failed is True if
+            the query timed out or had a network error.
+        """
+        # Try REST API first if enabled
+        if self.use_rest_api:
+            rest_base = self.rest_endpoints.get("agrovoc")
+            if rest_base:
+                result = self._lookup_agrovoc_rest(label, lang, rest_base)
+                if result is not None:
+                    return result
+                # REST failed, fall back to SPARQL
+                logger.debug("REST API failed, falling back to SPARQL for %s", label)
+
+        return self._lookup_agrovoc_sparql(label, lang)
+
+    def _lookup_agrovoc_rest(
+        self, label: str, lang: str, rest_base: str
+    ) -> tuple[dict | None, bool] | None:
+        """Look up concept in AGROVOC via REST API.
+
+        Returns:
+            Tuple of (concept_dict, query_failed), or None to fall back to SPARQL.
+        """
+        # Search for the concept
+        results = self._rest_api_search(rest_base, label, lang)
+        if results is None:
+            return None  # Fall back to SPARQL
+
+        if not results:
+            return None, False  # Not found (but query succeeded)
+
+        # Find best match (exact match preferred)
+        label_lower = label.lower()
+        best_match = None
+        for result in results:
+            match_label = result.get("prefLabel", "").lower()
+            alt_labels = [a.lower() for a in result.get("altLabel", [])] if isinstance(
+                result.get("altLabel"), list
+            ) else []
+
+            if match_label == label_lower or label_lower in alt_labels:
+                best_match = result
+                break
+
+        if not best_match and results:
+            # Use first result if no exact match
+            best_match = results[0]
+
+        if not best_match:
+            return None, False
+
+        concept_uri = best_match.get("uri")
+        if not concept_uri:
+            return None, False
+
+        pref_label = best_match.get("prefLabel", label)
+
+        # Get broader concepts via REST API
+        broader = self._get_broader_agrovoc_rest(concept_uri, rest_base, lang)
+
+        return {
+            "uri": concept_uri,
+            "prefLabel": pref_label,
+            "source": "agrovoc",
+            "broader": broader,
+        }, False
+
+    def _get_broader_agrovoc_rest(
+        self, concept_uri: str, rest_base: str, lang: str
+    ) -> list[dict]:
+        """Get broader concepts via REST API."""
+        concept_data = self._rest_api_get_concept(rest_base, concept_uri)
+        if not concept_data:
+            return []
+
+        broader = []
+        # The REST API returns concept data in JSON-LD format
+        # Look for skos:broader in the graph
+        graph = concept_data.get("graph", [])
+        for item in graph:
+            if item.get("uri") == concept_uri:
+                broader_uris = item.get("broader", [])
+                if isinstance(broader_uris, str):
+                    broader_uris = [broader_uris]
+                elif isinstance(broader_uris, list):
+                    broader_uris = [
+                        b.get("uri") if isinstance(b, dict) else b
+                        for b in broader_uris
+                    ]
+
+                # Get labels for broader concepts
+                for broader_uri in broader_uris:
+                    if broader_uri:
+                        # Find the label in the graph
+                        for node in graph:
+                            if node.get("uri") == broader_uri:
+                                # Get prefLabel for the requested language
+                                pref_labels = node.get("prefLabel", [])
+                                if isinstance(pref_labels, str):
+                                    broader.append({"uri": broader_uri, "label": pref_labels})
+                                elif isinstance(pref_labels, list):
+                                    for pl in pref_labels:
+                                        if isinstance(pl, dict):
+                                            if pl.get("lang") == lang or not pl.get("lang"):
+                                                broader.append({
+                                                    "uri": broader_uri,
+                                                    "label": pl.get("value", "")
+                                                })
+                                                break
+                                        elif isinstance(pl, str):
+                                            broader.append({"uri": broader_uri, "label": pl})
+                                            break
+                                break
+                break
+
+        return broader
+
+    def _lookup_agrovoc_sparql(self, label: str, lang: str) -> tuple[dict | None, bool]:
+        """Look up concept in AGROVOC via SPARQL.
+
+        Returns:
+            Tuple of (concept_dict, query_failed). query_failed is True if
+            the query timed out or had a network error.
+        """
         endpoint = self.endpoints.get("agrovoc")
         if not endpoint:
-            return None
+            return None, False
 
         # First, find the concept URI by label (case-insensitive)
         label_lower = label.lower()
@@ -187,8 +462,10 @@ class SKOSClient:
         """
 
         results = self._sparql_query(endpoint, query)
+        if results is None:
+            return None, True  # Query failed (timeout/error)
         if not results:
-            return None
+            return None, False  # Not found (but query succeeded)
 
         concept_uri = results[0]["concept"]["value"]
         pref_label = results[0].get("prefLabel", {}).get("value", label)
@@ -201,7 +478,7 @@ class SKOSClient:
             "prefLabel": pref_label,
             "source": "agrovoc",
             "broader": broader,
-        }
+        }, False
 
     def _get_broader_agrovoc(self, concept_uri: str, lang: str) -> list[dict]:
         """Get broader (parent) concepts from AGROVOC."""
@@ -221,16 +498,23 @@ class SKOSClient:
         """
 
         results = self._sparql_query(endpoint, query)
+        if results is None:
+            return []  # Query failed, return empty
         return [
             {"uri": r["broader"]["value"], "label": r["label"]["value"]}
             for r in results
         ]
 
-    def _lookup_dbpedia(self, label: str, lang: str) -> dict | None:
-        """Look up concept in DBpedia."""
+    def _lookup_dbpedia(self, label: str, lang: str) -> tuple[dict | None, bool]:
+        """Look up concept in DBpedia.
+
+        Returns:
+            Tuple of (concept_dict, query_failed). query_failed is True if
+            the query timed out or had a network error.
+        """
         endpoint = self.endpoints.get("dbpedia")
         if not endpoint:
-            return None
+            return None, False
 
         # DBpedia uses Wikipedia article names (Title Case)
         # Use exact match for performance - case-insensitive search is too slow
@@ -249,8 +533,10 @@ class SKOSClient:
         """
 
         results = self._sparql_query(endpoint, query)
+        if results is None:
+            return None, True  # Query failed (timeout/error)
         if not results:
-            return None
+            return None, False  # Not found (but query succeeded)
 
         resource_uri = results[0]["resource"]["value"]
         pref_label = results[0].get("label", {}).get("value", label)
@@ -263,7 +549,7 @@ class SKOSClient:
             "prefLabel": pref_label,
             "source": "dbpedia",
             "broader": broader,
-        }
+        }, False
 
     def _get_broader_dbpedia(self, resource_uri: str, lang: str) -> list[dict]:
         """Get direct categories from DBpedia (not broader hierarchy)."""
@@ -286,6 +572,8 @@ class SKOSClient:
         """
 
         results = self._sparql_query(endpoint, query)
+        if results is None:
+            return []  # Query failed, return empty
         return [
             {"uri": r["category"]["value"], "label": r["label"]["value"]}
             for r in results
@@ -380,6 +668,34 @@ class SKOSClient:
             except OSError:
                 pass
         return count
+
+    def get_cache_stats(self) -> dict[str, int]:
+        """Get statistics about the cache.
+
+        Returns:
+            Dict with 'found' (individual concept files) and 'not_found' counts.
+        """
+        if not self.cache_dir.exists():
+            return {"found": 0, "not_found": 0}
+
+        # Count individual concept files (excluding _not_found.json)
+        found_count = len([
+            f for f in self.cache_dir.glob("*.json")
+            if f.name != "_not_found.json"
+        ])
+
+        # Count entries in not-found cache
+        not_found_count = 0
+        not_found_path = _get_not_found_cache_path(self.cache_dir)
+        if not_found_path.exists():
+            try:
+                with open(not_found_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                not_found_count = len(data.get("entries", {}))
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        return {"found": found_count, "not_found": not_found_count}
 
 
 # Convenience functions for simple usage
