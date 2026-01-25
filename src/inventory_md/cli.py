@@ -136,7 +136,7 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     return 0
 
 
-def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True) -> int:
+def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
 
@@ -234,8 +234,15 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                 local_vocab = vocabulary.load_local_vocabulary(local_vocab_json)
                 print(f"   Loaded {len(local_vocab)} concepts from local-vocabulary.json")
 
+            # Determine language for SKOS lookups
+            lang = data.get("lang", "en")
+
             # Build vocabulary from inventory categories
-            vocab = vocabulary.build_vocabulary_from_inventory(data, local_vocab=local_vocab)
+            if use_skos:
+                print(f"   Using SKOS lookups (lang={lang})...")
+            vocab = vocabulary.build_vocabulary_from_inventory(
+                data, local_vocab=local_vocab, use_skos=use_skos, lang=lang
+            )
             category_counts = vocabulary.count_items_per_category(data)
 
             if vocab:
@@ -335,7 +342,7 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
                     req.add_header(header, value)
 
             try:
-                with urllib.request.urlopen(req, timeout=30) as response:
+                with urllib.request.urlopen(req, timeout=90) as response:
                     # Send response status
                     self.send_response(response.status)
 
@@ -696,6 +703,8 @@ Examples:
     parse_parser.add_argument('--no-dated', action='store_true', help='Exclude dated wanted-items files (wanted-items-YYYY-MM-DD.md)')
     parse_parser.add_argument('--auto', '-a', action='store_true',
                               help='Auto-detect files: inventory.md and wanted-items.md in current directory')
+    parse_parser.add_argument('--skos', action='store_true',
+                              help='Enrich categories with SKOS vocabulary lookups (AGROVOC/DBpedia)')
 
     # Update-template command
     update_parser = subparsers.add_parser('update-template', help='Update search.html to latest version')
@@ -871,7 +880,8 @@ Examples:
                 print("Error: inventory file required (or use --auto, or set inventory_file in config)", file=sys.stderr)
                 return 1
 
-        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated)
+        use_skos = getattr(args, 'skos', False)
+        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos)
     elif args.command == 'update-template':
         return update_template(args.directory, args.force)
     elif args.command == 'serve':

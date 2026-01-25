@@ -335,6 +335,8 @@ def build_category_tree(
 def build_vocabulary_from_inventory(
     inventory_data: dict[str, Any],
     local_vocab: dict[str, Concept] | None = None,
+    use_skos: bool = False,
+    lang: str = "en",
 ) -> dict[str, Concept]:
     """Build vocabulary from categories used in inventory data.
 
@@ -344,6 +346,8 @@ def build_vocabulary_from_inventory(
     Args:
         inventory_data: Parsed inventory JSON data.
         local_vocab: Optional local vocabulary to merge with.
+        use_skos: If True, look up categories in SKOS vocabularies.
+        lang: Language code for SKOS lookups.
 
     Returns:
         Dictionary of concepts from inventory categories.
@@ -354,13 +358,118 @@ def build_vocabulary_from_inventory(
     if local_vocab:
         concepts.update(local_vocab)
 
-    # Scan all containers and items for categories
+    # Collect all unique category labels
+    all_categories: set[str] = set()
     for container in inventory_data.get("containers", []):
         for item in container.get("items", []):
             categories = item.get("metadata", {}).get("categories", [])
             for category_path in categories:
-                _add_category_path(concepts, category_path)
+                all_categories.add(category_path)
 
+    # If SKOS enabled, enrich with SKOS lookups
+    if use_skos and all_categories:
+        concepts = _enrich_with_skos(all_categories, concepts, lang)
+    else:
+        # Just add category paths without SKOS
+        for category_path in all_categories:
+            _add_category_path(concepts, category_path)
+
+    return concepts
+
+
+def _enrich_with_skos(
+    categories: set[str],
+    existing_concepts: dict[str, Concept],
+    lang: str,
+) -> dict[str, Concept]:
+    """Enrich categories with SKOS lookups.
+
+    Args:
+        categories: Set of category paths to look up.
+        existing_concepts: Existing concepts (from local vocabulary).
+        lang: Language code for SKOS lookups.
+
+    Returns:
+        Dictionary of concepts enriched with SKOS data.
+    """
+    try:
+        from . import skos
+    except ImportError:
+        logger.warning("SKOS module not available, falling back to local vocabulary")
+        concepts = existing_concepts.copy()
+        for cat in categories:
+            _add_category_path(concepts, cat)
+        return concepts
+
+    concepts = existing_concepts.copy()
+    client = skos.SKOSClient()
+
+    # Extract leaf labels to look up (last part of each path)
+    labels_to_lookup: dict[str, set[str]] = {}  # label -> set of full paths
+    for cat_path in categories:
+        # Get the leaf label (last part of path)
+        leaf = cat_path.split("/")[-1]
+        # Normalize: replace - and _ with space for lookup
+        lookup_label = leaf.replace("-", " ").replace("_", " ")
+        if lookup_label not in labels_to_lookup:
+            labels_to_lookup[lookup_label] = set()
+        labels_to_lookup[lookup_label].add(cat_path)
+
+    logger.info("Looking up %d unique labels in SKOS...", len(labels_to_lookup))
+    skos_found = 0
+    skos_not_found = 0
+
+    for label, paths in labels_to_lookup.items():
+        # Skip if already in local vocab
+        if label.lower() in [c.prefLabel.lower() for c in concepts.values()]:
+            continue
+
+        # Try SKOS lookup
+        concept_data = client.lookup_concept(label, lang=lang, source="agrovoc")
+        if not concept_data or not concept_data.get("uri"):
+            # Try DBpedia
+            concept_data = client.lookup_concept(label, lang=lang, source="dbpedia")
+
+        if concept_data and concept_data.get("uri"):
+            skos_found += 1
+            # Create concept from SKOS data
+            pref_label = concept_data.get("prefLabel", label)
+            broader_data = concept_data.get("broader", [])
+
+            # Build broader list from SKOS hierarchy
+            broader_ids = []
+            for b in broader_data[:3]:  # Limit to first 3 broader concepts
+                broader_label = b.get("label", "").lower().replace(" ", "_")
+                if broader_label:
+                    broader_ids.append(broader_label)
+
+            # Add the concept for each path that uses this label
+            for cat_path in paths:
+                if cat_path not in concepts:
+                    concepts[cat_path] = Concept(
+                        id=cat_path,
+                        prefLabel=pref_label,
+                        altLabels=[],
+                        broader=broader_ids[:1] if broader_ids else [],  # Just first broader
+                        narrower=[],
+                        source=concept_data.get("source", "skos"),
+                    )
+
+                # Also add broader concepts
+                for broader_id in broader_ids:
+                    if broader_id not in concepts:
+                        concepts[broader_id] = Concept(
+                            id=broader_id,
+                            prefLabel=broader_id.replace("_", " ").title(),
+                            source="skos",
+                        )
+        else:
+            skos_not_found += 1
+            # Fall back to adding path without SKOS enrichment
+            for cat_path in paths:
+                _add_category_path(concepts, cat_path)
+
+    logger.info("SKOS lookup complete: %d found, %d not found", skos_found, skos_not_found)
     return concepts
 
 
