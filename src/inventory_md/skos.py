@@ -39,6 +39,177 @@ DEFAULT_CACHE_DIR = Path.home() / ".cache" / "inventory-md" / "skos"
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
 DEFAULT_TIMEOUT = 300.0  # SPARQL endpoints can be slow
 
+# Default path for local AGROVOC data
+DEFAULT_AGROVOC_PATH = DEFAULT_CACHE_DIR / "agrovoc.nt"
+
+
+class OxigraphStore:
+    """Local SKOS store using Oxigraph (pyoxigraph).
+
+    Loads RDF data from N-Triples files and provides SPARQL query access.
+    Much faster than remote SPARQL endpoints for local lookups.
+
+    Example:
+        >>> store = OxigraphStore()
+        >>> store.load("/path/to/agrovoc.nt")
+        >>> results = store.query("SELECT ?s WHERE { ?s a skos:Concept } LIMIT 10")
+    """
+
+    def __init__(self, persistent_path: Path | None = None):
+        """Initialize Oxigraph store.
+
+        Args:
+            persistent_path: If provided, use persistent storage at this path.
+                            Otherwise, use in-memory storage.
+        """
+        try:
+            import pyoxigraph
+        except ImportError as e:
+            raise ImportError(
+                "pyoxigraph required for local SKOS store. "
+                "Install with: pip install pyoxigraph"
+            ) from e
+
+        self._pyoxigraph = pyoxigraph
+        if persistent_path:
+            persistent_path.parent.mkdir(parents=True, exist_ok=True)
+            self._store = pyoxigraph.Store(str(persistent_path))
+        else:
+            self._store = pyoxigraph.Store()
+
+        self._loaded_files: set[str] = set()
+
+    def load(self, path: Path | str, format: str | None = None) -> int:
+        """Load RDF data from a file.
+
+        Args:
+            path: Path to RDF file (N-Triples, Turtle, RDF/XML, etc.)
+            format: RDF format. Auto-detected from extension if not provided.
+                   Supported: "nt" (N-Triples), "ttl" (Turtle), "rdf" (RDF/XML)
+
+        Returns:
+            Number of triples loaded.
+        """
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"RDF file not found: {path}")
+
+        # Track loaded files to avoid reloading
+        path_str = str(path.resolve())
+        if path_str in self._loaded_files:
+            logger.debug("File already loaded: %s", path)
+            return 0
+
+        # Auto-detect format from extension
+        if format is None:
+            suffix = path.suffix.lower()
+            format_map = {
+                ".nt": self._pyoxigraph.RdfFormat.N_TRIPLES,
+                ".ntriples": self._pyoxigraph.RdfFormat.N_TRIPLES,
+                ".ttl": self._pyoxigraph.RdfFormat.TURTLE,
+                ".turtle": self._pyoxigraph.RdfFormat.TURTLE,
+                ".rdf": self._pyoxigraph.RdfFormat.RDF_XML,
+                ".xml": self._pyoxigraph.RdfFormat.RDF_XML,
+                ".nq": self._pyoxigraph.RdfFormat.N_QUADS,
+            }
+            rdf_format = format_map.get(suffix, self._pyoxigraph.RdfFormat.N_TRIPLES)
+        else:
+            format_map = {
+                "nt": self._pyoxigraph.RdfFormat.N_TRIPLES,
+                "ttl": self._pyoxigraph.RdfFormat.TURTLE,
+                "rdf": self._pyoxigraph.RdfFormat.RDF_XML,
+                "nq": self._pyoxigraph.RdfFormat.N_QUADS,
+            }
+            rdf_format = format_map.get(format, self._pyoxigraph.RdfFormat.N_TRIPLES)
+
+        logger.info("Loading RDF data from %s (format: %s)...", path, rdf_format)
+        initial_count = len(self._store)
+
+        with open(path, "rb") as f:
+            self._store.load(f, rdf_format)
+
+        loaded = len(self._store) - initial_count
+        self._loaded_files.add(path_str)
+        logger.info("Loaded %d triples from %s (total: %d)", loaded, path, len(self._store))
+        return loaded
+
+    def query(self, sparql: str) -> list[dict]:
+        """Execute a SPARQL SELECT query.
+
+        Args:
+            sparql: SPARQL SELECT query string.
+
+        Returns:
+            List of result bindings (dicts mapping variable names to values).
+        """
+        query_results = self._store.query(sparql)
+        variables = query_results.variables
+
+        results = []
+        for solution in query_results:
+            row = {}
+            for var in variables:
+                value = solution[var]
+                if value is not None:
+                    # Convert pyoxigraph types to simple dict format
+                    var_name = var.value
+                    if hasattr(value, "value"):
+                        row[var_name] = {"value": value.value}
+                        if hasattr(value, "language") and value.language:
+                            row[var_name]["lang"] = value.language
+                    else:
+                        row[var_name] = {"value": str(value)}
+            results.append(row)
+        return results
+
+    def __len__(self) -> int:
+        """Return number of triples in store."""
+        return len(self._store)
+
+    @property
+    def is_loaded(self) -> bool:
+        """Check if any data has been loaded."""
+        return len(self._store) > 0
+
+
+# Global Oxigraph store instance (lazy-loaded)
+_oxigraph_store: OxigraphStore | None = None
+
+
+def get_oxigraph_store(
+    agrovoc_path: Path | None = None,
+    persistent_path: Path | None = None,
+) -> OxigraphStore | None:
+    """Get or create the global Oxigraph store with AGROVOC data.
+
+    Args:
+        agrovoc_path: Path to AGROVOC N-Triples file. Default: ~/.cache/inventory-md/skos/agrovoc.nt
+        persistent_path: Path for persistent Oxigraph storage. Default: in-memory.
+
+    Returns:
+        OxigraphStore instance, or None if pyoxigraph not available or data file missing.
+    """
+    global _oxigraph_store
+
+    if _oxigraph_store is not None:
+        return _oxigraph_store
+
+    agrovoc_path = agrovoc_path or DEFAULT_AGROVOC_PATH
+    if not agrovoc_path.exists():
+        logger.debug("AGROVOC data file not found: %s", agrovoc_path)
+        return None
+
+    try:
+        _oxigraph_store = OxigraphStore(persistent_path=persistent_path)
+        _oxigraph_store.load(agrovoc_path)
+        return _oxigraph_store
+    except ImportError:
+        logger.debug("pyoxigraph not available")
+        return None
+    except Exception as e:
+        logger.warning("Failed to load Oxigraph store: %s", e)
+        return None
+
 
 def _get_cache_path(cache_dir: Path, key: str) -> Path:
     """Get cache file path for a lookup key."""
@@ -138,6 +309,9 @@ class SKOSClient:
         enabled_sources: list[str] | None = None,
         use_rest_api: bool = True,
         rest_endpoints: dict[str, str] | None = None,
+        oxigraph_store: OxigraphStore | None = None,
+        use_oxigraph: bool = True,
+        agrovoc_path: Path | None = None,
     ):
         """Initialize SKOS client.
 
@@ -148,6 +322,9 @@ class SKOSClient:
             enabled_sources: List of sources to query. Default: ["agrovoc", "dbpedia"]
             use_rest_api: If True, prefer REST API over SPARQL for AGROVOC (faster).
             rest_endpoints: Custom REST API endpoints. Default: AGROVOC Skosmos.
+            oxigraph_store: Optional pre-loaded OxigraphStore for local AGROVOC lookups.
+            use_oxigraph: If True, try to use local Oxigraph store for AGROVOC (fastest).
+            agrovoc_path: Path to AGROVOC N-Triples file for Oxigraph. Default: auto-detect.
         """
         self.cache_dir = cache_dir or DEFAULT_CACHE_DIR
         self.endpoints = endpoints or ENDPOINTS.copy()
@@ -155,6 +332,16 @@ class SKOSClient:
         self.enabled_sources = enabled_sources or ["agrovoc", "dbpedia"]
         self.use_rest_api = use_rest_api
         self.rest_endpoints = rest_endpoints or REST_ENDPOINTS.copy()
+        self.use_oxigraph = use_oxigraph
+        self.agrovoc_path = agrovoc_path
+
+        # Use provided store or try to get global store
+        if oxigraph_store is not None:
+            self._oxigraph_store = oxigraph_store
+        elif use_oxigraph:
+            self._oxigraph_store = get_oxigraph_store(agrovoc_path=agrovoc_path)
+        else:
+            self._oxigraph_store = None
 
     def _rest_api_search(
         self, base_url: str, query: str, lang: str = "en"
@@ -310,13 +497,22 @@ class SKOSClient:
     def _lookup_agrovoc(self, label: str, lang: str) -> tuple[dict | None, bool]:
         """Look up concept in AGROVOC.
 
-        Uses REST API if enabled (faster), falls back to SPARQL.
+        Priority: Oxigraph (local) > REST API > SPARQL (remote).
 
         Returns:
             Tuple of (concept_dict, query_failed). query_failed is True if
             the query timed out or had a network error.
         """
-        # Try REST API first if enabled
+        # Try Oxigraph first if available (fastest - local)
+        if self._oxigraph_store is not None and self._oxigraph_store.is_loaded:
+            result = self._lookup_agrovoc_oxigraph(label, lang)
+            if result is not None:
+                return result
+            # Oxigraph returned not found - this is authoritative, don't fall back
+            logger.debug("Concept not found in local Oxigraph: %s", label)
+            return None, False
+
+        # Try REST API if enabled
         if self.use_rest_api:
             rest_base = self.rest_endpoints.get("agrovoc")
             if rest_base:
@@ -327,6 +523,85 @@ class SKOSClient:
                 logger.debug("REST API failed, falling back to SPARQL for %s", label)
 
         return self._lookup_agrovoc_sparql(label, lang)
+
+    def _lookup_agrovoc_oxigraph(self, label: str, lang: str) -> tuple[dict | None, bool] | None:
+        """Look up concept in AGROVOC via local Oxigraph store.
+
+        Returns:
+            Tuple of (concept_dict, query_failed), or None if store not available.
+        """
+        if self._oxigraph_store is None:
+            return None
+
+        label_lower = label.lower()
+
+        # Query for concept by prefLabel or altLabel (case-insensitive)
+        # AGROVOC Core uses standard SKOS predicates
+        query = f"""
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+        SELECT DISTINCT ?concept ?prefLabel WHERE {{
+            {{
+                ?concept skos:prefLabel ?label .
+                FILTER(lcase(str(?label)) = "{label_lower}")
+            }} UNION {{
+                ?concept skos:altLabel ?label .
+                FILTER(lcase(str(?label)) = "{label_lower}")
+            }}
+            ?concept skos:prefLabel ?prefLabel .
+            FILTER(lang(?prefLabel) = "{lang}" || lang(?prefLabel) = "")
+        }}
+        LIMIT 1
+        """
+
+        try:
+            results = self._oxigraph_store.query(query)
+        except Exception as e:
+            logger.warning("Oxigraph query failed: %s", e)
+            return None  # Fall back to other methods
+
+        if not results:
+            return None, False  # Not found (but query succeeded)
+
+        concept_uri = results[0]["concept"]["value"]
+        pref_label = results[0].get("prefLabel", {}).get("value", label)
+
+        # Get broader concepts
+        broader = self._get_broader_agrovoc_oxigraph(concept_uri, lang)
+
+        return {
+            "uri": concept_uri,
+            "prefLabel": pref_label,
+            "source": "agrovoc",
+            "broader": broader,
+        }, False
+
+    def _get_broader_agrovoc_oxigraph(self, concept_uri: str, lang: str) -> list[dict]:
+        """Get broader concepts from local Oxigraph store."""
+        if self._oxigraph_store is None:
+            return []
+
+        # Get transitive broader concepts
+        query = f"""
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+
+        SELECT DISTINCT ?broader ?label WHERE {{
+            <{concept_uri}> skos:broader+ ?broader .
+            ?broader skos:prefLabel ?label .
+            FILTER(lang(?label) = "{lang}" || lang(?label) = "")
+        }}
+        LIMIT 20
+        """
+
+        try:
+            results = self._oxigraph_store.query(query)
+            return [
+                {"uri": r["broader"]["value"], "label": r["label"]["value"]}
+                for r in results
+            ]
+        except Exception as e:
+            logger.warning("Oxigraph broader query failed: %s", e)
+            return []
 
     def _lookup_agrovoc_rest(
         self, label: str, lang: str, rest_base: str
@@ -669,33 +944,39 @@ class SKOSClient:
                 pass
         return count
 
-    def get_cache_stats(self) -> dict[str, int]:
-        """Get statistics about the cache.
+    def get_cache_stats(self) -> dict[str, Any]:
+        """Get statistics about the cache and Oxigraph store.
 
         Returns:
-            Dict with 'found' (individual concept files) and 'not_found' counts.
+            Dict with 'found', 'not_found' counts, and 'oxigraph_triples' if available.
         """
-        if not self.cache_dir.exists():
-            return {"found": 0, "not_found": 0}
+        stats: dict[str, Any] = {"found": 0, "not_found": 0}
 
-        # Count individual concept files (excluding _not_found.json)
-        found_count = len([
-            f for f in self.cache_dir.glob("*.json")
-            if f.name != "_not_found.json"
-        ])
+        if self.cache_dir.exists():
+            # Count individual concept files (excluding _not_found.json)
+            stats["found"] = len([
+                f for f in self.cache_dir.glob("*.json")
+                if f.name != "_not_found.json"
+            ])
 
-        # Count entries in not-found cache
-        not_found_count = 0
-        not_found_path = _get_not_found_cache_path(self.cache_dir)
-        if not_found_path.exists():
-            try:
-                with open(not_found_path, encoding="utf-8") as f:
-                    data = json.load(f)
-                not_found_count = len(data.get("entries", {}))
-            except (json.JSONDecodeError, OSError):
-                pass
+            # Count entries in not-found cache
+            not_found_path = _get_not_found_cache_path(self.cache_dir)
+            if not_found_path.exists():
+                try:
+                    with open(not_found_path, encoding="utf-8") as f:
+                        data = json.load(f)
+                    stats["not_found"] = len(data.get("entries", {}))
+                except (json.JSONDecodeError, OSError):
+                    pass
 
-        return {"found": found_count, "not_found": not_found_count}
+        # Include Oxigraph stats if available
+        if self._oxigraph_store is not None:
+            stats["oxigraph_triples"] = len(self._oxigraph_store)
+            stats["oxigraph_available"] = self._oxigraph_store.is_loaded
+        else:
+            stats["oxigraph_available"] = False
+
+        return stats
 
 
 # Convenience functions for simple usage

@@ -503,7 +503,7 @@ class TestRESTAPI:
 
     def test_lookup_agrovoc_rest_disabled(self, tmp_path):
         """Test that REST API is not used when disabled."""
-        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False)
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
 
         with patch.object(client, "_rest_api_search") as mock_rest:
             with patch.object(client, "_lookup_agrovoc_sparql") as mock_sparql:
@@ -512,3 +512,162 @@ class TestRESTAPI:
 
                 mock_rest.assert_not_called()
                 mock_sparql.assert_called_once()
+
+
+class TestOxigraphStore:
+    """Tests for Oxigraph local store functionality."""
+
+    @pytest.fixture
+    def sample_ntriples(self, tmp_path):
+        """Create a sample N-Triples file with SKOS data."""
+        nt_content = """
+<http://example.org/concept/potato> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .
+<http://example.org/concept/potato> <http://www.w3.org/2004/02/skos/core#prefLabel> "potato"@en .
+<http://example.org/concept/potato> <http://www.w3.org/2004/02/skos/core#prefLabel> "potatis"@sv .
+<http://example.org/concept/potato> <http://www.w3.org/2004/02/skos/core#altLabel> "spud"@en .
+<http://example.org/concept/potato> <http://www.w3.org/2004/02/skos/core#broader> <http://example.org/concept/vegetable> .
+<http://example.org/concept/vegetable> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .
+<http://example.org/concept/vegetable> <http://www.w3.org/2004/02/skos/core#prefLabel> "vegetable"@en .
+<http://example.org/concept/vegetable> <http://www.w3.org/2004/02/skos/core#broader> <http://example.org/concept/food> .
+<http://example.org/concept/food> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/2004/02/skos/core#Concept> .
+<http://example.org/concept/food> <http://www.w3.org/2004/02/skos/core#prefLabel> "food"@en .
+"""
+        nt_file = tmp_path / "test.nt"
+        nt_file.write_text(nt_content.strip())
+        return nt_file
+
+    def test_oxigraph_store_import_error(self):
+        """Test that ImportError is raised when pyoxigraph not installed."""
+        with patch.dict("sys.modules", {"pyoxigraph": None}):
+            original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+
+            def mock_import(name, *args, **kwargs):
+                if name == "pyoxigraph":
+                    raise ImportError("No module named 'pyoxigraph'")
+                return original_import(name, *args, **kwargs)
+
+            with patch("builtins.__import__", side_effect=mock_import):
+                with pytest.raises(ImportError, match="pyoxigraph required"):
+                    skos.OxigraphStore()
+
+    def test_oxigraph_store_load_and_query(self, sample_ntriples):
+        """Test loading N-Triples and querying."""
+        pytest.importorskip("pyoxigraph")
+
+        store = skos.OxigraphStore()
+        loaded = store.load(sample_ntriples)
+
+        assert loaded > 0
+        assert store.is_loaded
+        assert len(store) > 0
+
+        # Query for potato concept
+        results = store.query("""
+            PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+            SELECT ?label WHERE {
+                <http://example.org/concept/potato> skos:prefLabel ?label .
+                FILTER(lang(?label) = "en")
+            }
+        """)
+
+        assert len(results) == 1
+        assert results[0]["label"]["value"] == "potato"
+
+    def test_oxigraph_store_file_not_found(self, tmp_path):
+        """Test that FileNotFoundError is raised for missing file."""
+        pytest.importorskip("pyoxigraph")
+
+        store = skos.OxigraphStore()
+        with pytest.raises(FileNotFoundError):
+            store.load(tmp_path / "nonexistent.nt")
+
+    def test_oxigraph_store_no_double_load(self, sample_ntriples):
+        """Test that loading the same file twice doesn't duplicate triples."""
+        pytest.importorskip("pyoxigraph")
+
+        store = skos.OxigraphStore()
+        first_load = store.load(sample_ntriples)
+        second_load = store.load(sample_ntriples)
+
+        assert first_load > 0
+        assert second_load == 0  # Should skip already loaded file
+
+    def test_skos_client_with_oxigraph(self, sample_ntriples, tmp_path):
+        """Test SKOSClient using Oxigraph store."""
+        pytest.importorskip("pyoxigraph")
+
+        store = skos.OxigraphStore()
+        store.load(sample_ntriples)
+
+        client = skos.SKOSClient(
+            cache_dir=tmp_path,
+            oxigraph_store=store,
+            use_rest_api=False,
+        )
+
+        # Look up by prefLabel
+        result = client.lookup_concept("potato", lang="en", source="agrovoc")
+
+        assert result is not None
+        assert result["uri"] == "http://example.org/concept/potato"
+        assert result["prefLabel"] == "potato"
+        assert result["source"] == "agrovoc"
+        assert len(result["broader"]) >= 1
+
+        # Check broader concepts
+        broader_labels = [b["label"] for b in result["broader"]]
+        assert "vegetable" in broader_labels or "food" in broader_labels
+
+    def test_skos_client_oxigraph_altlabel(self, sample_ntriples, tmp_path):
+        """Test lookup by altLabel via Oxigraph."""
+        pytest.importorskip("pyoxigraph")
+
+        store = skos.OxigraphStore()
+        store.load(sample_ntriples)
+
+        client = skos.SKOSClient(
+            cache_dir=tmp_path,
+            oxigraph_store=store,
+            use_rest_api=False,
+        )
+
+        # Look up by altLabel "spud"
+        result = client.lookup_concept("spud", lang="en", source="agrovoc")
+
+        assert result is not None
+        assert result["uri"] == "http://example.org/concept/potato"
+
+    def test_skos_client_oxigraph_not_found(self, sample_ntriples, tmp_path):
+        """Test that not found in Oxigraph returns None without fallback."""
+        pytest.importorskip("pyoxigraph")
+
+        store = skos.OxigraphStore()
+        store.load(sample_ntriples)
+
+        client = skos.SKOSClient(
+            cache_dir=tmp_path,
+            oxigraph_store=store,
+            use_rest_api=False,
+        )
+
+        # Look up non-existent concept
+        result = client.lookup_concept("nonexistent", lang="en", source="agrovoc")
+
+        assert result is None
+
+    def test_skos_client_cache_stats_with_oxigraph(self, sample_ntriples, tmp_path):
+        """Test cache stats include Oxigraph info."""
+        pytest.importorskip("pyoxigraph")
+
+        store = skos.OxigraphStore()
+        store.load(sample_ntriples)
+
+        client = skos.SKOSClient(
+            cache_dir=tmp_path,
+            oxigraph_store=store,
+        )
+
+        stats = client.get_cache_stats()
+
+        assert stats["oxigraph_available"] is True
+        assert stats["oxigraph_triples"] > 0
