@@ -470,3 +470,39 @@ class TestConfigClass:
         paths2 = cfg.paths
 
         assert paths2 == [config_file]  # Not modified by append
+
+    def test_config_lang_default(self, tmp_path, monkeypatch):
+        """Test lang property default."""
+        monkeypatch.chdir(tmp_path)
+
+        cfg = config.Config()
+
+        assert cfg.lang == "en"
+
+    def test_config_lang_from_file(self, tmp_path, monkeypatch):
+        """Test lang property from config file."""
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "inventory-md.json"
+        config_file.write_text(json.dumps({"lang": "no"}))
+
+        cfg = config.Config()
+
+        assert cfg.lang == "no"
+
+    def test_config_skos_enabled_default(self, tmp_path, monkeypatch):
+        """Test skos_enabled property default."""
+        monkeypatch.chdir(tmp_path)
+
+        cfg = config.Config()
+
+        assert cfg.skos_enabled is False
+
+    def test_config_skos_enabled_from_file(self, tmp_path, monkeypatch):
+        """Test skos_enabled property from config file."""
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "inventory-md.json"
+        config_file.write_text(json.dumps({"skos": {"enabled": True}}))
+
+        cfg = config.Config()
+
+        assert cfg.skos_enabled is True

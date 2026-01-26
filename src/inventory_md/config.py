@@ -21,6 +21,7 @@ CONFIG_FILENAMES = ["inventory-md.yaml", "inventory-md.json"]
 CONFIG_USER_FILENAMES = ["config.yaml", "config.json"]
 
 DEFAULTS: dict[str, Any] = {
+    "lang": "en",  # Default language for the inventory
     "api": {"host": "127.0.0.1", "port": 8765},
     "serve": {"host": "127.0.0.1", "port": 8000},
     "labels": {
@@ -31,10 +32,10 @@ DEFAULTS: dict[str, Any] = {
         "duplicate_qr": False,
     },
     "skos": {
+        "enabled": False,  # Enable SKOS lookups in parse --auto
         "enabled_sources": ["agrovoc", "dbpedia"],
         "cache_ttl_days": 30,
         "timeout": 30.0,
-        "default_lang": "en",
     },
 }
 
@@ -360,3 +361,13 @@ class Config:
     def labels_custom_formats(self) -> dict:
         """Return custom label sheet formats from config."""
         return self.get("labels.custom_formats", {})
+
+    @property
+    def lang(self) -> str:
+        """Return default language for the inventory."""
+        return self.get("lang", "en")
+
+    @property
+    def skos_enabled(self) -> bool:
+        """Return whether SKOS lookups are enabled."""
+        return self.get("skos.enabled", False)

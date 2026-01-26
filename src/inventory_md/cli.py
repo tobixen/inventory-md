@@ -136,7 +136,7 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     return 0
 
 
-def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False) -> int:
+def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False, lang: str = None) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
 
@@ -235,13 +235,14 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                 print(f"   Loaded {len(local_vocab)} concepts from local-vocabulary.json")
 
             # Determine language for SKOS lookups
-            lang = data.get("lang", "en")
+            # Use provided lang parameter, fall back to inventory data, then default to "en"
+            skos_lang = lang if lang else data.get("lang", "en")
 
             # Build vocabulary from inventory categories
             if use_skos:
-                print(f"   Using SKOS lookups (lang={lang})...")
+                print(f"   Using SKOS lookups (lang={skos_lang})...")
             vocab = vocabulary.build_vocabulary_from_inventory(
-                data, local_vocab=local_vocab, use_skos=use_skos, lang=lang
+                data, local_vocab=local_vocab, use_skos=use_skos, lang=skos_lang
             )
             category_counts = vocabulary.count_items_per_category(data)
 
@@ -857,6 +858,7 @@ Examples:
     elif args.command == 'parse':
         include_dated = not getattr(args, 'no_dated', False)
         auto_mode = getattr(args, 'auto', False)
+        skos_flag_provided = '--skos' in sys.argv
 
         # Handle --auto mode
         if auto_mode:
@@ -868,6 +870,12 @@ Examples:
                 wanted_path = cwd / 'wanted-items.md'
                 if wanted_path.exists():
                     wanted_items = wanted_path
+            # In auto mode, use config for SKOS settings if --skos not explicitly provided
+            if skos_flag_provided:
+                use_skos = getattr(args, 'skos', False)
+            else:
+                use_skos = config.skos_enabled
+            lang = config.lang
         else:
             # Try config values, then CLI args
             md_file = args.file
@@ -879,9 +887,10 @@ Examples:
             if md_file is None:
                 print("Error: inventory file required (or use --auto, or set inventory_file in config)", file=sys.stderr)
                 return 1
+            use_skos = getattr(args, 'skos', False)
+            lang = config.lang if use_skos else None
 
-        use_skos = getattr(args, 'skos', False)
-        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos)
+        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, lang)
     elif args.command == 'update-template':
         return update_template(args.directory, args.force)
     elif args.command == 'serve':
