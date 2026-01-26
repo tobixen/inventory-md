@@ -963,7 +963,9 @@ class SKOSClient:
             the query timed out or had a network error.
         """
         # Try Oxigraph first if available (fastest - local)
-        if self._oxigraph_store is not None and self._oxigraph_store.is_loaded:
+        # Use _get_oxigraph_store() to trigger lazy loading
+        oxigraph_store = self._get_oxigraph_store()
+        if oxigraph_store is not None and oxigraph_store.is_loaded:
             result = self._lookup_agrovoc_oxigraph(label, lang)
             if result is not None:
                 return result
