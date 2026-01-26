@@ -342,24 +342,23 @@ def build_category_tree(
     if infer_hierarchy:
         _infer_hierarchy(concepts)
 
-    # Find inventory path roots - these are first components of paths (no "/" in ID)
-    # that have children (narrower concepts). This gives us the actual top-level
-    # categories used in the inventory, not SKOS broader concepts.
-    inventory_roots = [
-        concept_id
-        for concept_id, concept in concepts.items()
-        if "/" not in concept_id and concept.narrower
-    ]
+    # Find roots - concepts that should appear at the top level of the tree
+    # This includes:
+    # 1. Path roots with children (e.g., "food" which has "food/vegetables")
+    # 2. Standalone concepts without broader and without "/" (e.g., "hammer")
+    roots = []
 
-    # If we have inventory roots, use those; otherwise fall back to concepts without broader
-    if inventory_roots:
-        roots = inventory_roots
-    else:
-        roots = [
-            concept_id
-            for concept_id, concept in concepts.items()
-            if not concept.broader
-        ]
+    for concept_id, concept in concepts.items():
+        # Skip concepts with "/" - they're part of a hierarchy, not roots
+        if "/" in concept_id:
+            continue
+
+        # Include if it has children (it's a category root like "food")
+        if concept.narrower:
+            roots.append(concept_id)
+        # Also include if it has no broader (standalone concept like "hammer")
+        elif not concept.broader:
+            roots.append(concept_id)
 
     # Sort roots alphabetically by prefLabel
     roots.sort(key=lambda x: concepts[x].prefLabel.lower())
@@ -700,16 +699,28 @@ def _add_category_path(concepts: dict[str, Concept], path: str) -> None:
             )
 
 
-def save_vocabulary_json(vocabulary: dict[str, Concept], output_path: Path) -> None:
+def save_vocabulary_json(
+    vocabulary: dict[str, Concept],
+    output_path: Path,
+    category_mappings: dict[str, list[str]] | None = None,
+) -> None:
     """Save vocabulary as JSON file for search.html.
 
     Args:
         vocabulary: Dictionary of concepts.
         output_path: Path to write vocabulary.json.
+        category_mappings: Optional mapping from simple labels to expanded paths.
+                          Used for SKOS hierarchy mode to enable search expansion.
     """
     tree = build_category_tree(vocabulary)
+    output_data = tree.to_dict()
+
+    # Include category mappings if provided (for SKOS hierarchy mode)
+    if category_mappings:
+        output_data["categoryMappings"] = category_mappings
+
     with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(tree.to_dict(), f, ensure_ascii=False, indent=2)
+        json.dump(output_data, f, ensure_ascii=False, indent=2)
 
 
 def count_items_per_category(

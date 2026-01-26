@@ -33,6 +33,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "skos": {
         "enabled": False,  # Enable SKOS lookups in parse --auto
+        "hierarchy_mode": False,  # Expand category labels to full SKOS hierarchy paths
         "enabled_sources": ["agrovoc", "dbpedia"],
         "cache_ttl_days": 30,
         "timeout": 30.0,
@@ -385,3 +386,19 @@ class Config:
         """
         default_lang = self.lang
         return self.get("skos.languages", [default_lang])
+
+    @property
+    def skos_hierarchy_mode(self) -> bool:
+        """Return whether SKOS hierarchy expansion is enabled.
+
+        When True, category labels like "potato" are expanded to full
+        SKOS hierarchy paths like "food/plant_products/vegetables/potato".
+
+        This ensures all food items can be found under a unified "food" root.
+
+        Example config:
+            skos:
+              enabled: true
+              hierarchy_mode: true
+        """
+        return self.get("skos.hierarchy_mode", False)

@@ -1505,6 +1505,27 @@
             });
         }
 
+        // Expand a category to its SKOS hierarchy paths using categoryMappings
+        function expandCategoryToSkosPaths(category) {
+            // If vocabularyData has categoryMappings, use them to expand
+            if (vocabularyData && vocabularyData.categoryMappings) {
+                // Normalize: extract leaf label and look up
+                const leafLabel = category.includes('/') ? category.split('/').pop() : category;
+                const normalizedLabel = leafLabel.toLowerCase().replace(/-/g, ' ').replace(/_/g, ' ');
+
+                // Try exact match first
+                if (vocabularyData.categoryMappings[normalizedLabel]) {
+                    return vocabularyData.categoryMappings[normalizedLabel];
+                }
+                // Try the full category path
+                if (vocabularyData.categoryMappings[category]) {
+                    return vocabularyData.categoryMappings[category];
+                }
+            }
+            // Fall back to original category
+            return [category];
+        }
+
         // Build category counts from inventory
         function buildCategoryCounts() {
             categoryCounts.clear();
@@ -1514,14 +1535,19 @@
                 container.items.forEach(item => {
                     if (item.metadata && item.metadata.categories) {
                         item.metadata.categories.forEach(category => {
-                            // Count the category itself
-                            categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
-                            // Also count parent categories
-                            const parts = category.split('/');
-                            for (let i = 0; i < parts.length - 1; i++) {
-                                const parent = parts.slice(0, i + 1).join('/');
-                                categoryCounts.set(parent, (categoryCounts.get(parent) || 0) + 1);
-                            }
+                            // Expand category to SKOS paths if categoryMappings available
+                            const expandedPaths = expandCategoryToSkosPaths(category);
+
+                            expandedPaths.forEach(expandedCategory => {
+                                // Count the category itself
+                                categoryCounts.set(expandedCategory, (categoryCounts.get(expandedCategory) || 0) + 1);
+                                // Also count parent categories
+                                const parts = expandedCategory.split('/');
+                                for (let i = 0; i < parts.length - 1; i++) {
+                                    const parent = parts.slice(0, i + 1).join('/');
+                                    categoryCounts.set(parent, (categoryCounts.get(parent) || 0) + 1);
+                                }
+                            });
                         });
                     }
                 });
@@ -1974,7 +2000,12 @@
 
             // Check if any of the item's categories match or are children of the selected category
             return item.metadata.categories.some(cat => {
-                return cat === selectedCategory || cat.startsWith(selectedCategory + '/');
+                // Expand category to SKOS paths if categoryMappings available
+                const expandedPaths = expandCategoryToSkosPaths(cat);
+
+                return expandedPaths.some(expandedCat => {
+                    return expandedCat === selectedCategory || expandedCat.startsWith(selectedCategory + '/');
+                });
             });
         }
 
@@ -2694,9 +2725,12 @@
                                             if (item.metadata && item.metadata.categories && item.metadata.categories.length > 0) {
                                                 html += ' <span class="item-categories">';
                                                 item.metadata.categories.forEach(cat => {
-                                                    const concept = vocabularyData?.concepts?.[cat];
+                                                    // Expand to SKOS path if available
+                                                    const expandedPaths = expandCategoryToSkosPaths(cat);
+                                                    const expandedCat = expandedPaths[0] || cat;
+                                                    const concept = vocabularyData?.concepts?.[expandedCat];
                                                     const label = concept ? getConceptLabel(concept) : cat.split('/').pop();
-                                                    html += `<span class="category-badge" onclick="selectCategory('${cat}', event)" title="${cat}">${label}</span>`;
+                                                    html += `<span class="category-badge" onclick="selectCategory('${expandedCat}', event)" title="${expandedCat}">${label}</span>`;
                                                 });
                                                 html += '</span>';
                                             }

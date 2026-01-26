@@ -20,4 +20,17 @@
 * Solveig: take photos
 * Consider scrapping the markdown file
 * Consider age ranges for children's items (e.g., age:6-8)
+* **SKOS Category System** - see [CATEGORIES.md](CATEGORIES.md) for detailed status
+  - [x] Parser support for `category:` syntax
+  - [x] SKOS module with AGROVOC/DBpedia integration
+  - [x] Oxigraph local database for fast queries
+  - [x] CLI commands: `skos expand/lookup`, `vocabulary list/lookup/tree`
+  - [x] Plural normalization (books→book)
+  - [x] DBpedia priority for non-food terms
+  - [x] SKOS hierarchy mode in `parse --auto` and `parse --hierarchy`
+  - [x] Category mappings stored in vocabulary.json
+  - [x] search.html category browser UI (tree with expand/collapse)
+  - [x] Conditional category UI (hidden when vocabulary.json missing/empty)
+  - [x] SKOS path expansion in UI (badges and filters use expanded paths)
+  - [ ] Local vocabulary import from `local-vocabulary.yaml`
 

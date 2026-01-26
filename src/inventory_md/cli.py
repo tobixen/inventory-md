@@ -136,7 +136,7 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     return 0
 
 
-def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False, lang: str = None, languages: list[str] = None) -> int:
+def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False, hierarchy_mode: bool = False, lang: str = None, languages: list[str] = None) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
 
@@ -238,22 +238,44 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
             skos_lang = lang or "en"
 
             # Build vocabulary from inventory categories
-            if use_skos:
+            category_mappings = None
+            if use_skos or hierarchy_mode:
                 lang_info = f"lang={skos_lang}"
                 if languages and len(languages) > 1:
                     lang_info += f", translations={languages}"
-                print(f"   Using SKOS lookups ({lang_info})...")
-            vocab = vocabulary.build_vocabulary_from_inventory(
-                data, local_vocab=local_vocab, use_skos=use_skos, lang=skos_lang,
-                languages=languages
-            )
+
+                # Check if hierarchy mode is enabled (expand labels to full SKOS paths)
+                if hierarchy_mode:
+                    print(f"   Using SKOS hierarchy mode ({lang_info})...")
+                    vocab, category_mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                        data, local_vocab=local_vocab, lang=skos_lang, languages=languages
+                    )
+                else:
+                    print(f"   Using SKOS lookups ({lang_info})...")
+                    vocab = vocabulary.build_vocabulary_from_inventory(
+                        data, local_vocab=local_vocab, use_skos=use_skos, lang=skos_lang,
+                        languages=languages
+                    )
+            else:
+                vocab = vocabulary.build_vocabulary_from_inventory(
+                    data, local_vocab=local_vocab, use_skos=False, lang=skos_lang,
+                    languages=languages
+                )
             category_counts = vocabulary.count_items_per_category(data)
 
             if vocab:
                 vocab_output = md_file.parent / "vocabulary.json"
-                vocabulary.save_vocabulary_json(vocab, vocab_output)
-                print(f"✅ Generated {vocab_output} with {len(vocab)} categories")
-                if category_counts:
+                vocabulary.save_vocabulary_json(vocab, vocab_output, category_mappings)
+                mode_info = " (hierarchy mode)" if category_mappings else ""
+                print(f"✅ Generated {vocab_output} with {len(vocab)} categories{mode_info}")
+                if category_mappings:
+                    # Show sample mappings
+                    sample = list(category_mappings.items())[:3]
+                    for label, paths in sample:
+                        print(f"   {label} → {paths[0] if paths else '?'}")
+                    if len(category_mappings) > 3:
+                        print(f"   ... and {len(category_mappings) - 3} more mappings")
+                elif category_counts:
                     top_categories = sorted(category_counts.items(), key=lambda x: -x[1])[:5]
                     print(f"   Top categories: {', '.join(f'{c}({n})' for c, n in top_categories)}")
             else:
@@ -709,6 +731,8 @@ Examples:
                               help='Auto-detect files: inventory.md and wanted-items.md in current directory')
     parse_parser.add_argument('--skos', action='store_true',
                               help='Enrich categories with SKOS vocabulary lookups (AGROVOC/DBpedia)')
+    parse_parser.add_argument('--hierarchy', action='store_true',
+                              help='Expand category labels to full SKOS hierarchy paths (implies --skos)')
 
     # Update-template command
     update_parser = subparsers.add_parser('update-template', help='Update search.html to latest version')
@@ -862,6 +886,7 @@ Examples:
         include_dated = not getattr(args, 'no_dated', False)
         auto_mode = getattr(args, 'auto', False)
         skos_flag_provided = '--skos' in sys.argv
+        hierarchy_flag_provided = '--hierarchy' in sys.argv
 
         # Handle --auto mode
         if auto_mode:
@@ -873,13 +898,18 @@ Examples:
                 wanted_path = cwd / 'wanted-items.md'
                 if wanted_path.exists():
                     wanted_items = wanted_path
-            # In auto mode, use config for SKOS settings if --skos not explicitly provided
-            if skos_flag_provided:
+            # In auto mode, use config for SKOS settings if flags not explicitly provided
+            if hierarchy_flag_provided:
+                hierarchy_mode = True
+                use_skos = True  # --hierarchy implies --skos
+            elif skos_flag_provided:
                 use_skos = getattr(args, 'skos', False)
+                hierarchy_mode = config.skos_hierarchy_mode
             else:
                 use_skos = config.skos_enabled
+                hierarchy_mode = config.skos_hierarchy_mode if use_skos else False
             lang = config.lang
-            languages = config.skos_languages if use_skos else None
+            languages = config.skos_languages if use_skos or hierarchy_mode else None
         else:
             # Try config values, then CLI args
             md_file = args.file
@@ -891,11 +921,13 @@ Examples:
             if md_file is None:
                 print("Error: inventory file required (or use --auto, or set inventory_file in config)", file=sys.stderr)
                 return 1
-            use_skos = getattr(args, 'skos', False)
+            # --hierarchy implies --skos
+            hierarchy_mode = getattr(args, 'hierarchy', False)
+            use_skos = getattr(args, 'skos', False) or hierarchy_mode
             lang = config.lang if use_skos else None
             languages = config.skos_languages if use_skos else None
 
-        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, lang, languages)
+        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, hierarchy_mode, lang, languages)
     elif args.command == 'update-template':
         return update_template(args.directory, args.force)
     elif args.command == 'serve':

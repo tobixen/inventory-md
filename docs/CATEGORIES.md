@@ -1,313 +1,205 @@
-# SKOS-Based Category System Plan
+# SKOS-Based Category System
 
 ## Overview
 
-Replace/augment the current flat tag system with a SKOS-based hierarchical category system for better product classification. This includes:
+The category system provides hierarchical classification for inventory items using SKOS (Simple Knowledge Organization System) vocabularies. Items can be classified using semantic categories that enable "find all food items" or "show all tools" searches.
 
-1. **Category search** - Search SKOS concepts (not free text)
-2. **Hierarchical category browser** - Drill-down tree UI
-3. **SKOS integration** - Use AGROVOC/DBpedia + local vocabulary
-4. **Keep tags for attributes** - condition, packaging, etc.
+## Current Status
 
-## Current State
+### Implemented
 
-### Existing Tag System
-- Items use `tag:xxx,yyy` syntax in inventory.md
-- Tags stored as flat list in `item.metadata.tags`
-- search.html has basic tag filter buttons (flat, no hierarchy)
-- Solveig inventory already uses hierarchical paths: `tag:tool/hex`, `tag:food/vegetable`
+- **Parser support** - `category:path/to/concept` syntax in inventory.md
+- **Vocabulary module** - `src/inventory_md/vocabulary.py` for building category trees
+- **SKOS module** - `src/inventory_md/skos.py` for AGROVOC/DBpedia lookups
+- **Oxigraph integration** - Local AGROVOC database for fast queries (~7M triples)
+- **CLI commands**:
+  - `inventory-md parse --skos` - Enrich categories with SKOS lookups
+  - `inventory-md skos expand <term>` - Expand terms to hierarchy paths
+  - `inventory-md skos lookup <term>` - Look up single concept details
+  - `inventory-md vocabulary list/lookup/tree` - Manage local vocabulary
+- **Configuration** - `skos.enabled`, `skos.hierarchy_mode`, `skos.languages` in config file
+- **CLI hierarchy mode** - `inventory-md parse --hierarchy` expands labels to full SKOS paths
+- **Category mappings** - `vocabulary.json` includes `categoryMappings` for search expansion
+- **search.html category browser** - Collapsible tree UI with expand/collapse, counts, search
+- **Conditional category UI** - Category browser hidden when vocabulary.json missing or empty
+- **SKOS path expansion in UI** - Category badges and filters use expanded SKOS paths
+- **Plural normalization** - "books" → "book", "potatoes" → "potato"
+- **Source priority** - DBpedia for non-food terms, AGROVOC for food terms
 
-### Existing SKOS Module
-- `src/inventory_md/skos.py` - queries AGROVOC/DBpedia SPARQL endpoints
-- Caches results in `~/.cache/inventory-md/skos/`
-- `SKOSClient.expand_tag("potato")` → `["root_vegetables/potato", "tubers/potato"]`
+### Not Yet Implemented
 
-### Solveig Hierarchical UI (from git history)
-- CSS for `.tag-category`, `.tag-dropdown`, `.tag-dropdown-item`
-- JavaScript builds `tagHierarchy` Map from tags with `/` separator
-- Dropdown menus show category → subcategories
+- [ ] **Local vocabulary import** - `local-vocabulary.yaml` with custom categories
+- [ ] **Aliases deprecation** - Migrate aliases.json to vocabulary altLabels
 
-## Design Decisions
+## Two Category Modes
 
-1. **Syntax**: Require explicit `category:` prefix (not auto-detected from `/`)
-2. **UI**: Tree browser (expandable hierarchy like file explorer)
-3. **Aliases**: Deprecate `aliases.json` in favor of SKOS `altLabels` in local-vocabulary.yaml
+### 1. Path Mode (Current Default)
 
-## Proposed Architecture
-
-### 1. Dual Classification System
+User defines explicit category paths in inventory.md:
 
 ```markdown
-* category:food/vegetables/potatoes tag:packaging:glass,condition:new Potatoes from garden
+* category:food/vegetables/potato ID:P1 Potatoes from garden
+* category:tool/garden/shovel ID:T1 Garden shovel
 ```
 
-- **`category:`** - SKOS-based product classification ("what is this") - REQUIRED prefix
-- **`tag:`** - Attributes/properties ("what state is it in")
+Categories are stored as-is. The hierarchy is inferred from path separators.
+SKOS enriches with prefLabel/altLabels but doesn't change paths.
 
-### 2. Data Sources (Priority Order)
+**Use when**: You want full control over your category structure.
 
-1. **Local vocabulary** (`local-vocabulary.yaml`) - site-specific categories
-2. **SKOS cache** (`~/.cache/inventory-md/skos/`) - cached AGROVOC/DBpedia lookups
-3. **Remote SPARQL** - on-demand queries (with caching)
+### 2. SKOS Hierarchy Mode (Planned)
 
-### 3. Local Vocabulary Format
+User writes simple labels, system expands to full AGROVOC hierarchy:
+
+```markdown
+* category:potato ID:P1 Potatoes from garden
+```
+
+System expands to: `food/plant_products/vegetables/root_vegetables/potato`
+
+All food items end up under a unified "food" root, enabling "show all food" queries.
+
+**Use when**: You want automatic organization based on AGROVOC's agricultural vocabulary.
+
+## Usage
+
+### Basic Category Syntax
+
+```markdown
+* category:food/vegetables ID:VEG1 Mixed vegetables
+* category:book tag:condition:good ID:B1 Cookbook
+* category:tool/power/drill tag:brand:makita ID:T1 Makita drill
+```
+
+- `category:` - Product classification (what is this)
+- `tag:` - Attributes (what state is it in)
+
+### Configuration
+
+Create `inventory-md.yaml` in your inventory directory:
 
 ```yaml
-# local-vocabulary.yaml (in inventory directory)
+lang: en
+
+skos:
+  enabled: true          # Enable SKOS lookups in parse --auto
+  languages: ["en", "nb"]  # Languages for category labels
+```
+
+### CLI Commands
+
+```bash
+# Parse with SKOS enrichment
+inventory-md parse inventory.md --skos
+
+# Auto-detect files and use config
+inventory-md parse --auto
+
+# Expand a term to SKOS hierarchy
+inventory-md skos expand potato
+# → food/plant_products/vegetables/root_vegetables/potato
+
+# Look up concept details
+inventory-md skos lookup hammer
+
+# Show category tree
+inventory-md vocabulary tree
+```
+
+## Implementation Details
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `src/inventory_md/vocabulary.py` | Local vocabulary, category tree building |
+| `src/inventory_md/skos.py` | AGROVOC/DBpedia SPARQL client, Oxigraph |
+| `src/inventory_md/parser.py` | Parse `category:` syntax from markdown |
+| `src/inventory_md/cli.py` | CLI commands for parse, skos, vocabulary |
+| `src/inventory_md/config.py` | Configuration with skos.enabled option |
+
+### Generated Files
+
+| File | Purpose |
+|------|---------|
+| `inventory.json` | Parsed inventory with categories in metadata |
+| `vocabulary.json` | Category tree for search.html UI |
+
+### SKOS Data Sources
+
+1. **AGROVOC** (FAO agricultural vocabulary)
+   - Local Oxigraph database: `~/.cache/inventory-md/skos/agrovoc.nt.gz`
+   - ~7M triples, loads in ~35s, then queries are fast
+   - Good for food, agriculture, plants, animals
+   - Has Norwegian (nb) labels
+
+2. **DBpedia** (Wikipedia structured data)
+   - Remote SPARQL endpoint
+   - Good for general concepts: tools, electronics, books
+   - No Norwegian labels
+
+### Priority Logic
+
+```python
+# In vocabulary._enrich_with_skos():
+is_food_term = label.lower() in _FOOD_TERMS
+primary_source = "agrovoc" if is_food_term else "dbpedia"
+```
+
+Food terms (potato, carrot, etc.) → AGROVOC first
+Other terms (hammer, book, etc.) → DBpedia first
+
+## Remaining Work
+
+### Phase 1: Local Vocabulary (Low Priority)
+
+Support `local-vocabulary.yaml` for site-specific categories:
+
+```yaml
 concepts:
   christmas-decorations:
     prefLabel: "Christmas decorations"
     altLabel: ["jul", "xmas", "julepynt"]
     broader: "seasonal/winter"
 
-  boat-equipment:
-    prefLabel: "Boat equipment"
-    narrower:
-      - "boat-equipment/safety"
-      - "boat-equipment/navigation"
-      - "boat-equipment/maintenance"
-
   boat-equipment/safety:
     prefLabel: "Safety equipment"
-    altLabel: ["life vests", "flares", "pyro"]
+    altLabel: ["life vests", "flares"]
 ```
 
-### 4. Search Modes
-
-| Mode | Input | Matches | Example |
-|------|-------|---------|---------|
-| Free text | "potato" | Any text containing "potato" | "The Great Potato Cookbook" |
-| Category | category:potato | Items categorized as potatoes | Actual potatoes |
-| Tag | tag:condition:new | Items with attribute | New items only |
-
-## UI Design
-
-### Category Browser (Hierarchical Tree) - PRIMARY UI
-
+Migrate from `aliases.json`:
+```json
+{"potato": ["potet", "kartoffel"]}
 ```
-┌─────────────────────────────────────┐
-│ 📁 Categories              [Clear] │
-├─────────────────────────────────────┤
-│ ▼ Food (45)                         │
-│   ▼ Vegetables (12)                 │
-│     ● Potatoes (3)  ← selected      │
-│     ○ Carrots (2)                   │
-│   ▶ Canned goods (8)                │
-│ ▶ Tools (32)                        │
-│ ▶ Electronics (18)                  │
-└─────────────────────────────────────┘
+to:
+```yaml
+concepts:
+  potato:
+    altLabel: ["potet", "kartoffel"]
 ```
 
-- Click ▶/▼ to expand/collapse
-- Click category name to filter (includes all children)
-- Radio button (○/●) for leaf selection
-- Counts show items in each category (including children)
-- Collapsible on mobile to save space
-
-### Category Search Field
-
-```
-┌─────────────────────────────────────┐
-│ 🏷️ Search categories: [potato    ] │
-│   ┌─────────────────────────────┐   │
-│   │ 🥔 Potatoes (food/veg...)   │   │
-│   │ 🍟 Potato chips (food/sn..) │   │
-│   │ 📖 Potato (disambiguation)  │   │
-│   └─────────────────────────────┘   │
-└─────────────────────────────────────┘
-```
-
-- Autocomplete from SKOS prefLabel + altLabel
-- Shows hierarchy path
-- Separate from free-text search
-
-### Tag Filters (Attributes)
-
-```
-┌─────────────────────────────────────┐
-│ Condition: [All ▼] Packaging: [All ▼] │
-│   ○ new          ○ glass              │
-│   ○ used         ○ plastic            │
-│   ○ worn         ○ tin                │
-│   ○ defect       ○ cardboard          │
-└─────────────────────────────────────┘
-```
-
-- Dropdown/checkbox filters for common attributes
-- Auto-generated from tag namespaces (tag:condition:xxx)
-
-## Implementation Plan
-
-### Phase 1: Parser & Data Model
-
-**Files to modify:**
-- `src/inventory_md/parser.py`
-
-**Changes:**
-1. Parse `category:path/to/concept` syntax (separate from `tag:`)
-2. Store categories in `item.metadata.categories` as list
-3. Support both explicit paths and simple labels (expand via SKOS)
-
-```python
-# New metadata structure
-item = {
-    'metadata': {
-        'categories': ['food/vegetables/potatoes'],  # SKOS-based
-        'tags': ['packaging:glass', 'condition:new'],  # Attributes
-    }
-}
-```
-
-### Phase 2: Local Vocabulary Support
-
-**New file:**
-- `src/inventory_md/vocabulary.py`
-
-**Functions:**
-```python
-def load_local_vocabulary(path: Path) -> dict
-def merge_vocabularies(local: dict, skos_cache: dict) -> dict
-def lookup_concept(label: str, vocabulary: dict) -> Concept | None
-def get_broader_concepts(concept: Concept) -> list[Concept]
-def get_narrower_concepts(concept: Concept) -> list[Concept]
-def build_category_tree(vocabulary: dict) -> CategoryTree
-```
-
-**CLI command:**
-```bash
-inventory-md vocabulary list              # Show all concepts
-inventory-md vocabulary lookup "potato"   # Find concept by label
-inventory-md vocabulary add "my-concept"  # Add to local vocabulary
-```
-
-### Phase 3: Enhanced search.html
-
-**Changes to template:**
-1. Add category browser (collapsible tree)
-2. Add category search with autocomplete
-3. Add attribute tag filters (dropdowns)
-4. Keep free-text search separate
-5. Restore hierarchical dropdown from solveig git history
-
-**New JavaScript functions:**
-```javascript
-// Category tree
-function buildCategoryTree(inventoryData, vocabulary)
-function renderCategoryBrowser(tree)
-function toggleCategoryNode(categoryId)
-function selectCategory(categoryPath)
-
-// Category search
-function searchCategories(query)
-function renderCategoryAutocomplete(results)
-
-// Attribute filters
-function buildAttributeFilters(inventoryData)
-function renderAttributeDropdowns(attributes)
-```
-
-**New data files loaded by search.html:**
-- `vocabulary.json` - merged local + cached SKOS concepts
-
-### Phase 4: Parse Command Integration
-
-**Changes to `cli.py` parse command:**
-1. Load local-vocabulary.yaml if present
-2. Expand category labels to paths via SKOS (with caching)
-3. Generate `vocabulary.json` alongside `inventory.json`
+## Testing
 
 ```bash
-inventory-md parse inventory.md
-# Outputs:
-#   inventory.json      - inventory data with categories
-#   vocabulary.json     - category tree for UI
-#   photo-registry.json - (existing)
+# Run vocabulary tests
+pytest tests/test_vocabulary.py -v
+
+# Test SKOS expansion
+inventory-md skos expand potato carrot hammer
+
+# Test full parse with SKOS
+inventory-md parse inventory.md --skos
+
+# View generated vocabulary
+cat vocabulary.json | jq '.roots'
 ```
 
-## File Structure
+## Known Issues
 
-```
-inventory-directory/
-├── inventory.md
-├── inventory.json
-├── vocabulary.json          # Generated category tree
-├── local-vocabulary.yaml    # User-defined categories
-├── search.html
-└── ...
+1. **AGROVOC agricultural bias** - Terms like "bedding" return "litter for animals" instead of household bedding. Mitigated by preferring DBpedia for non-food terms.
 
-~/.cache/inventory-md/skos/  # SKOS lookup cache
-├── concept_agrovoc_en_potato_abc123.json
-├── concept_dbpedia_en_screwdriver_def456.json
-└── ...
-```
+2. **DBpedia lacks Norwegian** - Only AGROVOC has Norwegian labels. DBpedia concepts show English only.
 
-## Files to Create/Modify
+3. **Loading time** - First SKOS query loads Oxigraph (~35s). Subsequent queries are fast.
 
-### New Files
-- `src/inventory_md/vocabulary.py` - Local vocabulary management
-- `tests/test_vocabulary.py` - Tests
-- `docs/skos-categories.md` - Documentation (copy of this plan, cleaned up)
-
-**First step**: Copy this plan to `/home/tobias/inventory-system/docs/skos-categories.md`
-
-### Modified Files
-- `src/inventory_md/parser.py` - Parse `category:` syntax
-- `src/inventory_md/cli.py` - Add vocabulary commands, generate vocabulary.json
-- `src/inventory_md/config.py` - Add vocabulary config defaults
-- `src/inventory_md/templates/search.html` - Category browser UI
-- `src/inventory_md/skos.py` - Minor enhancements for vocabulary integration
-
-## Migration Path
-
-### Backward Compatibility
-- Existing `tag:food/vegetable` syntax continues to work (displayed as-is)
-- Tags without namespace remain as attribute tags
-- No breaking changes to inventory.md format
-
-### Gradual Migration
-1. Start using `category:` for new items
-2. Optionally convert existing hierarchical tags to `category:` syntax
-3. Create local-vocabulary.yaml for site-specific concepts
-4. Migrate aliases.json entries to local-vocabulary.yaml altLabels
-
-### Aliases.json Deprecation
-- Move search synonyms to `local-vocabulary.yaml` as `altLabels`
-- search.html will load vocabulary.json for synonym expansion
-- Old aliases.json still loaded for backward compatibility (with deprecation warning)
-
-## Verification
-
-1. **Parser test:**
-   ```bash
-   echo "* category:food/vegetables ID:test Test item" > /tmp/test.md
-   inventory-md parse /tmp/test.md --validate
-   ```
-
-2. **Category browser:**
-   - Open search.html
-   - Category tree should show hierarchy
-   - Clicking category filters results
-
-3. **Category search:**
-   - Type "potato" in category search
-   - Autocomplete shows matching concepts
-   - Selecting filters to that category
-
-4. **SKOS expansion:**
-   ```bash
-   inventory-md skos expand potato
-   # Should return hierarchical paths
-   ```
-
-5. **Local vocabulary:**
-   ```bash
-   inventory-md vocabulary list
-   inventory-md vocabulary lookup "christmas"
-   ```
-
-## Future Extensions (Not in Scope)
-
-- Visual vocabulary editor (web UI)
-- Import/export SKOS RDF files
-- Multi-language support for labels
-- Faceted search combining categories + attributes
+4. **Path explosion** - AGROVOC can return many paths for one concept. Currently limited to first path found.

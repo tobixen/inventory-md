@@ -488,6 +488,39 @@ class TestSaveVocabularyJson:
         assert "food" in data["concepts"]
         assert data["concepts"]["food/vegetables"]["altLabels"] == ["veggies"]
 
+    def test_save_with_category_mappings(self, tmp_path):
+        """Test saving vocabulary with category mappings for hierarchy mode."""
+        vocab = {
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "food/vegetables": vocabulary.Concept(id="food/vegetables", prefLabel="Vegetables"),
+            "food/vegetables/potato": vocabulary.Concept(id="food/vegetables/potato", prefLabel="Potato"),
+        }
+        mappings = {
+            "potato": ["food/vegetables/potato", "food/root_vegetables/potato"],
+            "carrot": ["food/vegetables/carrot"],
+        }
+        output_path = tmp_path / "vocabulary.json"
+        vocabulary.save_vocabulary_json(vocab, output_path, category_mappings=mappings)
+
+        # Load and verify
+        with open(output_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert "categoryMappings" in data
+        assert data["categoryMappings"]["potato"] == ["food/vegetables/potato", "food/root_vegetables/potato"]
+        assert data["categoryMappings"]["carrot"] == ["food/vegetables/carrot"]
+
+    def test_save_without_category_mappings(self, tmp_path):
+        """Test that categoryMappings is not present when not provided."""
+        vocab = {"food": vocabulary.Concept(id="food", prefLabel="Food")}
+        output_path = tmp_path / "vocabulary.json"
+        vocabulary.save_vocabulary_json(vocab, output_path)
+
+        with open(output_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        assert "categoryMappings" not in data
+
 
 class TestNormalizeToSingular:
     """Tests for _normalize_to_singular function."""
