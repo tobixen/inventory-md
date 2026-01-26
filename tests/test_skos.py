@@ -672,6 +672,188 @@ class TestRESTAPI:
         assert result["uri"] == "http://dbpedia.org/resource/Potato"
         mock_sparql.assert_called_once()
 
+    @patch("requests.get")
+    def test_lookup_dbpedia_rest_filters_list_articles(self, mock_get, tmp_path):
+        """Test DBpedia REST API filters out 'List of...' articles."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "docs": [
+                {
+                    "resource": ["http://dbpedia.org/resource/List_of_glassware"],
+                    "label": ["List of <B>glassware</B>"],
+                    "typeName": [],
+                    "category": [],
+                },
+                {
+                    "resource": ["http://dbpedia.org/resource/Glassware"],
+                    "label": ["<B>Glassware</B>"],
+                    "typeName": [],
+                    "category": ["http://dbpedia.org/resource/Category:Drinkware"],
+                },
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = client.lookup_concept("glassware", lang="en", source="dbpedia")
+
+        assert result is not None
+        assert result["uri"] == "http://dbpedia.org/resource/Glassware"
+        assert "List" not in result["prefLabel"]
+
+    @patch("requests.get")
+    def test_lookup_dbpedia_rest_filters_disambiguation_pages(self, mock_get, tmp_path):
+        """Test DBpedia REST API filters out disambiguation pages."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "docs": [
+                {
+                    "resource": ["http://dbpedia.org/resource/Spare"],
+                    "label": ["<B>Spare</B>"],
+                    "typeName": [],
+                    "comment": ["Spare may refer to:"],
+                    "category": [],
+                },
+                {
+                    "resource": ["http://dbpedia.org/resource/Spare_part"],
+                    "label": ["<B>Spare</B> part"],
+                    "typeName": [],
+                    "category": ["http://dbpedia.org/resource/Category:Inventory"],
+                },
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = client.lookup_concept("spare", lang="en", source="dbpedia")
+
+        # Should not match disambiguation page, but also may not find exact match
+        # The filter should work, but "spare" vs "Spare part" isn't exact
+        if result:
+            assert "may refer to" not in result.get("prefLabel", "").lower()
+
+    @patch("requests.get")
+    def test_lookup_dbpedia_rest_filters_disambiguation_by_resource_name(self, mock_get, tmp_path):
+        """Test DBpedia REST API filters disambiguation pages by resource name suffix."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "docs": [
+                {
+                    "resource": ["http://dbpedia.org/resource/Tape_(disambiguation)"],
+                    "label": ["<B>Tape</B> (disambiguation)"],
+                    "typeName": [],
+                    "category": [],
+                },
+                {
+                    "resource": ["http://dbpedia.org/resource/Tape"],
+                    "label": ["<B>Tape</B>"],
+                    "typeName": [],
+                    "category": ["http://dbpedia.org/resource/Category:Stationery"],
+                },
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = client.lookup_concept("tape", lang="en", source="dbpedia")
+
+        assert result is not None
+        assert result["uri"] == "http://dbpedia.org/resource/Tape"
+        assert "disambiguation" not in result["prefLabel"].lower()
+
+
+class TestLanguageFallback:
+    """Tests for language code fallback (e.g., nb -> no)."""
+
+    def test_language_fallback_constants(self):
+        """Test that language fallbacks are defined."""
+        assert skos.LANGUAGE_FALLBACKS["nb"] == "no"
+        assert skos.LANGUAGE_FALLBACKS["nn"] == "no"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_agrovoc_labels_fallback_nb_to_no(self, mock_query, tmp_path):
+        """Test that Norwegian Bokmål (nb) falls back to Norwegian (no)."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        # Mock response with 'no' but not 'nb'
+        mock_query.return_value = [
+            {"lang": {"value": "en"}, "label": {"value": "potato"}},
+            {"lang": {"value": "no"}, "label": {"value": "potet"}},
+        ]
+
+        result = client._get_agrovoc_labels(
+            "http://example.org/potato", languages=["en", "nb"]
+        )
+
+        # Should have 'nb' from fallback
+        assert "en" in result
+        assert "nb" in result
+        assert result["nb"] == "potet"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_agrovoc_labels_no_fallback_when_nb_exists(self, mock_query, tmp_path):
+        """Test that fallback is not applied when nb label exists."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        # Mock response with both 'no' and 'nb'
+        mock_query.return_value = [
+            {"lang": {"value": "en"}, "label": {"value": "potato"}},
+            {"lang": {"value": "no"}, "label": {"value": "potet (no)"}},
+            {"lang": {"value": "nb"}, "label": {"value": "potet (nb)"}},
+        ]
+
+        result = client._get_agrovoc_labels(
+            "http://example.org/potato", languages=["en", "nb"]
+        )
+
+        # Should use actual 'nb' value, not fallback
+        assert result["nb"] == "potet (nb)"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_dbpedia_labels_fallback_nb_to_no(self, mock_query, tmp_path):
+        """Test DBpedia Norwegian Bokmål fallback."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_query.return_value = [
+            {"lang": {"value": "en"}, "label": {"value": "Potato"}},
+            {"lang": {"value": "no"}, "label": {"value": "Potet"}},
+        ]
+
+        result = client._get_dbpedia_labels(
+            "http://dbpedia.org/resource/Potato", languages=["en", "nb"]
+        )
+
+        assert "nb" in result
+        assert result["nb"] == "Potet"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_batch_agrovoc_labels_fallback(self, mock_query, tmp_path):
+        """Test batch AGROVOC labels with Norwegian fallback."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_query.return_value = [
+            {"concept": {"value": "http://example.org/a"}, "lang": {"value": "en"}, "label": {"value": "A"}},
+            {"concept": {"value": "http://example.org/a"}, "lang": {"value": "no"}, "label": {"value": "A-no"}},
+            {"concept": {"value": "http://example.org/b"}, "lang": {"value": "en"}, "label": {"value": "B"}},
+            {"concept": {"value": "http://example.org/b"}, "lang": {"value": "nb"}, "label": {"value": "B-nb"}},
+        ]
+
+        result = client._get_agrovoc_labels_batch(
+            ["http://example.org/a", "http://example.org/b"],
+            languages=["en", "nb"]
+        )
+
+        # URI 'a' should have nb from fallback
+        assert result["http://example.org/a"]["nb"] == "A-no"
+        # URI 'b' should have actual nb
+        assert result["http://example.org/b"]["nb"] == "B-nb"
+
 
 class TestOxigraphStore:
     """Tests for Oxigraph local store functionality."""

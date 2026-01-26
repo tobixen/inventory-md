@@ -40,6 +40,12 @@ DEFAULT_CACHE_DIR = Path.home() / ".cache" / "inventory-md" / "skos"
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
 DEFAULT_TIMEOUT = 300.0  # SPARQL endpoints can be slow
 
+# Language code fallbacks (e.g., Norwegian Bokmål 'nb' may be stored as 'no')
+LANGUAGE_FALLBACKS = {
+    "nb": "no",  # Norwegian Bokmål -> Norwegian
+    "nn": "no",  # Norwegian Nynorsk -> Norwegian
+}
+
 # Default path for local AGROVOC data
 DEFAULT_AGROVOC_PATH = DEFAULT_CACHE_DIR / "agrovoc.nt"
 
@@ -688,9 +694,15 @@ class SKOSClient:
         if not endpoint or not uris:
             return {}
 
+        # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
+        query_languages = set(languages)
+        for lang in languages:
+            if lang in LANGUAGE_FALLBACKS:
+                query_languages.add(LANGUAGE_FALLBACKS[lang])
+
         # Build VALUES clause for URIs
         uri_values = " ".join(f"<{uri}>" for uri in uris)
-        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
 
         query = f"""
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
@@ -718,6 +730,14 @@ class SKOSClient:
                 if concept_uri in labels_by_uri:
                     labels_by_uri[concept_uri][lang] = label
 
+        # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
+        for uri_labels in labels_by_uri.values():
+            for requested_lang in languages:
+                if requested_lang not in uri_labels:
+                    fallback_lang = LANGUAGE_FALLBACKS.get(requested_lang)
+                    if fallback_lang and fallback_lang in uri_labels:
+                        uri_labels[requested_lang] = uri_labels[fallback_lang]
+
         return labels_by_uri
 
     def _get_dbpedia_labels_batch(
@@ -728,9 +748,15 @@ class SKOSClient:
         if not endpoint or not uris:
             return {}
 
+        # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
+        query_languages = set(languages)
+        for lang in languages:
+            if lang in LANGUAGE_FALLBACKS:
+                query_languages.add(LANGUAGE_FALLBACKS[lang])
+
         # Build VALUES clause for URIs
         uri_values = " ".join(f"<{uri}>" for uri in uris)
-        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
 
         query = f"""
         PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -757,6 +783,14 @@ class SKOSClient:
                 if concept_uri in labels_by_uri:
                     labels_by_uri[concept_uri][lang] = label
 
+        # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
+        for uri_labels in labels_by_uri.values():
+            for requested_lang in languages:
+                if requested_lang not in uri_labels:
+                    fallback_lang = LANGUAGE_FALLBACKS.get(requested_lang)
+                    if fallback_lang and fallback_lang in uri_labels:
+                        uri_labels[requested_lang] = uri_labels[fallback_lang]
+
         return labels_by_uri
 
     def _get_agrovoc_labels(self, uri: str, languages: list[str]) -> dict[str, str]:
@@ -765,7 +799,13 @@ class SKOSClient:
         if not endpoint:
             return {}
 
-        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+        # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
+        query_languages = set(languages)
+        for lang in languages:
+            if lang in LANGUAGE_FALLBACKS:
+                query_languages.add(LANGUAGE_FALLBACKS[lang])
+
+        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
         query = f"""
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
@@ -787,6 +827,14 @@ class SKOSClient:
             label = r.get("label", {}).get("value", "")
             if lang and label:
                 labels[lang] = label
+
+        # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
+        for requested_lang in languages:
+            if requested_lang not in labels:
+                fallback_lang = LANGUAGE_FALLBACKS.get(requested_lang)
+                if fallback_lang and fallback_lang in labels:
+                    labels[requested_lang] = labels[fallback_lang]
+
         return labels
 
     def _get_dbpedia_labels(self, uri: str, languages: list[str]) -> dict[str, str]:
@@ -799,7 +847,13 @@ class SKOSClient:
         if not endpoint:
             return {}
 
-        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+        # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
+        query_languages = set(languages)
+        for lang in languages:
+            if lang in LANGUAGE_FALLBACKS:
+                query_languages.add(LANGUAGE_FALLBACKS[lang])
+
+        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
         query = f"""
         PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
@@ -820,6 +874,14 @@ class SKOSClient:
             label = r.get("label", {}).get("value", "")
             if lang and label:
                 labels[lang] = label
+
+        # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
+        for requested_lang in languages:
+            if requested_lang not in labels:
+                fallback_lang = LANGUAGE_FALLBACKS.get(requested_lang)
+                if fallback_lang and fallback_lang in labels:
+                    labels[requested_lang] = labels[fallback_lang]
+
         return labels
 
     def _lookup_agrovoc(self, label: str, lang: str) -> tuple[dict | None, bool]:
@@ -1235,6 +1297,26 @@ class SKOSClient:
                     return True
             return False
 
+        def is_disambiguation_page(doc: dict) -> bool:
+            """Check if document is a Wikipedia disambiguation page."""
+            # Check resource name for disambiguation suffix
+            resource_list = doc.get("resource", [])
+            if resource_list:
+                resource_name = resource_list[0].split("/")[-1]
+                if resource_name.endswith("_(disambiguation)"):
+                    return True
+            # Check type for disambiguation markers
+            type_names = doc.get("typeName", [])
+            if any("disambiguation" in t.lower() for t in type_names):
+                return True
+            # Check comment for disambiguation indicators
+            comments = doc.get("comment", [])
+            if comments:
+                comment = comments[0].lower()
+                if "may refer to:" in comment or "disambiguation" in comment:
+                    return True
+            return False
+
         # Find best match - require close label match to avoid irrelevant results
         # like "DNA repair" for "repair" or "Cable television" for "cable"
         label_lower = label.lower()
@@ -1251,7 +1333,7 @@ class SKOSClient:
         # First pass: scan ALL results for exact match (DBpedia puts popular
         # results first, so "Tool" band appears before "Tool" article)
         for doc in docs:
-            if is_excluded_type(doc) or is_list_article(doc):
+            if is_excluded_type(doc) or is_list_article(doc) or is_disambiguation_page(doc):
                 continue
 
             # Check resource name
@@ -1283,7 +1365,7 @@ class SKOSClient:
         # Second pass: if no exact match, look for simple plural
         if not best_match:
             for doc in docs:
-                if is_excluded_type(doc) or is_list_article(doc):
+                if is_excluded_type(doc) or is_list_article(doc) or is_disambiguation_page(doc):
                     continue
 
                 resource_list = doc.get("resource", [])
