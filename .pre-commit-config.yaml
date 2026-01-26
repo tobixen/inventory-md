@@ -1,6 +1,7 @@
 repos:
+  # === PRE-COMMIT STAGE (quick checks on every commit) ===
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
+    rev: v0.9.6
     hooks:
       - id: ruff
         args: [--fix]
@@ -14,6 +15,7 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
 
+  # === PRE-PUSH STAGE (full test suite before pushing) ===
   - repo: local
     hooks:
       - id: pytest

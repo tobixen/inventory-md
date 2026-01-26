@@ -15,10 +15,10 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote, urlencode
 
 logger = logging.getLogger(__name__)
 
@@ -93,10 +93,9 @@ _IRRELEVANT_CATEGORY_PATTERNS = [
 ]
 
 # Compiled regex for efficiency
-import re as _re
-_IRRELEVANT_CATEGORY_RE = _re.compile(
+_IRRELEVANT_CATEGORY_RE = re.compile(
     "|".join(_IRRELEVANT_CATEGORY_PATTERNS),
-    _re.IGNORECASE
+    re.IGNORECASE
 )
 
 

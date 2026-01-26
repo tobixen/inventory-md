@@ -1,7 +1,6 @@
 """Tests for vocabulary module."""
 
 import json
-from pathlib import Path
 
 import pytest
 

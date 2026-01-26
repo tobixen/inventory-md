@@ -30,7 +30,11 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from . import skos
+    SKOSClient = skos.SKOSClient
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +82,7 @@ class Concept:
         return self.labels.get(lang, self.prefLabel)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Concept":
+    def from_dict(cls, data: dict[str, Any]) -> Concept:
         """Create from dictionary."""
         return cls(
             id=data["id"],
@@ -644,7 +648,7 @@ def _enrich_with_skos(
 
     # Phase 2: Batch fetch translations if multiple languages requested
     if languages and len(languages) > 1:
-        other_langs = [l for l in languages if l != lang]
+        other_langs = [lng for lng in languages if lng != lang]
         if other_langs:
             # Collect all URIs that need translations
             uris_to_fetch: list[tuple[str, str]] = []
@@ -755,7 +759,7 @@ AGROVOC_ROOT_MAPPING = {
 
 def build_skos_hierarchy_paths(
     concept_label: str,
-    client: "skos.SKOSClient",
+    client: SKOSClient,  # from .skos module
     lang: str = "en",
 ) -> list[str]:
     """Build all hierarchy paths for a concept from SKOS.
@@ -773,7 +777,6 @@ def build_skos_hierarchy_paths(
     Returns:
         List of hierarchy paths from root to concept.
     """
-    from . import skos as skos_module
 
     store = client._get_oxigraph_store()
     if not store or not store.is_loaded:
@@ -836,28 +839,28 @@ def _find_agrovoc_uri(label: str, store) -> str | None:
     # Try each variation
     for var in variations:
         # Try prefLabel
-        query = '''
+        query = f'''
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
-        SELECT ?concept WHERE {
+        SELECT ?concept WHERE {{
             ?concept skosxl:prefLabel ?labelRes .
             ?labelRes skosxl:literalForm ?labelText .
-            FILTER(LCASE(STR(?labelText)) = "%s")
-        } LIMIT 1
-        ''' % var
+            FILTER(LCASE(STR(?labelText)) = "{var}")
+        }} LIMIT 1
+        '''
 
         results = list(store.query(query))
         if results:
             return results[0]['concept']['value']
 
         # Try altLabel
-        query = '''
+        query = f'''
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
-        SELECT ?concept WHERE {
+        SELECT ?concept WHERE {{
             ?concept skosxl:altLabel ?labelRes .
             ?labelRes skosxl:literalForm ?labelText .
-            FILTER(LCASE(STR(?labelText)) = "%s")
-        } LIMIT 1
-        ''' % var
+            FILTER(LCASE(STR(?labelText)) = "{var}")
+        }} LIMIT 1
+        '''
 
         results = list(store.query(query))
         if results:
@@ -877,14 +880,14 @@ def _get_agrovoc_label(uri: str, store, lang: str = "en") -> str:
     Returns:
         Label string, or last part of URI if not found.
     """
-    query = '''
+    query = f'''
     PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
-    SELECT ?labelText WHERE {
-        <%s> skosxl:prefLabel ?labelRes .
+    SELECT ?labelText WHERE {{
+        <{uri}> skosxl:prefLabel ?labelRes .
         ?labelRes skosxl:literalForm ?labelText .
-        FILTER(LANG(?labelText) = "%s")
-    } LIMIT 1
-    ''' % (uri, lang)
+        FILTER(LANG(?labelText) = "{lang}")
+    }} LIMIT 1
+    '''
 
     results = list(store.query(query))
     if results:
@@ -892,14 +895,14 @@ def _get_agrovoc_label(uri: str, store, lang: str = "en") -> str:
 
     # Fall back to English
     if lang != "en":
-        query = '''
+        query = f'''
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
-        SELECT ?labelText WHERE {
-            <%s> skosxl:prefLabel ?labelRes .
+        SELECT ?labelText WHERE {{
+            <{uri}> skosxl:prefLabel ?labelRes .
             ?labelRes skosxl:literalForm ?labelText .
             FILTER(LANG(?labelText) = "en")
-        } LIMIT 1
-        ''' % uri
+        }} LIMIT 1
+        '''
 
         results = list(store.query(query))
         if results:
@@ -919,12 +922,12 @@ def _get_broader_concepts(uri: str, store) -> list[str]:
     Returns:
         List of broader concept URIs.
     """
-    query = '''
+    query = f'''
     PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-    SELECT ?broader WHERE {
-        <%s> skos:broader ?broader .
-    }
-    ''' % uri
+    SELECT ?broader WHERE {{
+        <{uri}> skos:broader ?broader .
+    }}
+    '''
 
     results = list(store.query(query))
     return [r['broader']['value'] for r in results]

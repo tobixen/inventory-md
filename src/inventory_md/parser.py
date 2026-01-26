@@ -13,7 +13,6 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-
 # Exceptions - words that shouldn't be singularized
 _PLURAL_EXCEPTIONS = frozenset({
     'series', 'species', 'shoes', 'canoes', 'tiptoes', 'glasses',
