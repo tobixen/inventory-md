@@ -992,13 +992,40 @@ class SKOSClient:
         if self._oxigraph_store is None:
             return None
 
-        # Try exact match first (fast), then case variations
-        # Avoid UNION and lcase() which are slow in Oxigraph
-        label_variations = [
-            label.lower(),           # carrots
-            label.lower().title(),   # Carrots
-            label.upper(),           # CARROTS
-        ]
+        # Build label variations: case + singular/plural
+        # AGROVOC often uses plurals (e.g., "potatoes" not "potato")
+        base = label.lower()
+        variations = [base]
+
+        # Add plural forms
+        if base.endswith('y') and len(base) > 2 and base[-2] not in 'aeiou':
+            variations.append(base[:-1] + 'ies')  # berry -> berries
+        elif base.endswith(('s', 'x', 'z', 'ch', 'sh', 'o')):
+            variations.append(base + 'es')  # brush -> brushes, potato -> potatoes
+        else:
+            variations.append(base + 's')  # tool -> tools
+
+        # Some -o words take just -s, so try both
+        if base.endswith('o'):
+            variations.append(base + 's')  # photo -> photos
+
+        # Add singular forms (if input looks like plural)
+        if base.endswith('ies') and len(base) > 3:
+            variations.append(base[:-3] + 'y')  # berries -> berry
+        elif base.endswith('oes') and len(base) > 3:
+            variations.append(base[:-2])  # potatoes -> potato
+        elif base.endswith('es') and len(base) > 2:
+            variations.append(base[:-2])  # brushes -> brush
+        elif base.endswith('s') and len(base) > 1:
+            variations.append(base[:-1])  # tools -> tool
+
+        # Add case variations for each
+        label_variations = []
+        for v in variations:
+            label_variations.append(v)           # carrots
+            label_variations.append(v.title())   # Carrots
+        # Deduplicate while preserving order
+        label_variations = list(dict.fromkeys(label_variations))
 
         results = None
         for try_label in label_variations:
