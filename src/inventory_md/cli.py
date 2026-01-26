@@ -235,8 +235,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                 print(f"   Loaded {len(local_vocab)} concepts from local-vocabulary.json")
 
             # Determine language for SKOS lookups
-            # Use provided lang parameter, fall back to inventory data, then default to "en"
-            skos_lang = lang if lang else data.get("lang", "en")
+            skos_lang = lang or "en"
 
             # Build vocabulary from inventory categories
             if use_skos:

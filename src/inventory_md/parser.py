@@ -177,52 +177,6 @@ def extract_metadata(text: str) -> dict[str, Any]:
     }
 
 
-def extract_document_metadata(lines: list[str]) -> tuple[dict[str, str], int]:
-    """
-    Extract document-level metadata from the beginning of the file.
-
-    Looks for key: value lines at the very top, before any markdown content.
-    Supported keys: lang, language, title
-
-    Args:
-        lines: List of lines from the file
-
-    Returns:
-        Tuple of (metadata dict, number of lines consumed)
-    """
-    metadata = {}
-    consumed = 0
-
-    for line in lines:
-        stripped = line.strip()
-        # Stop at empty line, markdown heading, or non-metadata content
-        if not stripped:
-            consumed += 1
-            continue
-        if stripped.startswith('#') or stripped.startswith('*') or stripped.startswith('-'):
-            break
-
-        # Check for key: value pattern
-        if ':' in stripped and not stripped.startswith('http'):
-            key, _, value = stripped.partition(':')
-            key = key.strip().lower()
-            value = value.strip()
-
-            if key in ('lang', 'language'):
-                metadata['lang'] = value
-            elif key == 'title':
-                metadata['title'] = value
-            else:
-                # Unknown key, stop processing metadata
-                break
-            consumed += 1
-        else:
-            # Not a metadata line, stop
-            break
-
-    return metadata, consumed
-
-
 def parse_inventory(md_file: Path) -> dict[str, Any]:
     """
     Parse the markdown inventory file into structured data using markdown-it-py.
@@ -232,8 +186,6 @@ def parse_inventory(md_file: Path) -> dict[str, Any]:
 
     Returns:
         {
-            'lang': str (optional, e.g., 'no' or 'en'),
-            'title': str (optional),
             'intro': str,
             'numbering_scheme': str,
             'containers': [...]
@@ -244,22 +196,11 @@ def parse_inventory(md_file: Path) -> dict[str, Any]:
     with open(md_file, encoding='utf-8') as f:
         content = f.read()
 
-    lines = content.split('\n')
-
-    # Extract document-level metadata from the top of the file (before any headings)
-    doc_metadata, _ = extract_document_metadata(lines)
-
     result: dict[str, Any] = {
         'intro': '',
         'numbering_scheme': '',
         'containers': []
     }
-
-    # Add document metadata to result
-    if 'lang' in doc_metadata:
-        result['lang'] = doc_metadata['lang']
-    if 'title' in doc_metadata:
-        result['title'] = doc_metadata['title']
 
     # Parse the markdown structure using markdown-it-py
     sections = md_adapter.parse_markdown_string(content)
