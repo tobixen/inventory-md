@@ -1021,3 +1021,91 @@ def expand_category_to_skos_paths(
 
     client = skos.SKOSClient(use_oxigraph=use_oxigraph)
     return build_skos_hierarchy_paths(category_label, client, lang)
+
+
+def build_vocabulary_with_skos_hierarchy(
+    inventory_data: dict[str, Any],
+    local_vocab: dict[str, Concept] | None = None,
+    lang: str = "en",
+    languages: list[str] | None = None,
+) -> tuple[dict[str, Concept], dict[str, list[str]]]:
+    """Build vocabulary using SKOS hierarchy expansion.
+
+    This mode expands each category label to its full SKOS hierarchy paths.
+    For example, "potatoes" becomes "food/plant_products/vegetables/root_vegetables/potatoes".
+
+    This ensures all food items can be found under a common "food" root,
+    regardless of the original category path in inventory.md.
+
+    Args:
+        inventory_data: Parsed inventory JSON data.
+        local_vocab: Optional local vocabulary to merge with.
+        lang: Primary language code for SKOS lookups.
+        languages: List of language codes to fetch labels for.
+
+    Returns:
+        Tuple of:
+        - Dictionary of concepts (the vocabulary tree)
+        - Dictionary mapping original category labels to expanded paths
+    """
+    try:
+        from . import skos as skos_module
+    except ImportError:
+        logger.warning("SKOS module not available")
+        vocab = build_vocabulary_from_inventory(inventory_data, local_vocab)
+        return vocab, {}
+
+    concepts: dict[str, Concept] = {}
+    category_mappings: dict[str, list[str]] = {}
+
+    # Start with local vocabulary if provided
+    if local_vocab:
+        concepts.update(local_vocab)
+
+    # Collect all unique category labels from inventory
+    all_category_labels: set[str] = set()
+    for container in inventory_data.get("containers", []):
+        for item in container.get("items", []):
+            categories = item.get("metadata", {}).get("categories", [])
+            for category_path in categories:
+                # Extract leaf label from path (e.g., "food/vegetables" -> "vegetables")
+                # or use whole label if no path separator
+                leaf_label = category_path.split("/")[-1] if "/" in category_path else category_path
+                # Normalize: replace - and _ with space, singular form
+                leaf_label = leaf_label.replace("-", " ").replace("_", " ")
+                leaf_label = _normalize_to_singular(leaf_label)
+                all_category_labels.add(leaf_label)
+
+    logger.info("Expanding %d category labels to SKOS hierarchies...", len(all_category_labels))
+
+    # Create SKOS client with Oxigraph for faster lookups
+    client = skos_module.SKOSClient(use_oxigraph=True)
+
+    # Expand each label to SKOS paths
+    for label in all_category_labels:
+        paths = build_skos_hierarchy_paths(label, client, lang)
+        category_mappings[label] = paths
+
+        # Add all path components to vocabulary
+        for path in paths:
+            parts = path.split("/")
+            for i in range(len(parts)):
+                concept_id = "/".join(parts[: i + 1])
+                if concept_id not in concepts:
+                    # Create concept with label from path component
+                    concept_label = parts[i].replace("_", " ").title()
+                    concepts[concept_id] = Concept(
+                        id=concept_id,
+                        prefLabel=concept_label,
+                        source="skos",
+                    )
+
+    # Now enrich concepts with full SKOS data (labels, translations, URIs)
+    if languages and len(languages) > 1:
+        logger.info("Fetching translations for %d languages...", len(languages))
+        # TODO: Implement batch translation fetching for SKOS hierarchy mode
+
+    logger.info("Built vocabulary with %d concepts from %d category labels",
+                len(concepts), len(all_category_labels))
+
+    return concepts, category_mappings
