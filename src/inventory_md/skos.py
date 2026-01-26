@@ -881,11 +881,35 @@ class SKOSClient:
         if not docs:
             return None, False  # Not found (but query succeeded)
 
+        # Types to exclude - these are unlikely to be inventory items
+        excluded_types = {
+            "Person", "Agent", "Band", "Group", "Organisation", "Organization",
+            "MusicalArtist", "Artist", "Athlete", "Politician", "Writer",
+            "Company", "SportsTeam", "PoliticalParty", "SoccerClub",
+            "Settlement", "City", "Country", "Place", "PopulatedPlace",
+            "Film", "TelevisionShow", "Album", "Single", "Song",
+            "Event", "MilitaryConflict", "Election",
+        }
+
+        def is_excluded_type(doc: dict) -> bool:
+            """Check if document has excluded types."""
+            type_names = doc.get("typeName", [])
+            return bool(set(type_names) & excluded_types)
+
         # Find best match - check multiple fields for exact match
         label_lower = label.lower()
         best_match = None
+        first_valid = None  # First result without excluded types
 
         for doc in docs:
+            # Skip documents with excluded types
+            if is_excluded_type(doc):
+                continue
+
+            # Track first valid (non-excluded) result
+            if first_valid is None:
+                first_valid = doc
+
             # Check 1: Resource name (last part of URI) matches
             resource_list = doc.get("resource", [])
             if resource_list:
@@ -912,9 +936,9 @@ class SKOSClient:
             if best_match:
                 break
 
-        if not best_match and docs:
-            # Use first result if no exact match
-            best_match = docs[0]
+        if not best_match:
+            # Use first valid (non-excluded) result if no exact match
+            best_match = first_valid
 
         if not best_match:
             return None, False

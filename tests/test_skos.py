@@ -575,6 +575,39 @@ class TestRESTAPI:
         assert result["uri"] == "http://dbpedia.org/resource/Hammer"
         assert result["prefLabel"] == "Hammer"
 
+    @patch("requests.get")
+    def test_lookup_dbpedia_rest_filters_excluded_types(self, mock_get, tmp_path):
+        """Test DBpedia REST API filters out bands, persons, etc."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        # Mock response where first result is a band (should be filtered)
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "docs": [
+                {
+                    "resource": ["http://dbpedia.org/resource/Helmet_(band)"],
+                    "label": ["<B>Helmet</B> (band)"],
+                    "typeName": ["Band", "Organisation", "Agent"],
+                    "category": [],
+                },
+                {
+                    "resource": ["http://dbpedia.org/resource/Helmet"],
+                    "label": ["<B>Helmet</B>"],
+                    "typeName": [],
+                    "category": ["http://dbpedia.org/resource/Category:Headgear"],
+                },
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = client.lookup_concept("helmet", lang="en", source="dbpedia")
+
+        assert result is not None
+        # Should match the second result (the protective gear, not the band)
+        assert result["uri"] == "http://dbpedia.org/resource/Helmet"
+        assert "band" not in result["prefLabel"].lower()
+
     @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_rest")
     @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_sparql")
     def test_lookup_dbpedia_fallback_to_sparql(self, mock_sparql, mock_rest, tmp_path):
