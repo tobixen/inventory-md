@@ -45,10 +45,11 @@ class Concept:
     broader: list[str] = field(default_factory=list)  # Parent concept IDs
     narrower: list[str] = field(default_factory=list)  # Child concept IDs
     source: str = "local"  # "local", "agrovoc", "dbpedia"
+    uri: str | None = None  # Original SKOS URI (for external linking)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        return {
+        result = {
             "id": self.id,
             "prefLabel": self.prefLabel,
             "altLabels": self.altLabels,
@@ -56,6 +57,9 @@ class Concept:
             "narrower": self.narrower,
             "source": self.source,
         }
+        if self.uri:
+            result["uri"] = self.uri
+        return result
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Concept":
@@ -67,6 +71,7 @@ class Concept:
             broader=data.get("broader", []),
             narrower=data.get("narrower", []),
             source=data.get("source", "local"),
+            uri=data.get("uri"),
         )
 
 
@@ -258,8 +263,8 @@ def _infer_hierarchy(concepts: dict[str, Concept]) -> None:
     """Infer hierarchy relationships from concept IDs with path separators.
 
     For concepts like "food/vegetables/potatoes", automatically adds:
-    - broader: ["food/vegetables"]
-    - narrower: ["food/vegetables/potatoes"] to parent
+    - broader: ["food/vegetables"] (if not already set from SKOS)
+    - narrower: ["food/vegetables/potatoes"] to parent (always)
 
     Modifies concepts in place.
 
@@ -272,16 +277,15 @@ def _infer_hierarchy(concepts: dict[str, Concept]) -> None:
     for concept_id in concept_ids:
         concept = concepts[concept_id]
 
-        # Skip if broader is already explicitly set
-        if concept.broader:
-            continue
-
         # Infer parent from path
         if "/" in concept_id:
             parent_id = "/".join(concept_id.split("/")[:-1])
             if parent_id and parent_id in concepts:
-                concept.broader = [parent_id]
-                # Also add this concept to parent's narrower list
+                # Set broader if not already set from SKOS
+                if not concept.broader:
+                    concept.broader = [parent_id]
+                # ALWAYS add this concept to parent's narrower list
+                # This ensures the path hierarchy is preserved for navigation
                 parent = concepts[parent_id]
                 if concept_id not in parent.narrower:
                     parent.narrower.append(concept_id)
@@ -307,17 +311,30 @@ def build_category_tree(
         broader=v.broader.copy(),
         narrower=v.narrower.copy(),
         source=v.source,
+        uri=v.uri,
     ) for k, v in vocabulary.items()}
 
     if infer_hierarchy:
         _infer_hierarchy(concepts)
 
-    # Find root concepts (no broader relationships)
-    roots = [
+    # Find inventory path roots - these are first components of paths (no "/" in ID)
+    # that have children (narrower concepts). This gives us the actual top-level
+    # categories used in the inventory, not SKOS broader concepts.
+    inventory_roots = [
         concept_id
         for concept_id, concept in concepts.items()
-        if not concept.broader
+        if "/" not in concept_id and concept.narrower
     ]
+
+    # If we have inventory roots, use those; otherwise fall back to concepts without broader
+    if inventory_roots:
+        roots = inventory_roots
+    else:
+        roots = [
+            concept_id
+            for concept_id, concept in concepts.items()
+            if not concept.broader
+        ]
 
     # Sort roots alphabetically by prefLabel
     roots.sort(key=lambda x: concepts[x].prefLabel.lower())
@@ -474,16 +491,22 @@ def _enrich_with_skos(
                         broader=broader_ids[:1] if broader_ids else [],  # Just first broader
                         narrower=[],
                         source=concept_data.get("source", "skos"),
+                        uri=concept_data.get("uri"),
                     )
 
                 # Also add broader concepts (overwrite "inventory" source)
-                for broader_id in broader_ids:
+                for i, broader_id in enumerate(broader_ids):
                     existing_broader = concepts.get(broader_id)
                     if existing_broader is None or existing_broader.source == "inventory":
+                        # Get broader URI from SKOS data if available
+                        broader_uri = None
+                        if i < len(broader_data):
+                            broader_uri = broader_data[i].get("uri")
                         concepts[broader_id] = Concept(
                             id=broader_id,
                             prefLabel=broader_id.replace("_", " ").title(),
                             source="skos",
+                            uri=broader_uri,
                         )
         else:
             skos_not_found += 1

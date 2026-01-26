@@ -841,6 +841,10 @@
             cursor: pointer;
         }
 
+        .category-search-result:hover {
+            background: #f5f5f5;
+        }
+
         /* ==================== MOBILE OVERHAUL ==================== */
 
         /* Mobile-first: ensure minimum touch targets (44x44px) */
@@ -1209,6 +1213,19 @@
                 <!-- Tag filter buttons will be inserted here -->
             </div>
 
+            <div class="category-search" id="categorySearch" style="display: none; margin-top: 15px;">
+                <div style="position: relative;">
+                    <input type="text"
+                           id="categorySearchInput"
+                           placeholder="🏷️ Search categories..."
+                           autocomplete="off"
+                           style="width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                    <div id="categorySearchResults"
+                         style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-top: none; border-radius: 0 0 6px 6px; max-height: 250px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    </div>
+                </div>
+            </div>
+
             <div class="category-browser" id="categoryBrowser" style="display: none;">
                 <div class="category-browser-header" onclick="toggleCategoryBrowser()">
                     <span class="category-browser-title" id="categoryBrowserTitle"></span>
@@ -1524,6 +1541,7 @@
             selectedCategory = null;
             updateCategoryBrowserTitle();
             renderCategoryTree();
+            showCategoryInfo(null); // Hide info panel
             displayResults();
         }
 
@@ -1577,7 +1595,86 @@
             }
             updateCategoryBrowserTitle();
             renderCategoryTree();
+            showCategoryInfo(categoryId);
             displayResults();
+        }
+
+        // Show category information panel
+        function showCategoryInfo(categoryId) {
+            let infoEl = document.getElementById('categoryInfo');
+            if (!infoEl) {
+                // Create info panel if it doesn't exist
+                const browserEl = document.getElementById('categoryBrowser');
+                if (browserEl) {
+                    infoEl = document.createElement('div');
+                    infoEl.id = 'categoryInfo';
+                    infoEl.style.cssText = 'margin-top: 10px; padding: 12px; background: #f8f9fa; border-radius: 6px; font-size: 13px; display: none;';
+                    browserEl.appendChild(infoEl);
+                }
+            }
+            if (!infoEl) return;
+
+            if (!categoryId || !vocabularyData || !vocabularyData.concepts[categoryId]) {
+                infoEl.style.display = 'none';
+                return;
+            }
+
+            const concept = vocabularyData.concepts[categoryId];
+            const count = categoryCounts.get(categoryId) || 0;
+
+            let html = `<div style="margin-bottom: 8px;"><strong>${concept.prefLabel}</strong></div>`;
+            html += `<div style="color: #666; margin-bottom: 4px;">Path: <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">${categoryId}</code></div>`;
+
+            // Source with clickable link if URI available
+            let sourceHtml = `<span style="background: ${getSourceColor(concept.source)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">${concept.source}</span>`;
+            if (concept.uri) {
+                sourceHtml = `<a href="${concept.uri}" target="_blank" style="text-decoration: none;">${sourceHtml}</a>`;
+            }
+            html += `<div style="color: #666; margin-bottom: 4px;">Source: ${sourceHtml}</div>`;
+            html += `<div style="color: #666; margin-bottom: 4px;">Items: ${count}</div>`;
+
+            // Broader categories as clickable links
+            if (concept.broader && concept.broader.length > 0) {
+                const broaderLinks = concept.broader.map(b => {
+                    const bc = vocabularyData.concepts[b];
+                    const label = bc ? bc.prefLabel : b;
+                    // Check if broader is a local category (selectable) or external URI
+                    if (bc) {
+                        return `<a href="#" onclick="selectCategory('${b}', event); return false;" style="color: #0066cc;">${label}</a>`;
+                    } else if (b.startsWith('http')) {
+                        return `<a href="${b}" target="_blank" style="color: #0066cc;">${label}</a>`;
+                    }
+                    return label;
+                }).join(', ');
+                html += `<div style="color: #666; margin-bottom: 4px;">Broader: ${broaderLinks}</div>`;
+            }
+
+            // Narrower categories as clickable links
+            if (concept.narrower && concept.narrower.length > 0) {
+                const narrowerLinks = concept.narrower.slice(0, 5).map(n => {
+                    const nc = vocabularyData.concepts[n];
+                    const label = nc ? nc.prefLabel : n;
+                    return `<a href="#" onclick="selectCategory('${n}', event); return false;" style="color: #0066cc;">${label}</a>`;
+                });
+                let narrowerHtml = narrowerLinks.join(', ');
+                if (concept.narrower.length > 5) {
+                    narrowerHtml += ` <span style="color: #999;">+${concept.narrower.length - 5} more</span>`;
+                }
+                html += `<div style="color: #666;">Children: ${narrowerHtml}</div>`;
+            }
+
+            infoEl.innerHTML = html;
+            infoEl.style.display = 'block';
+        }
+
+        function getSourceColor(source) {
+            switch(source) {
+                case 'agrovoc': return '#4caf50';
+                case 'dbpedia': return '#2196f3';
+                case 'local': return '#9c27b0';
+                case 'skos': return '#ff9800';
+                default: return '#757575';
+            }
         }
 
         // Render category tree node recursively
@@ -1656,17 +1753,106 @@
         // Display category browser
         function displayCategoryBrowser() {
             const browserEl = document.getElementById('categoryBrowser');
+            const searchEl = document.getElementById('categorySearch');
             if (!browserEl) return;
 
             // Hide if no vocabulary or no categories with items
             if (!vocabularyData || categoryCounts.size === 0) {
                 browserEl.style.display = 'none';
+                if (searchEl) searchEl.style.display = 'none';
                 return;
             }
 
             browserEl.style.display = 'block';
+            if (searchEl) searchEl.style.display = 'block';
             updateCategoryBrowserTitle();
             renderCategoryTree();
+            initCategorySearch();
+        }
+
+        // Category search functionality
+        function initCategorySearch() {
+            const input = document.getElementById('categorySearchInput');
+            if (!input || input.hasAttribute('data-initialized')) return;
+            input.setAttribute('data-initialized', 'true');
+
+            input.addEventListener('input', function() {
+                const query = this.value.toLowerCase().trim();
+                if (query.length < 2) {
+                    hideCategorySearchResults();
+                    return;
+                }
+                showCategorySearchResults(query);
+            });
+
+            input.addEventListener('blur', function() {
+                // Delay to allow click on results
+                setTimeout(hideCategorySearchResults, 200);
+            });
+
+            input.addEventListener('focus', function() {
+                const query = this.value.toLowerCase().trim();
+                if (query.length >= 2) {
+                    showCategorySearchResults(query);
+                }
+            });
+        }
+
+        function showCategorySearchResults(query) {
+            const resultsEl = document.getElementById('categorySearchResults');
+            if (!resultsEl || !vocabularyData) return;
+
+            // Search through all concepts
+            const matches = [];
+            for (const [id, concept] of Object.entries(vocabularyData.concepts)) {
+                const count = categoryCounts.get(id) || 0;
+                if (count === 0) continue; // Skip empty categories
+
+                // Check prefLabel
+                if (concept.prefLabel.toLowerCase().includes(query)) {
+                    matches.push({ id, concept, count, matchType: 'prefLabel' });
+                    continue;
+                }
+                // Check altLabels
+                if (concept.altLabels && concept.altLabels.some(alt => alt.toLowerCase().includes(query))) {
+                    matches.push({ id, concept, count, matchType: 'altLabel' });
+                    continue;
+                }
+                // Check ID (path)
+                if (id.toLowerCase().includes(query)) {
+                    matches.push({ id, concept, count, matchType: 'path' });
+                }
+            }
+
+            // Sort by count (descending) and limit
+            matches.sort((a, b) => b.count - a.count);
+            const topMatches = matches.slice(0, 15);
+
+            if (topMatches.length === 0) {
+                resultsEl.innerHTML = '<div style="padding: 10px; color: #666;">No categories found</div>';
+            } else {
+                resultsEl.innerHTML = topMatches.map(m => {
+                    const pathDisplay = m.id.includes('/') ? `<span style="color: #888; font-size: 12px;"> (${m.id})</span>` : '';
+                    return `<div class="category-search-result" onclick="selectCategoryFromSearch('${m.id}')" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee;">
+                        <span style="font-weight: 500;">${m.concept.prefLabel}</span>${pathDisplay}
+                        <span style="float: right; color: #666; font-size: 12px;">${m.count} items</span>
+                    </div>`;
+                }).join('');
+            }
+
+            resultsEl.style.display = 'block';
+        }
+
+        function hideCategorySearchResults() {
+            const resultsEl = document.getElementById('categorySearchResults');
+            if (resultsEl) resultsEl.style.display = 'none';
+        }
+
+        function selectCategoryFromSearch(categoryId) {
+            const input = document.getElementById('categorySearchInput');
+            if (input) input.value = '';
+            hideCategorySearchResults();
+            selectCategory(categoryId);
         }
 
         // Check if item matches selected category (including children)

@@ -77,6 +77,13 @@ _IRRELEVANT_CATEGORY_PATTERNS = [
     r"introduced\sin\sthe\s\d",  # "food and drink introduced in the 19th century"
     r"\d{4}s[–-]\d{4}s",  # "1970s-1990s" year ranges
     r"culture\s\d{4}",  # "cassette culture 1970s"
+    # Scientific/biological categories (not inventory items)
+    r"cellular\sprocesses",
+    r"molecular\sgenetics",
+    r"dna\srepair",
+    r"mutation$",
+    r"senescence",
+    r"video\sclips",
 ]
 
 # Compiled regex for efficiency
@@ -936,7 +943,7 @@ class SKOSClient:
         import re
 
         url = f"{rest_base}/search"
-        params = {"query": label, "format": "JSON", "maxResults": 5}
+        params = {"query": label, "format": "JSON", "maxResults": 30}
 
         try:
             response = requests.get(url, params=params, timeout=self.timeout)
@@ -968,49 +975,72 @@ class SKOSClient:
             type_names = doc.get("typeName", [])
             return bool(set(type_names) & excluded_types)
 
-        # Find best match - check multiple fields for exact match
+        # Find best match - require close label match to avoid irrelevant results
+        # like "DNA repair" for "repair" or "Cable television" for "cable"
         label_lower = label.lower()
         best_match = None
-        first_valid = None  # First result without excluded types
 
+        def is_exact_match(doc_label: str) -> bool:
+            """Check if label is an exact match (case-insensitive)."""
+            return doc_label.lower() == label_lower
+
+        def is_plural_match(doc_label: str) -> bool:
+            """Check if label is a simple plural of search term."""
+            return doc_label.lower() == label_lower + 's'
+
+        # First pass: scan ALL results for exact match (DBpedia puts popular
+        # results first, so "Tool" band appears before "Tool" article)
         for doc in docs:
-            # Skip documents with excluded types
             if is_excluded_type(doc):
                 continue
 
-            # Track first valid (non-excluded) result
-            if first_valid is None:
-                first_valid = doc
-
-            # Check 1: Resource name (last part of URI) matches
+            # Check resource name
             resource_list = doc.get("resource", [])
             if resource_list:
-                resource_name = resource_list[0].split("/")[-1].replace("_", " ").lower()
-                if resource_name == label_lower:
+                resource_name = resource_list[0].split("/")[-1].replace("_", " ")
+                if is_exact_match(resource_name):
                     best_match = doc
                     break
 
-            # Check 2: Label matches (strip HTML tags)
+            # Check label
             doc_labels = doc.get("label", [])
             if doc_labels:
-                clean_label = re.sub(r"</?B>", "", doc_labels[0]).lower()
-                if clean_label == label_lower:
+                clean_label = re.sub(r"</?B>", "", doc_labels[0])
+                if is_exact_match(clean_label):
                     best_match = doc
                     break
 
-            # Check 3: Redirect labels match
+            # Check redirect labels
             redirect_labels = doc.get("redirectlabel", [])
             for redirect in redirect_labels:
-                clean_redirect = re.sub(r"</?B>", "", redirect).lower()
-                if clean_redirect == label_lower:
+                clean_redirect = re.sub(r"</?B>", "", redirect)
+                if is_exact_match(clean_redirect):
                     best_match = doc
                     break
             if best_match:
                 break
 
+        # Second pass: if no exact match, look for simple plural
         if not best_match:
-            # Use first valid (non-excluded) result if no exact match
-            best_match = first_valid
+            for doc in docs:
+                if is_excluded_type(doc):
+                    continue
+
+                resource_list = doc.get("resource", [])
+                if resource_list:
+                    resource_name = resource_list[0].split("/")[-1].replace("_", " ")
+                    if is_plural_match(resource_name):
+                        best_match = doc
+                        break
+
+                doc_labels = doc.get("label", [])
+                if doc_labels:
+                    clean_label = re.sub(r"</?B>", "", doc_labels[0])
+                    if is_plural_match(clean_label):
+                        best_match = doc
+                        break
+                if best_match:
+                    break
 
         if not best_match:
             return None, False
