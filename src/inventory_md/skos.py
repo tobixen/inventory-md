@@ -78,6 +78,7 @@ class OxigraphStore:
             self._store = pyoxigraph.Store()
 
         self._loaded_files: set[str] = set()
+        self._has_data: bool = False
 
     def load(self, path: Path | str, format: str | None = None) -> int:
         """Load RDF data from a file.
@@ -130,6 +131,7 @@ class OxigraphStore:
 
         loaded = len(self._store) - initial_count
         self._loaded_files.add(path_str)
+        self._has_data = True
         logger.info("Loaded %d triples from %s (total: %d)", loaded, path, len(self._store))
         return loaded
 
@@ -169,7 +171,7 @@ class OxigraphStore:
     @property
     def is_loaded(self) -> bool:
         """Check if any data has been loaded."""
-        return len(self._store) > 0
+        return self._has_data
 
 
 # Global Oxigraph store instance (lazy-loaded)
@@ -512,7 +514,7 @@ class SKOSClient:
             logger.debug("Concept not found in local Oxigraph: %s", label)
             return None, False
 
-        # Try REST API if enabled
+        # Try REST API if enabled (only if Oxigraph not available)
         if self.use_rest_api:
             rest_base = self.rest_endpoints.get("agrovoc")
             if rest_base:
@@ -533,33 +535,49 @@ class SKOSClient:
         if self._oxigraph_store is None:
             return None
 
-        label_lower = label.lower()
+        # Try exact match first (fast), then case variations
+        # Avoid UNION and lcase() which are slow in Oxigraph
+        label_variations = [
+            label.lower(),           # carrots
+            label.lower().title(),   # Carrots
+            label.upper(),           # CARROTS
+        ]
 
-        # Query for concept by prefLabel or altLabel (case-insensitive)
-        # AGROVOC uses SKOS-XL (extended) with skosxl:prefLabel/skosxl:literalForm
-        query = f"""
-        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
-
-        SELECT DISTINCT ?concept ?prefLabel WHERE {{
-            {{
-                ?concept skosxl:prefLabel/skosxl:literalForm ?label .
-                FILTER(lcase(str(?label)) = "{label_lower}")
-            }} UNION {{
-                ?concept skosxl:altLabel/skosxl:literalForm ?label .
-                FILTER(lcase(str(?label)) = "{label_lower}")
+        results = None
+        for try_label in label_variations:
+            # Try prefLabel first
+            query = f"""
+            PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+            SELECT DISTINCT ?concept ?prefLabel WHERE {{
+                ?concept skosxl:prefLabel/skosxl:literalForm "{try_label}"@{lang} .
+                ?concept skosxl:prefLabel/skosxl:literalForm ?prefLabel .
+                FILTER(lang(?prefLabel) = "{lang}")
             }}
-            ?concept skosxl:prefLabel/skosxl:literalForm ?prefLabel .
-            FILTER(lang(?prefLabel) = "{lang}" || lang(?prefLabel) = "")
-        }}
-        LIMIT 1
-        """
+            LIMIT 1
+            """
+            try:
+                results = self._oxigraph_store.query(query)
+                if results:
+                    break
+            except Exception as e:
+                logger.debug("Oxigraph prefLabel query failed: %s", e)
 
-        try:
-            results = self._oxigraph_store.query(query)
-        except Exception as e:
-            logger.warning("Oxigraph query failed: %s", e)
-            return None  # Fall back to other methods
+            # Try altLabel
+            query = f"""
+            PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+            SELECT DISTINCT ?concept ?prefLabel WHERE {{
+                ?concept skosxl:altLabel/skosxl:literalForm "{try_label}"@{lang} .
+                ?concept skosxl:prefLabel/skosxl:literalForm ?prefLabel .
+                FILTER(lang(?prefLabel) = "{lang}")
+            }}
+            LIMIT 1
+            """
+            try:
+                results = self._oxigraph_store.query(query)
+                if results:
+                    break
+            except Exception as e:
+                logger.debug("Oxigraph altLabel query failed: %s", e)
 
         if not results:
             return None, False  # Not found (but query succeeded)
@@ -582,26 +600,48 @@ class SKOSClient:
         if self._oxigraph_store is None:
             return []
 
-        # Get transitive broader concepts
-        # AGROVOC uses SKOS-XL for labels but standard skos:broader for hierarchy
+        # Get direct broader concepts first (fast), limit transitive depth
+        # Using skos:broader (not transitive) for speed, then follow chain manually
         query = f"""
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
 
         SELECT DISTINCT ?broader ?label WHERE {{
-            <{concept_uri}> skos:broader+ ?broader .
+            <{concept_uri}> skos:broader ?broader .
             ?broader skosxl:prefLabel/skosxl:literalForm ?label .
-            FILTER(lang(?label) = "{lang}" || lang(?label) = "")
+            FILTER(lang(?label) = "{lang}")
         }}
-        LIMIT 20
+        LIMIT 10
         """
 
         try:
             results = self._oxigraph_store.query(query)
-            return [
+            broader_list = [
                 {"uri": r["broader"]["value"], "label": r["label"]["value"]}
                 for r in results
             ]
+
+            # Follow one more level up for better hierarchy
+            if broader_list:
+                first_broader = broader_list[0]["uri"]
+                query2 = f"""
+                PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+                PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+
+                SELECT DISTINCT ?broader ?label WHERE {{
+                    <{first_broader}> skos:broader ?broader .
+                    ?broader skosxl:prefLabel/skosxl:literalForm ?label .
+                    FILTER(lang(?label) = "{lang}")
+                }}
+                LIMIT 5
+                """
+                results2 = self._oxigraph_store.query(query2)
+                broader_list.extend([
+                    {"uri": r["broader"]["value"], "label": r["label"]["value"]}
+                    for r in results2
+                ])
+
+            return broader_list
         except Exception as e:
             logger.warning("Oxigraph broader query failed: %s", e)
             return []
