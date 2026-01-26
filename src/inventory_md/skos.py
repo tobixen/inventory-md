@@ -689,7 +689,10 @@ class SKOSClient:
     def _get_agrovoc_labels_batch(
         self, uris: list[str], languages: list[str]
     ) -> dict[str, dict[str, str]]:
-        """Get labels for multiple AGROVOC URIs in one SPARQL query."""
+        """Get labels for multiple AGROVOC URIs in SPARQL queries.
+
+        Splits large batches into chunks to avoid URL length limits.
+        """
         endpoint = self.endpoints.get("agrovoc")
         if not endpoint or not uris:
             return {}
@@ -700,35 +703,41 @@ class SKOSClient:
             if lang in LANGUAGE_FALLBACKS:
                 query_languages.add(LANGUAGE_FALLBACKS[lang])
 
-        # Build VALUES clause for URIs
-        uri_values = " ".join(f"<{uri}>" for uri in uris)
-        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
+        # Deduplicate URIs
+        unique_uris = list(dict.fromkeys(uris))
 
-        query = f"""
-        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+        # Split into chunks to avoid URL length limits
+        chunk_size = 50  # AGROVOC URIs are longer, but endpoint is more tolerant
+        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in unique_uris}
 
-        SELECT ?concept ?lang ?label WHERE {{
-            VALUES ?concept {{ {uri_values} }}
-            ?concept skosxl:prefLabel/skosxl:literalForm ?label .
-            BIND(lang(?label) AS ?lang)
-            FILTER(?lang IN ({lang_filter}))
-        }}
-        """
+        for i in range(0, len(unique_uris), chunk_size):
+            chunk = unique_uris[i:i + chunk_size]
+            uri_values = " ".join(f"<{uri}>" for uri in chunk)
+            lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
 
-        results = self._sparql_query(endpoint, query)
-        if results is None:
-            return {}
+            query = f"""
+            PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+            PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
 
-        # Group labels by URI
-        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in uris}
-        for r in results:
-            concept_uri = r.get("concept", {}).get("value", "")
-            lang = r.get("lang", {}).get("value", "")
-            label = r.get("label", {}).get("value", "")
-            if concept_uri and lang and label:
-                if concept_uri in labels_by_uri:
-                    labels_by_uri[concept_uri][lang] = label
+            SELECT ?concept ?lang ?label WHERE {{
+                VALUES ?concept {{ {uri_values} }}
+                ?concept skosxl:prefLabel/skosxl:literalForm ?label .
+                BIND(lang(?label) AS ?lang)
+                FILTER(?lang IN ({lang_filter}))
+            }}
+            """
+
+            results = self._sparql_query(endpoint, query)
+            if results is None:
+                continue  # Skip failed chunk, try next
+
+            for r in results:
+                concept_uri = r.get("concept", {}).get("value", "")
+                lang = r.get("lang", {}).get("value", "")
+                label = r.get("label", {}).get("value", "")
+                if concept_uri and lang and label:
+                    if concept_uri in labels_by_uri:
+                        labels_by_uri[concept_uri][lang] = label
 
         # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
         for uri_labels in labels_by_uri.values():
@@ -743,7 +752,10 @@ class SKOSClient:
     def _get_dbpedia_labels_batch(
         self, uris: list[str], languages: list[str]
     ) -> dict[str, dict[str, str]]:
-        """Get labels for multiple DBpedia URIs in one SPARQL query."""
+        """Get labels for multiple DBpedia URIs in SPARQL queries.
+
+        Splits large batches into chunks to avoid URL length limits (414 errors).
+        """
         endpoint = self.endpoints.get("dbpedia")
         if not endpoint or not uris:
             return {}
@@ -754,34 +766,40 @@ class SKOSClient:
             if lang in LANGUAGE_FALLBACKS:
                 query_languages.add(LANGUAGE_FALLBACKS[lang])
 
-        # Build VALUES clause for URIs
-        uri_values = " ".join(f"<{uri}>" for uri in uris)
-        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
+        # Deduplicate URIs
+        unique_uris = list(dict.fromkeys(uris))
 
-        query = f"""
-        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        # Split into chunks to avoid URL length limits (max ~20 URIs per query)
+        chunk_size = 20
+        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in unique_uris}
 
-        SELECT ?concept ?lang ?label WHERE {{
-            VALUES ?concept {{ {uri_values} }}
-            ?concept rdfs:label ?label .
-            BIND(lang(?label) AS ?lang)
-            FILTER(?lang IN ({lang_filter}))
-        }}
-        """
+        for i in range(0, len(unique_uris), chunk_size):
+            chunk = unique_uris[i:i + chunk_size]
+            uri_values = " ".join(f"<{uri}>" for uri in chunk)
+            lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
 
-        results = self._sparql_query(endpoint, query)
-        if results is None:
-            return {}
+            query = f"""
+            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-        # Group labels by URI
-        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in uris}
-        for r in results:
-            concept_uri = r.get("concept", {}).get("value", "")
-            lang = r.get("lang", {}).get("value", "")
-            label = r.get("label", {}).get("value", "")
-            if concept_uri and lang and label:
-                if concept_uri in labels_by_uri:
-                    labels_by_uri[concept_uri][lang] = label
+            SELECT ?concept ?lang ?label WHERE {{
+                VALUES ?concept {{ {uri_values} }}
+                ?concept rdfs:label ?label .
+                BIND(lang(?label) AS ?lang)
+                FILTER(?lang IN ({lang_filter}))
+            }}
+            """
+
+            results = self._sparql_query(endpoint, query)
+            if results is None:
+                continue  # Skip failed chunk, try next
+
+            for r in results:
+                concept_uri = r.get("concept", {}).get("value", "")
+                lang = r.get("lang", {}).get("value", "")
+                label = r.get("label", {}).get("value", "")
+                if concept_uri and lang and label:
+                    if concept_uri in labels_by_uri:
+                        labels_by_uri[concept_uri][lang] = label
 
         # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
         for uri_labels in labels_by_uri.values():
