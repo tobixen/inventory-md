@@ -835,7 +835,7 @@ class TestLanguageFallback:
     @patch("inventory_md.skos.SKOSClient._sparql_query")
     def test_batch_agrovoc_labels_fallback(self, mock_query, tmp_path):
         """Test batch AGROVOC labels with Norwegian fallback."""
-        client = skos.SKOSClient(cache_dir=tmp_path)
+        client = skos.SKOSClient(cache_dir=tmp_path, use_oxigraph=False)
 
         mock_query.return_value = [
             {"concept": {"value": "http://example.org/a"}, "lang": {"value": "en"}, "label": {"value": "A"}},

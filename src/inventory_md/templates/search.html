@@ -1636,6 +1636,32 @@
             html += `<div style="color: #666; margin-bottom: 4px;">Source: ${sourceHtml}</div>`;
             html += `<div style="color: #666; margin-bottom: 4px;">Items: ${count}</div>`;
 
+            // Wikipedia link
+            if (concept.wikipediaUrl) {
+                // Generate language-specific Wikipedia URL
+                let wikiUrl = concept.wikipediaUrl;
+                if (currentLanguage !== 'en' && concept.uri && concept.uri.includes('dbpedia.org')) {
+                    // Try to construct localized Wikipedia URL
+                    const articleName = concept.uri.split('/resource/').pop();
+                    wikiUrl = `https://${currentLanguage}.wikipedia.org/wiki/${articleName}`;
+                }
+                html += `<div style="margin-bottom: 4px;"><a href="${wikiUrl}" target="_blank" style="color: #0066cc; text-decoration: none;">📖 Wikipedia</a></div>`;
+            }
+
+            // Description (try current language, fall back to default)
+            let description = null;
+            if (concept.descriptions && concept.descriptions[currentLanguage]) {
+                description = concept.descriptions[currentLanguage];
+            } else if (concept.description) {
+                description = concept.description;
+            }
+            if (description) {
+                // Truncate long descriptions
+                const maxLen = 200;
+                const truncated = description.length > maxLen ? description.substring(0, maxLen) + '...' : description;
+                html += `<div style="color: #555; margin-top: 8px; font-style: italic; line-height: 1.4;">${truncated}</div>`;
+            }
+
             // Broader categories as clickable links
             if (concept.broader && concept.broader.length > 0) {
                 const broaderLinks = concept.broader.map(b => {

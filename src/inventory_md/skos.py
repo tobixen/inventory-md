@@ -691,10 +691,10 @@ class SKOSClient:
     ) -> dict[str, dict[str, str]]:
         """Get labels for multiple AGROVOC URIs in SPARQL queries.
 
-        Splits large batches into chunks to avoid URL length limits.
+        Uses local Oxigraph store if available (better language coverage),
+        otherwise falls back to remote SPARQL endpoint.
         """
-        endpoint = self.endpoints.get("agrovoc")
-        if not endpoint or not uris:
+        if not uris:
             return {}
 
         # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
@@ -705,15 +705,75 @@ class SKOSClient:
 
         # Deduplicate URIs
         unique_uris = list(dict.fromkeys(uris))
-
-        # Split into chunks to avoid URL length limits
-        chunk_size = 50  # AGROVOC URIs are longer, but endpoint is more tolerant
         labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in unique_uris}
 
-        for i in range(0, len(unique_uris), chunk_size):
-            chunk = unique_uris[i:i + chunk_size]
+        # Try local Oxigraph first (has better language coverage including Norwegian)
+        oxigraph_store = self._get_oxigraph_store()
+        if oxigraph_store is not None and oxigraph_store.is_loaded:
+            labels_by_uri = self._get_agrovoc_labels_batch_oxigraph(
+                oxigraph_store, unique_uris, query_languages
+            )
+        else:
+            # Fall back to remote SPARQL endpoint
+            endpoint = self.endpoints.get("agrovoc")
+            if endpoint:
+                labels_by_uri = self._get_agrovoc_labels_batch_sparql(
+                    endpoint, unique_uris, query_languages
+                )
+
+        # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
+        for uri_labels in labels_by_uri.values():
+            for requested_lang in languages:
+                if requested_lang not in uri_labels:
+                    fallback_lang = LANGUAGE_FALLBACKS.get(requested_lang)
+                    if fallback_lang and fallback_lang in uri_labels:
+                        uri_labels[requested_lang] = uri_labels[fallback_lang]
+
+        return labels_by_uri
+
+    def _get_agrovoc_labels_batch_oxigraph(
+        self, store: OxigraphStore, uris: list[str], languages: set[str]
+    ) -> dict[str, dict[str, str]]:
+        """Get AGROVOC labels from local Oxigraph store."""
+        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in uris}
+        lang_filter = ", ".join(f'"{lang}"' for lang in languages)
+
+        # Query all URIs in one go (local store can handle large queries)
+        for uri in uris:
+            query = f"""
+            PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+
+            SELECT ?lang ?label WHERE {{
+                <{uri}> skosxl:prefLabel/skosxl:literalForm ?label .
+                BIND(lang(?label) AS ?lang)
+                FILTER(?lang IN ({lang_filter}))
+            }}
+            """
+            try:
+                results = store.query(query)
+                for r in results:
+                    lang = r.get("lang", {}).get("value", "")
+                    label = r.get("label", {}).get("value", "")
+                    if lang and label:
+                        labels_by_uri[uri][lang] = label
+            except Exception as e:
+                logger.debug("Oxigraph label query failed for %s: %s", uri, e)
+
+        return labels_by_uri
+
+    def _get_agrovoc_labels_batch_sparql(
+        self, endpoint: str, uris: list[str], languages: set[str]
+    ) -> dict[str, dict[str, str]]:
+        """Get AGROVOC labels from remote SPARQL endpoint."""
+        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in uris}
+
+        # Split into chunks to avoid URL length limits
+        chunk_size = 50
+        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+
+        for i in range(0, len(uris), chunk_size):
+            chunk = uris[i:i + chunk_size]
             uri_values = " ".join(f"<{uri}>" for uri in chunk)
-            lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
 
             query = f"""
             PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
@@ -729,23 +789,14 @@ class SKOSClient:
 
             results = self._sparql_query(endpoint, query)
             if results is None:
-                continue  # Skip failed chunk, try next
+                continue
 
             for r in results:
                 concept_uri = r.get("concept", {}).get("value", "")
                 lang = r.get("lang", {}).get("value", "")
                 label = r.get("label", {}).get("value", "")
-                if concept_uri and lang and label:
-                    if concept_uri in labels_by_uri:
-                        labels_by_uri[concept_uri][lang] = label
-
-        # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
-        for uri_labels in labels_by_uri.values():
-            for requested_lang in languages:
-                if requested_lang not in uri_labels:
-                    fallback_lang = LANGUAGE_FALLBACKS.get(requested_lang)
-                    if fallback_lang and fallback_lang in uri_labels:
-                        uri_labels[requested_lang] = uri_labels[fallback_lang]
+                if concept_uri and lang and label and concept_uri in labels_by_uri:
+                    labels_by_uri[concept_uri][lang] = label
 
         return labels_by_uri
 
@@ -1427,11 +1478,26 @@ class SKOSClient:
                 if not _is_irrelevant_dbpedia_category(cat_label):
                     broader.append({"uri": cat_uri, "label": cat_label})
 
+        # Extract short description (comment) - strip HTML tags
+        description = None
+        comments = best_match.get("comment", [])
+        if comments:
+            description = re.sub(r"</?B>", "", comments[0])
+
+        # Generate Wikipedia URL from DBpedia resource URI
+        # http://dbpedia.org/resource/Potato -> https://en.wikipedia.org/wiki/Potato
+        wikipedia_url = None
+        if resource_uri.startswith("http://dbpedia.org/resource/"):
+            article_name = resource_uri.split("/resource/")[-1]
+            wikipedia_url = f"https://en.wikipedia.org/wiki/{article_name}"
+
         return {
             "uri": resource_uri,
             "prefLabel": pref_label,
             "source": "dbpedia",
             "broader": broader,
+            "description": description,
+            "wikipediaUrl": wikipedia_url,
         }, False
 
     def _lookup_dbpedia_sparql(self, label: str, lang: str) -> tuple[dict | None, bool]:

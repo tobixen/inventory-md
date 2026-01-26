@@ -47,6 +47,9 @@ class Concept:
     source: str = "local"  # "local", "agrovoc", "dbpedia"
     uri: str | None = None  # Original SKOS URI (for external linking)
     labels: dict[str, str] = field(default_factory=dict)  # lang -> prefLabel translations
+    description: str | None = None  # Short description (from Wikipedia/DBpedia)
+    wikipediaUrl: str | None = None  # Link to Wikipedia article
+    descriptions: dict[str, str] = field(default_factory=dict)  # lang -> description
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -62,6 +65,12 @@ class Concept:
             result["uri"] = self.uri
         if self.labels:
             result["labels"] = self.labels
+        if self.description:
+            result["description"] = self.description
+        if self.wikipediaUrl:
+            result["wikipediaUrl"] = self.wikipediaUrl
+        if self.descriptions:
+            result["descriptions"] = self.descriptions
         return result
 
     def get_label(self, lang: str) -> str:
@@ -80,6 +89,9 @@ class Concept:
             source=data.get("source", "local"),
             uri=data.get("uri"),
             labels=data.get("labels", {}),
+            description=data.get("description"),
+            wikipediaUrl=data.get("wikipediaUrl"),
+            descriptions=data.get("descriptions", {}),
         )
 
 
@@ -433,9 +445,10 @@ def _enrich_with_skos(
         return concepts
 
     concepts = existing_concepts.copy()
-    # Disable Oxigraph - loading 7M triples takes ~35s which isn't worth it
-    # when most lookups are cached. REST API is fast enough for cache misses.
-    client = skos.SKOSClient(use_oxigraph=False)
+    # Enable Oxigraph for label fetches - loading takes ~35s but provides
+    # better language coverage (e.g., Norwegian labels not in remote API)
+    # The loading time is acceptable when fetching translations for many concepts.
+    client = skos.SKOSClient(use_oxigraph=True)
 
     # Extract ALL labels to look up (all path components, not just leaves)
     # This ensures intermediate path components like "food" in "food/vegetables"
@@ -507,6 +520,8 @@ def _enrich_with_skos(
                         narrower=[],
                         source=concept_data.get("source", "skos"),
                         uri=concept_data.get("uri"),
+                        description=concept_data.get("description"),
+                        wikipediaUrl=concept_data.get("wikipediaUrl"),
                     )
 
                 # Also add broader concepts (overwrite "inventory" source)
