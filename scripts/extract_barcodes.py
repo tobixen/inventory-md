@@ -2,7 +2,7 @@
 """
 Extract barcodes and QR codes from images and look up product information.
 
-Requires: pip install pyzbar pillow requests
+Requires: pip install pyzbar pillow niquests
 Optional: pip install easyocr  (for OCR text extraction)
 
 Usage:
@@ -57,10 +57,13 @@ except ImportError:
     sys.exit(1)
 
 try:
-    import requests
+    import niquests as requests
     HAS_REQUESTS = True
 except ImportError:
-    HAS_REQUESTS = False
+    try:
+        import requests
+    except ImportError:
+        HAS_REQUESTS = False
 
 try:
     import easyocr

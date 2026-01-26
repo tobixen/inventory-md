@@ -444,12 +444,15 @@ class SKOSClient:
             List of search results, or None if request failed.
         """
         try:
-            import requests
+            import niquests as requests
         except ImportError as e:
-            raise ImportError(
-                "requests required for SKOS lookups. "
-                "Install with: pip install inventory-md[skos]"
-            ) from e
+            try:
+                import requests
+            except ImportError:
+                raise ImportError(
+                    "requests required for SKOS lookups. "
+                    "Install with: pip install inventory-md[skos]"
+                ) from e
 
         # Use exact match search (no wildcard for precision)
         url = f"{base_url}/search/"
@@ -478,12 +481,15 @@ class SKOSClient:
             Concept data dict, or None if request failed.
         """
         try:
-            import requests
+            import niquests as requests
         except ImportError as e:
-            raise ImportError(
-                "requests required for SKOS lookups. "
-                "Install with: pip install inventory-md[skos]"
-            ) from e
+            try:
+                import requests
+            except ImportError:
+                raise ImportError(
+                    "requests required for SKOS lookups. "
+                    "Install with: pip install inventory-md[skos]"
+                ) from e
 
         url = f"{base_url}/data/"
         params = {"uri": uri}
@@ -511,12 +517,15 @@ class SKOSClient:
             or None if query failed due to timeout/network error.
         """
         try:
-            import requests
+            import niquests as requests
         except ImportError as e:
-            raise ImportError(
-                "requests required for SKOS lookups. "
-                "Install with: pip install inventory-md[skos]"
-            ) from e
+            try:
+              import requests
+            except ImportError:
+                raise ImportError(
+                    "requests required for SKOS lookups. "
+                    "Install with: pip install inventory-md[skos]"
+                ) from e
 
         headers = {"Accept": "application/sparql-results+json"}
         params = {"query": query, "format": "json"}
@@ -1338,12 +1347,15 @@ class SKOSClient:
             Tuple of (concept_dict, query_failed), or None to fall back to SPARQL.
         """
         try:
-            import requests
+            import niquests as requests
         except ImportError as e:
-            raise ImportError(
-                "requests required for SKOS lookups. "
-                "Install with: pip install inventory-md[skos]"
-            ) from e
+            try:
+              import requests
+            except ImportError:
+                raise ImportError(
+                    "requests required for SKOS lookups. "
+                    "Install with: pip install inventory-md[skos]"
+                ) from e
 
         import re
 

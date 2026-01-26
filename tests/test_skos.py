@@ -381,15 +381,15 @@ class TestSPARQLQuery:
             original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
 
             def mock_import(name, *args, **kwargs):
-                if name == "requests":
-                    raise ImportError("No module named 'requests'")
+                if name in ("requests", "niquests"):
+                    raise ImportError(f"No module named '{name}'")
                 return original_import(name, *args, **kwargs)
 
             with patch("builtins.__import__", side_effect=mock_import):
-                with pytest.raises(ImportError, match="requests required"):
+                with pytest.raises(ImportError, match="quests required"):
                     client._sparql_query("http://example.com", "SELECT * WHERE {}")
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_sparql_query_success(self, mock_get, tmp_path):
         """Test successful SPARQL query."""
         client = skos.SKOSClient(cache_dir=tmp_path)
@@ -404,10 +404,10 @@ class TestSPARQLQuery:
         assert len(result) == 1
         assert result[0]["x"]["value"] == "test"
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_sparql_query_network_error(self, mock_get, tmp_path):
         """Test handling of network errors - returns None (not cached)."""
-        import requests
+        import niquests as requests
 
         client = skos.SKOSClient(cache_dir=tmp_path)
         mock_get.side_effect = requests.RequestException("Network error")
@@ -419,7 +419,7 @@ class TestSPARQLQuery:
 class TestRESTAPI:
     """Tests for REST API functionality."""
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_rest_api_search_success(self, mock_get, tmp_path):
         """Test successful REST API search."""
         client = skos.SKOSClient(cache_dir=tmp_path)
@@ -441,10 +441,10 @@ class TestRESTAPI:
         assert len(result) == 1
         assert result[0]["prefLabel"] == "potatoes"
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_rest_api_search_timeout(self, mock_get, tmp_path):
         """Test REST API search timeout returns None."""
-        import requests
+        import niquests as requests
 
         client = skos.SKOSClient(cache_dir=tmp_path)
         mock_get.side_effect = requests.Timeout("Connection timed out")
@@ -452,7 +452,7 @@ class TestRESTAPI:
         result = client._rest_api_search("https://agrovoc.fao.org/browse/rest/v1", "potatoes", "en")
         assert result is None
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_rest_api_get_concept_success(self, mock_get, tmp_path):
         """Test successful REST API concept data fetch."""
         client = skos.SKOSClient(cache_dir=tmp_path)
@@ -550,7 +550,7 @@ class TestRESTAPI:
                 mock_rest.assert_not_called()
                 mock_sparql.assert_called_once()
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_lookup_dbpedia_rest(self, mock_get, tmp_path):
         """Test DBpedia lookup via REST Lookup API."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
@@ -582,7 +582,7 @@ class TestRESTAPI:
         assert len(result["broader"]) == 2
         assert result["broader"][0]["label"] == "Root vegetables"
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_lookup_dbpedia_rest_exact_match(self, mock_get, tmp_path):
         """Test DBpedia REST API finds exact match by resource name."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
@@ -612,7 +612,7 @@ class TestRESTAPI:
         assert result["uri"] == "http://dbpedia.org/resource/Hammer"
         assert result["prefLabel"] == "Hammer"
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_lookup_dbpedia_rest_filters_excluded_types(self, mock_get, tmp_path):
         """Test DBpedia REST API filters out bands, persons, etc."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
@@ -671,7 +671,7 @@ class TestRESTAPI:
         assert result["uri"] == "http://dbpedia.org/resource/Potato"
         mock_sparql.assert_called_once()
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_lookup_dbpedia_rest_filters_list_articles(self, mock_get, tmp_path):
         """Test DBpedia REST API filters out 'List of...' articles."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
@@ -702,7 +702,7 @@ class TestRESTAPI:
         assert result["uri"] == "http://dbpedia.org/resource/Glassware"
         assert "List" not in result["prefLabel"]
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_lookup_dbpedia_rest_filters_disambiguation_pages(self, mock_get, tmp_path):
         """Test DBpedia REST API filters out disambiguation pages."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
@@ -735,7 +735,7 @@ class TestRESTAPI:
         if result:
             assert "may refer to" not in result.get("prefLabel", "").lower()
 
-    @patch("requests.get")
+    @patch("niquests.get")
     def test_lookup_dbpedia_rest_filters_disambiguation_by_resource_name(self, mock_get, tmp_path):
         """Test DBpedia REST API filters disambiguation pages by resource name suffix."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)

@@ -34,10 +34,13 @@ except ImportError:
     sys.exit(1)
 
 try:
-    import requests
+    import niquests as requests
     HAS_REQUESTS = True
 except ImportError:
-    HAS_REQUESTS = False
+    try:
+        import requests
+    except ImportError:
+        HAS_REQUESTS = False
 
 
 def extract_barcodes_from_image(image_path: Path) -> list[dict]:
