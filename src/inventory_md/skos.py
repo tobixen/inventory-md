@@ -576,6 +576,252 @@ class SKOSClient:
 
         return concept
 
+    def get_concept_labels(
+        self, uri: str, languages: list[str], source: str = "agrovoc"
+    ) -> dict[str, str]:
+        """Get labels for a concept in multiple languages.
+
+        Fetches all requested languages in a single SPARQL query and caches
+        the results. Subsequent calls for the same URI will use cached data.
+
+        Args:
+            uri: The concept URI (e.g., "http://aims.fao.org/aos/agrovoc/c_13551").
+            languages: List of language codes to fetch (e.g., ["en", "nb", "de"]).
+            source: The source vocabulary ("agrovoc" or "dbpedia").
+
+        Returns:
+            Dictionary mapping language codes to labels (e.g., {"en": "potatoes", "nb": "poteter"}).
+        """
+        if not uri or not languages:
+            return {}
+
+        # Create cache key from URI (use hash for long URIs)
+        import hashlib
+        uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+        cache_key = f"labels:{source}:{uri_hash}"
+        cache_path = _get_cache_path(self.cache_dir, cache_key)
+
+        # Check cache first
+        cached = _load_from_cache(cache_path)
+        if cached is not None:
+            # Return only the requested languages from cache
+            cached_labels = cached.get("labels", {})
+            return {lang: cached_labels[lang] for lang in languages if lang in cached_labels}
+
+        # Fetch all languages in one query
+        if source == "agrovoc":
+            all_labels = self._get_agrovoc_labels(uri, languages)
+        elif source == "dbpedia":
+            all_labels = self._get_dbpedia_labels(uri, languages)
+        else:
+            return {}
+
+        # Cache the result (store all fetched labels)
+        if all_labels:
+            _save_to_cache(cache_path, {"uri": uri, "source": source, "labels": all_labels})
+
+        return all_labels
+
+    def get_batch_labels(
+        self, uris: list[tuple[str, str]], languages: list[str]
+    ) -> dict[str, dict[str, str]]:
+        """Get labels for multiple concepts in batch, using cache where available.
+
+        Args:
+            uris: List of (uri, source) tuples.
+            languages: List of language codes to fetch.
+
+        Returns:
+            Dictionary mapping URIs to their label dictionaries.
+        """
+        import hashlib
+
+        results: dict[str, dict[str, str]] = {}
+        uncached_agrovoc: list[str] = []
+        uncached_dbpedia: list[str] = []
+
+        # Check cache for each URI
+        for uri, source in uris:
+            uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+            cache_key = f"labels:{source}:{uri_hash}"
+            cache_path = _get_cache_path(self.cache_dir, cache_key)
+
+            cached = _load_from_cache(cache_path)
+            if cached is not None:
+                cached_labels = cached.get("labels", {})
+                results[uri] = {lang: cached_labels[lang] for lang in languages if lang in cached_labels}
+            else:
+                if source == "agrovoc":
+                    uncached_agrovoc.append(uri)
+                elif source == "dbpedia":
+                    uncached_dbpedia.append(uri)
+
+        # Batch fetch uncached AGROVOC labels
+        if uncached_agrovoc:
+            batch_results = self._get_agrovoc_labels_batch(uncached_agrovoc, languages)
+            for uri, labels in batch_results.items():
+                results[uri] = labels
+                # Cache each result
+                uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+                cache_key = f"labels:agrovoc:{uri_hash}"
+                cache_path = _get_cache_path(self.cache_dir, cache_key)
+                _save_to_cache(cache_path, {"uri": uri, "source": "agrovoc", "labels": labels})
+
+        # Batch fetch uncached DBpedia labels
+        if uncached_dbpedia:
+            batch_results = self._get_dbpedia_labels_batch(uncached_dbpedia, languages)
+            for uri, labels in batch_results.items():
+                results[uri] = labels
+                # Cache each result
+                uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+                cache_key = f"labels:dbpedia:{uri_hash}"
+                cache_path = _get_cache_path(self.cache_dir, cache_key)
+                _save_to_cache(cache_path, {"uri": uri, "source": "dbpedia", "labels": labels})
+
+        return results
+
+    def _get_agrovoc_labels_batch(
+        self, uris: list[str], languages: list[str]
+    ) -> dict[str, dict[str, str]]:
+        """Get labels for multiple AGROVOC URIs in one SPARQL query."""
+        endpoint = self.endpoints.get("agrovoc")
+        if not endpoint or not uris:
+            return {}
+
+        # Build VALUES clause for URIs
+        uri_values = " ".join(f"<{uri}>" for uri in uris)
+        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+
+        query = f"""
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+
+        SELECT ?concept ?lang ?label WHERE {{
+            VALUES ?concept {{ {uri_values} }}
+            ?concept skosxl:prefLabel/skosxl:literalForm ?label .
+            BIND(lang(?label) AS ?lang)
+            FILTER(?lang IN ({lang_filter}))
+        }}
+        """
+
+        results = self._sparql_query(endpoint, query)
+        if results is None:
+            return {}
+
+        # Group labels by URI
+        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in uris}
+        for r in results:
+            concept_uri = r.get("concept", {}).get("value", "")
+            lang = r.get("lang", {}).get("value", "")
+            label = r.get("label", {}).get("value", "")
+            if concept_uri and lang and label:
+                if concept_uri in labels_by_uri:
+                    labels_by_uri[concept_uri][lang] = label
+
+        return labels_by_uri
+
+    def _get_dbpedia_labels_batch(
+        self, uris: list[str], languages: list[str]
+    ) -> dict[str, dict[str, str]]:
+        """Get labels for multiple DBpedia URIs in one SPARQL query."""
+        endpoint = self.endpoints.get("dbpedia")
+        if not endpoint or not uris:
+            return {}
+
+        # Build VALUES clause for URIs
+        uri_values = " ".join(f"<{uri}>" for uri in uris)
+        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+
+        query = f"""
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+        SELECT ?concept ?lang ?label WHERE {{
+            VALUES ?concept {{ {uri_values} }}
+            ?concept rdfs:label ?label .
+            BIND(lang(?label) AS ?lang)
+            FILTER(?lang IN ({lang_filter}))
+        }}
+        """
+
+        results = self._sparql_query(endpoint, query)
+        if results is None:
+            return {}
+
+        # Group labels by URI
+        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in uris}
+        for r in results:
+            concept_uri = r.get("concept", {}).get("value", "")
+            lang = r.get("lang", {}).get("value", "")
+            label = r.get("label", {}).get("value", "")
+            if concept_uri and lang and label:
+                if concept_uri in labels_by_uri:
+                    labels_by_uri[concept_uri][lang] = label
+
+        return labels_by_uri
+
+    def _get_agrovoc_labels(self, uri: str, languages: list[str]) -> dict[str, str]:
+        """Get labels from AGROVOC in multiple languages using SPARQL."""
+        endpoint = self.endpoints.get("agrovoc")
+        if not endpoint:
+            return {}
+
+        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+        query = f"""
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+
+        SELECT ?lang ?label WHERE {{
+            <{uri}> skosxl:prefLabel/skosxl:literalForm ?label .
+            BIND(lang(?label) AS ?lang)
+            FILTER(?lang IN ({lang_filter}))
+        }}
+        """
+
+        results = self._sparql_query(endpoint, query)
+        if results is None:
+            return {}
+
+        labels = {}
+        for r in results:
+            lang = r.get("lang", {}).get("value", "")
+            label = r.get("label", {}).get("value", "")
+            if lang and label:
+                labels[lang] = label
+        return labels
+
+    def _get_dbpedia_labels(self, uri: str, languages: list[str]) -> dict[str, str]:
+        """Get labels from DBpedia in multiple languages.
+
+        DBpedia has language-specific versions, but we can query the main
+        endpoint for rdfs:label in different languages.
+        """
+        endpoint = self.endpoints.get("dbpedia")
+        if not endpoint:
+            return {}
+
+        lang_filter = ", ".join(f"'{lang}'" for lang in languages)
+        query = f"""
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+        SELECT ?lang ?label WHERE {{
+            <{uri}> rdfs:label ?label .
+            BIND(lang(?label) AS ?lang)
+            FILTER(?lang IN ({lang_filter}))
+        }}
+        """
+
+        results = self._sparql_query(endpoint, query)
+        if results is None:
+            return {}
+
+        labels = {}
+        for r in results:
+            lang = r.get("lang", {}).get("value", "")
+            label = r.get("label", {}).get("value", "")
+            if lang and label:
+                labels[lang] = label
+        return labels
+
     def _lookup_agrovoc(self, label: str, lang: str) -> tuple[dict | None, bool]:
         """Look up concept in AGROVOC.
 
@@ -975,6 +1221,20 @@ class SKOSClient:
             type_names = doc.get("typeName", [])
             return bool(set(type_names) & excluded_types)
 
+        def is_list_article(doc: dict) -> bool:
+            """Check if document is a Wikipedia 'List of...' article."""
+            resource_list = doc.get("resource", [])
+            if resource_list:
+                resource_name = resource_list[0].split("/")[-1]
+                if resource_name.startswith("List_of_"):
+                    return True
+            doc_labels = doc.get("label", [])
+            if doc_labels:
+                clean_label = re.sub(r"</?B>", "", doc_labels[0])
+                if clean_label.startswith("List of "):
+                    return True
+            return False
+
         # Find best match - require close label match to avoid irrelevant results
         # like "DNA repair" for "repair" or "Cable television" for "cable"
         label_lower = label.lower()
@@ -991,7 +1251,7 @@ class SKOSClient:
         # First pass: scan ALL results for exact match (DBpedia puts popular
         # results first, so "Tool" band appears before "Tool" article)
         for doc in docs:
-            if is_excluded_type(doc):
+            if is_excluded_type(doc) or is_list_article(doc):
                 continue
 
             # Check resource name
@@ -1023,7 +1283,7 @@ class SKOSClient:
         # Second pass: if no exact match, look for simple plural
         if not best_match:
             for doc in docs:
-                if is_excluded_type(doc):
+                if is_excluded_type(doc) or is_list_article(doc):
                     continue
 
                 resource_list = doc.get("resource", [])

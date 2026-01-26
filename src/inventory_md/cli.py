@@ -136,7 +136,7 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     return 0
 
 
-def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False, lang: str = None) -> int:
+def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False, lang: str = None, languages: list[str] = None) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
 
@@ -239,9 +239,13 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
 
             # Build vocabulary from inventory categories
             if use_skos:
-                print(f"   Using SKOS lookups (lang={skos_lang})...")
+                lang_info = f"lang={skos_lang}"
+                if languages and len(languages) > 1:
+                    lang_info += f", translations={languages}"
+                print(f"   Using SKOS lookups ({lang_info})...")
             vocab = vocabulary.build_vocabulary_from_inventory(
-                data, local_vocab=local_vocab, use_skos=use_skos, lang=skos_lang
+                data, local_vocab=local_vocab, use_skos=use_skos, lang=skos_lang,
+                languages=languages
             )
             category_counts = vocabulary.count_items_per_category(data)
 
@@ -875,6 +879,7 @@ Examples:
             else:
                 use_skos = config.skos_enabled
             lang = config.lang
+            languages = config.skos_languages if use_skos else None
         else:
             # Try config values, then CLI args
             md_file = args.file
@@ -888,8 +893,9 @@ Examples:
                 return 1
             use_skos = getattr(args, 'skos', False)
             lang = config.lang if use_skos else None
+            languages = config.skos_languages if use_skos else None
 
-        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, lang)
+        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, lang, languages)
     elif args.command == 'update-template':
         return update_template(args.directory, args.force)
     elif args.command == 'serve':

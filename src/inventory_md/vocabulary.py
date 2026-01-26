@@ -40,12 +40,13 @@ class Concept:
     """A SKOS concept with labels and hierarchy."""
 
     id: str  # Unique identifier (path like "food/vegetables/potatoes")
-    prefLabel: str  # Preferred display label
+    prefLabel: str  # Preferred display label (primary language)
     altLabels: list[str] = field(default_factory=list)  # Alternative labels/synonyms
     broader: list[str] = field(default_factory=list)  # Parent concept IDs
     narrower: list[str] = field(default_factory=list)  # Child concept IDs
     source: str = "local"  # "local", "agrovoc", "dbpedia"
     uri: str | None = None  # Original SKOS URI (for external linking)
+    labels: dict[str, str] = field(default_factory=dict)  # lang -> prefLabel translations
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -59,7 +60,13 @@ class Concept:
         }
         if self.uri:
             result["uri"] = self.uri
+        if self.labels:
+            result["labels"] = self.labels
         return result
+
+    def get_label(self, lang: str) -> str:
+        """Get label for a specific language, falling back to prefLabel."""
+        return self.labels.get(lang, self.prefLabel)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Concept":
@@ -72,6 +79,7 @@ class Concept:
             narrower=data.get("narrower", []),
             source=data.get("source", "local"),
             uri=data.get("uri"),
+            labels=data.get("labels", {}),
         )
 
 
@@ -312,6 +320,7 @@ def build_category_tree(
         narrower=v.narrower.copy(),
         source=v.source,
         uri=v.uri,
+        labels=v.labels.copy() if v.labels else {},
     ) for k, v in vocabulary.items()}
 
     if infer_hierarchy:
@@ -354,6 +363,7 @@ def build_vocabulary_from_inventory(
     local_vocab: dict[str, Concept] | None = None,
     use_skos: bool = False,
     lang: str = "en",
+    languages: list[str] | None = None,
 ) -> dict[str, Concept]:
     """Build vocabulary from categories used in inventory data.
 
@@ -364,7 +374,9 @@ def build_vocabulary_from_inventory(
         inventory_data: Parsed inventory JSON data.
         local_vocab: Optional local vocabulary to merge with.
         use_skos: If True, look up categories in SKOS vocabularies.
-        lang: Language code for SKOS lookups.
+        lang: Primary language code for SKOS lookups (used for matching).
+        languages: List of language codes to fetch labels for (e.g., ["en", "nb", "de"]).
+                   If None, only the primary language is used.
 
     Returns:
         Dictionary of concepts from inventory categories.
@@ -385,7 +397,7 @@ def build_vocabulary_from_inventory(
 
     # If SKOS enabled, enrich with SKOS lookups
     if use_skos and all_categories:
-        concepts = _enrich_with_skos(all_categories, concepts, lang)
+        concepts = _enrich_with_skos(all_categories, concepts, lang, languages)
     else:
         # Just add category paths without SKOS
         for category_path in all_categories:
@@ -398,13 +410,15 @@ def _enrich_with_skos(
     categories: set[str],
     existing_concepts: dict[str, Concept],
     lang: str,
+    languages: list[str] | None = None,
 ) -> dict[str, Concept]:
     """Enrich categories with SKOS lookups.
 
     Args:
         categories: Set of category paths to look up.
         existing_concepts: Existing concepts (from local vocabulary).
-        lang: Language code for SKOS lookups.
+        lang: Primary language code for SKOS lookups (used for matching).
+        languages: List of language codes to fetch labels for.
 
     Returns:
         Dictionary of concepts enriched with SKOS data.
@@ -447,6 +461,7 @@ def _enrich_with_skos(
     skos_found = 0
     skos_not_found = 0
 
+    # Phase 1: Look up all concepts and build the vocabulary
     for label, paths in labels_to_lookup.items():
         # Skip if already in vocabulary with a SKOS source (not "inventory")
         # We still want to look up labels that only exist from path expansion
@@ -479,7 +494,7 @@ def _enrich_with_skos(
                     if len(broader_ids) >= 3:
                         break
 
-            # Add the concept for each path that uses this label
+            # Add the concept for each path that uses this label (without translations yet)
             for cat_path in paths:
                 # Create or update concept (overwrite "inventory" source with SKOS)
                 existing = concepts.get(cat_path)
@@ -515,6 +530,33 @@ def _enrich_with_skos(
                 _add_category_path(concepts, cat_path)
 
     logger.info("SKOS lookup complete: %d found, %d not found", skos_found, skos_not_found)
+
+    # Phase 2: Batch fetch translations if multiple languages requested
+    if languages and len(languages) > 1:
+        other_langs = [l for l in languages if l != lang]
+        if other_langs:
+            # Collect all URIs that need translations
+            uris_to_fetch: list[tuple[str, str]] = []
+            for concept in concepts.values():
+                if concept.uri and concept.source in ("agrovoc", "dbpedia"):
+                    uris_to_fetch.append((concept.uri, concept.source))
+
+            if uris_to_fetch:
+                logger.info("Fetching translations for %d concepts in %d languages...",
+                           len(uris_to_fetch), len(other_langs))
+
+                # Batch fetch all translations
+                all_translations = client.get_batch_labels(uris_to_fetch, other_langs)
+
+                # Apply translations to concepts
+                for concept in concepts.values():
+                    if concept.uri and concept.uri in all_translations:
+                        labels = all_translations[concept.uri].copy()
+                        labels[lang] = concept.prefLabel  # Add primary language
+                        concept.labels = labels
+
+                logger.info("Translations fetched successfully")
+
     return concepts
 
 

@@ -371,3 +371,17 @@ class Config:
     def skos_enabled(self) -> bool:
         """Return whether SKOS lookups are enabled."""
         return self.get("skos.enabled", False)
+
+    @property
+    def skos_languages(self) -> list[str]:
+        """Return list of languages for SKOS lookups.
+
+        Returns languages to query for category labels. The first language
+        is the primary/default, others are alternatives shown in UI.
+
+        Example config:
+            skos:
+              languages: ["en", "nb", "de"]
+        """
+        default_lang = self.lang
+        return self.get("skos.languages", [default_lang])

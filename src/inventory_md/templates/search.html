@@ -1229,6 +1229,7 @@
             <div class="category-browser" id="categoryBrowser" style="display: none;">
                 <div class="category-browser-header" onclick="toggleCategoryBrowser()">
                     <span class="category-browser-title" id="categoryBrowserTitle"></span>
+                    <span id="languageSelectorContainer" style="display: none; margin-left: auto; margin-right: 10px;" onclick="event.stopPropagation();"></span>
                     <button class="category-browser-clear" onclick="clearCategoryFilter(event)" id="categoryClearBtn" style="display: none;">Clear</button>
                 </div>
                 <div class="category-browser-content" id="categoryTree">
@@ -1382,6 +1383,8 @@
         let selectedCategory = null; // currently selected category path
         let categoryCounts = new Map(); // category -> item count
         let expandedCategories = new Set(); // expanded tree nodes
+        let currentLanguage = 'en'; // selected language for category labels
+        let availableLanguages = []; // languages with translations in vocabulary
 
         // Get photos for a specific item from photo registry
         function getItemPhotos(itemId) {
@@ -1553,7 +1556,7 @@
             if (selectedCategory && vocabularyData && vocabularyData.concepts[selectedCategory]) {
                 const concept = vocabularyData.concepts[selectedCategory];
                 const count = categoryCounts.get(selectedCategory) || 0;
-                titleEl.innerHTML = `📁 ${concept.prefLabel} <span style="color: #666; font-weight: normal;">(${count} items)</span>`;
+                titleEl.innerHTML = `📁 ${getConceptLabel(concept)} <span style="color: #666; font-weight: normal;">(${count} items)</span>`;
                 if (clearBtn) clearBtn.style.display = 'block';
             } else {
                 const totalCategories = vocabularyData ? Object.keys(vocabularyData.concepts).length : 0;
@@ -1622,7 +1625,7 @@
             const concept = vocabularyData.concepts[categoryId];
             const count = categoryCounts.get(categoryId) || 0;
 
-            let html = `<div style="margin-bottom: 8px;"><strong>${concept.prefLabel}</strong></div>`;
+            let html = `<div style="margin-bottom: 8px;"><strong>${getConceptLabel(concept)}</strong></div>`;
             html += `<div style="color: #666; margin-bottom: 4px;">Path: <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">${categoryId}</code></div>`;
 
             // Source with clickable link if URI available
@@ -1637,7 +1640,7 @@
             if (concept.broader && concept.broader.length > 0) {
                 const broaderLinks = concept.broader.map(b => {
                     const bc = vocabularyData.concepts[b];
-                    const label = bc ? bc.prefLabel : b;
+                    const label = bc ? getConceptLabel(bc) : b;
                     // Check if broader is a local category (selectable) or external URI
                     if (bc) {
                         return `<a href="#" onclick="selectCategory('${b}', event); return false;" style="color: #0066cc;">${label}</a>`;
@@ -1653,7 +1656,7 @@
             if (concept.narrower && concept.narrower.length > 0) {
                 const narrowerLinks = concept.narrower.slice(0, 5).map(n => {
                     const nc = vocabularyData.concepts[n];
-                    const label = nc ? nc.prefLabel : n;
+                    const label = nc ? getConceptLabel(nc) : n;
                     return `<a href="#" onclick="selectCategory('${n}', event); return false;" style="color: #0066cc;">${label}</a>`;
                 });
                 let narrowerHtml = narrowerLinks.join(', ');
@@ -1675,6 +1678,73 @@
                 case 'skos': return '#ff9800';
                 default: return '#757575';
             }
+        }
+
+        // Get available languages from vocabulary
+        function getAvailableLanguages() {
+            if (!vocabularyData || !vocabularyData.concepts) return ['en'];
+            const langs = new Set(['en']); // Always include English
+            for (const concept of Object.values(vocabularyData.concepts)) {
+                if (concept.labels) {
+                    Object.keys(concept.labels).forEach(lang => langs.add(lang));
+                }
+            }
+            return Array.from(langs).sort();
+        }
+
+        // Get label for concept in current language
+        function getConceptLabel(concept) {
+            if (!concept) return '';
+            // Try current language first
+            if (concept.labels && concept.labels[currentLanguage]) {
+                return concept.labels[currentLanguage];
+            }
+            // Fall back to prefLabel
+            return concept.prefLabel || '';
+        }
+
+        // Change display language
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            // Update UI
+            renderCategoryTree();
+            updateCategoryBrowserTitle();
+            if (selectedCategory) {
+                showCategoryInfo(selectedCategory);
+            }
+            // Update language selector
+            const selector = document.getElementById('languageSelector');
+            if (selector) selector.value = lang;
+        }
+
+        // Render language selector
+        function renderLanguageSelector() {
+            const container = document.getElementById('languageSelectorContainer');
+            if (!container || availableLanguages.length <= 1) {
+                if (container) container.style.display = 'none';
+                return;
+            }
+
+            const langNames = {
+                'en': 'English', 'nb': 'Norsk (bokmål)', 'nn': 'Norsk (nynorsk)',
+                'de': 'Deutsch', 'fr': 'Français', 'es': 'Español',
+                'it': 'Italiano', 'pt': 'Português', 'nl': 'Nederlands',
+                'sv': 'Svenska', 'da': 'Dansk', 'fi': 'Suomi',
+                'pl': 'Polski', 'cs': 'Čeština', 'ru': 'Русский',
+                'zh': '中文', 'ja': '日本語', 'ko': '한국어',
+                'ar': 'العربية'
+            };
+
+            let html = '<select id="languageSelector" onchange="setLanguage(this.value)">';
+            for (const lang of availableLanguages) {
+                const selected = lang === currentLanguage ? 'selected' : '';
+                const name = langNames[lang] || lang.toUpperCase();
+                html += `<option value="${lang}" ${selected}>${name}</option>`;
+            }
+            html += '</select>';
+
+            container.innerHTML = html;
+            container.style.display = 'block';
         }
 
         // Render category tree node recursively
@@ -1701,7 +1771,7 @@
             }
 
             // Label
-            html += `<span class="category-label">${concept.prefLabel}</span>`;
+            html += `<span class="category-label">${getConceptLabel(concept)}</span>`;
             html += `<span class="category-count">(${count})</span>`;
             html += `</div>`;
 
@@ -1712,8 +1782,8 @@
                 const sortedChildren = concept.narrower
                     .filter(childId => vocabularyData.concepts[childId] && (categoryCounts.get(childId) || 0) > 0)
                     .sort((a, b) => {
-                        const labelA = vocabularyData.concepts[a]?.prefLabel || a;
-                        const labelB = vocabularyData.concepts[b]?.prefLabel || b;
+                        const labelA = getConceptLabel(vocabularyData.concepts[a]) || a;
+                        const labelB = getConceptLabel(vocabularyData.concepts[b]) || b;
                         return labelA.localeCompare(labelB);
                     });
                 for (const childId of sortedChildren) {
@@ -1738,8 +1808,8 @@
             const sortedRoots = vocabularyData.roots
                 .filter(rootId => vocabularyData.concepts[rootId] && (categoryCounts.get(rootId) || 0) > 0)
                 .sort((a, b) => {
-                    const labelA = vocabularyData.concepts[a]?.prefLabel || a;
-                    const labelB = vocabularyData.concepts[b]?.prefLabel || b;
+                    const labelA = getConceptLabel(vocabularyData.concepts[a]) || a;
+                    const labelB = getConceptLabel(vocabularyData.concepts[b]) || b;
                     return labelA.localeCompare(labelB);
                 });
 
@@ -1813,6 +1883,16 @@
                     matches.push({ id, concept, count, matchType: 'prefLabel' });
                     continue;
                 }
+                // Check translated labels
+                if (concept.labels) {
+                    const labelMatch = Object.values(concept.labels).some(label =>
+                        label.toLowerCase().includes(query)
+                    );
+                    if (labelMatch) {
+                        matches.push({ id, concept, count, matchType: 'translation' });
+                        continue;
+                    }
+                }
                 // Check altLabels
                 if (concept.altLabels && concept.altLabels.some(alt => alt.toLowerCase().includes(query))) {
                     matches.push({ id, concept, count, matchType: 'altLabel' });
@@ -1834,7 +1914,7 @@
                 resultsEl.innerHTML = topMatches.map(m => {
                     const pathDisplay = m.id.includes('/') ? `<span style="color: #888; font-size: 12px;"> (${m.id})</span>` : '';
                     return `<div class="category-search-result" onclick="selectCategoryFromSearch('${m.id}')" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee;">
-                        <span style="font-weight: 500;">${m.concept.prefLabel}</span>${pathDisplay}
+                        <span style="font-weight: 500;">${getConceptLabel(m.concept)}</span>${pathDisplay}
                         <span style="float: right; color: #666; font-size: 12px;">${m.count} items</span>
                     </div>`;
                 }).join('');
@@ -2146,6 +2226,11 @@
                     const vocabResponse = await fetch('vocabulary.json');
                     vocabularyData = await vocabResponse.json();
                     console.log('✅ Loaded vocabulary:', Object.keys(vocabularyData.concepts || {}).length, 'categories');
+                    // Initialize available languages
+                    availableLanguages = getAvailableLanguages();
+                    if (availableLanguages.length > 1) {
+                        console.log('✅ Available languages:', availableLanguages.join(', '));
+                    }
                 } catch (vocabError) {
                     console.log('⚠️  Vocabulary not available:', vocabError.message);
                 }
@@ -2173,6 +2258,7 @@
                 displayFilters();
                 displayTagFilter();
                 displayCategoryBrowser();
+                renderLanguageSelector();
                 displayResults();
             } catch (error) {
                 document.getElementById('results').innerHTML =
@@ -2576,7 +2662,8 @@
                                             if (item.metadata && item.metadata.categories && item.metadata.categories.length > 0) {
                                                 html += ' <span class="item-categories">';
                                                 item.metadata.categories.forEach(cat => {
-                                                    const label = vocabularyData?.concepts?.[cat]?.prefLabel || cat.split('/').pop();
+                                                    const concept = vocabularyData?.concepts?.[cat];
+                                                    const label = concept ? getConceptLabel(concept) : cat.split('/').pop();
                                                     html += `<span class="category-badge" onclick="selectCategory('${cat}', event)" title="${cat}">${label}</span>`;
                                                 });
                                                 html += '</span>';
