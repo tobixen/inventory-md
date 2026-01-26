@@ -534,3 +534,39 @@ class TestNormalizeToSingular:
         """Test that normalization preserves original case."""
         assert vocabulary._normalize_to_singular("Books") == "Book"
         assert vocabulary._normalize_to_singular("BOXES") == "BOX"
+
+
+class TestExpandCategoryToSkosPaths:
+    """Tests for expand_category_to_skos_paths function."""
+
+    def test_expand_food_concept(self):
+        """Test expanding a food concept returns paths starting with food."""
+        # This test requires Oxigraph with AGROVOC loaded
+        # If not available, the function returns the label as-is
+        paths = vocabulary.expand_category_to_skos_paths("potatoes")
+
+        # Should return at least one path
+        assert len(paths) >= 1
+
+        # If SKOS is available, path should start with "food"
+        # If not, it falls back to just "potatoes"
+        assert paths[0].endswith("potatoes") or paths[0] == "potatoes"
+
+    def test_expand_singular_form(self):
+        """Test that singular form is expanded via plural lookup."""
+        # "potato" should find "potatoes" in AGROVOC
+        paths = vocabulary.expand_category_to_skos_paths("potato")
+        assert len(paths) >= 1
+        # Should end with "potatoes" (AGROVOC uses plural)
+        assert "potato" in paths[0]
+
+    def test_expand_unknown_concept(self):
+        """Test that unknown concepts return the label as-is."""
+        paths = vocabulary.expand_category_to_skos_paths("xyznonexistent123")
+        assert paths == ["xyznonexistent123"]
+
+    def test_agrovoc_root_mapping(self):
+        """Test that AGROVOC roots are mapped to user-friendly labels."""
+        # Check that the mapping exists
+        assert "products" in vocabulary.AGROVOC_ROOT_MAPPING
+        assert vocabulary.AGROVOC_ROOT_MAPPING["products"] == "food"

@@ -734,3 +734,287 @@ def count_items_per_category(
                     counts[parent_path] = counts.get(parent_path, 0) + 1
 
     return counts
+
+
+# Mapping from AGROVOC top-level concepts to user-friendly labels
+# These are the roots that users expect to see in the UI
+AGROVOC_ROOT_MAPPING = {
+    # Products hierarchy → Food
+    "products": "food",
+    "plant products": "food",
+    "animal products": "food",
+    "processed products": "food",
+    "aquatic products": "food",
+    # Keep others as-is but with better labels
+    "equipment": "tools",
+    "materials": "materials",
+    "chemicals": "chemicals",
+    "organisms": "organisms",  # Live animals/plants - not food
+}
+
+
+def build_skos_hierarchy_paths(
+    concept_label: str,
+    client: "skos.SKOSClient",
+    lang: str = "en",
+) -> list[str]:
+    """Build all hierarchy paths for a concept from SKOS.
+
+    Given a concept label like "potatoes", queries AGROVOC to find
+    all paths from root to the concept:
+    - food/vegetables/root_vegetables/potatoes
+    - food/plant_products/vegetables/potatoes
+
+    Args:
+        concept_label: The concept label to look up (e.g., "potatoes").
+        client: SKOSClient instance with Oxigraph enabled.
+        lang: Language code for labels.
+
+    Returns:
+        List of hierarchy paths from root to concept.
+    """
+    from . import skos as skos_module
+
+    store = client._get_oxigraph_store()
+    if not store or not store.is_loaded:
+        logger.warning("Oxigraph not available for hierarchy building")
+        return [concept_label.lower().replace(" ", "_")]
+
+    # First, find the concept URI
+    uri = _find_agrovoc_uri(concept_label, store)
+    if not uri:
+        logger.debug("No AGROVOC URI found for %s", concept_label)
+        return [concept_label.lower().replace(" ", "_")]
+
+    # Build all paths from this concept up to roots
+    paths = _build_paths_to_root(uri, store, lang)
+
+    if not paths:
+        # Fall back to just the concept label
+        return [concept_label.lower().replace(" ", "_")]
+
+    return paths
+
+
+def _find_agrovoc_uri(label: str, store) -> str | None:
+    """Find AGROVOC URI for a label using Oxigraph.
+
+    Tries multiple variations: exact match, plural form, singular form.
+
+    Args:
+        label: The label to look up.
+        store: Oxigraph store instance.
+
+    Returns:
+        AGROVOC URI or None if not found.
+    """
+    # Generate variations to try (original, plural, singular)
+    base = label.lower()
+    variations = [base]
+
+    # Add plural variation
+    if not base.endswith('s'):
+        if base.endswith('y') and len(base) > 2 and base[-2] not in 'aeiou':
+            variations.append(base[:-1] + 'ies')  # berry -> berries
+        elif base.endswith(('s', 'x', 'z', 'ch', 'sh', 'o')):
+            variations.append(base + 'es')  # box -> boxes
+        else:
+            variations.append(base + 's')  # book -> books
+
+    # Add singular variation
+    if base.endswith('ies') and len(base) > 4:
+        variations.append(base[:-3] + 'y')  # berries -> berry
+    elif base.endswith('es') and len(base) > 3:
+        stem = base[:-2]
+        if stem.endswith(('s', 'x', 'z', 'ch', 'sh')):
+            variations.append(stem)  # boxes -> box
+        elif base.endswith('oes'):
+            variations.append(base[:-2])  # potatoes -> potato
+    elif base.endswith('s') and not base.endswith(('ss', 'us', 'is')):
+        variations.append(base[:-1])  # books -> book
+
+    # Try each variation
+    for var in variations:
+        # Try prefLabel
+        query = '''
+        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+        SELECT ?concept WHERE {
+            ?concept skosxl:prefLabel ?labelRes .
+            ?labelRes skosxl:literalForm ?labelText .
+            FILTER(LCASE(STR(?labelText)) = "%s")
+        } LIMIT 1
+        ''' % var
+
+        results = list(store.query(query))
+        if results:
+            return results[0]['concept']['value']
+
+        # Try altLabel
+        query = '''
+        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+        SELECT ?concept WHERE {
+            ?concept skosxl:altLabel ?labelRes .
+            ?labelRes skosxl:literalForm ?labelText .
+            FILTER(LCASE(STR(?labelText)) = "%s")
+        } LIMIT 1
+        ''' % var
+
+        results = list(store.query(query))
+        if results:
+            return results[0]['concept']['value']
+
+    return None
+
+
+def _get_agrovoc_label(uri: str, store, lang: str = "en") -> str:
+    """Get the prefLabel for an AGROVOC concept URI.
+
+    Args:
+        uri: AGROVOC concept URI.
+        store: Oxigraph store instance.
+        lang: Language code.
+
+    Returns:
+        Label string, or last part of URI if not found.
+    """
+    query = '''
+    PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+    SELECT ?labelText WHERE {
+        <%s> skosxl:prefLabel ?labelRes .
+        ?labelRes skosxl:literalForm ?labelText .
+        FILTER(LANG(?labelText) = "%s")
+    } LIMIT 1
+    ''' % (uri, lang)
+
+    results = list(store.query(query))
+    if results:
+        return results[0]['labelText']['value']
+
+    # Fall back to English
+    if lang != "en":
+        query = '''
+        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+        SELECT ?labelText WHERE {
+            <%s> skosxl:prefLabel ?labelRes .
+            ?labelRes skosxl:literalForm ?labelText .
+            FILTER(LANG(?labelText) = "en")
+        } LIMIT 1
+        ''' % uri
+
+        results = list(store.query(query))
+        if results:
+            return results[0]['labelText']['value']
+
+    # Fall back to URI fragment
+    return uri.split('/')[-1]
+
+
+def _get_broader_concepts(uri: str, store) -> list[str]:
+    """Get all broader concept URIs for a concept.
+
+    Args:
+        uri: AGROVOC concept URI.
+        store: Oxigraph store instance.
+
+    Returns:
+        List of broader concept URIs.
+    """
+    query = '''
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    SELECT ?broader WHERE {
+        <%s> skos:broader ?broader .
+    }
+    ''' % uri
+
+    results = list(store.query(query))
+    return [r['broader']['value'] for r in results]
+
+
+def _build_paths_to_root(
+    uri: str,
+    store,
+    lang: str = "en",
+    visited: set | None = None,
+    current_path: list | None = None,
+) -> list[str]:
+    """Recursively build all paths from a concept to root(s).
+
+    Args:
+        uri: Starting concept URI.
+        store: Oxigraph store instance.
+        lang: Language code for labels.
+        visited: Set of visited URIs to avoid cycles.
+        current_path: Current path being built (concept labels).
+
+    Returns:
+        List of complete paths as strings (e.g., "food/vegetables/potatoes").
+    """
+    if visited is None:
+        visited = set()
+    if current_path is None:
+        current_path = []
+
+    if uri in visited:
+        return []
+    visited.add(uri)
+
+    # Get label for current concept
+    label = _get_agrovoc_label(uri, store, lang)
+    label_normalized = label.lower().replace(" ", "_").replace("-", "_")
+
+    # Add to path (prepend since we're going up the hierarchy)
+    new_path = [label_normalized] + current_path
+
+    # Get broader concepts
+    broader_uris = _get_broader_concepts(uri, store)
+
+    if not broader_uris:
+        # We've reached a root - apply mapping if available
+        root_label = label.lower()
+        if root_label in AGROVOC_ROOT_MAPPING:
+            mapped_root = AGROVOC_ROOT_MAPPING[root_label]
+            new_path[0] = mapped_root
+        # Return the complete path
+        return ["/".join(new_path)]
+
+    # Continue up the hierarchy for each broader concept
+    all_paths = []
+    for broader_uri in broader_uris:
+        paths = _build_paths_to_root(
+            broader_uri, store, lang, visited.copy(), new_path
+        )
+        all_paths.extend(paths)
+
+    return all_paths
+
+
+def expand_category_to_skos_paths(
+    category_label: str,
+    use_oxigraph: bool = True,
+    lang: str = "en",
+) -> list[str]:
+    """Expand a simple category label to full SKOS hierarchy paths.
+
+    This is the main entry point for the SKOS-based category system.
+    Given a label like "potatoes", it returns all valid hierarchy paths.
+
+    Example:
+        >>> expand_category_to_skos_paths("potatoes")
+        ['food/vegetables/root_vegetables/potatoes', 'food/plant_products/potatoes']
+
+    Args:
+        category_label: Simple category label (e.g., "potatoes", "hammer").
+        use_oxigraph: Whether to use local AGROVOC database.
+        lang: Language code for labels.
+
+    Returns:
+        List of hierarchy paths. Falls back to [category_label] if not found.
+    """
+    try:
+        from . import skos
+    except ImportError:
+        logger.warning("SKOS module not available")
+        return [category_label.lower().replace(" ", "_")]
+
+    client = skos.SKOSClient(use_oxigraph=use_oxigraph)
+    return build_skos_hierarchy_paths(category_label, client, lang)
