@@ -14,6 +14,53 @@ from pathlib import Path
 from typing import Any
 
 
+# Exceptions - words that shouldn't be singularized
+_PLURAL_EXCEPTIONS = frozenset({
+    'series', 'species', 'shoes', 'canoes', 'tiptoes', 'glasses',
+    'clothes', 'scissors', 'trousers', 'pants', 'shorts', 'news',
+    'mathematics', 'physics', 'economics', 'politics', 'athletics',
+})
+
+
+def _normalize_to_singular(word: str) -> str:
+    """Convert a plural word to singular form for category path normalization.
+
+    Args:
+        word: Word to convert to singular (lowercase expected).
+
+    Returns:
+        Singular form of the word.
+    """
+    w = word.lower()
+
+    # Skip very short words
+    if len(w) <= 2:
+        return word
+
+    # Exceptions that shouldn't be modified
+    if w in _PLURAL_EXCEPTIONS:
+        return word
+
+    # Words ending in 'ies' -> 'y' (berries -> berry)
+    if w.endswith('ies') and len(w) > 4:
+        return word[:-3] + 'y'
+
+    # Words ending in 'es' after s/x/z/ch/sh -> remove 'es'
+    if w.endswith('es') and len(w) > 3:
+        stem = w[:-2]
+        if stem.endswith(('s', 'x', 'z', 'ch', 'sh')):
+            return word[:-2]
+        # Words ending in 'oes' -> 'o' (potatoes -> potato)
+        if w.endswith('oes') and len(w) > 4:
+            return word[:-2]
+
+    # Regular plurals ending in 's' (but not 'ss', 'us', 'is')
+    if w.endswith('s') and not w.endswith(('ss', 'us', 'is', 'ous', 'ness', 'ics')):
+        return word[:-1]
+
+    return word
+
+
 def create_thumbnail(source_path: Path, dest_path: Path, max_size: int = 800) -> bool:
     """
     Create a resized thumbnail from a source image.
@@ -148,9 +195,15 @@ def extract_metadata(text: str) -> dict[str, Any]:
         # Special handling for tags: split by comma
         if key == 'tag':
             tags.extend([tag.strip() for tag in value.split(',') if tag.strip()])
-        # Special handling for categories: split by comma
+        # Special handling for categories: split by comma, normalize to singular
         elif key == 'category':
-            categories.extend([cat.strip() for cat in value.split(',') if cat.strip()])
+            for cat in value.split(','):
+                cat = cat.strip()
+                if cat:
+                    # Normalize path: singular lowercase
+                    parts = cat.split('/')
+                    normalized_parts = [_normalize_to_singular(p.lower()) for p in parts]
+                    categories.append('/'.join(normalized_parts))
         else:
             metadata[key] = value
         matches.append(match)
