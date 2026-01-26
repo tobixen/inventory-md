@@ -418,6 +418,72 @@ def build_vocabulary_from_inventory(
     return concepts
 
 
+# Terms that are clearly food/agriculture related - use AGROVOC for these
+_FOOD_TERMS = {
+    "food", "vegetable", "vegetables", "fruit", "fruits", "meat", "fish",
+    "grain", "grains", "cereal", "cereals", "dairy", "spice", "spices",
+    "herb", "herbs", "potato", "potatoes", "carrot", "carrots", "onion",
+    "onions", "tomato", "tomatoes", "apple", "apples", "banana", "bananas",
+    "rice", "wheat", "corn", "maize", "bean", "beans", "pea", "peas",
+    "lentil", "lentils", "nut", "nuts", "seed", "seeds", "oil", "oils",
+    "sugar", "salt", "pepper", "garlic", "ginger", "cinnamon", "flour",
+    "bread", "pasta", "noodle", "noodles", "cheese", "milk", "butter",
+    "egg", "eggs", "chicken", "beef", "pork", "lamb", "salmon", "tuna",
+    "shrimp", "crab", "lobster", "oyster", "mussel", "clam", "squid",
+    "wine", "beer", "coffee", "tea", "juice", "water", "soda", "alcohol",
+    "honey", "jam", "jelly", "syrup", "sauce", "vinegar", "mustard",
+    "ketchup", "mayonnaise", "olive", "olives", "pickle", "pickles",
+    "canned", "frozen", "dried", "fresh", "organic", "preserves",
+}
+
+
+def _normalize_to_singular(word: str) -> str:
+    """Convert a plural word to singular form.
+
+    Common English plural rules applied in reverse:
+    - words ending in 'ies' -> 'y' (berries -> berry)
+    - words ending in 'es' after s/x/z/ch/sh/o -> remove 'es' (boxes -> box)
+    - words ending in 's' -> remove 's' (books -> book)
+
+    Args:
+        word: Word to convert to singular.
+
+    Returns:
+        Singular form of the word.
+    """
+    w = word.lower()
+
+    # Skip very short words
+    if len(w) <= 2:
+        return word
+
+    # Exceptions - words that shouldn't be modified
+    exceptions = {'series', 'species', 'shoes', 'canoes', 'tiptoes', 'glasses',
+                  'clothes', 'scissors', 'trousers', 'pants', 'shorts', 'news',
+                  'mathematics', 'physics', 'economics', 'politics', 'athletics'}
+    if w in exceptions:
+        return word
+
+    # Words ending in 'ies' -> 'y' (berries -> berry)
+    if w.endswith('ies') and len(w) > 4:
+        return word[:-3] + 'y'
+
+    # Words ending in 'es' after s/x/z/ch/sh -> remove 'es'
+    if w.endswith('es') and len(w) > 3:
+        stem = w[:-2]
+        if stem.endswith(('s', 'x', 'z', 'ch', 'sh')):
+            return word[:-2]
+        # Words ending in 'oes' -> 'o' (potatoes -> potato)
+        if w.endswith('oes') and len(w) > 4:
+            return word[:-2]
+
+    # Regular plurals ending in 's' (but not 'ss', 'us', 'is')
+    if w.endswith('s') and not w.endswith(('ss', 'us', 'is', 'ous', 'ness', 'ics')):
+        return word[:-1]
+
+    return word
+
+
 def _enrich_with_skos(
     categories: set[str],
     existing_concepts: dict[str, Concept],
@@ -453,22 +519,31 @@ def _enrich_with_skos(
     # Extract ALL labels to look up (all path components, not just leaves)
     # This ensures intermediate path components like "food" in "food/vegetables"
     # also get SKOS lookups
-    labels_to_lookup: dict[str, set[str]] = {}  # label -> set of full paths
+    labels_to_lookup: dict[str, set[str]] = {}  # label -> set of normalized paths
     all_path_components: set[str] = set()  # all intermediate path components
+
+    def normalize_path(path: str) -> str:
+        """Normalize a category path: singular form, lowercase."""
+        parts = path.split("/")
+        normalized_parts = [_normalize_to_singular(p.lower()) for p in parts]
+        return "/".join(normalized_parts)
 
     for cat_path in categories:
         parts = cat_path.split("/")
-        # Build all intermediate paths
+        # Build all intermediate paths, normalized
         for i in range(len(parts)):
-            component_path = "/".join(parts[: i + 1])
-            all_path_components.add(component_path)
+            original_component_path = "/".join(parts[: i + 1])
+            normalized_component_path = normalize_path(original_component_path)
+            all_path_components.add(normalized_component_path)
             # Get the label for this component
             label = parts[i]
             # Normalize: replace - and _ with space for lookup
             lookup_label = label.replace("-", " ").replace("_", " ")
+            # Normalize plural to singular for consistent lookups
+            lookup_label = _normalize_to_singular(lookup_label)
             if lookup_label not in labels_to_lookup:
                 labels_to_lookup[lookup_label] = set()
-            labels_to_lookup[lookup_label].add(component_path)
+            labels_to_lookup[lookup_label].add(normalized_component_path)
 
     logger.info("Looking up %d unique labels in SKOS...", len(labels_to_lookup))
     skos_found = 0
@@ -485,11 +560,32 @@ def _enrich_with_skos(
         if existing_with_skos:
             continue
 
-        # Try SKOS lookup
-        concept_data = client.lookup_concept(label, lang=lang, source="agrovoc")
+        # Try SKOS lookup - choose source based on term type
+        # AGROVOC is agricultural vocabulary, so use DBpedia first for non-food terms
+        is_food_term = label.lower() in _FOOD_TERMS
+        primary_source = "agrovoc" if is_food_term else "dbpedia"
+        fallback_source = "dbpedia" if is_food_term else "agrovoc"
+
+        concept_data = client.lookup_concept(label, lang=lang, source=primary_source)
+
+        # Check if AGROVOC returned an inappropriate agricultural result
+        # (e.g., "bedding" = "litter for animals" is not household bedding)
+        if concept_data and concept_data.get("source") == "agrovoc":
+            pref = concept_data.get("prefLabel", "").lower()
+            # If AGROVOC's prefLabel is very different from search term, try DBpedia
+            if pref and label.lower() not in pref and pref not in label.lower():
+                logger.debug("AGROVOC mismatch: searched '%s', got '%s' - trying DBpedia",
+                            label, concept_data.get("prefLabel"))
+                alt_data = client.lookup_concept(label, lang=lang, source="dbpedia")
+                if alt_data and alt_data.get("uri"):
+                    # Check if DBpedia's label is closer match
+                    dbpedia_pref = alt_data.get("prefLabel", "").lower()
+                    if label.lower() in dbpedia_pref or dbpedia_pref in label.lower():
+                        concept_data = alt_data
+
         if not concept_data or not concept_data.get("uri"):
-            # Try DBpedia
-            concept_data = client.lookup_concept(label, lang=lang, source="dbpedia")
+            # Try fallback source
+            concept_data = client.lookup_concept(label, lang=lang, source=fallback_source)
 
         if concept_data and concept_data.get("uri"):
             skos_found += 1

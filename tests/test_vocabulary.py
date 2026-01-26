@@ -488,3 +488,49 @@ class TestSaveVocabularyJson:
         assert "labelIndex" in data
         assert "food" in data["concepts"]
         assert data["concepts"]["food/vegetables"]["altLabels"] == ["veggies"]
+
+
+class TestNormalizeToSingular:
+    """Tests for _normalize_to_singular function."""
+
+    def test_regular_plurals(self):
+        """Test regular plural -> singular conversion."""
+        assert vocabulary._normalize_to_singular("books") == "book"
+        assert vocabulary._normalize_to_singular("pillows") == "pillow"
+        assert vocabulary._normalize_to_singular("tools") == "tool"
+
+    def test_ies_plurals(self):
+        """Test words ending in -ies -> -y."""
+        assert vocabulary._normalize_to_singular("berries") == "berry"
+        assert vocabulary._normalize_to_singular("batteries") == "battery"
+        assert vocabulary._normalize_to_singular("categories") == "category"
+
+    def test_es_plurals(self):
+        """Test words ending in -es after s/x/z/ch/sh."""
+        assert vocabulary._normalize_to_singular("boxes") == "box"
+        assert vocabulary._normalize_to_singular("matches") == "match"
+        assert vocabulary._normalize_to_singular("dishes") == "dish"
+
+    def test_oes_plurals(self):
+        """Test words ending in -oes -> -o."""
+        assert vocabulary._normalize_to_singular("potatoes") == "potato"
+        assert vocabulary._normalize_to_singular("tomatoes") == "tomato"
+        assert vocabulary._normalize_to_singular("heroes") == "hero"
+
+    def test_exceptions(self):
+        """Test exception words that should not be modified."""
+        assert vocabulary._normalize_to_singular("series") == "series"
+        assert vocabulary._normalize_to_singular("species") == "species"
+        assert vocabulary._normalize_to_singular("shoes") == "shoes"
+        assert vocabulary._normalize_to_singular("glasses") == "glasses"
+
+    def test_already_singular(self):
+        """Test words that are already singular."""
+        assert vocabulary._normalize_to_singular("book") == "book"
+        assert vocabulary._normalize_to_singular("bedding") == "bedding"
+        assert vocabulary._normalize_to_singular("maritime") == "maritime"
+
+    def test_preserves_case(self):
+        """Test that normalization preserves original case."""
+        assert vocabulary._normalize_to_singular("Books") == "Book"
+        assert vocabulary._normalize_to_singular("BOXES") == "BOX"
