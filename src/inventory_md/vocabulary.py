@@ -402,7 +402,9 @@ def _enrich_with_skos(
         return concepts
 
     concepts = existing_concepts.copy()
-    client = skos.SKOSClient()
+    # Disable Oxigraph - loading 7M triples takes ~35s which isn't worth it
+    # when most lookups are cached. REST API is fast enough for cache misses.
+    client = skos.SKOSClient(use_oxigraph=False)
 
     # Extract ALL labels to look up (all path components, not just leaves)
     # This ensures intermediate path components like "food" in "food/vegetables"

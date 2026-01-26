@@ -398,13 +398,25 @@ class SKOSClient:
         self.use_oxigraph = use_oxigraph
         self.agrovoc_path = agrovoc_path
 
-        # Use provided store or try to get global store
+        # Use provided store or lazy-load later
+        # Don't load Oxigraph eagerly - it takes ~30s to load 7M triples
         if oxigraph_store is not None:
             self._oxigraph_store = oxigraph_store
-        elif use_oxigraph:
-            self._oxigraph_store = get_oxigraph_store(agrovoc_path=agrovoc_path)
+            self._oxigraph_loaded = True
         else:
             self._oxigraph_store = None
+            self._oxigraph_loaded = False
+
+    def _get_oxigraph_store(self) -> OxigraphStore | None:
+        """Lazy-load the Oxigraph store on first use."""
+        if self._oxigraph_loaded:
+            return self._oxigraph_store
+        if not self.use_oxigraph:
+            self._oxigraph_loaded = True
+            return None
+        self._oxigraph_store = get_oxigraph_store(agrovoc_path=self.agrovoc_path)
+        self._oxigraph_loaded = True
+        return self._oxigraph_store
 
     def _rest_api_search(
         self, base_url: str, query: str, lang: str = "en"
