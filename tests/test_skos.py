@@ -513,6 +513,94 @@ class TestRESTAPI:
                 mock_rest.assert_not_called()
                 mock_sparql.assert_called_once()
 
+    @patch("requests.get")
+    def test_lookup_dbpedia_rest(self, mock_get, tmp_path):
+        """Test DBpedia lookup via REST Lookup API."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        # Mock DBpedia Lookup API response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "docs": [
+                {
+                    "resource": ["http://dbpedia.org/resource/Potato"],
+                    "label": ["<B>Potato</B>"],
+                    "redirectlabel": ["Potatoes", "Spud"],
+                    "category": [
+                        "http://dbpedia.org/resource/Category:Root_vegetables",
+                        "http://dbpedia.org/resource/Category:Staple_foods",
+                    ],
+                }
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = client.lookup_concept("potato", lang="en", source="dbpedia")
+
+        assert result is not None
+        assert result["uri"] == "http://dbpedia.org/resource/Potato"
+        assert result["prefLabel"] == "Potato"
+        assert result["source"] == "dbpedia"
+        assert len(result["broader"]) == 2
+        assert result["broader"][0]["label"] == "Root vegetables"
+
+    @patch("requests.get")
+    def test_lookup_dbpedia_rest_exact_match(self, mock_get, tmp_path):
+        """Test DBpedia REST API finds exact match by resource name."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        # Mock response where first result is not exact match
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "docs": [
+                {
+                    "resource": ["http://dbpedia.org/resource/Piano"],
+                    "label": ["<B>Piano</B>"],
+                    "category": [],
+                },
+                {
+                    "resource": ["http://dbpedia.org/resource/Hammer"],
+                    "label": ["<B>Hammer</B>"],
+                    "category": ["http://dbpedia.org/resource/Category:Tools"],
+                },
+            ]
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = client.lookup_concept("hammer", lang="en", source="dbpedia")
+
+        assert result is not None
+        assert result["uri"] == "http://dbpedia.org/resource/Hammer"
+        assert result["prefLabel"] == "Hammer"
+
+    @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_rest")
+    @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_sparql")
+    def test_lookup_dbpedia_fallback_to_sparql(self, mock_sparql, mock_rest, tmp_path):
+        """Test fallback to SPARQL when DBpedia REST API fails."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        # REST API returns None (failure)
+        mock_rest.return_value = None
+
+        # SPARQL fallback succeeds
+        mock_sparql.return_value = (
+            {
+                "uri": "http://dbpedia.org/resource/Potato",
+                "prefLabel": "Potato",
+                "source": "dbpedia",
+                "broader": [],
+            },
+            False,
+        )
+
+        result = client.lookup_concept("potato", lang="en", source="dbpedia")
+
+        assert result is not None
+        assert result["uri"] == "http://dbpedia.org/resource/Potato"
+        mock_sparql.assert_called_once()
+
 
 class TestOxigraphStore:
     """Tests for Oxigraph local store functionality."""

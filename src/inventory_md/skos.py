@@ -29,9 +29,10 @@ ENDPOINTS = {
     "dbpedia": "https://dbpedia.org/sparql",
 }
 
-# REST API endpoints (Skosmos)
+# REST API endpoints (Skosmos for AGROVOC, Lookup for DBpedia)
 REST_ENDPOINTS = {
     "agrovoc": "https://agrovoc.fao.org/browse/rest/v1",
+    "dbpedia": "https://lookup.dbpedia.org/api",
 }
 
 # Cache settings
@@ -825,6 +826,128 @@ class SKOSClient:
 
     def _lookup_dbpedia(self, label: str, lang: str) -> tuple[dict | None, bool]:
         """Look up concept in DBpedia.
+
+        Priority: REST API (Lookup) > SPARQL (remote).
+
+        Returns:
+            Tuple of (concept_dict, query_failed). query_failed is True if
+            the query timed out or had a network error.
+        """
+        # Try REST API first if enabled (faster)
+        if self.use_rest_api:
+            rest_base = self.rest_endpoints.get("dbpedia")
+            if rest_base:
+                result = self._lookup_dbpedia_rest(label, lang, rest_base)
+                if result is not None:
+                    return result
+                # REST failed, fall back to SPARQL
+                logger.debug("DBpedia REST API failed, falling back to SPARQL for %s", label)
+
+        return self._lookup_dbpedia_sparql(label, lang)
+
+    def _lookup_dbpedia_rest(
+        self, label: str, lang: str, rest_base: str
+    ) -> tuple[dict | None, bool] | None:
+        """Look up concept in DBpedia via REST Lookup API.
+
+        Returns:
+            Tuple of (concept_dict, query_failed), or None to fall back to SPARQL.
+        """
+        try:
+            import requests
+        except ImportError as e:
+            raise ImportError(
+                "requests required for SKOS lookups. "
+                "Install with: pip install inventory-md[skos]"
+            ) from e
+
+        import re
+
+        url = f"{rest_base}/search"
+        params = {"query": label, "format": "JSON", "maxResults": 5}
+
+        try:
+            response = requests.get(url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            data = response.json()
+        except requests.Timeout as e:
+            logger.warning("DBpedia REST API timed out for %s: %s", label, e)
+            return None  # Fall back to SPARQL
+        except requests.RequestException as e:
+            logger.warning("DBpedia REST API failed for %s: %s", label, e)
+            return None  # Fall back to SPARQL
+
+        docs = data.get("docs", [])
+        if not docs:
+            return None, False  # Not found (but query succeeded)
+
+        # Find best match - check multiple fields for exact match
+        label_lower = label.lower()
+        best_match = None
+
+        for doc in docs:
+            # Check 1: Resource name (last part of URI) matches
+            resource_list = doc.get("resource", [])
+            if resource_list:
+                resource_name = resource_list[0].split("/")[-1].replace("_", " ").lower()
+                if resource_name == label_lower:
+                    best_match = doc
+                    break
+
+            # Check 2: Label matches (strip HTML tags)
+            doc_labels = doc.get("label", [])
+            if doc_labels:
+                clean_label = re.sub(r"</?B>", "", doc_labels[0]).lower()
+                if clean_label == label_lower:
+                    best_match = doc
+                    break
+
+            # Check 3: Redirect labels match
+            redirect_labels = doc.get("redirectlabel", [])
+            for redirect in redirect_labels:
+                clean_redirect = re.sub(r"</?B>", "", redirect).lower()
+                if clean_redirect == label_lower:
+                    best_match = doc
+                    break
+            if best_match:
+                break
+
+        if not best_match and docs:
+            # Use first result if no exact match
+            best_match = docs[0]
+
+        if not best_match:
+            return None, False
+
+        # Extract resource URI (values are in arrays)
+        resource_list = best_match.get("resource", [])
+        if not resource_list:
+            return None, False
+        resource_uri = resource_list[0]
+
+        # Extract label (strip HTML tags)
+        label_list = best_match.get("label", [label])
+        pref_label = re.sub(r"</?B>", "", label_list[0]) if label_list else label
+
+        # Extract categories from the response
+        broader = []
+        category_list = best_match.get("category", [])
+        for cat_uri in category_list[:10]:  # Limit categories
+            # Extract label from category URI
+            # e.g., "http://dbpedia.org/resource/Category:Root_vegetables" -> "Root vegetables"
+            if "/Category:" in cat_uri:
+                cat_label = cat_uri.split("/Category:")[-1].replace("_", " ")
+                broader.append({"uri": cat_uri, "label": cat_label})
+
+        return {
+            "uri": resource_uri,
+            "prefLabel": pref_label,
+            "source": "dbpedia",
+            "broader": broader,
+        }, False
+
+    def _lookup_dbpedia_sparql(self, label: str, lang: str) -> tuple[dict | None, bool]:
+        """Look up concept in DBpedia via SPARQL.
 
         Returns:
             Tuple of (concept_dict, query_failed). query_failed is True if
