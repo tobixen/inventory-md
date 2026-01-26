@@ -404,24 +404,38 @@ def _enrich_with_skos(
     concepts = existing_concepts.copy()
     client = skos.SKOSClient()
 
-    # Extract leaf labels to look up (last part of each path)
+    # Extract ALL labels to look up (all path components, not just leaves)
+    # This ensures intermediate path components like "food" in "food/vegetables"
+    # also get SKOS lookups
     labels_to_lookup: dict[str, set[str]] = {}  # label -> set of full paths
+    all_path_components: set[str] = set()  # all intermediate path components
+
     for cat_path in categories:
-        # Get the leaf label (last part of path)
-        leaf = cat_path.split("/")[-1]
-        # Normalize: replace - and _ with space for lookup
-        lookup_label = leaf.replace("-", " ").replace("_", " ")
-        if lookup_label not in labels_to_lookup:
-            labels_to_lookup[lookup_label] = set()
-        labels_to_lookup[lookup_label].add(cat_path)
+        parts = cat_path.split("/")
+        # Build all intermediate paths
+        for i in range(len(parts)):
+            component_path = "/".join(parts[: i + 1])
+            all_path_components.add(component_path)
+            # Get the label for this component
+            label = parts[i]
+            # Normalize: replace - and _ with space for lookup
+            lookup_label = label.replace("-", " ").replace("_", " ")
+            if lookup_label not in labels_to_lookup:
+                labels_to_lookup[lookup_label] = set()
+            labels_to_lookup[lookup_label].add(component_path)
 
     logger.info("Looking up %d unique labels in SKOS...", len(labels_to_lookup))
     skos_found = 0
     skos_not_found = 0
 
     for label, paths in labels_to_lookup.items():
-        # Skip if already in local vocab
-        if label.lower() in [c.prefLabel.lower() for c in concepts.values()]:
+        # Skip if already in vocabulary with a SKOS source (not "inventory")
+        # We still want to look up labels that only exist from path expansion
+        existing_with_skos = any(
+            c.prefLabel.lower() == label.lower() and c.source != "inventory"
+            for c in concepts.values()
+        )
+        if existing_with_skos:
             continue
 
         # Try SKOS lookup
@@ -445,7 +459,9 @@ def _enrich_with_skos(
 
             # Add the concept for each path that uses this label
             for cat_path in paths:
-                if cat_path not in concepts:
+                # Create or update concept (overwrite "inventory" source with SKOS)
+                existing = concepts.get(cat_path)
+                if existing is None or existing.source == "inventory":
                     concepts[cat_path] = Concept(
                         id=cat_path,
                         prefLabel=pref_label,
@@ -455,9 +471,10 @@ def _enrich_with_skos(
                         source=concept_data.get("source", "skos"),
                     )
 
-                # Also add broader concepts
+                # Also add broader concepts (overwrite "inventory" source)
                 for broader_id in broader_ids:
-                    if broader_id not in concepts:
+                    existing_broader = concepts.get(broader_id)
+                    if existing_broader is None or existing_broader.source == "inventory":
                         concepts[broader_id] = Concept(
                             id=broader_id,
                             prefLabel=broader_id.replace("_", " ").title(),

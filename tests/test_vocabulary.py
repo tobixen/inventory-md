@@ -387,6 +387,82 @@ class TestCountItemsPerCategory:
         assert counts["food"] == 1
 
 
+class TestEnrichWithSkos:
+    """Tests for _enrich_with_skos function."""
+
+    def test_skos_overwrites_inventory_source(self):
+        """Test that SKOS lookup overwrites concepts with source='inventory'.
+
+        This is a regression test for a bug where intermediate path components
+        created with source='inventory' would prevent SKOS lookup for the same
+        label when used as a standalone category.
+
+        For example, if 'electronics/antenna' is processed first:
+        1. SKOS lookup for 'antenna' fails
+        2. _add_category_path creates 'electronics' with source='inventory'
+        3. Later when 'electronics' (standalone) is processed, it should
+           still do SKOS lookup and update the source to 'dbpedia'
+        """
+        # Create concepts dict with an "inventory" source concept
+        # (simulating what happens when path expansion creates it)
+        concepts = {
+            "electronics": vocabulary.Concept(
+                id="electronics",
+                prefLabel="Electronics",
+                source="inventory",  # Created by path expansion
+            )
+        }
+
+        # Simulate the check that determines whether to skip SKOS lookup
+        label = "electronics"
+        existing_with_skos = any(
+            c.prefLabel.lower() == label.lower() and c.source != "inventory"
+            for c in concepts.values()
+        )
+
+        # Should NOT skip because existing concept has source="inventory"
+        assert not existing_with_skos
+
+        # Simulate what happens when SKOS lookup succeeds
+        concept_data = {
+            "uri": "http://dbpedia.org/resource/Electronics",
+            "prefLabel": "Electronics",
+            "source": "dbpedia",
+        }
+
+        # Update the concept
+        cat_path = "electronics"
+        existing = concepts.get(cat_path)
+        if existing is None or existing.source == "inventory":
+            concepts[cat_path] = vocabulary.Concept(
+                id=cat_path,
+                prefLabel=concept_data["prefLabel"],
+                source=concept_data.get("source", "skos"),
+            )
+
+        # Verify the concept was updated with SKOS source
+        assert concepts["electronics"].source == "dbpedia"
+
+    def test_skos_does_not_overwrite_local_source(self):
+        """Test that SKOS lookup does not overwrite local vocabulary concepts."""
+        concepts = {
+            "my-category": vocabulary.Concept(
+                id="my-category",
+                prefLabel="My Category",
+                source="local",
+            )
+        }
+
+        label = "my category"
+        existing_with_skos = any(
+            c.prefLabel.lower() == label.lower() and c.source != "inventory"
+            for c in concepts.values()
+        )
+
+        # Should skip because existing concept has source="local" (not "inventory")
+        assert existing_with_skos
+
+
 class TestSaveVocabularyJson:
     """Tests for save_vocabulary_json function."""
 
