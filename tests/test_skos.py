@@ -112,6 +112,44 @@ class TestCacheFunctions:
         assert not skos._is_in_not_found_cache(tmp_path, key, ttl=1)
 
 
+class TestIrrelevantCategoryFilter:
+    """Tests for DBpedia category filtering."""
+
+    def test_filters_year_based_categories(self):
+        """Test that year-based categories are filtered."""
+        assert skos._is_irrelevant_dbpedia_category("1750 introductions")
+        assert skos._is_irrelevant_dbpedia_category("1893 in germany")
+        assert skos._is_irrelevant_dbpedia_category("1950s fashion")
+        assert skos._is_irrelevant_dbpedia_category("16th-century neologisms")
+        assert skos._is_irrelevant_dbpedia_category("21st-century fashion")
+        assert skos._is_irrelevant_dbpedia_category("6th-century bc works")
+        assert skos._is_irrelevant_dbpedia_category("9th-millennium bc establishments")
+
+    def test_filters_meta_categories(self):
+        """Test that Wikipedia meta categories are filtered."""
+        assert skos._is_irrelevant_dbpedia_category("Food watchlist articles")
+        assert skos._is_irrelevant_dbpedia_category("1931 musical instruments")
+        assert skos._is_irrelevant_dbpedia_category("Articles needing cleanup")
+        assert skos._is_irrelevant_dbpedia_category("Alcohol-related lists")
+        assert skos._is_irrelevant_dbpedia_category("Afrotropical realm flora")
+        assert skos._is_irrelevant_dbpedia_category("Age of sail naval ships")
+
+    def test_filters_location_context_categories(self):
+        """Test that location/context categories are filtered."""
+        assert skos._is_irrelevant_dbpedia_category("1963 in music")
+        assert skos._is_irrelevant_dbpedia_category("Products by country")
+        assert skos._is_irrelevant_dbpedia_category("Events by year")
+
+    def test_keeps_useful_categories(self):
+        """Test that useful product categories are NOT filtered."""
+        assert not skos._is_irrelevant_dbpedia_category("Root vegetables")
+        assert not skos._is_irrelevant_dbpedia_category("Hand tools")
+        assert not skos._is_irrelevant_dbpedia_category("Electronics")
+        assert not skos._is_irrelevant_dbpedia_category("Food and drink")
+        assert not skos._is_irrelevant_dbpedia_category("Woodworking")
+        assert not skos._is_irrelevant_dbpedia_category("Kitchen utensils")
+
+
 class TestSKOSClient:
     """Tests for SKOSClient class."""
 

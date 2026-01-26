@@ -451,11 +451,14 @@ def _enrich_with_skos(
             broader_data = concept_data.get("broader", [])
 
             # Build broader list from SKOS hierarchy
+            # Filter out irrelevant DBpedia categories (Wikipedia meta categories)
             broader_ids = []
-            for b in broader_data[:3]:  # Limit to first 3 broader concepts
-                broader_label = b.get("label", "").lower().replace(" ", "_")
-                if broader_label:
-                    broader_ids.append(broader_label)
+            for b in broader_data[:5]:  # Check first 5, keep up to 3 useful ones
+                broader_label = b.get("label", "")
+                if broader_label and not skos._is_irrelevant_dbpedia_category(broader_label):
+                    broader_ids.append(broader_label.lower().replace(" ", "_"))
+                    if len(broader_ids) >= 3:
+                        break
 
             # Add the concept for each path that uses this label
             for cat_path in paths:

@@ -43,6 +43,66 @@ DEFAULT_TIMEOUT = 300.0  # SPARQL endpoints can be slow
 # Default path for local AGROVOC data
 DEFAULT_AGROVOC_PATH = DEFAULT_CACHE_DIR / "agrovoc.nt"
 
+# Patterns for filtering irrelevant DBpedia categories
+# These are Wikipedia-style meta categories that aren't useful for inventory classification
+_IRRELEVANT_CATEGORY_PATTERNS = [
+    # Year-based categories
+    r"^\d{4}\s",  # "1750 introductions", "1893 in germany"
+    r"^\d{4}s\s",  # "1950s fashion", "1930s neologisms"
+    r"^\d+[a-z]{2}.century",  # "16th-century neologisms", "21st-century fashion"
+    r"^\d+[a-z]{2}.millennium",  # "9th-millennium bc establishments"
+    r"century.*works$",  # "6th-century bc works"
+    r"century.*establishments$",
+    # Meta categories about Wikipedia itself
+    r"introductions$",
+    r"neologisms$",
+    r"establishments\s",
+    r"disestablishments",
+    r"archaeological\s",
+    r"musical\sinstruments$",  # "1931 musical instruments" (year-based)
+    r"^articles\s",
+    r"watchlist",
+    r"stubs$",
+    r"wiki",
+    r"related\slists$",  # "alcohol-related lists"
+    # Location/time context (not product categories)
+    r"\sin\s\w+$",  # "1893 in germany", "1963 in music"
+    r"by\scountry",
+    r"by\syear",
+    # Geographic/cultural categories (not product types)
+    r"realm\sflora$",  # "afrotropical realm flora"
+    r"^age\sof\ssail",  # "age of sail naval ships"
+    # More year/time patterns
+    r"invented\sin\sthe\s\d",  # "musical instruments invented in the 1950s"
+    r"introduced\sin\sthe\s\d",  # "food and drink introduced in the 19th century"
+    r"\d{4}s[–-]\d{4}s",  # "1970s-1990s" year ranges
+    r"culture\s\d{4}",  # "cassette culture 1970s"
+]
+
+# Compiled regex for efficiency
+import re as _re
+_IRRELEVANT_CATEGORY_RE = _re.compile(
+    "|".join(_IRRELEVANT_CATEGORY_PATTERNS),
+    _re.IGNORECASE
+)
+
+
+def _is_irrelevant_dbpedia_category(label: str) -> bool:
+    """Check if a DBpedia category label is irrelevant for inventory classification.
+
+    Filters out Wikipedia-style meta categories like:
+    - Year-based: "1750 introductions", "1893 in germany"
+    - Meta categories: "neologisms", "establishments"
+    - Context categories: "by country", "by year"
+
+    Args:
+        label: Category label to check.
+
+    Returns:
+        True if the category should be filtered out, False otherwise.
+    """
+    return bool(_IRRELEVANT_CATEGORY_RE.search(label))
+
 
 class OxigraphStore:
     """Local SKOS store using Oxigraph (pyoxigraph).
@@ -961,7 +1021,9 @@ class SKOSClient:
             # e.g., "http://dbpedia.org/resource/Category:Root_vegetables" -> "Root vegetables"
             if "/Category:" in cat_uri:
                 cat_label = cat_uri.split("/Category:")[-1].replace("_", " ")
-                broader.append({"uri": cat_uri, "label": cat_label})
+                # Filter out irrelevant Wikipedia-style categories
+                if not _is_irrelevant_dbpedia_category(cat_label):
+                    broader.append({"uri": cat_uri, "label": cat_label})
 
         return {
             "uri": resource_uri,
@@ -1039,9 +1101,11 @@ class SKOSClient:
         results = self._sparql_query(endpoint, query)
         if results is None:
             return []  # Query failed, return empty
+        # Filter out irrelevant Wikipedia-style categories
         return [
             {"uri": r["category"]["value"], "label": r["label"]["value"]}
             for r in results
+            if not _is_irrelevant_dbpedia_category(r["label"]["value"])
         ]
 
     def get_hierarchy_path(self, concept: dict) -> list[str]:
