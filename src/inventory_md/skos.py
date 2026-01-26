@@ -241,6 +241,10 @@ class OxigraphStore:
         """Return number of triples in store."""
         return len(self._store)
 
+    def __bool__(self) -> bool:
+        """Return True if store has data (fast, doesn't count triples)."""
+        return self._has_data
+
     @property
     def is_loaded(self) -> bool:
         """Check if any data has been loaded."""

@@ -788,9 +788,8 @@ def build_skos_hierarchy_paths(
     Returns:
         List of hierarchy paths from root to concept.
     """
-
     store = client._get_oxigraph_store()
-    if not store or not store.is_loaded:
+    if store is None or not store.is_loaded:
         logger.warning("Oxigraph not available for hierarchy building")
         return [concept_label.lower().replace(" ", "_")]
 
@@ -847,32 +846,32 @@ def _find_agrovoc_uri(label: str, store) -> str | None:
     elif base.endswith('s') and not base.endswith(('ss', 'us', 'is')):
         variations.append(base[:-1])  # books -> book
 
-    # Try each variation
+    # Build all case variations to try (lowercase, Capitalized, UPPERCASE)
+    all_variations = []
     for var in variations:
-        # Try prefLabel
+        all_variations.extend([var, var.capitalize(), var.upper(), var.lower()])
+    all_variations = list(dict.fromkeys(all_variations))  # Remove duplicates, preserve order
+
+    # Try exact match first (fast - uses index)
+    for var in all_variations:
         query = f'''
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
         SELECT ?concept WHERE {{
-            ?concept skosxl:prefLabel ?labelRes .
-            ?labelRes skosxl:literalForm ?labelText .
-            FILTER(LCASE(STR(?labelText)) = "{var}")
+            ?concept skosxl:prefLabel/skosxl:literalForm "{var}"@en .
         }} LIMIT 1
         '''
-
         results = list(store.query(query))
         if results:
             return results[0]['concept']['value']
 
-        # Try altLabel
+    # Try altLabel exact match
+    for var in all_variations:
         query = f'''
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
         SELECT ?concept WHERE {{
-            ?concept skosxl:altLabel ?labelRes .
-            ?labelRes skosxl:literalForm ?labelText .
-            FILTER(LCASE(STR(?labelText)) = "{var}")
+            ?concept skosxl:altLabel/skosxl:literalForm "{var}"@en .
         }} LIMIT 1
         '''
-
         results = list(store.query(query))
         if results:
             return results[0]['concept']['value']
@@ -1088,12 +1087,16 @@ def build_vocabulary_with_skos_hierarchy(
                 all_category_labels.add(leaf_label)
 
     logger.info("Expanding %d category labels to SKOS hierarchies...", len(all_category_labels))
+    print(f"   Expanding {len(all_category_labels)} categories to SKOS hierarchies...")
 
     # Create SKOS client with Oxigraph for faster lookups
     client = skos_module.SKOSClient(use_oxigraph=True)
 
     # Expand each label to SKOS paths
-    for label in all_category_labels:
+    total = len(all_category_labels)
+    for i, label in enumerate(sorted(all_category_labels), 1):
+        if i % 4 == 0 or i == 1:
+            print(f"   [{i}/{total}] {label}", flush=True)
         paths = build_skos_hierarchy_paths(label, client, lang)
         category_mappings[label] = paths
 
