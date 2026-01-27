@@ -1192,20 +1192,61 @@ def build_vocabulary_with_skos_hierarchy(
         if idx % 4 == 0 or idx == 1:
             print(f"   [{idx}/{total}] {label}", flush=True)
 
-        # Check if label matches a local vocabulary entry (skip SKOS lookup)
+        # Check if label matches a local vocabulary entry
         label_lower = label.lower()
         if label_lower in local_vocab_labels:
             local_concept_id = local_vocab_labels[label_lower]
             local_concept = local_vocab[local_concept_id]
-            # Use the local concept's ID as the path
+
+            # If the local entry has an AGROVOC URI, use it for hierarchy expansion
+            if local_concept.uri and "agrovoc" in local_concept.uri.lower():
+                store = client._get_oxigraph_store()
+                if store is not None and store.is_loaded:
+                    paths, uri_map = _build_paths_to_root(
+                        local_concept.uri, store, lang
+                    )
+                    if paths:
+                        category_mappings[label] = paths
+                        all_uri_maps.update(uri_map)
+                        for path in paths:
+                            parts = path.split("/")
+                            for i in range(len(parts)):
+                                cid = "/".join(parts[: i + 1])
+                                if cid not in concepts:
+                                    clabel = parts[i].replace("_", " ").title()
+                                    concepts[cid] = Concept(
+                                        id=cid, prefLabel=clabel, source="agrovoc",
+                                    )
+                        logger.debug("Local vocab '%s' -> AGROVOC hierarchy: %s", label, paths)
+                        continue
+
+            # Non-AGROVOC local entry (e.g., DBpedia) - use concept ID as path
             category_mappings[label] = [local_concept_id]
-            # Track URI if present
             if local_concept.uri:
                 all_uri_maps[local_concept_id] = local_concept.uri
             logger.debug("Using local vocabulary for '%s' -> %s", label, local_concept_id)
             continue
 
         paths, found_in_skos, uri_map = build_skos_hierarchy_paths(label, client, lang)
+
+        if not found_in_skos and "dbpedia" in client.enabled_sources:
+            # Try DBpedia as fallback
+            dbpedia_concept = client.lookup_concept(label, lang, source="dbpedia")
+            if dbpedia_concept and dbpedia_concept.get("uri"):
+                concept_id = label.lower().replace(" ", "_")
+                category_mappings[label] = [concept_id]
+                concepts[concept_id] = Concept(
+                    id=concept_id,
+                    prefLabel=dbpedia_concept.get("prefLabel", label.title()),
+                    altLabels=dbpedia_concept.get("altLabels", []),
+                    source="dbpedia",
+                    uri=dbpedia_concept["uri"],
+                    description=dbpedia_concept.get("description"),
+                    wikipediaUrl=dbpedia_concept.get("wikipediaUrl"),
+                )
+                logger.debug("DBpedia fallback for '%s' -> %s", label, dbpedia_concept["uri"])
+                continue
+
         category_mappings[label] = paths
 
         # Collect URI mappings
