@@ -403,6 +403,13 @@
             color: #555;
         }
 
+        .items-list li.item-matches-filter {
+            background: linear-gradient(90deg, #fff3e0 0%, transparent 100%);
+            border-left: 3px solid #ff9800;
+            padding-left: 8px;
+            margin-left: -11px;
+        }
+
         .highlight {
             background: yellow;
             padding: 2px 4px;
@@ -1003,6 +1010,13 @@
 
             .items-list li:last-child {
                 border-bottom: none;
+            }
+
+            .items-list li.item-matches-filter {
+                background: linear-gradient(90deg, #fff3e0 0%, transparent 100%);
+                border-left: 3px solid #ff9800;
+                padding-left: 12px;
+                margin-left: -10px;
             }
 
             .item-link {
@@ -2692,8 +2706,11 @@
                                                 return `<li>${highlightText(item, searchTerm)}</li>`;
                                             }
 
+                                            // Check if item matches category/tag filter for highlighting
+                                            const matchesFilter = selectedCategory && itemMatchesCategory(item);
+
                                             // New format with metadata
-                                            let html = '<li>';
+                                            let html = matchesFilter ? '<li class="item-matches-filter">' : '<li>';
                                             if (item.id) {
                                                 // Check if this item ID matches a container - make it clickable
                                                 if (containerIds.has(item.id)) {

@@ -23,6 +23,12 @@ Local vocabulary format (local-vocabulary.yaml):
       boat-equipment/safety:
         prefLabel: "Safety equipment"
         altLabel: ["life vests", "flares"]
+
+      seal:
+        prefLabel: "Seal"
+        altLabel: ["rubber seal", "gasket", "o-ring"]
+        uri: "http://dbpedia.org/resource/Hermetic_seal"
+        # source auto-detected as "dbpedia" from URI
 """
 from __future__ import annotations
 
@@ -169,13 +175,28 @@ def load_local_vocabulary(path: Path) -> dict[str, Concept]:
         if isinstance(narrower, str):
             narrower = [narrower]
 
+        # Handle labels dict for translations
+        labels = concept_data.get("labels", {})
+
+        # Determine source from URI if not explicitly set
+        uri = concept_data.get("uri")
+        source = concept_data.get("source", "local")
+        if uri and source == "local":
+            if "agrovoc" in uri.lower():
+                source = "agrovoc"
+            elif "dbpedia" in uri.lower():
+                source = "dbpedia"
+
         concepts[concept_id] = Concept(
             id=concept_id,
             prefLabel=concept_data.get("prefLabel", concept_id),
             altLabels=alt_labels,
             broader=broader,
             narrower=narrower,
-            source="local",
+            source=source,
+            uri=uri,
+            labels=labels,
+            description=concept_data.get("description"),
         )
 
     return concepts
@@ -1139,11 +1160,34 @@ def build_vocabulary_with_skos_hierarchy(
     # Track all URIs for translation fetching
     all_uri_maps: dict[str, str] = {}
 
+    # Build index of local vocab labels for quick lookup
+    local_vocab_labels: dict[str, str] = {}  # label -> concept_id
+    if local_vocab:
+        for concept_id, concept in local_vocab.items():
+            # Index by concept ID and all alt labels
+            local_vocab_labels[concept_id.lower()] = concept_id
+            for alt in concept.altLabels:
+                local_vocab_labels[alt.lower()] = concept_id
+
     # Expand each label to SKOS paths
     total = len(all_category_labels)
     for idx, label in enumerate(sorted(all_category_labels), 1):
         if idx % 4 == 0 or idx == 1:
             print(f"   [{idx}/{total}] {label}", flush=True)
+
+        # Check if label matches a local vocabulary entry (skip SKOS lookup)
+        label_lower = label.lower()
+        if label_lower in local_vocab_labels:
+            local_concept_id = local_vocab_labels[label_lower]
+            local_concept = local_vocab[local_concept_id]
+            # Use the local concept's ID as the path
+            category_mappings[label] = [local_concept_id]
+            # Track URI if present
+            if local_concept.uri:
+                all_uri_maps[local_concept_id] = local_concept.uri
+            logger.debug("Using local vocabulary for '%s' -> %s", label, local_concept_id)
+            continue
+
         paths, found_in_skos, uri_map = build_skos_hierarchy_paths(label, client, lang)
         category_mappings[label] = paths
 
