@@ -772,7 +772,7 @@ def build_skos_hierarchy_paths(
     concept_label: str,
     client: SKOSClient,  # from .skos module
     lang: str = "en",
-) -> list[str]:
+) -> tuple[list[str], bool, dict[str, str]]:
     """Build all hierarchy paths for a concept from SKOS.
 
     Given a concept label like "potatoes", queries AGROVOC to find
@@ -786,27 +786,28 @@ def build_skos_hierarchy_paths(
         lang: Language code for labels.
 
     Returns:
-        List of hierarchy paths from root to concept.
+        Tuple of (list of hierarchy paths, bool indicating if SKOS was found,
+        dict mapping concept_id to AGROVOC URI).
     """
     store = client._get_oxigraph_store()
     if store is None or not store.is_loaded:
         logger.warning("Oxigraph not available for hierarchy building")
-        return [concept_label.lower().replace(" ", "_")]
+        return [concept_label.lower().replace(" ", "_")], False, {}
 
     # First, find the concept URI
     uri = _find_agrovoc_uri(concept_label, store)
     if not uri:
         logger.debug("No AGROVOC URI found for %s", concept_label)
-        return [concept_label.lower().replace(" ", "_")]
+        return [concept_label.lower().replace(" ", "_")], False, {}
 
     # Build all paths from this concept up to roots
-    paths = _build_paths_to_root(uri, store, lang)
+    paths, uri_map = _build_paths_to_root(uri, store, lang)
 
     if not paths:
         # Fall back to just the concept label
-        return [concept_label.lower().replace(" ", "_")]
+        return [concept_label.lower().replace(" ", "_")], False, {}
 
-    return paths
+    return paths, True, uri_map
 
 
 def _find_agrovoc_uri(label: str, store) -> str | None:
@@ -922,6 +923,34 @@ def _get_agrovoc_label(uri: str, store, lang: str = "en") -> str:
     return uri.split('/')[-1]
 
 
+def _get_all_labels(uri: str, store, languages: list[str]) -> dict[str, str]:
+    """Get prefLabels for an AGROVOC concept URI in multiple languages.
+
+    Args:
+        uri: AGROVOC concept URI.
+        store: Oxigraph store instance.
+        languages: List of language codes to fetch.
+
+    Returns:
+        Dict mapping language code to label string.
+    """
+    labels = {}
+    for lang in languages:
+        query = f'''
+        PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
+        SELECT ?labelText WHERE {{
+            <{uri}> skosxl:prefLabel ?labelRes .
+            ?labelRes skosxl:literalForm ?labelText .
+            FILTER(LANG(?labelText) = "{lang}")
+        }} LIMIT 1
+        '''
+        results = list(store.query(query))
+        if results:
+            labels[lang] = results[0]['labelText']['value']
+
+    return labels
+
+
 def _get_broader_concepts(uri: str, store) -> list[str]:
     """Get all broader concept URIs for a concept.
 
@@ -949,7 +978,8 @@ def _build_paths_to_root(
     lang: str = "en",
     visited: set | None = None,
     current_path: list | None = None,
-) -> list[str]:
+    uri_map: dict | None = None,
+) -> tuple[list[str], dict[str, str]]:
     """Recursively build all paths from a concept to root(s).
 
     Args:
@@ -958,17 +988,20 @@ def _build_paths_to_root(
         lang: Language code for labels.
         visited: Set of visited URIs to avoid cycles.
         current_path: Current path being built (concept labels).
+        uri_map: Dict mapping concept_id to URI for translation fetching.
 
     Returns:
-        List of complete paths as strings (e.g., "food/vegetables/potatoes").
+        Tuple of (list of complete paths, dict of concept_id -> URI).
     """
     if visited is None:
         visited = set()
     if current_path is None:
         current_path = []
+    if uri_map is None:
+        uri_map = {}
 
     if uri in visited:
-        return []
+        return [], uri_map
     visited.add(uri)
 
     # Get label for current concept
@@ -988,17 +1021,29 @@ def _build_paths_to_root(
             mapped_root = AGROVOC_ROOT_MAPPING[root_label]
             new_path[0] = mapped_root
         # Return the complete path
-        return ["/".join(new_path)]
+        full_path = "/".join(new_path)
+        # Track URI for each concept in the path
+        for i in range(len(new_path)):
+            concept_id = "/".join(new_path[: i + 1])
+            if concept_id not in uri_map:
+                uri_map[concept_id] = uri  # Store URI for leaf concept
+        return [full_path], uri_map
 
     # Continue up the hierarchy for each broader concept
     all_paths = []
     for broader_uri in broader_uris:
-        paths = _build_paths_to_root(
-            broader_uri, store, lang, visited.copy(), new_path
+        paths, uri_map = _build_paths_to_root(
+            broader_uri, store, lang, visited.copy(), new_path, uri_map
         )
         all_paths.extend(paths)
 
-    return all_paths
+    # Track URI for this concept
+    for i in range(len(new_path)):
+        concept_id = "/".join(new_path[: i + 1])
+        if concept_id not in uri_map:
+            uri_map[concept_id] = uri
+
+    return all_paths, uri_map
 
 
 def expand_category_to_skos_paths(
@@ -1081,9 +1126,8 @@ def build_vocabulary_with_skos_hierarchy(
                 # Extract leaf label from path (e.g., "food/vegetables" -> "vegetables")
                 # or use whole label if no path separator
                 leaf_label = category_path.split("/")[-1] if "/" in category_path else category_path
-                # Normalize: replace - and _ with space, singular form
+                # Normalize: replace - and _ with space (keep plural/singular as-is)
                 leaf_label = leaf_label.replace("-", " ").replace("_", " ")
-                leaf_label = _normalize_to_singular(leaf_label)
                 all_category_labels.add(leaf_label)
 
     logger.info("Expanding %d category labels to SKOS hierarchies...", len(all_category_labels))
@@ -1092,13 +1136,22 @@ def build_vocabulary_with_skos_hierarchy(
     # Create SKOS client with Oxigraph for faster lookups
     client = skos_module.SKOSClient(use_oxigraph=True)
 
+    # Track all URIs for translation fetching
+    all_uri_maps: dict[str, str] = {}
+
     # Expand each label to SKOS paths
     total = len(all_category_labels)
-    for i, label in enumerate(sorted(all_category_labels), 1):
-        if i % 4 == 0 or i == 1:
-            print(f"   [{i}/{total}] {label}", flush=True)
-        paths = build_skos_hierarchy_paths(label, client, lang)
+    for idx, label in enumerate(sorted(all_category_labels), 1):
+        if idx % 4 == 0 or idx == 1:
+            print(f"   [{idx}/{total}] {label}", flush=True)
+        paths, found_in_skos, uri_map = build_skos_hierarchy_paths(label, client, lang)
         category_mappings[label] = paths
+
+        # Collect URI mappings
+        all_uri_maps.update(uri_map)
+
+        # Determine source - "agrovoc" if found, "inventory" if fallback
+        source = "agrovoc" if found_in_skos else "inventory"
 
         # Add all path components to vocabulary
         for path in paths:
@@ -1111,13 +1164,21 @@ def build_vocabulary_with_skos_hierarchy(
                     concepts[concept_id] = Concept(
                         id=concept_id,
                         prefLabel=concept_label,
-                        source="skos",
+                        source=source,
                     )
 
-    # Now enrich concepts with full SKOS data (labels, translations, URIs)
+    # Fetch translations for concepts with URIs
     if languages and len(languages) > 1:
-        logger.info("Fetching translations for %d languages...", len(languages))
-        # TODO: Implement batch translation fetching for SKOS hierarchy mode
+        store = client._get_oxigraph_store()
+        if store is not None and store.is_loaded:
+            logger.info("Fetching translations for %d languages...", len(languages))
+            print(f"   Fetching translations for {len(languages)} languages...")
+            for concept_id, concept in concepts.items():
+                if concept_id in all_uri_maps:
+                    uri = all_uri_maps[concept_id]
+                    labels = _get_all_labels(uri, store, languages)
+                    if labels:
+                        concept.labels = labels
 
     logger.info("Built vocabulary with %d concepts from %d category labels",
                 len(concepts), len(all_category_labels))

@@ -194,14 +194,14 @@ def extract_metadata(text: str) -> dict[str, Any]:
         # Special handling for tags: split by comma
         if key == 'tag':
             tags.extend([tag.strip() for tag in value.split(',') if tag.strip()])
-        # Special handling for categories: split by comma, normalize to singular
+        # Special handling for categories: split by comma, normalize to lowercase
         elif key == 'category':
             for cat in value.split(','):
                 cat = cat.strip()
                 if cat:
-                    # Normalize path: singular lowercase
+                    # Normalize path: lowercase only (keep plural/singular as-is)
                     parts = cat.split('/')
-                    normalized_parts = [_normalize_to_singular(p.lower()) for p in parts]
+                    normalized_parts = [p.lower() for p in parts]
                     categories.append('/'.join(normalized_parts))
         else:
             metadata[key] = value
