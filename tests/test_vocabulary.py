@@ -1,6 +1,8 @@
 """Tests for vocabulary module."""
+from __future__ import annotations
 
 import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -602,3 +604,137 @@ class TestExpandCategoryToSkosPaths:
         # Check that the mapping exists
         assert "products" in vocabulary.AGROVOC_ROOT_MAPPING
         assert vocabulary.AGROVOC_ROOT_MAPPING["products"] == "food"
+
+
+class TestOFFIntegration:
+    """Tests for Open Food Facts integration in vocabulary building."""
+
+    def _make_mock_off_client(self):
+        """Create a mock OFFTaxonomyClient."""
+        client = MagicMock()
+        client.lookup_concept.return_value = {
+            "uri": "off:en:potatoes",
+            "prefLabel": "Potatoes",
+            "source": "off",
+            "broader": [{"uri": "off:en:vegetables", "label": "Vegetables"}],
+            "node_id": "en:potatoes",
+        }
+        client.build_paths_to_root.return_value = (
+            ["food/vegetables/potatoes"],
+            {"food": "off:en:plant-based-foods-and-beverages",
+             "food/vegetables": "off:en:vegetables",
+             "food/vegetables/potatoes": "off:en:potatoes"},
+        )
+        client.get_labels.return_value = {"en": "Potatoes", "de": "Kartoffeln"}
+        return client
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_off_priority_over_agrovoc(self, mock_skos_paths):
+        """Test that OFF is tried before AGROVOC for food categories."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+            }]
+        }
+
+        mock_off_client = self._make_mock_off_client()
+
+        with patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client):
+            # Only enable OFF (no AGROVOC/DBpedia) to verify OFF is used
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off"]
+            )
+
+        # OFF should have been used
+        mock_off_client.lookup_concept.assert_called()
+        # AGROVOC should NOT have been called (not in enabled_sources)
+        mock_skos_paths.assert_not_called()
+        # Paths should come from OFF
+        assert "potatoes" in mappings
+        assert any("food/" in p for p in mappings["potatoes"])
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_off_fallback_to_agrovoc(self, mock_skos_paths):
+        """Test that AGROVOC is used when OFF doesn't find a concept."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Lentils", "metadata": {"categories": ["lentils"]}}],
+            }]
+        }
+
+        # OFF returns nothing for this term
+        mock_off_client = MagicMock()
+        mock_off_client.lookup_concept.return_value = None
+        mock_off_client.get_labels.return_value = {}
+
+        # AGROVOC finds it
+        mock_skos_paths.return_value = (
+            ["food/legumes/lentils"],
+            True,
+            {"food/legumes/lentils": "http://aims.fao.org/aos/agrovoc/c_4235"},
+        )
+
+        with patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client):
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "agrovoc"]
+            )
+
+        # OFF was tried first
+        mock_off_client.lookup_concept.assert_called()
+        # AGROVOC was used as fallback
+        mock_skos_paths.assert_called()
+        assert "lentils" in mappings
+        assert any("legumes" in p for p in mappings["lentils"])
+
+    def test_off_not_enabled(self):
+        """Test that OFF is skipped when not in enabled_sources."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+            }]
+        }
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_cls:
+            # With OFF not in sources, OFFTaxonomyClient should not be instantiated
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["agrovoc", "dbpedia"]
+            )
+            mock_cls.assert_not_called()
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_multi_source_enrichment(self, mock_skos_paths):
+        """Test that multiple sources contribute paths for the same concept."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+            }]
+        }
+
+        # OFF provides one set of paths
+        mock_off_client = self._make_mock_off_client()
+        mock_off_client.build_paths_to_root.return_value = (
+            ["food/vegetables/potatoes"],
+            {"food/vegetables/potatoes": "off:en:potatoes"},
+        )
+
+        # AGROVOC provides additional paths
+        mock_skos_paths.return_value = (
+            ["food/plant_products/root_vegetables/potatoes"],
+            True,
+            {"food/plant_products/root_vegetables/potatoes": "http://aims.fao.org/aos/agrovoc/c_6139"},
+        )
+
+        with patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client):
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "agrovoc"]
+            )
+
+        # Both paths should be present (multi-source enrichment)
+        assert "potatoes" in mappings
+        paths = mappings["potatoes"]
+        assert "food/vegetables/potatoes" in paths
+        assert "food/plant_products/root_vegetables/potatoes" in paths

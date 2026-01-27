@@ -34,7 +34,7 @@ DEFAULTS: dict[str, Any] = {
     "skos": {
         "enabled": False,  # Enable SKOS lookups in parse --auto
         "hierarchy_mode": False,  # Expand category labels to full SKOS hierarchy paths
-        "enabled_sources": ["agrovoc", "dbpedia"],
+        "enabled_sources": ["off", "agrovoc", "dbpedia"],
         "cache_ttl_days": 30,
         "timeout": 30.0,
     },

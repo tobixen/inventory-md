@@ -136,7 +136,7 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     return 0
 
 
-def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False, hierarchy_mode: bool = False, lang: str = None, languages: list[str] = None) -> int:
+def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False, hierarchy_mode: bool = False, lang: str = None, languages: list[str] = None, enabled_sources: list[str] = None) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
 
@@ -248,7 +248,8 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                 if hierarchy_mode:
                     print(f"   Using SKOS hierarchy mode ({lang_info})...")
                     vocab, category_mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                        data, local_vocab=local_vocab, lang=skos_lang, languages=languages
+                        data, local_vocab=local_vocab, lang=skos_lang, languages=languages,
+                        enabled_sources=enabled_sources,
                     )
                 else:
                     print(f"   Using SKOS lookups ({lang_info})...")
@@ -927,7 +928,8 @@ Examples:
             lang = config.lang if use_skos else None
             languages = config.skos_languages if use_skos else None
 
-        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, hierarchy_mode, lang, languages)
+        enabled_sources = config.get("skos.enabled_sources", ["off", "agrovoc", "dbpedia"])
+        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, hierarchy_mode, lang, languages, enabled_sources)
     elif args.command == 'update-template':
         return update_template(args.directory, args.force)
     elif args.command == 'serve':

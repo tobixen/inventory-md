@@ -1095,7 +1095,65 @@ def expand_category_to_skos_paths(
         return [category_label.lower().replace(" ", "_")]
 
     client = skos.SKOSClient(use_oxigraph=use_oxigraph)
-    return build_skos_hierarchy_paths(category_label, client, lang)
+    paths, _found, _uri_map = build_skos_hierarchy_paths(category_label, client, lang)
+    return paths
+
+
+def _add_paths_to_concepts(
+    paths: list[str],
+    concepts: dict[str, Concept],
+    source: str,
+) -> None:
+    """Add all path components from a list of paths to the concepts dict.
+
+    Args:
+        paths: List of hierarchy paths like "food/vegetables/potatoes".
+        concepts: Concepts dict to update.
+        source: Source string for new concepts (e.g., "off", "agrovoc").
+    """
+    for path in paths:
+        parts = path.split("/")
+        for i in range(len(parts)):
+            concept_id = "/".join(parts[: i + 1])
+            if concept_id not in concepts:
+                concept_label = parts[i].replace("_", " ").title()
+                concepts[concept_id] = Concept(
+                    id=concept_id, prefLabel=concept_label, source=source,
+                )
+
+
+def _merge_concept_data(
+    primary_paths: list[str],
+    primary_uri_map: dict[str, str],
+    secondary_paths: list[str],
+    secondary_uri_map: dict[str, str],
+) -> tuple[list[str], dict[str, str]]:
+    """Merge hierarchy paths and URI maps from two sources.
+
+    Deduplicates identical paths and merges URI maps (primary wins on conflict).
+
+    Args:
+        primary_paths: Paths from the primary source.
+        primary_uri_map: URI map from the primary source.
+        secondary_paths: Paths from the secondary source.
+        secondary_uri_map: URI map from the secondary source.
+
+    Returns:
+        Tuple of (merged paths, merged uri_map).
+    """
+    # Union paths, deduplicating
+    seen = set(primary_paths)
+    merged_paths = list(primary_paths)
+    for path in secondary_paths:
+        if path not in seen:
+            merged_paths.append(path)
+            seen.add(path)
+
+    # Merge URI maps - primary wins on conflict
+    merged_uris = dict(secondary_uri_map)
+    merged_uris.update(primary_uri_map)
+
+    return merged_paths, merged_uris
 
 
 def build_vocabulary_with_skos_hierarchy(
@@ -1103,30 +1161,53 @@ def build_vocabulary_with_skos_hierarchy(
     local_vocab: dict[str, Concept] | None = None,
     lang: str = "en",
     languages: list[str] | None = None,
+    enabled_sources: list[str] | None = None,
 ) -> tuple[dict[str, Concept], dict[str, list[str]]]:
     """Build vocabulary using SKOS hierarchy expansion.
 
-    This mode expands each category label to its full SKOS hierarchy paths.
-    For example, "potatoes" becomes "food/plant_products/vegetables/root_vegetables/potatoes".
+    This mode expands each category label to its full hierarchy paths
+    using multiple sources: OFF → AGROVOC → DBpedia (configurable).
 
-    This ensures all food items can be found under a common "food" root,
-    regardless of the original category path in inventory.md.
+    For example, "potatoes" becomes "food/vegetables/potatoes" via OFF
+    and may also get additional paths from AGROVOC.
 
     Args:
         inventory_data: Parsed inventory JSON data.
         local_vocab: Optional local vocabulary to merge with.
-        lang: Primary language code for SKOS lookups.
+        lang: Primary language code for lookups.
         languages: List of language codes to fetch labels for.
+        enabled_sources: List of enabled sources in priority order.
+                         Defaults to ["off", "agrovoc", "dbpedia"].
 
     Returns:
         Tuple of:
         - Dictionary of concepts (the vocabulary tree)
         - Dictionary mapping original category labels to expanded paths
     """
-    try:
-        from . import skos as skos_module
-    except ImportError:
-        logger.warning("SKOS module not available")
+    if enabled_sources is None:
+        enabled_sources = ["off", "agrovoc", "dbpedia"]
+
+    # Initialize OFF client if enabled
+    off_client = None
+    if "off" in enabled_sources:
+        try:
+            from .off import OFFTaxonomyClient
+            off_client = OFFTaxonomyClient(languages=languages or [lang])
+        except ImportError:
+            logger.info("OFF module not available, skipping Open Food Facts lookups")
+
+    # Initialize SKOS client if AGROVOC or DBpedia enabled
+    skos_module = None
+    client = None
+    if "agrovoc" in enabled_sources or "dbpedia" in enabled_sources:
+        try:
+            from . import skos as skos_module
+            client = skos_module.SKOSClient(use_oxigraph=True)
+        except ImportError:
+            logger.info("SKOS module not available, skipping AGROVOC/DBpedia lookups")
+
+    if off_client is None and client is None:
+        logger.warning("No taxonomy sources available")
         vocab = build_vocabulary_from_inventory(inventory_data, local_vocab)
         return vocab, {}
 
@@ -1138,7 +1219,7 @@ def build_vocabulary_with_skos_hierarchy(
         concepts.update(local_vocab)
 
     # Collect categories from inventory, separating leaf labels from path-based ones
-    leaf_labels: set[str] = set()  # Simple labels for SKOS expansion
+    leaf_labels: set[str] = set()  # Simple labels for hierarchy expansion
     path_categories: set[str] = set()  # Path-based categories to keep as-is
     for container in inventory_data.get("containers", []):
         for item in container.get("items", []):
@@ -1148,7 +1229,7 @@ def build_vocabulary_with_skos_hierarchy(
                     # Path-based category - keep the full path structure
                     path_categories.add(category_path)
                 else:
-                    # Simple label - will be expanded via SKOS
+                    # Simple label - will be expanded via taxonomy sources
                     leaf_label = category_path.replace("-", " ").replace("_", " ")
                     leaf_labels.add(leaf_label)
 
@@ -1168,14 +1249,13 @@ def build_vocabulary_with_skos_hierarchy(
                     source="inventory",
                 )
 
-    logger.info("Expanding %d leaf labels to SKOS hierarchies...", len(leaf_labels))
-    print(f"   Expanding {len(leaf_labels)} categories to SKOS hierarchies...")
-
-    # Create SKOS client with Oxigraph for faster lookups
-    client = skos_module.SKOSClient(use_oxigraph=True)
+    logger.info("Expanding %d leaf labels to hierarchies...", len(leaf_labels))
+    print(f"   Expanding {len(leaf_labels)} categories to hierarchies...")
 
     # Track all URIs for translation fetching
     all_uri_maps: dict[str, str] = {}
+    # Track OFF node IDs for OFF-specific translation fetching
+    off_node_ids: dict[str, str] = {}  # concept_id -> OFF node_id
 
     # Build index of local vocab labels for quick lookup
     local_vocab_labels: dict[str, str] = {}  # label -> concept_id
@@ -1186,7 +1266,7 @@ def build_vocabulary_with_skos_hierarchy(
             for alt in concept.altLabels:
                 local_vocab_labels[alt.lower()] = concept_id
 
-    # Expand each leaf label to SKOS paths
+    # Expand each leaf label using source priority chain
     total = len(leaf_labels)
     for idx, label in enumerate(sorted(leaf_labels), 1):
         if idx % 4 == 0 or idx == 1:
@@ -1199,7 +1279,7 @@ def build_vocabulary_with_skos_hierarchy(
             local_concept = local_vocab[local_concept_id]
 
             # If the local entry has an AGROVOC URI, use it for hierarchy expansion
-            if local_concept.uri and "agrovoc" in local_concept.uri.lower():
+            if local_concept.uri and "agrovoc" in local_concept.uri.lower() and client:
                 store = client._get_oxigraph_store()
                 if store is not None and store.is_loaded:
                     paths, uri_map = _build_paths_to_root(
@@ -1208,15 +1288,7 @@ def build_vocabulary_with_skos_hierarchy(
                     if paths:
                         category_mappings[label] = paths
                         all_uri_maps.update(uri_map)
-                        for path in paths:
-                            parts = path.split("/")
-                            for i in range(len(parts)):
-                                cid = "/".join(parts[: i + 1])
-                                if cid not in concepts:
-                                    clabel = parts[i].replace("_", " ").title()
-                                    concepts[cid] = Concept(
-                                        id=cid, prefLabel=clabel, source="agrovoc",
-                                    )
+                        _add_paths_to_concepts(paths, concepts, "agrovoc")
                         logger.debug("Local vocab '%s' -> AGROVOC hierarchy: %s", label, paths)
                         continue
 
@@ -1227,10 +1299,47 @@ def build_vocabulary_with_skos_hierarchy(
             logger.debug("Using local vocabulary for '%s' -> %s", label, local_concept_id)
             continue
 
-        paths, found_in_skos, uri_map = build_skos_hierarchy_paths(label, client, lang)
+        # Try sources in priority order, collecting paths from all that match
+        all_paths: list[str] = []
+        all_uris: dict[str, str] = {}
+        primary_source: str | None = None
+        sources_found: list[str] = []
 
-        if not found_in_skos and "dbpedia" in client.enabled_sources:
-            # Try DBpedia as fallback
+        # --- OFF lookup ---
+        if off_client is not None:
+            off_result = off_client.lookup_concept(label, lang=lang)
+            if off_result and off_result.get("node_id"):
+                node_id = off_result["node_id"]
+                off_paths, off_uri_map = off_client.build_paths_to_root(node_id, lang=lang)
+                if off_paths:
+                    all_paths, all_uris = off_paths, off_uri_map
+                    primary_source = "off"
+                    sources_found.append("off")
+                    # Track OFF node IDs for translation fetching
+                    for cid, uri in off_uri_map.items():
+                        if uri.startswith("off:"):
+                            off_node_ids[cid] = uri[4:]  # Strip "off:" prefix
+                    logger.debug("OFF found '%s' -> %d paths", label, len(off_paths))
+
+        # --- AGROVOC lookup ---
+        if client is not None and "agrovoc" in enabled_sources:
+            agrovoc_paths, found_in_agrovoc, agrovoc_uri_map = build_skos_hierarchy_paths(
+                label, client, lang
+            )
+            if found_in_agrovoc:
+                if primary_source is None:
+                    all_paths, all_uris = agrovoc_paths, agrovoc_uri_map
+                    primary_source = "agrovoc"
+                else:
+                    # Merge additional paths from AGROVOC
+                    all_paths, all_uris = _merge_concept_data(
+                        all_paths, all_uris, agrovoc_paths, agrovoc_uri_map
+                    )
+                sources_found.append("agrovoc")
+                logger.debug("AGROVOC found '%s' -> %d paths", label, len(agrovoc_paths))
+
+        # --- DBpedia fallback ---
+        if primary_source is None and client is not None and "dbpedia" in enabled_sources:
             dbpedia_concept = client.lookup_concept(label, lang, source="dbpedia")
             if dbpedia_concept and dbpedia_concept.get("uri"):
                 concept_id = label.lower().replace(" ", "_")
@@ -1247,40 +1356,49 @@ def build_vocabulary_with_skos_hierarchy(
                 logger.debug("DBpedia fallback for '%s' -> %s", label, dbpedia_concept["uri"])
                 continue
 
-        category_mappings[label] = paths
-
-        # Collect URI mappings
-        all_uri_maps.update(uri_map)
-
-        # Determine source - "agrovoc" if found, "inventory" if fallback
-        source = "agrovoc" if found_in_skos else "inventory"
-
-        # Add all path components to vocabulary
-        for path in paths:
-            parts = path.split("/")
-            for i in range(len(parts)):
-                concept_id = "/".join(parts[: i + 1])
-                if concept_id not in concepts:
-                    # Create concept with label from path component
-                    concept_label = parts[i].replace("_", " ").title()
-                    concepts[concept_id] = Concept(
-                        id=concept_id,
-                        prefLabel=concept_label,
-                        source=source,
-                    )
+        if all_paths:
+            category_mappings[label] = all_paths
+            all_uri_maps.update(all_uris)
+            _add_paths_to_concepts(all_paths, concepts, primary_source or "inventory")
+        else:
+            # No source found - fall back to label as-is
+            fallback_id = label.lower().replace(" ", "_")
+            category_mappings[label] = [fallback_id]
+            _add_paths_to_concepts([fallback_id], concepts, "inventory")
 
     # Fetch translations for concepts with URIs
     if languages and len(languages) > 1:
-        store = client._get_oxigraph_store()
-        if store is not None and store.is_loaded:
-            logger.info("Fetching translations for %d languages...", len(languages))
-            print(f"   Fetching translations for {len(languages)} languages...")
-            for concept_id, concept in concepts.items():
-                if concept_id in all_uri_maps:
-                    uri = all_uri_maps[concept_id]
-                    labels = _get_all_labels(uri, store, languages)
-                    if labels:
-                        concept.labels = labels
+        logger.info("Fetching translations for %d languages...", len(languages))
+        print(f"   Fetching translations for {len(languages)} languages...")
+
+        # OFF translations (fast - from local taxonomy data)
+        if off_client is not None:
+            for concept_id, node_id in off_node_ids.items():
+                if concept_id in concepts:
+                    off_labels = off_client.get_labels(node_id, languages)
+                    if off_labels:
+                        concept = concepts[concept_id]
+                        # Merge: OFF labels as base, don't overwrite existing
+                        merged_labels = dict(off_labels)
+                        merged_labels.update(concept.labels)
+                        concept.labels = merged_labels
+
+        # AGROVOC translations (from Oxigraph store)
+        if client is not None:
+            store = client._get_oxigraph_store()
+            if store is not None and store.is_loaded:
+                for concept_id, concept in concepts.items():
+                    if concept_id in all_uri_maps:
+                        uri = all_uri_maps[concept_id]
+                        # Skip OFF URIs for AGROVOC store lookups
+                        if uri.startswith("off:"):
+                            continue
+                        agrovoc_labels = _get_all_labels(uri, store, languages)
+                        if agrovoc_labels:
+                            # Merge: AGROVOC fills gaps, doesn't overwrite OFF
+                            merged_labels = dict(agrovoc_labels)
+                            merged_labels.update(concept.labels)
+                            concept.labels = merged_labels
 
     logger.info("Built vocabulary with %d concepts (%d leaf labels, %d path categories)",
                 len(concepts), len(leaf_labels), len(path_categories))
