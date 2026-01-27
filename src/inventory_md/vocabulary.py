@@ -999,6 +999,7 @@ def _build_paths_to_root(
     lang: str = "en",
     visited: set | None = None,
     current_path: list | None = None,
+    current_path_uris: list | None = None,
     uri_map: dict | None = None,
 ) -> tuple[list[str], dict[str, str]]:
     """Recursively build all paths from a concept to root(s).
@@ -1009,6 +1010,7 @@ def _build_paths_to_root(
         lang: Language code for labels.
         visited: Set of visited URIs to avoid cycles.
         current_path: Current path being built (concept labels).
+        current_path_uris: URIs corresponding to each path component.
         uri_map: Dict mapping concept_id to URI for translation fetching.
 
     Returns:
@@ -1018,6 +1020,8 @@ def _build_paths_to_root(
         visited = set()
     if current_path is None:
         current_path = []
+    if current_path_uris is None:
+        current_path_uris = []
     if uri_map is None:
         uri_map = {}
 
@@ -1031,6 +1035,7 @@ def _build_paths_to_root(
 
     # Add to path (prepend since we're going up the hierarchy)
     new_path = [label_normalized] + current_path
+    new_path_uris = [uri] + current_path_uris
 
     # Get broader concepts
     broader_uris = _get_broader_concepts(uri, store)
@@ -1043,26 +1048,20 @@ def _build_paths_to_root(
             new_path[0] = mapped_root
         # Return the complete path
         full_path = "/".join(new_path)
-        # Track URI for each concept in the path
+        # Track URI for each concept in the path (using matching URIs)
         for i in range(len(new_path)):
             concept_id = "/".join(new_path[: i + 1])
             if concept_id not in uri_map:
-                uri_map[concept_id] = uri  # Store URI for leaf concept
+                uri_map[concept_id] = new_path_uris[i]
         return [full_path], uri_map
 
     # Continue up the hierarchy for each broader concept
     all_paths = []
     for broader_uri in broader_uris:
         paths, uri_map = _build_paths_to_root(
-            broader_uri, store, lang, visited.copy(), new_path, uri_map
+            broader_uri, store, lang, visited.copy(), new_path, new_path_uris, uri_map
         )
         all_paths.extend(paths)
-
-    # Track URI for this concept
-    for i in range(len(new_path)):
-        concept_id = "/".join(new_path[: i + 1])
-        if concept_id not in uri_map:
-            uri_map[concept_id] = uri
 
     return all_paths, uri_map
 
