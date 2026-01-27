@@ -1137,21 +1137,39 @@ def build_vocabulary_with_skos_hierarchy(
     if local_vocab:
         concepts.update(local_vocab)
 
-    # Collect all unique category labels from inventory
-    all_category_labels: set[str] = set()
+    # Collect categories from inventory, separating leaf labels from path-based ones
+    leaf_labels: set[str] = set()  # Simple labels for SKOS expansion
+    path_categories: set[str] = set()  # Path-based categories to keep as-is
     for container in inventory_data.get("containers", []):
         for item in container.get("items", []):
             categories = item.get("metadata", {}).get("categories", [])
             for category_path in categories:
-                # Extract leaf label from path (e.g., "food/vegetables" -> "vegetables")
-                # or use whole label if no path separator
-                leaf_label = category_path.split("/")[-1] if "/" in category_path else category_path
-                # Normalize: replace - and _ with space (keep plural/singular as-is)
-                leaf_label = leaf_label.replace("-", " ").replace("_", " ")
-                all_category_labels.add(leaf_label)
+                if "/" in category_path:
+                    # Path-based category - keep the full path structure
+                    path_categories.add(category_path)
+                else:
+                    # Simple label - will be expanded via SKOS
+                    leaf_label = category_path.replace("-", " ").replace("_", " ")
+                    leaf_labels.add(leaf_label)
 
-    logger.info("Expanding %d category labels to SKOS hierarchies...", len(all_category_labels))
-    print(f"   Expanding {len(all_category_labels)} categories to SKOS hierarchies...")
+    # First, register path-based categories directly in the vocabulary tree
+    for path_cat in sorted(path_categories):
+        parts = path_cat.split("/")
+        # Map the full path to itself
+        category_mappings[path_cat] = [path_cat]
+        # Create concept for each path component
+        for i in range(len(parts)):
+            concept_id = "/".join(parts[: i + 1])
+            if concept_id not in concepts:
+                concept_label = parts[i].replace("_", " ").replace("-", " ").title()
+                concepts[concept_id] = Concept(
+                    id=concept_id,
+                    prefLabel=concept_label,
+                    source="inventory",
+                )
+
+    logger.info("Expanding %d leaf labels to SKOS hierarchies...", len(leaf_labels))
+    print(f"   Expanding {len(leaf_labels)} categories to SKOS hierarchies...")
 
     # Create SKOS client with Oxigraph for faster lookups
     client = skos_module.SKOSClient(use_oxigraph=True)
@@ -1168,9 +1186,9 @@ def build_vocabulary_with_skos_hierarchy(
             for alt in concept.altLabels:
                 local_vocab_labels[alt.lower()] = concept_id
 
-    # Expand each label to SKOS paths
-    total = len(all_category_labels)
-    for idx, label in enumerate(sorted(all_category_labels), 1):
+    # Expand each leaf label to SKOS paths
+    total = len(leaf_labels)
+    for idx, label in enumerate(sorted(leaf_labels), 1):
         if idx % 4 == 0 or idx == 1:
             print(f"   [{idx}/{total}] {label}", flush=True)
 
@@ -1223,7 +1241,7 @@ def build_vocabulary_with_skos_hierarchy(
                     if labels:
                         concept.labels = labels
 
-    logger.info("Built vocabulary with %d concepts from %d category labels",
-                len(concepts), len(all_category_labels))
+    logger.info("Built vocabulary with %d concepts (%d leaf labels, %d path categories)",
+                len(concepts), len(leaf_labels), len(path_categories))
 
     return concepts, category_mappings

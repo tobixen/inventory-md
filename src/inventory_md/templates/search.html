@@ -1523,17 +1523,15 @@
         function expandCategoryToSkosPaths(category) {
             // If vocabularyData has categoryMappings, use them to expand
             if (vocabularyData && vocabularyData.categoryMappings) {
-                // Normalize: extract leaf label and look up
-                const leafLabel = category.includes('/') ? category.split('/').pop() : category;
-                const normalizedLabel = leafLabel.toLowerCase().replace(/-/g, ' ').replace(/_/g, ' ');
-
-                // Try exact match first
-                if (vocabularyData.categoryMappings[normalizedLabel]) {
-                    return vocabularyData.categoryMappings[normalizedLabel];
-                }
-                // Try the full category path
+                // Try the full category path first (for path-based categories)
                 if (vocabularyData.categoryMappings[category]) {
                     return vocabularyData.categoryMappings[category];
+                }
+                // Then try leaf label lookup (for SKOS-expanded categories)
+                const leafLabel = category.includes('/') ? category.split('/').pop() : category;
+                const normalizedLabel = leafLabel.toLowerCase().replace(/-/g, ' ').replace(/_/g, ' ');
+                if (vocabularyData.categoryMappings[normalizedLabel]) {
+                    return vocabularyData.categoryMappings[normalizedLabel];
                 }
             }
             // Fall back to original category
