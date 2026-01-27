@@ -1,0 +1,96 @@
+{
+  "concepts": {
+    "food": {
+      "id": "food",
+      "prefLabel": "Food",
+      "altLabels": [],
+      "broader": [],
+      "narrower": [
+        "food/vegetables",
+        "food/staples",
+        "food/canned"
+      ],
+      "source": "inventory"
+    },
+    "food/vegetables": {
+      "id": "food/vegetables",
+      "prefLabel": "Vegetables",
+      "altLabels": [],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "food/vegetables/potatoes"
+      ],
+      "source": "inventory"
+    },
+    "food/vegetables/potatoes": {
+      "id": "food/vegetables/potatoes",
+      "prefLabel": "Potatoes",
+      "altLabels": [],
+      "broader": [
+        "food/vegetables"
+      ],
+      "narrower": [],
+      "source": "inventory"
+    },
+    "food/staples": {
+      "id": "food/staples",
+      "prefLabel": "Staples",
+      "altLabels": [],
+      "broader": [
+        "food"
+      ],
+      "narrower": [],
+      "source": "inventory"
+    },
+    "food/canned": {
+      "id": "food/canned",
+      "prefLabel": "Canned",
+      "altLabels": [],
+      "broader": [
+        "food"
+      ],
+      "narrower": [],
+      "source": "inventory"
+    },
+    "tools": {
+      "id": "tools",
+      "prefLabel": "Tools",
+      "altLabels": [],
+      "broader": [],
+      "narrower": [
+        "tools/hand-tools"
+      ],
+      "source": "inventory"
+    },
+    "tools/hand-tools": {
+      "id": "tools/hand-tools",
+      "prefLabel": "Hand Tools",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "inventory"
+    }
+  },
+  "roots": [
+    "food",
+    "tools"
+  ],
+  "labelIndex": {
+    "food": "food",
+    "vegetables": "food/vegetables",
+    "food/vegetables": "food/vegetables",
+    "potatoes": "food/vegetables/potatoes",
+    "food/vegetables/potatoes": "food/vegetables/potatoes",
+    "staples": "food/staples",
+    "food/staples": "food/staples",
+    "canned": "food/canned",
+    "food/canned": "food/canned",
+    "tools": "tools",
+    "hand tools": "tools/hand-tools",
+    "tools/hand-tools": "tools/hand-tools"
+  }
+}
