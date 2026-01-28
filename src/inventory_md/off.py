@@ -110,6 +110,8 @@ class OFFTaxonomyClient:
         index: dict[str, str] = {}
         for node_id in taxonomy:
             node = taxonomy[node_id]
+            if node is None:
+                continue
 
             # Index names in configured languages
             for lang in self._languages:
