@@ -97,6 +97,7 @@ def _build_mock_taxonomy():
     taxonomy.__iter__ = lambda self: iter(nodes)
     taxonomy.__len__ = lambda self: len(nodes)
     taxonomy.values = lambda: nodes.values()
+    taxonomy.iter_nodes = lambda: iter(nodes.values())
     taxonomy.keys = lambda: nodes.keys()
 
     return taxonomy

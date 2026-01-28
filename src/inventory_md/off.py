@@ -108,10 +108,11 @@ class OFFTaxonomyClient:
             return self._label_index
 
         index: dict[str, str] = {}
-        for node_id in taxonomy:
-            node = taxonomy[node_id]
+        # Use iter_nodes() - iterating directly yields None values
+        for node in taxonomy.iter_nodes():
             if node is None:
                 continue
+            node_id = node.id
 
             # Index names in configured languages
             for lang in self._languages:
