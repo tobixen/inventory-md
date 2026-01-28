@@ -80,22 +80,37 @@ cp SOURCE_PHOTOS photos/{BOX-ID}/
 ```
 
 ### 6. Update inventory.md
-Add items with tags, IDs, quantities, and measurements:
+Add items with categories, IDs, quantities, and measurements:
 ```markdown
-* tag:category/subcategory/type ID:category-shortname qty:N mass:Xg Item description (brand, model)
+* category:concept ID:category-shortname qty:N mass:Xg Item description (brand, model)
 ```
 
-**Hierarchical tags** use `/` for categories within a domain:
-- `tag:food/cereal/oats` - oat flakes
-- `tag:food/milk/uht` - UHT milk
+**Categories vs Tags:**
+- `category:` - Product classification (what is it). Use SKOS hierarchy expansion.
+- `tag:` - Attributes (what state/condition). Simple labels.
 
-**Comma-separated tags** for items in multiple categories:
-- `tag:food/canned,food/fish` - canned fish (both canned AND fish)
-- `tag:food/canned,food/meat` - canned meat
-- `tag:tools,electric` - electric tools
-- `tag:safety,boat` - boat safety equipment
+**Category syntax:**
+- Simple label: `category:potatoes` - expanded to SKOS hierarchy (e.g., food/vegetables/potatoes)
+- Full path: `category:food/vegetables/potatoes` - kept as-is
+- Multiple: `category:oatmeal,breakfast` - comma-separated
 
-Common top-level tags: food, tools, electronics, safety, boat, chemicals, consumables, documents
+**Category sources** (priority order):
+1. **OFF (Open Food Facts)** - Best for food categories (~14K nodes with translations)
+2. **AGROVOC** - Agricultural vocabulary (good for produce, farming terms)
+3. **DBpedia** - General knowledge (tools, equipment, non-food items)
+
+**Examples:**
+- `category:soy sauce` → food/condiments/sauces/soy_sauces (from OFF)
+- `category:potatoes` → food/vegetables/potatoes (from OFF or AGROVOC)
+- `category:hammer` → tool (from DBpedia)
+- `category:bedding` → bedding (from DBpedia) - for pillows, sleeping bags
+
+**Tags** for attributes:
+- `tag:condition:new`, `tag:condition:used`
+- `tag:TODO` - needs review
+- `tag:brand:makita`
+
+Common top-level categories: food, tools, electronics, safety, boat, chemicals, consumables, documents
 Cross-cutting tags: electric, battery, manual, consumable, spare
 
 **Quantity and measurements:**

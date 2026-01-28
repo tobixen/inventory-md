@@ -61,8 +61,13 @@ Add items to the appropriate sections in `~/solveig-inventory/inventory.md`.
 
 Format for food items:
 ```
-* tag:food/CATEGORY ID:ITEM-ID EAN:EANCODE bb:YYYY-MM qty:N mass:Xg volume:Xl price:EUR:XXX/YYY PRODUCT NAME
+* category:CONCEPT ID:ITEM-ID EAN:EANCODE bb:YYYY-MM qty:N mass:Xg volume:Xl price:EUR:XXX/YYY PRODUCT NAME
 ```
+
+**Category syntax:**
+- Use `category:` prefix for SKOS hierarchy expansion
+- Simple labels like `category:milk` get expanded to full paths (e.g., food/dairy/milk)
+- Open Food Facts (OFF) is the primary source for food categories (~14K nodes)
 
 Volume is typically used for liquids and mass for solid stuff.  They are rarely combined.
 
@@ -74,13 +79,14 @@ If Qty is given on a line, then mass is considered to be "per piece".  So 2 pack
 
 If the user is counting things and informing that he bought 4 onions and it says 521 grams on the receipt, then `qty:4 mass:521/4`
 
-Tags by category:
-- Dairy: `tag:food/dairy/milk`, `tag:food/dairy/cheese`
-- Vegetables: `tag:food/vegetable/potato`, `tag:food/vegetable/onion`
-- Chocolate: `tag:food/snacks/chocolate`
-- Seafood: `tag:food/seafood`
-- Bread: `tag:food/bread`
-- Fruit: `tag:food/fruit/banana`
+**Category examples** (simple labels auto-expand via OFF/AGROVOC):
+- Dairy: `category:milk`, `category:cheese`, `category:yogurt`
+- Vegetables: `category:potatoes`, `category:onions`, `category:carrots`
+- Chocolate: `category:chocolate`
+- Seafood: `category:salmon`, `category:tuna`, `category:shrimp`
+- Bread: `category:bread`, `category:baguette`
+- Fruit: `category:bananas`, `category:apples`
+- Sauces: `category:soy sauce`, `category:ketchup`, `category:mayonnaise`
 
 Best-before - check photos or estimate:
 - Fresh milk: ~10 days from purchase
