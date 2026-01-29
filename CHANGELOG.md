@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.4.0] - 2026-01-28
 
 ### Added
 - QR label generation feature for printing inventory labels **Not tested at all** (sorry - I'll get to it)
@@ -14,34 +14,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Three label styles: standard (QR + ID + date), compact (QR only), duplicate (two QRs)
   - Configurable via config file (`labels.base_url`, `labels.sheet_format`, etc.)
   - `--dupes` option to print multiple copies of each label
-- Configuration file system for CLI defaults (Not much tested yet)
-  - Supports `inventory-md.json`, `inventory-md.yaml`, and `~/.config/inventory-md/config.yaml`
+- Configuration files
+  - Supports `inventory-md.json`, `inventory-md.yaml`
+  - Config file may be in the inventory repository, under ~/.config/inventory-md/ or under /etc/inventory-md.
+  - If multiple config files are found, data is merged, with local config taking pecedence.
   - All CLI options can be set as defaults in config
-  - Config files are merged with precedence: `/etc` → `~/.config` → current directory
   - Environment variables (`INVENTORY_MD_*`) have highest priority
+  - Language supported
+      - default language for instance
+	  - alternative languages for the categories
 - Photo registry integration for item-specific photo viewing
   - New `photo_registry.py` parser converts `photo-registry.md` to JSON
   - Parse command generates `photo-registry.json` alongside other files
   - Search interface shows 📷 icon next to items with photos in registry
   - Item-specific lightbox mode for viewing only photos of a specific item
-- Release script for automated versioning and AUR publishing
 - Proper error handling with tracebacks for server startup
-- `update-template` command to refresh search.html to latest version
-- Document-level metadata in inventory.md
-  - Add `lang: no` or `lang: en` at top of inventory.md to set UI language
-  - Language is included in inventory.json and read by search.html
-  - Falls back to browser language detection if not specified
+- `update-template` command to refresh search.html to latest version (it's a simple copy actually)
 - SKOS vocabulary support for hierarchical tag expansion
   - New `skos` command with `expand`, `lookup`, and `cache` subcommands
   - Queries AGROVOC and DBpedia SPARQL endpoints
   - On-demand lookups with local caching (~/.cache/inventory-md/skos/)
   - Expands simple tags to hierarchical paths (e.g., "potatoes" → "vegetables/potatoes")
+  - `--skos` flag for `parse` command to enable SKOS enrichment
+  - Category browser in search.html for navigating hierarchical categories
+  - Local Oxigraph support for offline AGROVOC lookups
+  - DBpedia REST Lookup API support as fallback
+  - Multi-language support for category labels (Norwegian, English)
+  - Wikipedia links in vocabulary entries
+  - Generates `vocabulary.json` with category metadata
+- Open Food Facts taxonomy as primary food category source
+  - Uses OFF product categories for food item classification
+  - AGROVOC mismatch detection with warnings
+- New markdown-it-py based parser implementation
+- Shared `md-viewer-common.js` library for search interface
 
 ### Changed
 - Systemd service config path changed to `/etc/inventory-system/`
-
-### Fixed
-- Pytest config warning: use `norecursedirs` instead of `collect_ignore`
+- Switched HTTP library from `requests` to `niquests` (actively maintained fork)
 
 ## [0.3.0] - 2026-01-16
 
