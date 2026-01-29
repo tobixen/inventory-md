@@ -1327,16 +1327,34 @@ def build_vocabulary_with_skos_hierarchy(
                 label, client, lang
             )
             if found_in_agrovoc:
-                if primary_source is None:
-                    all_paths, all_uris = agrovoc_paths, agrovoc_uri_map
-                    primary_source = "agrovoc"
-                else:
-                    # Merge additional paths from AGROVOC
-                    all_paths, all_uris = _merge_concept_data(
-                        all_paths, all_uris, agrovoc_paths, agrovoc_uri_map
-                    )
-                sources_found.append("agrovoc")
-                logger.debug("AGROVOC found '%s' -> %d paths", label, len(agrovoc_paths))
+                # Check for mismatch: AGROVOC sometimes returns unrelated concepts
+                # e.g., "bedding" -> "litter for animals" (farm bedding)
+                agrovoc_mismatch = False
+                if agrovoc_paths:
+                    # Get the leaf concept from the first path
+                    leaf = agrovoc_paths[0].split("/")[-1].replace("_", " ").lower()
+                    search = label.lower()
+                    # Mismatch if leaf doesn't contain search term and vice versa
+                    if search not in leaf and leaf not in search:
+                        agrovoc_mismatch = True
+                        logger.warning(
+                            "AGROVOC mismatch for '%s': returned '%s'. "
+                            "Consider adding to local-vocabulary.yaml with DBpedia URI.",
+                            label, leaf
+                        )
+                        print(f"   ⚠️  AGROVOC mismatch: '{label}' -> '{leaf}' (skipping)", flush=True)
+
+                if not agrovoc_mismatch:
+                    if primary_source is None:
+                        all_paths, all_uris = agrovoc_paths, agrovoc_uri_map
+                        primary_source = "agrovoc"
+                    else:
+                        # Merge additional paths from AGROVOC
+                        all_paths, all_uris = _merge_concept_data(
+                            all_paths, all_uris, agrovoc_paths, agrovoc_uri_map
+                        )
+                    sources_found.append("agrovoc")
+                    logger.debug("AGROVOC found '%s' -> %d paths", label, len(agrovoc_paths))
 
         # --- DBpedia fallback ---
         if primary_source is None and client is not None and "dbpedia" in enabled_sources:
