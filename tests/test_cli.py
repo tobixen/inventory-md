@@ -1,9 +1,36 @@
 """Tests for CLI module."""
 import argparse
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
 from inventory_md import cli
+from inventory_md._version import __version__
+
+
+class TestVersion:
+    """Tests for --version option."""
+
+    def test_version_option_exits_with_version(self):
+        """Test that --version prints version and exits."""
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "--version"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert __version__ in result.stdout
+
+    def test_version_short_option(self):
+        """Test that -V also works for version."""
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "-V"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0
+        assert __version__ in result.stdout
 
 
 class TestServeCommand:

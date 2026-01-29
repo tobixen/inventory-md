@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 from . import parser, shopping_list, vocabulary
+from ._version import __version__
 from .config import Config
 
 
@@ -707,6 +708,11 @@ Examples:
   # Show current configuration
   inventory-md config --show
         """
+    )
+    parser_cli.add_argument(
+        '--version', '-V',
+        action='version',
+        version=f'%(prog)s {__version__}'
     )
 
     subparsers = parser_cli.add_subparsers(dest='command', help='Command to run')
