@@ -109,7 +109,7 @@ This is the introduction.
         assert container['items'][2]['indented'] is True
 
     def test_parse_item_categories(self, tmp_path):
-        """Test parsing items with category metadata (normalized to singular)."""
+        """Test parsing items with category metadata."""
         md_file = tmp_path / "inventory.md"
         md_file.write_text("""# ID:box1 Box
 
@@ -121,16 +121,15 @@ This is the introduction.
         container = result['containers'][0]
         assert len(container['items']) == 2
 
-        # First item has normalized category (vegetables -> vegetable, potatoes -> potato)
-        assert container['items'][0]['metadata'].get('categories') == ['food/vegetable/potato']
+        # Categories are stored as-is (no normalization)
+        assert container['items'][0]['metadata'].get('categories') == ['food/vegetables/potatoes']
         assert container['items'][0]['name'] == 'Potatoes from garden'
 
-        # Second item has normalized category (tools -> tool, hand-tools -> hand-tool)
-        assert container['items'][1]['metadata'].get('categories') == ['tool/hand-tool']
+        assert container['items'][1]['metadata'].get('categories') == ['tools/hand-tools']
         assert container['items'][1]['name'] == 'Hammer'
 
     def test_parse_item_multiple_categories(self, tmp_path):
-        """Test parsing items with multiple categories (normalized)."""
+        """Test parsing items with multiple categories."""
         md_file = tmp_path / "inventory.md"
         md_file.write_text("""# ID:box1 Box
 
@@ -139,8 +138,8 @@ This is the introduction.
         result = parser.parse_inventory(md_file)
 
         container = result['containers'][0]
-        # Categories normalized: vegetables -> vegetable, staples -> staple
-        assert container['items'][0]['metadata'].get('categories') == ['food/vegetable', 'food/staple']
+        # Categories are stored as-is (no normalization)
+        assert container['items'][0]['metadata'].get('categories') == ['food/vegetables', 'food/staples']
 
     def test_parse_item_with_category_and_tag(self, tmp_path):
         """Test parsing items with both category and tag metadata."""
@@ -154,9 +153,8 @@ This is the introduction.
         container = result['containers'][0]
         item = container['items'][0]
 
-        # Category normalized: vegetables -> vegetable
-        assert item['metadata'].get('categories') == ['food/vegetable']
-        # Tags are NOT normalized
+        # Categories are stored as-is (no normalization)
+        assert item['metadata'].get('categories') == ['food/vegetables']
         assert item['metadata'].get('tags') == ['condition:new', 'packaging:glass']
         assert item['name'] == 'Organic potatoes'
 
@@ -165,34 +163,33 @@ class TestExtractMetadata:
     """Tests for extract_metadata function."""
 
     def test_extract_simple_category(self):
-        """Test extracting a simple category (normalized to singular)."""
+        """Test extracting a simple category."""
         result = parser.extract_metadata("category:food/vegetables Potatoes")
-        # Categories are normalized to singular: vegetables -> vegetable
-        assert result['metadata'].get('categories') == ['food/vegetable']
+        # Categories are stored as-is (no normalization)
+        assert result['metadata'].get('categories') == ['food/vegetables']
         assert result['name'] == 'Potatoes'
 
     def test_extract_multiple_categories(self):
-        """Test extracting multiple categories (normalized to singular)."""
+        """Test extracting multiple categories."""
         result = parser.extract_metadata("category:food/vegetables,food/staples Potatoes")
-        # Categories are normalized to singular
-        assert result['metadata'].get('categories') == ['food/vegetable', 'food/staple']
+        # Categories are stored as-is (no normalization)
+        assert result['metadata'].get('categories') == ['food/vegetables', 'food/staples']
         assert result['name'] == 'Potatoes'
 
     def test_extract_category_and_tag(self):
-        """Test extracting both category and tag (category normalized)."""
+        """Test extracting both category and tag."""
         result = parser.extract_metadata("category:tools/hand-tools tag:condition:new Hammer")
-        # Categories are normalized to singular: tools -> tool, hand-tools -> hand-tool
-        assert result['metadata'].get('categories') == ['tool/hand-tool']
-        # Tags are NOT normalized
+        # Categories are stored as-is (no normalization)
+        assert result['metadata'].get('categories') == ['tools/hand-tools']
         assert result['metadata'].get('tags') == ['condition:new']
         assert result['name'] == 'Hammer'
 
     def test_extract_category_with_id(self):
-        """Test extracting category with ID (category normalized)."""
+        """Test extracting category with ID."""
         result = parser.extract_metadata("ID:item1 category:food/vegetables Potatoes")
         assert result['metadata'].get('id') == 'item1'
-        # Categories are normalized to singular
-        assert result['metadata'].get('categories') == ['food/vegetable']
+        # Categories are stored as-is (no normalization)
+        assert result['metadata'].get('categories') == ['food/vegetables']
         assert result['name'] == 'Potatoes'
 
     def test_extract_no_category(self):
