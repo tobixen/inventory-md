@@ -189,3 +189,72 @@ class TestUpdateTemplate:
 
         assert result == 0
         assert (tmp_path / "search.html").exists()
+
+
+class TestParseConfigSkos:
+    """Tests for SKOS config settings in parse command."""
+
+    def test_parse_respects_skos_enabled_config(self, tmp_path, monkeypatch):
+        """Test that parse respects skos.enabled from config file."""
+        # Create a minimal inventory
+        inventory_md = tmp_path / "inventory.md"
+        inventory_md.write_text("# Test\n\n## ID:Box1 Test Box\n\n* category:hammer Test item\n")
+
+        # Create config with skos enabled
+        config_file = tmp_path / "inventory-md.yaml"
+        config_file.write_text("skos:\n  enabled: true\n")
+
+        monkeypatch.chdir(tmp_path)
+
+        # Run parse and capture output
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "parse", str(inventory_md)],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "SKOS" in result.stdout
+
+    def test_parse_respects_skos_hierarchy_mode_config(self, tmp_path, monkeypatch):
+        """Test that parse respects skos.hierarchy_mode from config file."""
+        # Create a minimal inventory
+        inventory_md = tmp_path / "inventory.md"
+        inventory_md.write_text("# Test\n\n## ID:Box1 Test Box\n\n* category:hammer Test item\n")
+
+        # Create config with hierarchy mode enabled
+        config_file = tmp_path / "inventory-md.yaml"
+        config_file.write_text("skos:\n  enabled: true\n  hierarchy_mode: true\n")
+
+        monkeypatch.chdir(tmp_path)
+
+        # Run parse and capture output
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "parse", str(inventory_md)],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "hierarchy" in result.stdout.lower()
+
+    def test_parse_skos_disabled_by_default(self, tmp_path, monkeypatch):
+        """Test that SKOS is disabled when not configured."""
+        # Create a minimal inventory
+        inventory_md = tmp_path / "inventory.md"
+        inventory_md.write_text("# Test\n\n## ID:Box1 Test Box\n\n* category:hammer Test item\n")
+
+        # No config file - SKOS should be disabled
+        monkeypatch.chdir(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "parse", str(inventory_md)],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "SKOS" not in result.stdout
