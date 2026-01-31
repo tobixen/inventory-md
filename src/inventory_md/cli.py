@@ -928,9 +928,9 @@ Examples:
             if md_file is None:
                 print("Error: inventory file required (or use --auto, or set inventory_file in config)", file=sys.stderr)
                 return 1
-            # --hierarchy implies --skos
-            hierarchy_mode = getattr(args, 'hierarchy', False)
-            use_skos = getattr(args, 'skos', False) or hierarchy_mode
+            # --hierarchy implies --skos, config can also enable these
+            hierarchy_mode = getattr(args, 'hierarchy', False) or config.skos_hierarchy_mode
+            use_skos = getattr(args, 'skos', False) or hierarchy_mode or config.skos_enabled
             lang = config.lang if use_skos else None
             languages = config.skos_languages if use_skos else None
 
