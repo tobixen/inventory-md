@@ -165,6 +165,20 @@ The `scripts/` directory contains various utilities:
 * `analyze_inventory.py` - Analyze inventory statistics
 * `export_tags.py` / `migrate-tags.py` - Tag management tools
 
+## Shell Tab Completion
+
+The `inventory-md` command supports shell tab completion via [argcomplete](https://github.com/kislyuk/argcomplete).
+
+```bash
+# Enable for current user
+make install-completion
+
+# Or system-wide (requires root)
+sudo make install-completion-system
+```
+
+This enables completion for all argcomplete-enabled Python scripts. Restart your shell after installation.
+
 ## Deployment
 
 For server deployment, the system includes:

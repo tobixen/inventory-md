@@ -3,6 +3,7 @@
 
 .PHONY: help quickstart venv dev dev-install serve-demo test clean
 .PHONY: install install-templates create-instance start stop restart status logs enable disable list-instances install-hook install-hooks
+.PHONY: install-completion install-completion-user install-completion-system
 
 # Configuration
 INSTANCE ?= furuset
@@ -20,6 +21,10 @@ help:
 	@echo "  make dev                           Install in development mode"
 	@echo "  make serve-demo                    Serve the example inventory"
 	@echo "  make test                          Run tests"
+	@echo ""
+	@echo "Shell Completion:"
+	@echo "  make install-completion            Enable tab completion (user-local)"
+	@echo "  sudo make install-completion-system  Enable tab completion (system-wide)"
 	@echo ""
 	@echo "Server Installation:"
 	@echo "  make install                       Install Python package in venv"
@@ -402,3 +407,30 @@ install-hooks:
 	@for instance in $(INSTANCES); do \
 		$(MAKE) install-hook INSTANCE=$$instance; \
 	done
+
+# =============================================================================
+# Shell Tab Completion
+# =============================================================================
+
+# Enable argcomplete for current user (works for all argcomplete-enabled scripts)
+install-completion: install-completion-user
+
+install-completion-user:
+	@echo "🔧 Enabling shell tab completion for current user..."
+	@if command -v activate-global-python-argcomplete >/dev/null 2>&1; then \
+		activate-global-python-argcomplete --user; \
+		echo "✅ Completion enabled! Restart your shell or run:"; \
+		echo "   source ~/.bash_completion.d/python-argcomplete"; \
+	else \
+		echo "Installing argcomplete..."; \
+		pip install --user argcomplete; \
+		~/.local/bin/activate-global-python-argcomplete --user; \
+		echo "✅ Completion enabled! Restart your shell or run:"; \
+		echo "   source ~/.bash_completion.d/python-argcomplete"; \
+	fi
+
+# Enable argcomplete system-wide (requires root)
+install-completion-system:
+	@echo "🔧 Enabling shell tab completion system-wide..."
+	activate-global-python-argcomplete
+	@echo "✅ Completion enabled system-wide!"

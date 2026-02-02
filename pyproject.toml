@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "Pillow>=10.0.0",
     "markdown-it-py>=3.0.0",
+    "argcomplete>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -113,5 +114,6 @@ indent-style = "space"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+filterwarnings = ["error"]
 # Don't collect from scripts/ which has optional dependencies
 norecursedirs = ["scripts"]

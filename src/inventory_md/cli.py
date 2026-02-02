@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 """
 Command-line interface for Inventory System
 """
@@ -9,6 +10,8 @@ import json
 import shutil
 import sys
 from pathlib import Path
+
+import argcomplete
 
 from . import parser, shopping_list, vocabulary
 from ._version import __version__
@@ -879,6 +882,9 @@ Examples:
     # vocabulary tree
     vocab_tree = vocab_subparsers.add_parser('tree', help='Show category hierarchy as tree')
     vocab_tree.add_argument('--directory', '-d', type=Path, help='Inventory directory (default: current)')
+
+    # Enable shell tab completion
+    argcomplete.autocomplete(parser_cli)
 
     args = parser_cli.parse_args()
 
