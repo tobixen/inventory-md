@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `--version` / `-V` flag to display installed version
+- Shell tab completion support via argcomplete
+  - Install with `pip install 'inventory-md[completion]'`
+  - Activate with `eval "$(register-python-argcomplete inv-md)"`
+
+### Fixed
+- `parse` command now respects `skos.enabled` and `skos.hierarchy_mode` config settings even without `--auto` flag
 
 ## [v0.4.0] - 2026-01-28
 
