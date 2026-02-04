@@ -1591,34 +1591,63 @@ class SKOSClient:
         }, False
 
     def _get_broader_dbpedia(self, resource_uri: str, lang: str) -> list[dict]:
-        """Get direct categories from DBpedia (not broader hierarchy)."""
+        """Get broader concepts from DBpedia using hypernym and category relations."""
         endpoint = self.endpoints.get("dbpedia")
         if not endpoint:
             return []
 
-        # Get direct categories only - traversing broader* is too slow and returns
-        # very generic categories. Direct categories are more useful.
+        # Query for both gold:hypernym (is-a relations) and dct:subject (categories)
+        # gold:hypernym gives direct type relations like "Activity_book is-a Book"
+        # dct:subject gives Wikipedia categories
         query = f"""
         PREFIX dct: <http://purl.org/dc/terms/>
+        PREFIX gold: <http://purl.org/linguistics/gold/>
         PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-        SELECT DISTINCT ?category ?label WHERE {{
-            <{resource_uri}> dct:subject ?category .
-            ?category rdfs:label ?label .
-            FILTER(lang(?label) = "{lang}")
+        SELECT DISTINCT ?broader ?label ?relType WHERE {{
+            {{
+                <{resource_uri}> gold:hypernym ?broader .
+                ?broader rdfs:label ?label .
+                FILTER(lang(?label) = "{lang}")
+                BIND("hypernym" AS ?relType)
+            }}
+            UNION
+            {{
+                <{resource_uri}> dct:subject ?broader .
+                ?broader rdfs:label ?label .
+                FILTER(lang(?label) = "{lang}")
+                BIND("subject" AS ?relType)
+            }}
         }}
-        LIMIT 10
+        LIMIT 15
         """
 
         results = self._sparql_query(endpoint, query)
         if results is None:
             return []  # Query failed, return empty
-        # Filter out irrelevant Wikipedia-style categories
-        return [
-            {"uri": r["category"]["value"], "label": r["label"]["value"]}
-            for r in results
-            if not _is_irrelevant_dbpedia_category(r["label"]["value"])
-        ]
+
+        broader_list = []
+        seen_uris = set()
+
+        # Prioritize hypernym relations (is-a) over subject categories
+        for r in results:
+            uri = r["broader"]["value"]
+            if uri in seen_uris:
+                continue
+            seen_uris.add(uri)
+            label = r["label"]["value"]
+            rel_type = r.get("relType", {}).get("value", "unknown")
+
+            # Skip irrelevant Wikipedia-style categories (but keep hypernyms)
+            if rel_type == "subject" and _is_irrelevant_dbpedia_category(label):
+                continue
+
+            broader_list.append({"uri": uri, "label": label, "relType": rel_type})
+
+        # Sort to put hypernyms first (more useful for hierarchy)
+        broader_list.sort(key=lambda x: 0 if x.get("relType") == "hypernym" else 1)
+
+        return broader_list
 
     def get_hierarchy_path(self, concept: dict) -> list[str]:
         """Build hierarchy path(s) from a concept's broader relations.

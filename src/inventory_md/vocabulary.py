@@ -1261,10 +1261,19 @@ def build_vocabulary_with_skos_hierarchy(
     local_vocab_labels: dict[str, str] = {}  # label -> concept_id
     if local_vocab:
         for concept_id, concept in local_vocab.items():
-            # Index by concept ID and all alt labels
+            # Index by concept ID (both original and normalized forms)
             local_vocab_labels[concept_id.lower()] = concept_id
+            # Also index with - and _ replaced by space (to match leaf label normalization)
+            normalized_id = concept_id.lower().replace("-", " ").replace("_", " ")
+            if normalized_id != concept_id.lower():
+                local_vocab_labels[normalized_id] = concept_id
+            # Index all alt labels
             for alt in concept.altLabels:
                 local_vocab_labels[alt.lower()] = concept_id
+                # Also normalized form
+                normalized_alt = alt.lower().replace("-", " ").replace("_", " ")
+                if normalized_alt != alt.lower():
+                    local_vocab_labels[normalized_alt] = concept_id
 
     # Expand each leaf label using source priority chain
     total = len(leaf_labels)
@@ -1374,17 +1383,39 @@ def build_vocabulary_with_skos_hierarchy(
             dbpedia_concept = client.lookup_concept(label, lang, source="dbpedia")
             if dbpedia_concept and dbpedia_concept.get("uri"):
                 concept_id = label.lower().replace(" ", "_")
-                category_mappings[label] = [concept_id]
-                concepts[concept_id] = Concept(
-                    id=concept_id,
-                    prefLabel=dbpedia_concept.get("prefLabel", label.title()),
-                    altLabels=dbpedia_concept.get("altLabels", []),
-                    source="dbpedia",
-                    uri=dbpedia_concept["uri"],
-                    description=dbpedia_concept.get("description"),
-                    wikipediaUrl=dbpedia_concept.get("wikipediaUrl"),
-                )
-                logger.debug("DBpedia fallback for '%s' -> %s", label, dbpedia_concept["uri"])
+                dbpedia_broader = dbpedia_concept.get("broader", [])
+
+                # Check for hypernym relations (is-a, e.g., "Activity book" is-a "Book")
+                # These are more useful than category relations for hierarchy building
+                hypernym_broader = None
+                for b in dbpedia_broader:
+                    if b.get("relType") == "hypernym":
+                        broader_label = b.get("label", "").lower().replace(" ", "_")
+                        if broader_label and not skos_module._is_irrelevant_dbpedia_category(b.get("label", "")):
+                            hypernym_broader = broader_label
+                            break
+
+                if hypernym_broader:
+                    # Build path using hypernym: "book/activity_book"
+                    full_path = f"{hypernym_broader}/{concept_id}"
+                    category_mappings[label] = [full_path]
+                    _add_paths_to_concepts([full_path], concepts, "dbpedia")
+                    # Update the concept with broader relation
+                    if concept_id in concepts:
+                        concepts[concept_id].broader = [hypernym_broader]
+                    logger.debug("DBpedia hypernym for '%s' -> %s", label, full_path)
+                else:
+                    category_mappings[label] = [concept_id]
+                    concepts[concept_id] = Concept(
+                        id=concept_id,
+                        prefLabel=dbpedia_concept.get("prefLabel", label.title()),
+                        altLabels=dbpedia_concept.get("altLabels", []),
+                        source="dbpedia",
+                        uri=dbpedia_concept["uri"],
+                        description=dbpedia_concept.get("description"),
+                        wikipediaUrl=dbpedia_concept.get("wikipediaUrl"),
+                    )
+                    logger.debug("DBpedia fallback for '%s' -> %s", label, dbpedia_concept["uri"])
                 continue
 
         if all_paths:
