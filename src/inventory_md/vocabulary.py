@@ -1292,11 +1292,24 @@ def build_vocabulary_with_skos_hierarchy(
                         logger.debug("Local vocab '%s' -> AGROVOC hierarchy: %s", label, paths)
                         continue
 
-            # Non-AGROVOC local entry (e.g., DBpedia) - use concept ID as path
-            category_mappings[label] = [local_concept_id]
-            if local_concept.uri:
-                all_uri_maps[local_concept_id] = local_concept.uri
-            logger.debug("Using local vocabulary for '%s' -> %s", label, local_concept_id)
+            # Non-AGROVOC local entry - check if it has a broader relationship
+            if local_concept.broader:
+                # Build path from broader + concept_id (e.g., "food/beverages/alcohol" + "beer")
+                # Use first broader relationship for the primary path
+                broader_path = local_concept.broader[0]
+                full_path = f"{broader_path}/{local_concept_id}"
+                category_mappings[label] = [full_path]
+                # Add all path components to concepts
+                _add_paths_to_concepts([full_path], concepts, "local")
+                if local_concept.uri:
+                    all_uri_maps[local_concept_id] = local_concept.uri
+                logger.debug("Local vocab '%s' -> broader hierarchy: %s", label, full_path)
+            else:
+                # No broader - use concept ID as path
+                category_mappings[label] = [local_concept_id]
+                if local_concept.uri:
+                    all_uri_maps[local_concept_id] = local_concept.uri
+                logger.debug("Using local vocabulary for '%s' -> %s", label, local_concept_id)
             continue
 
         # Try sources in priority order, collecting paths from all that match
@@ -1393,9 +1406,12 @@ def build_vocabulary_with_skos_hierarchy(
         if off_client is not None:
             for concept_id, node_id in off_node_ids.items():
                 if concept_id in concepts:
+                    concept = concepts[concept_id]
+                    # Skip local vocab concepts - don't overwrite with SKOS translations
+                    if concept.source == "local":
+                        continue
                     off_labels = off_client.get_labels(node_id, languages)
                     if off_labels:
-                        concept = concepts[concept_id]
                         # Merge: OFF labels as base, don't overwrite existing
                         merged_labels = dict(off_labels)
                         merged_labels.update(concept.labels)
@@ -1406,6 +1422,9 @@ def build_vocabulary_with_skos_hierarchy(
             store = client._get_oxigraph_store()
             if store is not None and store.is_loaded:
                 for concept_id, concept in concepts.items():
+                    # Skip local vocab concepts - don't overwrite with SKOS translations
+                    if concept.source == "local":
+                        continue
                     if concept_id in all_uri_maps:
                         uri = all_uri_maps[concept_id]
                         # Skip OFF URIs for AGROVOC store lookups

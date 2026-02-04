@@ -226,10 +226,26 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
 
             # Generate vocabulary.json for category browser
             print("\n🏷️  Generating category vocabulary...")
+
+            # Load global vocabulary from standard config locations (lowest to highest priority)
+            global_vocab = {}
+            global_vocab_locations = [
+                Path("/etc/inventory-md/vocabulary.yaml"),
+                Path("/etc/inventory-md/vocabulary.json"),
+                Path.home() / ".config" / "inventory-md" / "vocabulary.yaml",
+                Path.home() / ".config" / "inventory-md" / "vocabulary.json",
+            ]
+            for vocab_path in global_vocab_locations:
+                if vocab_path.exists():
+                    loaded = vocabulary.load_local_vocabulary(vocab_path)
+                    if loaded:
+                        # Merge: later files override earlier (but keep concepts from both)
+                        global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
+                        print(f"   Loaded {len(loaded)} concepts from {vocab_path}")
+
+            # Load local vocabulary if present (highest priority - overrides global)
             local_vocab_yaml = md_file.parent / "local-vocabulary.yaml"
             local_vocab_json = md_file.parent / "local-vocabulary.json"
-
-            # Load local vocabulary if present
             local_vocab = {}
             if local_vocab_yaml.exists():
                 local_vocab = vocabulary.load_local_vocabulary(local_vocab_yaml)
@@ -237,6 +253,9 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
             elif local_vocab_json.exists():
                 local_vocab = vocabulary.load_local_vocabulary(local_vocab_json)
                 print(f"   Loaded {len(local_vocab)} concepts from local-vocabulary.json")
+
+            # Merge global and local (local overrides global)
+            local_vocab = vocabulary.merge_vocabularies(global_vocab, local_vocab)
 
             # Determine language for SKOS lookups
             skos_lang = lang or "en"
@@ -1076,7 +1095,21 @@ def vocabulary_command(args, config: Config) -> int:
     else:
         directory = Path(directory).resolve()
 
-    # Load vocabulary from directory
+    # Load global vocabulary from standard config locations (lowest to highest priority)
+    global_vocab = {}
+    global_vocab_locations = [
+        Path("/etc/inventory-md/vocabulary.yaml"),
+        Path("/etc/inventory-md/vocabulary.json"),
+        Path.home() / ".config" / "inventory-md" / "vocabulary.yaml",
+        Path.home() / ".config" / "inventory-md" / "vocabulary.json",
+    ]
+    for vocab_path in global_vocab_locations:
+        if vocab_path.exists():
+            loaded = vocabulary.load_local_vocabulary(vocab_path)
+            if loaded:
+                global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
+
+    # Load local vocabulary from directory (highest priority)
     local_vocab_yaml = directory / "local-vocabulary.yaml"
     local_vocab_json = directory / "local-vocabulary.json"
     inventory_json = directory / "inventory.json"
@@ -1086,6 +1119,9 @@ def vocabulary_command(args, config: Config) -> int:
         local_vocab = vocabulary.load_local_vocabulary(local_vocab_yaml)
     elif local_vocab_json.exists():
         local_vocab = vocabulary.load_local_vocabulary(local_vocab_json)
+
+    # Merge global and local (local overrides global)
+    local_vocab = vocabulary.merge_vocabularies(global_vocab, local_vocab)
 
     # Also load from inventory if it exists
     if inventory_json.exists():
