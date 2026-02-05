@@ -158,6 +158,98 @@ def load_global_vocabulary() -> dict[str, Concept]:
     return merged
 
 
+# =============================================================================
+# LANGUAGE FALLBACK SUPPORT
+# =============================================================================
+
+# Default language fallback chains (can be overridden via config)
+DEFAULT_LANGUAGE_FALLBACKS: dict[str, list[str]] = {
+    # Scandinavian - mutually intelligible cluster
+    "nb": ["no", "da", "nn", "sv"],
+    "nn": ["no", "nb", "sv", "da"],
+    "da": ["no", "nb", "sv", "nn"],
+    "sv": ["no", "nb", "da", "nn"],
+    "no": ["nb", "da", "nn", "sv"],
+    # Germanic
+    "de": ["de-AT", "de-CH", "nl"],
+    "nl": ["de"],
+    # Romance
+    "es": ["pt", "it", "fr"],
+    "pt": ["es", "it", "fr"],
+    "fr": ["es", "it", "pt"],
+    "it": ["es", "fr", "pt"],
+    # Slavic
+    "ru": ["uk", "be", "bg"],
+    "uk": ["ru", "be", "pl"],
+    "pl": ["cs", "sk"],
+    "cs": ["sk", "pl"],
+}
+
+
+def get_fallback_chain(
+    lang: str,
+    fallbacks: dict[str, list[str]] | None = None,
+    final_fallback: str = "en",
+) -> list[str]:
+    """Get the full fallback chain for a language.
+
+    Args:
+        lang: Primary language code.
+        fallbacks: Language fallback configuration. If None, uses defaults.
+        final_fallback: Final fallback language (usually "en").
+
+    Returns:
+        List of language codes to try, in order (including the primary).
+    """
+    if fallbacks is None:
+        fallbacks = DEFAULT_LANGUAGE_FALLBACKS
+
+    chain = [lang]
+    if lang in fallbacks:
+        chain.extend(fallbacks[lang])
+    if final_fallback not in chain:
+        chain.append(final_fallback)
+    return chain
+
+
+def apply_language_fallbacks(
+    labels: dict[str, str],
+    requested_languages: list[str],
+    fallbacks: dict[str, list[str]] | None = None,
+    final_fallback: str = "en",
+) -> dict[str, str]:
+    """Apply language fallbacks to fill in missing translations.
+
+    For each requested language that doesn't have a label, tries fallback
+    languages in order until one is found.
+
+    Args:
+        labels: Dict of available labels (lang -> label).
+        requested_languages: Languages the user requested.
+        fallbacks: Language fallback configuration.
+        final_fallback: Final fallback language.
+
+    Returns:
+        Dict with labels for all requested languages (using fallbacks where needed).
+    """
+    result: dict[str, str] = {}
+
+    for lang in requested_languages:
+        if lang in labels:
+            # Direct match
+            result[lang] = labels[lang]
+        else:
+            # Try fallback chain
+            chain = get_fallback_chain(lang, fallbacks, final_fallback)
+            for fallback_lang in chain[1:]:  # Skip first (it's the same as lang)
+                if fallback_lang in labels:
+                    result[lang] = labels[fallback_lang]
+                    logger.debug("Using %s fallback for %s", fallback_lang, lang)
+                    break
+
+    return result
+
+
 @dataclass
 class Concept:
     """A SKOS concept with labels and hierarchy."""
@@ -1053,19 +1145,35 @@ def _get_agrovoc_label(uri: str, store, lang: str = "en") -> str:
     return uri.split('/')[-1]
 
 
-def _get_all_labels(uri: str, store, languages: list[str]) -> dict[str, str]:
+def _get_all_labels(
+    uri: str,
+    store,
+    languages: list[str],
+    use_fallbacks: bool = True,
+    fallbacks: dict[str, list[str]] | None = None,
+) -> dict[str, str]:
     """Get prefLabels for an AGROVOC concept URI in multiple languages.
 
     Args:
         uri: AGROVOC concept URI.
         store: Oxigraph store instance.
         languages: List of language codes to fetch.
+        use_fallbacks: If True, use language fallbacks for missing translations.
+        fallbacks: Custom fallback configuration (uses defaults if None).
 
     Returns:
         Dict mapping language code to label string.
     """
-    labels = {}
-    for lang in languages:
+    # Build the set of all languages to query (requested + potential fallbacks)
+    langs_to_query = set(languages)
+    if use_fallbacks:
+        for lang in languages:
+            chain = get_fallback_chain(lang, fallbacks)
+            langs_to_query.update(chain)
+
+    # Fetch all available labels in one query for efficiency
+    all_labels: dict[str, str] = {}
+    for lang in langs_to_query:
         query = f'''
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
         SELECT ?labelText WHERE {{
@@ -1076,9 +1184,14 @@ def _get_all_labels(uri: str, store, languages: list[str]) -> dict[str, str]:
         '''
         results = list(store.query(query))
         if results:
-            labels[lang] = results[0]['labelText']['value']
+            all_labels[lang] = results[0]['labelText']['value']
 
-    return labels
+    # Apply fallbacks if enabled
+    if use_fallbacks:
+        return apply_language_fallbacks(all_labels, languages, fallbacks)
+    else:
+        # Just return labels for requested languages
+        return {lang: all_labels[lang] for lang in languages if lang in all_labels}
 
 
 def _get_broader_concepts(uri: str, store) -> list[str]:

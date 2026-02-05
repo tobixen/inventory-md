@@ -282,14 +282,23 @@ class OFFTaxonomyClient:
 
         return None
 
-    def get_labels(self, node_id: str, languages: list[str]) -> dict[str, str]:
+    def get_labels(
+        self,
+        node_id: str,
+        languages: list[str],
+        use_fallbacks: bool = True,
+        fallbacks: dict[str, list[str]] | None = None,
+    ) -> dict[str, str]:
         """Get localized labels for a taxonomy node.
 
         Reads directly from node.names - no network calls needed.
+        Supports language fallbacks for missing translations.
 
         Args:
             node_id: OFF node ID (e.g., "en:soy-sauces").
             languages: List of language codes to fetch.
+            use_fallbacks: If True, use language fallbacks for missing translations.
+            fallbacks: Custom fallback configuration (uses defaults if None).
 
         Returns:
             Dict mapping language code to label string.
@@ -299,13 +308,34 @@ class OFFTaxonomyClient:
             return {}
 
         node = taxonomy[node_id]
-        labels: dict[str, str] = {}
-        for lang in languages:
-            name = node.names.get(lang)
-            if name:
-                labels[lang] = name
 
-        return labels
+        if use_fallbacks:
+            # Import here to avoid circular imports
+            from .vocabulary import apply_language_fallbacks, get_fallback_chain
+
+            # Get all potentially useful languages
+            langs_to_check = set(languages)
+            for lang in languages:
+                chain = get_fallback_chain(lang, fallbacks)
+                langs_to_check.update(chain)
+
+            # Fetch all available labels
+            all_labels: dict[str, str] = {}
+            for lang in langs_to_check:
+                name = node.names.get(lang)
+                if name:
+                    all_labels[lang] = name
+
+            # Apply fallbacks
+            return apply_language_fallbacks(all_labels, languages, fallbacks)
+        else:
+            # No fallbacks - just fetch requested languages
+            labels: dict[str, str] = {}
+            for lang in languages:
+                name = node.names.get(lang)
+                if name:
+                    labels[lang] = name
+            return labels
 
     def build_paths_to_root(
         self, node_id: str, lang: str = "en"

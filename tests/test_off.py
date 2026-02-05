@@ -210,11 +210,20 @@ class TestGetLabels:
         assert labels["de"] == "Sojasossen"
         assert labels["fr"] == "Sauces au soja"
 
-    def test_get_labels_missing_language(self, off_client):
-        """Test that missing languages are omitted, not errored."""
+    def test_get_labels_missing_language_with_fallback(self, off_client):
+        """Test that missing languages get fallback values."""
         labels = off_client.get_labels("en:soy-sauces", ["en", "nb"])
         assert "en" in labels
-        assert "nb" not in labels  # soy sauces has no Norwegian name in our mock
+        # With fallbacks enabled, nb gets the English fallback since no
+        # Norwegian or Scandinavian alternatives exist for soy-sauces
+        assert "nb" in labels
+        assert labels["nb"] == labels["en"]  # Fallback to English
+
+    def test_get_labels_missing_language_no_fallback(self, off_client):
+        """Test that missing languages are omitted when fallbacks disabled."""
+        labels = off_client.get_labels("en:soy-sauces", ["en", "nb"], use_fallbacks=False)
+        assert "en" in labels
+        assert "nb" not in labels  # No Norwegian name, no fallback
 
     def test_get_labels_nonexistent_node(self, off_client):
         """Test that nonexistent node returns empty dict."""
