@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Global vocabulary shipped with package** - Default vocabulary now bundled in `inventory_md/data/`
+  - Multi-location vocabulary loading with merge precedence:
+    1. Package default (lowest priority)
+    2. `/etc/inventory-md/vocabulary.yaml`
+    3. `~/.config/inventory-md/vocabulary.yaml`
+    4. `./vocabulary.yaml` or `./local-vocabulary.yaml` (highest priority)
+  - New functions: `find_vocabulary_files()`, `load_global_vocabulary()`
+- **Language fallback chains** for translations
+  - Scandinavian: `nb` → `no` → `da` → `nn` → `sv` → `en`
+  - Germanic: `de` → `de-AT` → `de-CH` → `nl` → `en`
+  - Romance: `es` → `pt` → `it` → `fr` → `en`
+  - Slavic: `ru` → `uk` → `be` → `bg` → `en`
+  - Configurable via `language_fallbacks` in config
+  - New method: `Config.get_language_fallback_chain(lang)`
+- **Config file naming** - `config.yaml`/`config.json` now supported in project directory
+  - `inventory-md.yaml`/`inventory-md.json` still supported for backward compatibility
+
 ## [v0.5.0] - 2026-02-04
 
 ### Added

@@ -4,15 +4,60 @@
 
 Most of the content below is AI-generated.  I will look through and perhaps rewrite some of it at some point in the future ... when/if I get time.
 
+### SKOS
+
 I generally think "don't reinvent the wheel" is a good idea - as well as "follow the standards", even when the standards are too complex or designed by people seeing the world with very different eyes than my own.
 
-According to Wikipedia, "Simple Knowledge Organization System (SKOS) is a W3C recommendation designed for representation of thesauri, classification schemes, taxonomies, subject-heading systems, or any other type of structured controlled vocabulary" - so it sounded just perfect.  The AI warned me that it would be too complex, I was probably wrong to ignore that warning - and the public database itself seems to be non-existent.  Two databases was found - AGROVOC is a public SKOS database for food products and agricultural purposes.  The idea was to at least use them for food products.  The agricultural focus can be a bit strong sometimes.  I had a category "bedding" for various douvets, pillows, matresses and bedclothes, but according to AGROVOC the primary purpose of "bedding" is to absorbing animal pee.
+According to Wikipedia, "Simple Knowledge Organization System (SKOS) is a W3C recommendation designed for representation of thesauri, classification schemes, taxonomies, subject-heading systems, or any other type of structured controlled vocabulary" - so it sounded just perfect.  The AI warned me that it would be too complex, I was probably wrong to ignore that warning.
 
-DBpedia seems like a more complete and general-purpose database, but for my idea of "hierarchical navigation" it has proven more or less useless (perhaps it's not DBpedia that is the problem, maybe it's my idea of "hierarcihcal navigation" that is useless?).
+### Categories vs tags vs ...
 
-We're fetching EAN-based information from the openfoodfacts database - and they already have a categorization system - but it's mostly for food products, and even that one didn't work out perfectly in the hierarchical categorization system.
+SKOS is currently used for categories - while everything that does not fit into a category system should be put into tags.  Consider two worn out red cotton T-shirt owned by dad.  T-shirt is a category, while ownership, size, condition, quantity, color etc are other "dimensions".  For quantity etc the inventory-system supports qty, mass, volume ... but whatever is not directly supported should go into tags.
 
-We've ended up with a local vocabulary stiching together the different sources and bringing down the number of root nodes in the category system.  I'm not too happy with it, but let's try it out for a while before rethinking this.
+### Public databases
+
+Perhaps I started in the wrong end here - because usage of SKOS in itself is sort of just establishing the database schema - what is more important here is actually to get access a global public category database.   Two SKOS-based databases was found - AGROVOC is a public SKOS database for food products and agricultural purposes, and DBpedia is a Wikipedia-based database.  We're also accessing some few databases to look up EANs - one of them is the OpenFoodFacts database, it has it's own category system (not SKOS-based), so it was decided to use the OFF category system as a third source.
+
+TODO: how does other inventory-systems solve this?  Does the other EAN-sources we're using having any kind of caegorization system?
+
+### Scope
+
+The scope of inventory-md is to be a general domestic inventory database, used both for food products, clothes, kitchen equipment, electronics, household items, hobby items, tools, sports equipment, more specialized equipment, and in general just everything.  I'm not only using it in a house, I'm using it on my yacht too.
+
+AGROVOC has an agricultural focus.  This does not only limit its scope, but it also puts some color to the vocabulary.  For instance, in a domestic setting the category "bedding" may include various douvets, pillows, matresses and bedclothes, but according to AGROVOC "beddings" are products optimized for absorbing animal pee.
+
+DBpedia has a more general focus, but for different reasons it's not very well-suited for inventory-md as it's currently (2026-02) designed.
+
+OFF has a food/kitchen focus.
+
+### Hiearchical categories
+
+The idea of using "hierarchical categories" came before I started investigating SKOS.  Perhaps I started in the wrong end here also - perhaps I first should have investigated what we can get out from SKOS and public databases and then later decided on how to build the navigation system (TODO: does it make sense to redo this completely perhaps?).  Particularly DBpedia is quite weak on putting things into a hierarchical system.
+
+For the hierarhical navigation to work out, we need relatively few root nodes (10 is probably a good number, 100 is too much), and every root node should have relatively few children (5-10 is probably a good number, 100 is way too much).  I see no problem with having multiple paths to the same category - but it may be a bit silly when some of the paths are just irrelevant for the item in the category.
+
+As for now we've ended up with a "global vocabulary" stitching together the different sources and bringing down the number of root nodes in the category system.  The vocabulary serves as a **linking layer** - mapping concepts from external databases (OFF, AGROVOC, DBpedia) into a clean hierarchy optimized for domestic inventory use.
+
+### Vocabulary Loading (as of 2026-02)
+
+The global vocabulary is now **shipped with the package** and loaded from multiple locations with merge precedence:
+
+1. **Package default** (`inventory_md/data/vocabulary.yaml`) - lowest priority
+2. **System config** (`/etc/inventory-md/vocabulary.yaml`)
+3. **User config** (`~/.config/inventory-md/vocabulary.yaml`)
+4. **Instance-specific** (`./vocabulary.yaml` or `./local-vocabulary.yaml`) - highest priority
+
+Later files override earlier ones, allowing users to customize or extend the default vocabulary without modifying the package.
+
+### Language Fallback Chains
+
+For translations, the system now supports language fallback chains. When a label isn't found in the preferred language, it tries related languages before falling back to English:
+
+- **Scandinavian**: `nb` → `no` → `da` → `nn` → `sv` → `en`
+- **Germanic**: `de` → `de-AT` → `de-CH` → `nl` → `en`
+- **Romance**: `es` → `pt` → `it` → `fr` → `en`
+
+This leverages mutual intelligibility between related languages (e.g., a Norwegian user can read Danish labels).
 
 ## Overview
 
@@ -40,7 +85,7 @@ The category system provides hierarchical classification for inventory items usi
 - **Plural normalization** - "books" → "book", "potatoes" → "potato"
 - **Source priority** - DBpedia for non-food terms, AGROVOC for food terms
 
-- **Global vocabulary** - `~/.config/inventory-md/vocabulary.yaml` with custom categories
+- **Global vocabulary** - shipped with package, loaded from multiple locations with merge precedence
 - **Open Food Facts** - OFF taxonomy client for food categorization
 - **Path normalization** - Collapse duplicate path components (e.g., `food/foods` → `food`)
 - **Root category control** - Local vocabulary mappings reduce orphan root categories
@@ -126,13 +171,15 @@ inventory-md vocabulary tree
 
 | File | Purpose |
 |------|---------|
-| `src/inventory_md/vocabulary.py` | Category tree building, path normalization |
+| `src/inventory_md/vocabulary.py` | Category tree building, path normalization, multi-location loading |
 | `src/inventory_md/skos.py` | AGROVOC/DBpedia SPARQL client, Oxigraph |
 | `src/inventory_md/off.py` | Open Food Facts taxonomy client |
 | `src/inventory_md/parser.py` | Parse `category:` syntax from markdown |
 | `src/inventory_md/cli.py` | CLI commands for parse, skos, vocabulary |
-| `src/inventory_md/config.py` | Configuration with skos.enabled option |
-| `~/.config/inventory-md/vocabulary.yaml` | Global vocabulary (user-defined) |
+| `src/inventory_md/config.py` | Configuration with skos.enabled, language_fallbacks |
+| `src/inventory_md/data/vocabulary.yaml` | Package default vocabulary (shipped) |
+| `~/.config/inventory-md/vocabulary.yaml` | User vocabulary overrides |
+| `./vocabulary.yaml` or `./local-vocabulary.yaml` | Instance-specific vocabulary |
 
 ### Generated Files
 
@@ -161,8 +208,8 @@ inventory-md vocabulary tree
    - Good for general concepts: tools, electronics, books
    - No Norwegian labels
 
-4. **Global Vocabulary** - User-defined mappings
-   - `~/.config/inventory-md/vocabulary.yaml`
+4. **Global Vocabulary** - Merged from multiple locations
+   - Package default + system + user + instance-specific
    - Takes precedence over external sources
    - Maps orphan categories to proper parents
 
@@ -179,7 +226,14 @@ Local vocabulary always takes precedence, allowing users to override external ma
 
 ## Global Vocabulary
 
-The global vocabulary file at `~/.config/inventory-md/vocabulary.yaml` provides:
+The vocabulary is loaded from multiple locations, merged with precedence:
+
+1. **Package default** (`inventory_md/data/vocabulary.yaml`) - shipped with inventory-md
+2. **System config** (`/etc/inventory-md/vocabulary.yaml`) - for system-wide customization
+3. **User config** (`~/.config/inventory-md/vocabulary.yaml`) - for user preferences
+4. **Instance-specific** (`./vocabulary.yaml` or `./local-vocabulary.yaml`) - for this inventory
+
+Each file provides:
 - Custom category definitions with prefLabel, altLabel, broader, narrower
 - Mappings from orphan categories to parent categories (reducing root nodes)
 - Override for external sources (OFF, AGROVOC, DBpedia)

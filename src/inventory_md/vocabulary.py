@@ -32,6 +32,7 @@ Local vocabulary format (local-vocabulary.yaml):
 """
 from __future__ import annotations
 
+import importlib.resources
 import json
 import logging
 from dataclasses import dataclass, field
@@ -43,6 +44,118 @@ if TYPE_CHECKING:
     SKOSClient = skos.SKOSClient
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# VOCABULARY FILE DISCOVERY
+# =============================================================================
+
+def _get_package_data_dir() -> Path | None:
+    """Get the package data directory containing the default vocabulary.
+
+    Returns:
+        Path to the package data directory, or None if not found.
+    """
+    try:
+        # Python 3.9+ way to get package resources
+        files = importlib.resources.files("inventory_md")
+        data_dir = files / "data"
+        # Check if it's a real path (installed package) or traversable
+        if hasattr(data_dir, "_path"):
+            return Path(data_dir._path)
+        # For editable installs, try to resolve the path
+        with importlib.resources.as_file(data_dir) as path:
+            return path
+    except (ModuleNotFoundError, FileNotFoundError, TypeError):
+        # Fallback: try relative to this file (for development)
+        dev_path = Path(__file__).parent / "data"
+        if dev_path.exists():
+            return dev_path
+    return None
+
+
+def find_vocabulary_files() -> list[Path]:
+    """Find all vocabulary files, in merge order (lowest priority first).
+
+    Searches in order:
+    1. Package default vocabulary (shipped with inventory-md)
+    2. /etc/inventory-md/vocabulary.yaml
+    3. ~/.config/inventory-md/vocabulary.yaml
+    4. ./vocabulary.yaml or ./local-vocabulary.yaml (highest priority)
+
+    Returns:
+        List of found vocabulary files. Files later in the list override earlier.
+    """
+    found_files: list[Path] = []
+    vocab_filenames = ["vocabulary.yaml", "vocabulary.yml", "vocabulary.json"]
+    local_vocab_filenames = ["local-vocabulary.yaml", "local-vocabulary.yml",
+                             "local-vocabulary.json", *vocab_filenames]
+
+    # 1. Package default vocabulary (lowest priority)
+    pkg_data = _get_package_data_dir()
+    if pkg_data:
+        for filename in vocab_filenames:
+            path = pkg_data / filename
+            if path.exists():
+                found_files.append(path)
+                logger.debug("Found package vocabulary: %s", path)
+                break
+
+    # 2. System-wide config (/etc/inventory-md/)
+    etc_dir = Path("/etc/inventory-md")
+    if etc_dir.exists():
+        for filename in vocab_filenames:
+            path = etc_dir / filename
+            if path.exists():
+                found_files.append(path)
+                logger.debug("Found system vocabulary: %s", path)
+                break
+
+    # 3. User config (~/.config/inventory-md/)
+    user_dir = Path.home() / ".config" / "inventory-md"
+    if user_dir.exists():
+        for filename in vocab_filenames:
+            path = user_dir / filename
+            if path.exists():
+                found_files.append(path)
+                logger.debug("Found user vocabulary: %s", path)
+                break
+
+    # 4. Current directory (highest priority) - also check local-vocabulary.*
+    cwd = Path.cwd()
+    for filename in local_vocab_filenames:
+        path = cwd / filename
+        if path.exists():
+            found_files.append(path)
+            logger.debug("Found local vocabulary: %s", path)
+            break
+
+    return found_files
+
+
+def load_global_vocabulary() -> dict[str, Concept]:
+    """Load and merge vocabulary from all standard locations.
+
+    Loads vocabularies from package defaults, system, user, and local
+    directories, merging them with proper precedence (later overrides earlier).
+
+    Returns:
+        Merged vocabulary dictionary mapping concept IDs to Concept objects.
+    """
+    merged: dict[str, Concept] = {}
+
+    for vocab_path in find_vocabulary_files():
+        try:
+            vocab = load_local_vocabulary(vocab_path)
+            logger.info("Loaded %d concepts from %s", len(vocab), vocab_path)
+            # Later files override earlier ones
+            merged.update(vocab)
+        except Exception as e:
+            logger.warning("Failed to load vocabulary from %s: %s", vocab_path, e)
+
+    logger.info("Total vocabulary: %d concepts from %d files",
+                len(merged), len(find_vocabulary_files()))
+    return merged
 
 
 @dataclass

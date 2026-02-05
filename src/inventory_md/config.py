@@ -17,7 +17,10 @@ import os
 from pathlib import Path
 from typing import Any
 
-CONFIG_FILENAMES = ["inventory-md.yaml", "inventory-md.json"]
+# Config filenames for current working directory (project-local config)
+# config.yaml/json preferred; inventory-md.yaml/json kept for backward compatibility
+CONFIG_FILENAMES = ["config.yaml", "config.json", "inventory-md.yaml", "inventory-md.json"]
+# Config filenames for system/user config directories
 CONFIG_USER_FILENAMES = ["config.yaml", "config.json"]
 
 DEFAULTS: dict[str, Any] = {
@@ -37,6 +40,31 @@ DEFAULTS: dict[str, Any] = {
         "enabled_sources": ["off", "agrovoc", "dbpedia"],
         "cache_ttl_days": 30,
         "timeout": 30.0,
+    },
+    # Language fallback chains for translations
+    # When a label isn't found in the preferred language, try these in order
+    "language_fallbacks": {
+        # Scandinavian - mutually intelligible cluster
+        "nb": ["no", "da", "nn", "sv"],
+        "nn": ["no", "nb", "sv", "da"],
+        "da": ["no", "nb", "sv", "nn"],
+        "sv": ["no", "nb", "da", "nn"],
+        "no": ["nb", "da", "nn", "sv"],
+        # Germanic
+        "de": ["de-AT", "de-CH", "nl"],
+        "nl": ["de"],
+        # Romance
+        "es": ["pt", "it", "fr"],
+        "pt": ["es", "it", "fr"],
+        "fr": ["es", "it", "pt"],
+        "it": ["es", "fr", "pt"],
+        # Slavic
+        "ru": ["uk", "be", "bg"],
+        "uk": ["ru", "be", "pl"],
+        "pl": ["cs", "sk"],
+        "cs": ["sk", "pl"],
+        # Final fallback for all languages
+        "_final_fallback": "en",
     },
 }
 
@@ -402,3 +430,36 @@ class Config:
               hierarchy_mode: true
         """
         return self.get("skos.hierarchy_mode", False)
+
+    @property
+    def language_fallbacks(self) -> dict[str, list[str]]:
+        """Return language fallback chains for translation lookup.
+
+        When a label isn't found in the preferred language, try fallback
+        languages in order. This is useful for mutually intelligible languages
+        (e.g., Scandinavian languages, Romance languages).
+
+        Example config:
+            language_fallbacks:
+              nb: [no, da, nn, sv]
+              de: [de-AT, de-CH, nl]
+        """
+        return self.get("language_fallbacks", DEFAULTS["language_fallbacks"])
+
+    def get_language_fallback_chain(self, lang: str) -> list[str]:
+        """Get the full fallback chain for a language, ending with final fallback.
+
+        Args:
+            lang: Primary language code.
+
+        Returns:
+            List of language codes to try, in order (including the primary).
+        """
+        fallbacks = self.language_fallbacks
+        chain = [lang]
+        if lang in fallbacks:
+            chain.extend(fallbacks[lang])
+        final = fallbacks.get("_final_fallback", "en")
+        if final not in chain:
+            chain.append(final)
+        return chain
