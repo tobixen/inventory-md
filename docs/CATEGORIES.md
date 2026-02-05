@@ -38,6 +38,16 @@ When only leaning on DBpedia, OFF and AGROVOC, I got thousands of root-nodes in 
 
 As for now we've ended up with a package-global vocabulary.  The purpose of this vocabulary is mostly to bring down the number of root nodes in the category system.  The vocabulary is not intended to be a stand-alone vocabulary, it serves mostly as a **linking layer** - mapping concepts from external databases (OFF, AGROVOC, DBpedia) into a clean hierarchy optimized for domestic inventory use.
 
+### Advantages of public databases
+
+Perhaps it would be easier to just have a simple package-local category list and drop all the complexity with SKOS and external databases, but they do give us some benefits:
+
+* Translation into many languages
+* Particularly the OFF-database (and our other EAN sources) offers automatical catgorization - no need to add this by hand or by AI
+* Descriptions (even translated descriptions) (TODO: I'd like to present those in the web ui)
+* Richness - we may actually need access to thousands of categories.  Particularly for the shopping list generator - we do not want a product (i.e. with a specific EAN) on the shopping list, we want a category (like "nuts" or "peanuts", "jam" or "strawberry jam", "milk" or "full-fat fresh milk" dependent on how detailed one wants the shopping list.  Ok, perhaps none of the exernal databases have "full-fat fresh milk", but that's beside the point)
+* Some kind of standard adherence, in case the user wants to use the inventory database in other contexts.
+
 ### Vocabulary Loading
 
 The vocabulary is now loaded from multiple locations with merge precedence:

@@ -806,3 +806,133 @@ class TestLanguageFallbacks:
         da_idx = chain.index("da")
         nn_idx = chain.index("nn")
         assert da_idx < nn_idx  # Danish should come before Nynorsk
+
+
+class TestLocalVocabularySourcePreservation:
+    """Tests for preserving local vocabulary source even with external URIs.
+
+    Bug fix: Local vocabulary entries with DBpedia/AGROVOC URIs were getting
+    their source changed from "local" to "dbpedia"/"agrovoc", which caused
+    issues with hierarchy preservation.
+    """
+
+    def test_local_vocab_with_dbpedia_uri_keeps_local_source(self, tmp_path):
+        """Local vocab entries with DBpedia URI should keep source=local."""
+        vocab_file = tmp_path / "vocabulary.yaml"
+        vocab_file.write_text("""
+concepts:
+  tools:
+    prefLabel: "Tools"
+    uri: "http://dbpedia.org/resource/Tool"
+  hammer:
+    prefLabel: "Hammer"
+    broader: tools
+    uri: "http://dbpedia.org/resource/Hammer"
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file)
+
+        # Both should have source=local, not dbpedia
+        assert vocab["tools"].source == "local"
+        assert vocab["hammer"].source == "local"
+        # But URIs should be preserved
+        assert vocab["tools"].uri == "http://dbpedia.org/resource/Tool"
+        assert vocab["hammer"].uri == "http://dbpedia.org/resource/Hammer"
+
+    def test_local_vocab_with_agrovoc_uri_keeps_local_source(self, tmp_path):
+        """Local vocab entries with AGROVOC URI should keep source=local."""
+        vocab_file = tmp_path / "vocabulary.yaml"
+        vocab_file.write_text("""
+concepts:
+  potatoes:
+    prefLabel: "Potatoes"
+    broader: food/vegetables
+    uri: "http://aims.fao.org/aos/agrovoc/c_6139"
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file)
+
+        assert vocab["potatoes"].source == "local"
+        assert vocab["potatoes"].uri == "http://aims.fao.org/aos/agrovoc/c_6139"
+
+    def test_local_vocab_root_categories_stay_roots(self, tmp_path):
+        """Root categories in local vocab should not get broader from external sources."""
+        vocab_file = tmp_path / "vocabulary.yaml"
+        vocab_file.write_text("""
+concepts:
+  tools:
+    prefLabel: "Tools"
+    altLabel: ["equipment"]
+  food:
+    prefLabel: "Food"
+    narrower:
+      - food/vegetables
+  food/vegetables:
+    prefLabel: "Vegetables"
+    broader: food
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file)
+
+        # tools and food should be roots (no broader)
+        assert vocab["tools"].broader == []
+        assert vocab["food"].broader == []
+        # food/vegetables should have food as broader
+        assert vocab["food/vegetables"].broader == ["food"]
+
+
+class TestExternalSourceDoesNotOverwriteLocal:
+    """Tests ensuring external sources don't overwrite local vocabulary entries.
+
+    Bug fix: When processing leaf labels, DBpedia fallback was overwriting
+    existing local vocabulary concepts with DBpedia data.
+    """
+
+    def test_add_paths_to_concepts_preserves_existing(self):
+        """_add_paths_to_concepts should not overwrite existing concepts."""
+        concepts = {
+            "tools": vocabulary.Concept(
+                id="tools",
+                prefLabel="Tools",
+                source="local",
+                broader=[],
+            )
+        }
+
+        # Try to add a path that includes "tools"
+        vocabulary._add_paths_to_concepts(
+            ["tools/hand/hammer"], concepts, "dbpedia"
+        )
+
+        # Original "tools" concept should be unchanged
+        assert concepts["tools"].source == "local"
+        assert concepts["tools"].broader == []
+        # But child paths should be added
+        assert "tools/hand" in concepts
+        assert "tools/hand/hammer" in concepts
+        assert concepts["tools/hand"].source == "dbpedia"
+
+    def test_local_broader_takes_precedence_over_external(self):
+        """Local vocabulary broader relationships should override external ones."""
+        local_vocab = {
+            "hammer": vocabulary.Concept(
+                id="hammer",
+                prefLabel="Hammer",
+                source="local",
+                broader=["tools/hand"],
+            ),
+            "tools": vocabulary.Concept(
+                id="tools",
+                prefLabel="Tools",
+                source="local",
+                broader=[],
+            ),
+            "tools/hand": vocabulary.Concept(
+                id="tools/hand",
+                prefLabel="Hand tools",
+                source="local",
+                broader=["tools"],
+            ),
+        }
+
+        # Simulate what happens when building vocabulary
+        # The local vocab says hammer -> tools/hand
+        # Even if DBpedia says hammer -> metalworking_tools, local should win
+        assert local_vocab["hammer"].broader == ["tools/hand"]

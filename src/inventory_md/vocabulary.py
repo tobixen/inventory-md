@@ -383,14 +383,11 @@ def load_local_vocabulary(path: Path) -> dict[str, Concept]:
         # Handle labels dict for translations
         labels = concept_data.get("labels", {})
 
-        # Determine source from URI if not explicitly set
+        # Local vocabulary files always have source "local"
+        # The URI is just metadata for enrichment (translations, descriptions)
+        # not an indication of where the concept definition comes from
         uri = concept_data.get("uri")
         source = concept_data.get("source", "local")
-        if uri and source == "local":
-            if "agrovoc" in uri.lower():
-                source = "agrovoc"
-            elif "dbpedia" in uri.lower():
-                source = "dbpedia"
 
         concepts[concept_id] = Concept(
             id=concept_id,
@@ -1551,7 +1548,12 @@ def build_vocabulary_with_skos_hierarchy(
             print(f"   [{idx}/{total}] {label}", flush=True)
 
         # Check if label matches a local vocabulary entry
+        # Local vocab provides hierarchy (broader), external sources provide metadata (URI, translations)
         label_lower = label.lower()
+        local_concept_id = None
+        local_concept = None
+        local_broader_path = None
+
         if label_lower in local_vocab_labels:
             local_concept_id = local_vocab_labels[label_lower]
             local_concept = local_vocab[local_concept_id]
@@ -1570,30 +1572,13 @@ def build_vocabulary_with_skos_hierarchy(
                         logger.debug("Local vocab '%s' -> AGROVOC hierarchy: %s", label, paths)
                         continue
 
-            # Non-AGROVOC local entry - check if it has a broader relationship
+            # Record local broader for later use (but still do external lookups for metadata)
             if local_concept.broader:
-                # Build path from broader + concept_id (e.g., "food/beverages/alcohol" + "beer")
-                # Use first broader relationship for the primary path
                 broader_path = local_concept.broader[0]
-                # If concept_id already contains the path structure, use it directly
-                # e.g., "food/condiments" with broader="food" should stay "food/condiments"
                 if local_concept_id.startswith(broader_path + "/"):
-                    full_path = local_concept_id
+                    local_broader_path = local_concept_id
                 else:
-                    full_path = f"{broader_path}/{local_concept_id}"
-                category_mappings[label] = [full_path]
-                # Add all path components to concepts
-                _add_paths_to_concepts([full_path], concepts, "local")
-                if local_concept.uri:
-                    all_uri_maps[local_concept_id] = local_concept.uri
-                logger.debug("Local vocab '%s' -> broader hierarchy: %s", label, full_path)
-            else:
-                # No broader - use concept ID as path
-                category_mappings[label] = [local_concept_id]
-                if local_concept.uri:
-                    all_uri_maps[local_concept_id] = local_concept.uri
-                logger.debug("Using local vocabulary for '%s' -> %s", label, local_concept_id)
-            continue
+                    local_broader_path = f"{broader_path}/{local_concept_id}"
 
         # Try sources in priority order, collecting paths from all that match
         all_paths: list[str] = []
@@ -1653,64 +1638,103 @@ def build_vocabulary_with_skos_hierarchy(
                     logger.debug("AGROVOC found '%s' -> %d paths", label, len(agrovoc_paths))
 
         # --- DBpedia fallback ---
+        # Only use DBpedia hierarchy if we don't have local vocabulary hierarchy
         if primary_source is None and client is not None and "dbpedia" in enabled_sources:
             dbpedia_concept = client.lookup_concept(label, lang, source="dbpedia")
             if dbpedia_concept and dbpedia_concept.get("uri"):
                 concept_id = label.lower().replace(" ", "_")
-                dbpedia_broader = dbpedia_concept.get("broader", [])
 
-                # Build paths from both hypernym (is-a) and useful dct:subject categories
-                # Hypernym is prioritized (listed first) as it's the most semantic
-                dbpedia_paths = []
-                broader_ids = []
-
-                for b in dbpedia_broader:
-                    broader_label = b.get("label", "")
-                    if not broader_label or skos_module._is_irrelevant_dbpedia_category(broader_label):
-                        continue
-                    broader_id = broader_label.lower().replace(" ", "_")
-                    # Avoid duplicates and self-references
-                    if broader_id in broader_ids or broader_id == concept_id:
-                        continue
-                    broader_ids.append(broader_id)
-                    full_path = f"{broader_id}/{concept_id}"
-                    # Put hypernym paths first (more semantic)
-                    if b.get("relType") == "hypernym":
-                        dbpedia_paths.insert(0, full_path)
-                    else:
-                        dbpedia_paths.append(full_path)
-                    # Limit to avoid too many paths
-                    if len(dbpedia_paths) >= 3:
-                        break
-
-                if dbpedia_paths:
-                    category_mappings[label] = dbpedia_paths
-                    _add_paths_to_concepts(dbpedia_paths, concepts, "dbpedia")
-                    # Update concept with broader relations
-                    if concept_id in concepts:
-                        concepts[concept_id].broader = broader_ids[:3]
-                    logger.debug("DBpedia paths for '%s' -> %s", label, dbpedia_paths)
+                # If local vocab provides hierarchy, just capture the URI for translations
+                if local_broader_path:
+                    all_uri_maps[local_broader_path] = dbpedia_concept["uri"]
+                    # Don't continue - let the local_broader_path handling below run
                 else:
-                    category_mappings[label] = [concept_id]
-                    concepts[concept_id] = Concept(
-                        id=concept_id,
-                        prefLabel=dbpedia_concept.get("prefLabel", label.title()),
-                        altLabels=dbpedia_concept.get("altLabels", []),
-                        source="dbpedia",
-                        uri=dbpedia_concept["uri"],
-                        description=dbpedia_concept.get("description"),
-                        wikipediaUrl=dbpedia_concept.get("wikipediaUrl"),
-                    )
-                    logger.debug("DBpedia fallback for '%s' -> %s", label, dbpedia_concept["uri"])
-                continue
+                    # No local hierarchy - use DBpedia's hierarchy
+                    dbpedia_broader = dbpedia_concept.get("broader", [])
 
-        if all_paths:
-            # Normalize paths to collapse consecutive similar components
-            # e.g., "food/foods/prepared_foods" -> "food/prepared_foods"
-            normalized_paths = [_normalize_hierarchy_path(p) for p in all_paths]
-            category_mappings[label] = normalized_paths
+                    # Build paths from both hypernym (is-a) and useful dct:subject categories
+                    dbpedia_paths = []
+                    broader_ids = []
+
+                    for b in dbpedia_broader:
+                        broader_label = b.get("label", "")
+                        if not broader_label or skos_module._is_irrelevant_dbpedia_category(broader_label):
+                            continue
+                        broader_id = broader_label.lower().replace(" ", "_")
+                        if broader_id in broader_ids or broader_id == concept_id:
+                            continue
+                        broader_ids.append(broader_id)
+                        full_path = f"{broader_id}/{concept_id}"
+                        if b.get("relType") == "hypernym":
+                            dbpedia_paths.insert(0, full_path)
+                        else:
+                            dbpedia_paths.append(full_path)
+                        if len(dbpedia_paths) >= 3:
+                            break
+
+                    if dbpedia_paths:
+                        category_mappings[label] = dbpedia_paths
+                        _add_paths_to_concepts(dbpedia_paths, concepts, "dbpedia")
+                        # Only set broader if concept doesn't come from local vocab
+                        # (local vocab roots should remain roots, not get DBpedia broader)
+                        if concept_id in concepts:
+                            existing = concepts[concept_id]
+                            if existing.source not in ("local",) and not existing.broader:
+                                concepts[concept_id].broader = broader_ids[:3]
+                        logger.debug("DBpedia paths for '%s' -> %s", label, dbpedia_paths)
+                    else:
+                        category_mappings[label] = [concept_id]
+                        # Only create new concept if it doesn't already exist
+                        # (don't overwrite local vocabulary concepts)
+                        if concept_id not in concepts:
+                            concepts[concept_id] = Concept(
+                                id=concept_id,
+                                prefLabel=dbpedia_concept.get("prefLabel", label.title()),
+                                altLabels=dbpedia_concept.get("altLabels", []),
+                                source="dbpedia",
+                                uri=dbpedia_concept["uri"],
+                                description=dbpedia_concept.get("description"),
+                                wikipediaUrl=dbpedia_concept.get("wikipediaUrl"),
+                            )
+                        else:
+                            # Enrich existing concept with DBpedia metadata if missing
+                            existing = concepts[concept_id]
+                            if not existing.uri:
+                                existing.uri = dbpedia_concept["uri"]
+                            if not existing.description:
+                                existing.description = dbpedia_concept.get("description")
+                        logger.debug("DBpedia fallback for '%s' -> %s", label, dbpedia_concept["uri"])
+                    continue
+
+        if all_paths or local_broader_path:
+            # If local vocabulary provides hierarchy, use it; otherwise use external paths
+            if local_broader_path:
+                # Local vocab provides hierarchy, external sources provide metadata
+                final_paths = [local_broader_path]
+                source = primary_source or "local"
+                # Get URI from external source if available
+                if all_uris:
+                    # Map the local concept ID to external URI for translations
+                    concept_id = local_broader_path.split("/")[-1]
+                    for ext_cid, ext_uri in all_uris.items():
+                        if ext_cid.endswith(concept_id) or concept_id in ext_cid:
+                            all_uri_maps[local_broader_path] = ext_uri
+                            break
+                logger.debug("Local hierarchy '%s' enriched with %s metadata", label, source)
+            else:
+                # Use external hierarchy paths
+                # Normalize paths to collapse consecutive similar components
+                # e.g., "food/foods/prepared_foods" -> "food/prepared_foods"
+                final_paths = [_normalize_hierarchy_path(p) for p in all_paths]
+                source = primary_source or "inventory"
+
+            category_mappings[label] = final_paths
             all_uri_maps.update(all_uris)
-            _add_paths_to_concepts(normalized_paths, concepts, primary_source or "inventory")
+            _add_paths_to_concepts(final_paths, concepts, source)
+        elif local_broader_path:
+            # Local vocab only, no external source found
+            category_mappings[label] = [local_broader_path]
+            _add_paths_to_concepts([local_broader_path], concepts, "local")
         else:
             # No source found - fall back to label as-is
             fallback_id = label.lower().replace(" ", "_")
@@ -1727,9 +1751,6 @@ def build_vocabulary_with_skos_hierarchy(
             for concept_id, node_id in off_node_ids.items():
                 if concept_id in concepts:
                     concept = concepts[concept_id]
-                    # Skip local vocab concepts - don't overwrite with SKOS translations
-                    if concept.source == "local":
-                        continue
                     off_labels = off_client.get_labels(node_id, languages)
                     if off_labels:
                         # Merge: OFF labels as base, don't overwrite existing
@@ -1742,9 +1763,6 @@ def build_vocabulary_with_skos_hierarchy(
             store = client._get_oxigraph_store()
             if store is not None and store.is_loaded:
                 for concept_id, concept in concepts.items():
-                    # Skip local vocab concepts - don't overwrite with SKOS translations
-                    if concept.source == "local":
-                        continue
                     if concept_id in all_uri_maps:
                         uri = all_uri_maps[concept_id]
                         # Skip OFF URIs for AGROVOC store lookups
