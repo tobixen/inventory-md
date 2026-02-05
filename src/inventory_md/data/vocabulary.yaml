@@ -36,6 +36,7 @@ concepts:
   tools:
     prefLabel: "Tools"
     altLabel: ["equipment", "implements", "verktøy", "utstyr"]
+    uri: "http://dbpedia.org/resource/Tool"
 
   electronics:
     prefLabel: "Electronics"
@@ -834,7 +835,9 @@ concepts:
   # Snacks
   snacks:
     prefLabel: "Snacks"
+    altLabel: ["snack foods"]
     broader: food
+    uri: "http://dbpedia.org/resource/Snack"
 
   chips:
     prefLabel: "Chips"
@@ -853,8 +856,10 @@ concepts:
 
   peanuts:
     prefLabel: "Peanuts"
-    altLabel: ["peanut", "фъстъци"]
+    altLabel: ["peanut", "groundnuts", "фъстъци"]
     broader: food/snacks/nuts
+    uri: "http://dbpedia.org/resource/Peanut"
+    # AGROVOC uses "groundnuts" which is less common
 
   biscuits:
     prefLabel: "Biscuits"
@@ -1153,8 +1158,10 @@ concepts:
 
   bedding:
     prefLabel: "Bedding"
-    altLabel: ["bed linen"]
+    altLabel: ["bed linen", "bedclothes", "duvet", "pillow"]
     broader: household
+    uri: "http://dbpedia.org/resource/Bedding"
+    # AGROVOC returns "litter for animals" (farm bedding) - use DBpedia
 
   # =============================================================================
   # BOOKS SUBCATEGORIES
@@ -1465,8 +1472,10 @@ concepts:
 
   washer:
     prefLabel: "Washer"
-    altLabel: ["washers"]
+    altLabel: ["washers", "flat washer"]
     broader: construction/fasteners
+    uri: "http://dbpedia.org/resource/Washer_(hardware)"
+    # AGROVOC returns "cleaning equipment" (washing machine) - use DBpedia
 
   nut:
     prefLabel: "Nut (fastener)"
@@ -1973,7 +1982,9 @@ concepts:
 
   gps:
     prefLabel: "GPS"
+    altLabel: ["Global Positioning System", "sat nav", "navigation"]
     broader: electronics
+    uri: "http://dbpedia.org/resource/Global_Positioning_System"
 
   headset:
     prefLabel: "Headset"
@@ -2247,6 +2258,8 @@ concepts:
   tool:
     prefLabel: "Tool"
     broader: tools
+    uri: "http://dbpedia.org/resource/Tool"
+    # AGROVOC returns "equipment" - use DBpedia for general tools
 
   utility_blade:
     prefLabel: "Utility blade"
@@ -2613,7 +2626,10 @@ concepts:
 
   seal:
     prefLabel: "Seal"
+    altLabel: ["rubber seal", "gasket", "o-ring"]
     broader: consumables
+    uri: "http://dbpedia.org/resource/Hermetic_seal"
+    # AGROVOC returns marine mammals - use DBpedia for hardware seals
 
   silicones:
     prefLabel: "Silicones"
@@ -2621,7 +2637,10 @@ concepts:
 
   tubing:
     prefLabel: "Tubing"
+    altLabel: ["tube", "pipes", "hose"]
     broader: consumables
+    uri: "http://dbpedia.org/resource/Tubing_(material)"
+    # AGROVOC returns agricultural pipes
 
   # More DBpedia mappings - Safety
   firefighting_equipment:
@@ -2666,6 +2685,8 @@ concepts:
   disc:
     prefLabel: "Disc"
     broader: misc
+    uri: "http://dbpedia.org/resource/Disc"
+    # AGROVOC returns "cultivators" (disc harrow) - use DBpedia
 
   mount:
     prefLabel: "Mount"
