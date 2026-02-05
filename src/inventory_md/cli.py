@@ -227,21 +227,18 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
             # Generate vocabulary.json for category browser
             print("\n🏷️  Generating category vocabulary...")
 
-            # Load global vocabulary from standard config locations (lowest to highest priority)
+            # Load global vocabulary from all standard locations (package, system, user)
+            # Uses find_vocabulary_files() which includes the package default vocabulary
             global_vocab = {}
-            global_vocab_locations = [
-                Path("/etc/inventory-md/vocabulary.yaml"),
-                Path("/etc/inventory-md/vocabulary.json"),
-                Path.home() / ".config" / "inventory-md" / "vocabulary.yaml",
-                Path.home() / ".config" / "inventory-md" / "vocabulary.json",
-            ]
-            for vocab_path in global_vocab_locations:
-                if vocab_path.exists():
-                    loaded = vocabulary.load_local_vocabulary(vocab_path)
-                    if loaded:
-                        # Merge: later files override earlier (but keep concepts from both)
-                        global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
-                        print(f"   Loaded {len(loaded)} concepts from {vocab_path}")
+            for vocab_path in vocabulary.find_vocabulary_files():
+                # Skip cwd entries - local vocab is handled separately based on md_file.parent
+                if vocab_path.parent == Path.cwd():
+                    continue
+                loaded = vocabulary.load_local_vocabulary(vocab_path)
+                if loaded:
+                    # Merge: later files override earlier (but keep concepts from both)
+                    global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
+                    print(f"   Loaded {len(loaded)} concepts from {vocab_path}")
 
             # Load local vocabulary if present (highest priority - overrides global)
             local_vocab_yaml = md_file.parent / "local-vocabulary.yaml"
@@ -1095,19 +1092,16 @@ def vocabulary_command(args, config: Config) -> int:
     else:
         directory = Path(directory).resolve()
 
-    # Load global vocabulary from standard config locations (lowest to highest priority)
+    # Load global vocabulary from all standard locations (package, system, user)
+    # Uses find_vocabulary_files() which includes the package default vocabulary
     global_vocab = {}
-    global_vocab_locations = [
-        Path("/etc/inventory-md/vocabulary.yaml"),
-        Path("/etc/inventory-md/vocabulary.json"),
-        Path.home() / ".config" / "inventory-md" / "vocabulary.yaml",
-        Path.home() / ".config" / "inventory-md" / "vocabulary.json",
-    ]
-    for vocab_path in global_vocab_locations:
-        if vocab_path.exists():
-            loaded = vocabulary.load_local_vocabulary(vocab_path)
-            if loaded:
-                global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
+    for vocab_path in vocabulary.find_vocabulary_files():
+        # Skip cwd entries - local vocab is handled separately based on directory
+        if vocab_path.parent == Path.cwd():
+            continue
+        loaded = vocabulary.load_local_vocabulary(vocab_path)
+        if loaded:
+            global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
 
     # Load local vocabulary from directory (highest priority)
     local_vocab_yaml = directory / "local-vocabulary.yaml"
