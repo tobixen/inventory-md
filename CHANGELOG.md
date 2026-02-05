@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Romance: `es` → `pt` → `it` → `fr` → `en`
   - Slavic: `ru` → `uk` → `be` → `bg` → `en`
   - Configurable via `language_fallbacks` in config
-  - New method: `Config.get_language_fallback_chain(lang)`
+  - Integrated into AGROVOC (`_get_all_labels`) and OFF (`get_labels`) lookups
+  - When a translation is missing, tries related languages before English
+  - New functions: `get_fallback_chain()`, `apply_language_fallbacks()`
 - **Config file naming** - `config.yaml`/`config.json` now supported in project directory
   - `inventory-md.yaml`/`inventory-md.json` still supported for backward compatibility
 

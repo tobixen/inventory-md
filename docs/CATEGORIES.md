@@ -59,6 +59,8 @@ For translations, the system now supports language fallback chains. When a label
 
 This leverages mutual intelligibility between related languages (e.g., a Norwegian user can read Danish labels).
 
+Fallbacks are integrated into both AGROVOC and OFF translation lookups. When fetching labels for multiple languages, the system automatically queries fallback languages and fills in missing translations. This can be disabled with `use_fallbacks=False` in the API.
+
 ## Overview
 
 The category system provides hierarchical classification for inventory items using SKOS (Simple Knowledge Organization System) vocabularies. Items can be classified using semantic categories that enable "find all food items" or "show all tools" searches.
