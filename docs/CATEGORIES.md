@@ -1,46 +1,46 @@
 # SKOS-Based Category System
 
-## Human-written notes
+## Design thoughts
 
-Most of the content below is AI-generated.  I will look through and perhaps rewrite some of it at some point in the future ... when/if I get time.
+Disclaimer: Most of the "design thoughts here was written by a human.  Starting from "overview" further below, most was written by AI.   I will look through and merge together the information properly at some point in the future ... when/if I get time.
 
 ### SKOS
 
 I generally think "don't reinvent the wheel" is a good idea - as well as "follow the standards", even when the standards are too complex or designed by people seeing the world with very different eyes than my own.
 
-According to Wikipedia, "Simple Knowledge Organization System (SKOS) is a W3C recommendation designed for representation of thesauri, classification schemes, taxonomies, subject-heading systems, or any other type of structured controlled vocabulary" - so it sounded just perfect.  The AI warned me that it would be too complex, I was probably wrong to ignore that warning.
+According to Wikipedia, "Simple Knowledge Organization System (SKOS) is a W3C recommendation designed for representation of thesauri, classification schemes, taxonomies, subject-heading systems, or any other type of structured controlled vocabulary" - so it sounded just perfect.  The AI warned me that it would be too complex, I was possibly wrong to ignore that warning.
 
 ### Categories vs tags vs ...
 
-SKOS is currently used for categories - while everything that does not fit into a category system should be put into tags.  Consider two worn out red cotton T-shirt owned by dad.  T-shirt is a category, while ownership, size, condition, quantity, color etc are other "dimensions".  For quantity etc the inventory-system supports qty, mass, volume ... but whatever is not directly supported should go into tags.
+SKOS is currently used for categories - while most things that does not fit into a category system should be put into tags.  Consider two worn out red cotton T-shirt owned by dad.  T-shirt is a category, while ownership, size, condition, quantity, color etc are other "dimensions".  For quantity etc the inventory-system supports qty, mass, volume ... the rest should go into tags.
 
 ### Public databases
 
 Perhaps I started in the wrong end here - because usage of SKOS in itself is sort of just establishing the database schema - what is more important here is actually to get access a global public category database.   Two SKOS-based databases was found - AGROVOC is a public SKOS database for food products and agricultural purposes, and DBpedia is a Wikipedia-based database.  We're also accessing some few databases to look up EANs - one of them is the OpenFoodFacts database, it has it's own category system (not SKOS-based), so it was decided to use the OFF category system as a third source.
 
-TODO: how does other inventory-systems solve this?  Does the other EAN-sources we're using having any kind of caegorization system?
+TODO: We're using some other EAN source as well - and it does spit out some categories.  We should try to utilize that, too.
 
 ### Scope
 
-The scope of inventory-md is to be a general domestic inventory database, used both for food products, clothes, kitchen equipment, electronics, household items, hobby items, tools, sports equipment, more specialized equipment, and in general just everything.  I'm not only using it in a house, I'm using it on my yacht too.
+The scope of inventory-md is to be a general domestic inventory database, used both for food products, clothes, kitchen equipment, electronics, household items, hobby items, tools, sports equipment, more specialized equipment, and in general just everything.  I'm not only using it in a house, I'm using it on my yacht too.  The system should work universally - but the design is not very scalable, so it's not designed for industrial usage.
 
 AGROVOC has an agricultural focus.  This does not only limit its scope, but it also puts some color to the vocabulary.  For instance, in a domestic setting the category "bedding" may include various douvets, pillows, matresses and bedclothes, but according to AGROVOC "beddings" are products optimized for absorbing animal pee.
 
 DBpedia has a more general focus, but for different reasons it's not very well-suited for inventory-md as it's currently (2026-02) designed.
 
-OFF has a food/kitchen focus.
+OFF has a food/kitchen focus.  The big advantage of OFF is that by scanning EANs, it's at least theoretically possible to get the correct category directly into the inventory list without manually slapping categories on stuff and without using AI.
 
 ### Hiearchical categories
 
-The idea of using "hierarchical categories" came before I started investigating SKOS.  Perhaps I started in the wrong end here also - perhaps I first should have investigated what we can get out from SKOS and public databases and then later decided on how to build the navigation system (TODO: does it make sense to redo this completely perhaps?).  Particularly DBpedia is quite weak on putting things into a hierarchical system.
+The idea of using "hierarchical categories" came before I started investigating SKOS.  Hierarchical categories seems intuitive for users, though particularly DBpedia does not play very well with this design.  Perhaps some other navigation system should be made.  
 
-For the hierarhical navigation to work out, we need relatively few root nodes (10 is probably a good number, 100 is too much), and every root node should have relatively few children (5-10 is probably a good number, 100 is way too much).  I see no problem with having multiple paths to the same category - but it may be a bit silly when some of the paths are just irrelevant for the item in the category.
+When only leaning on DBpedia, OFF and AGROVOC, I got thousands of root-nodes in the hierarchy.  For the hierarhical navigation to work out, we need relatively few root nodes (10 is probably a good number, 100 is too much), and every root node should have relatively few children (5-10 is probably a good number, 100 is way too much).  I see no problem with having multiple paths to the same category (though it may be a bit silly when some of the paths are just irrelevant for the item in the category).
 
-As for now we've ended up with a "global vocabulary" stitching together the different sources and bringing down the number of root nodes in the category system.  The vocabulary serves as a **linking layer** - mapping concepts from external databases (OFF, AGROVOC, DBpedia) into a clean hierarchy optimized for domestic inventory use.
+As for now we've ended up with a package-global vocabulary.  The purpose of this vocabulary is mostly to bring down the number of root nodes in the category system.  The vocabulary is not intended to be a stand-alone vocabulary, it serves mostly as a **linking layer** - mapping concepts from external databases (OFF, AGROVOC, DBpedia) into a clean hierarchy optimized for domestic inventory use.
 
-### Vocabulary Loading (as of 2026-02)
+### Vocabulary Loading
 
-The global vocabulary is now **shipped with the package** and loaded from multiple locations with merge precedence:
+The vocabulary is now loaded from multiple locations with merge precedence:
 
 1. **Package default** (`inventory_md/data/vocabulary.yaml`) - lowest priority
 2. **System config** (`/etc/inventory-md/vocabulary.yaml`)
@@ -49,15 +49,17 @@ The global vocabulary is now **shipped with the package** and loaded from multip
 
 Later files override earlier ones, allowing users to customize or extend the default vocabulary without modifying the package.
 
+In addition, concepts are loaded from OpenFoodFacts, AGROVOC and DBpedia.
+
 ### Language Fallback Chains
 
-For translations, the system now supports language fallback chains. When a label isn't found in the preferred language, it tries related languages before falling back to English:
+For translations, the system supports language fallback chains. When a label isn't found in the preferred language, it tries related languages before falling back to English, examples:
 
-- **Scandinavian**: `nb` → `no` → `da` → `nn` → `sv` → `en`
-- **Germanic**: `de` → `de-AT` → `de-CH` → `nl` → `en`
-- **Romance**: `es` → `pt` → `it` → `fr` → `en`
+- **"Bokmål" → Scandinavian**: `nb` → `no` → `da` → `nn` → `sv` → `en`
+- **German → Germanic**: `de` → `de-AT` → `de-CH` → `nl` → `en`
+- **Spanish → Romance**: `es` → `pt` → `it` → `fr` → `en`
 
-This leverages mutual intelligibility between related languages (e.g., a Norwegian user can read Danish labels).
+This leverages mutual intelligibility between related languages.  (This is particularly important for languages like Norwegian, where some sources may use the no tag while others may use the nb tag.  It's not only important for the understanding, but also for estethical reasons - though, when it comes to estethics, it may be my subjective point of view.
 
 Fallbacks are integrated into both AGROVOC and OFF translation lookups. When fetching labels for multiple languages, the system automatically queries fallback languages and fills in missing translations. This can be disabled with `use_fallbacks=False` in the API.
 
