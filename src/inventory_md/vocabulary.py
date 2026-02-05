@@ -1095,6 +1095,53 @@ def expand_category_to_skos_paths(
     return paths
 
 
+# Words that are variations of each other and should be collapsed in paths
+_SIMILAR_PATH_COMPONENTS: dict[str, str] = {
+    "foods": "food",
+    "beverages": "beverage",
+    "drinks": "beverage",
+    "meats": "meat",
+    "vegetables": "vegetable",
+    "fruits": "fruit",
+}
+
+
+def _normalize_hierarchy_path(path: str) -> str:
+    """Normalize a hierarchy path by collapsing consecutive similar components.
+
+    For example:
+        "food/foods/prepared_foods" -> "food/prepared_foods"
+        "food/food/condiments" -> "food/condiments"
+
+    Args:
+        path: Hierarchy path string with "/" separators.
+
+    Returns:
+        Normalized path with consecutive similar components collapsed.
+    """
+    parts = path.split("/")
+    if len(parts) <= 1:
+        return path
+
+    result = [parts[0]]
+    for part in parts[1:]:
+        prev = result[-1]
+        # Normalize both to base form for comparison
+        prev_base = _SIMILAR_PATH_COMPONENTS.get(prev, prev)
+        curr_base = _SIMILAR_PATH_COMPONENTS.get(part, part)
+
+        # Skip if current is essentially the same as previous
+        if prev_base == curr_base:
+            continue
+        # Skip if one starts with the other (e.g., "food" and "foods")
+        if prev.startswith(curr_base) or curr_base.startswith(prev):
+            continue
+
+        result.append(part)
+
+    return "/".join(result)
+
+
 def _add_paths_to_concepts(
     paths: list[str],
     concepts: dict[str, Concept],
@@ -1302,7 +1349,12 @@ def build_vocabulary_with_skos_hierarchy(
                 # Build path from broader + concept_id (e.g., "food/beverages/alcohol" + "beer")
                 # Use first broader relationship for the primary path
                 broader_path = local_concept.broader[0]
-                full_path = f"{broader_path}/{local_concept_id}"
+                # If concept_id already contains the path structure, use it directly
+                # e.g., "food/condiments" with broader="food" should stay "food/condiments"
+                if local_concept_id.startswith(broader_path + "/"):
+                    full_path = local_concept_id
+                else:
+                    full_path = f"{broader_path}/{local_concept_id}"
                 category_mappings[label] = [full_path]
                 # Add all path components to concepts
                 _add_paths_to_concepts([full_path], concepts, "local")
@@ -1427,9 +1479,12 @@ def build_vocabulary_with_skos_hierarchy(
                 continue
 
         if all_paths:
-            category_mappings[label] = all_paths
+            # Normalize paths to collapse consecutive similar components
+            # e.g., "food/foods/prepared_foods" -> "food/prepared_foods"
+            normalized_paths = [_normalize_hierarchy_path(p) for p in all_paths]
+            category_mappings[label] = normalized_paths
             all_uri_maps.update(all_uris)
-            _add_paths_to_concepts(all_paths, concepts, primary_source or "inventory")
+            _add_paths_to_concepts(normalized_paths, concepts, primary_source or "inventory")
         else:
             # No source found - fall back to label as-is
             fallback_id = label.lower().replace(" ", "_")

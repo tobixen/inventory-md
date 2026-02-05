@@ -48,6 +48,76 @@ OFF_ROOT_MAPPING: dict[str, str] = {
     "ingredients": "food",
 }
 
+# Words that are variations of the same concept and should be collapsed
+_SIMILAR_WORDS: dict[str, str] = {
+    "foods": "food",
+    "food": "food",
+    "beverages": "beverages",
+    "drinks": "beverages",
+}
+
+
+def _normalize_path(path_parts: list[str]) -> list[str]:
+    """Normalize a path by collapsing consecutive similar components.
+
+    For example:
+        ["food", "food", "condiments"] -> ["food", "condiments"]
+        ["food", "foods", "prepared_foods"] -> ["food", "prepared_foods"]
+
+    Args:
+        path_parts: List of path component strings.
+
+    Returns:
+        Normalized path with consecutive similar components collapsed.
+    """
+    if not path_parts:
+        return path_parts
+
+    result = [path_parts[0]]
+
+    for part in path_parts[1:]:
+        prev = result[-1]
+        # Check if current part is similar to previous (both map to same base)
+        prev_base = _SIMILAR_WORDS.get(prev, prev)
+        curr_base = _SIMILAR_WORDS.get(part, part)
+
+        # Skip if it's a duplicate or variation of the previous component
+        if prev_base == curr_base:
+            continue
+        # Also skip if the current part starts with the previous (e.g., "food" followed by "foods")
+        if part.startswith(prev) or prev.startswith(part):
+            continue
+
+        result.append(part)
+
+    return result
+
+
+def _find_orig_index(orig_path: list[str], norm_path: list[str], norm_idx: int) -> int | None:
+    """Find the original path index corresponding to a normalized path index.
+
+    Args:
+        orig_path: Original path components.
+        norm_path: Normalized path components.
+        norm_idx: Index in normalized path.
+
+    Returns:
+        Corresponding index in original path, or None if not found.
+    """
+    if norm_idx >= len(norm_path):
+        return None
+
+    target = norm_path[norm_idx]
+    count = 0
+    for i, part in enumerate(orig_path):
+        # Check if this part normalizes to the target
+        if part == target or _SIMILAR_WORDS.get(part, part) == target:
+            if count == norm_idx:
+                return i
+            count += 1
+
+    return None
+
 
 class OFFTaxonomyClient:
     """Client for Open Food Facts category taxonomy lookups.
@@ -264,12 +334,36 @@ class OFFTaxonomyClient:
 
         self._collect_paths(node, lang, [], [], paths, uri_map, set())
 
+        # Normalize paths: collapse consecutive similar components
+        # e.g., ["food", "food", "condiments"] -> ["food", "condiments"]
+        # e.g., ["food", "foods", "prepared_foods"] -> ["food", "prepared_foods"]
+        normalized_paths = []
+        for path_parts in paths:
+            normalized = _normalize_path(path_parts)
+            normalized_paths.append(normalized)
+
+        # Rebuild uri_map for normalized paths
+        normalized_uri_map: dict[str, str] = {}
+        for path_parts, orig_path in zip(normalized_paths, paths):
+            # Map original node IDs to normalized concept IDs
+            for i in range(len(path_parts)):
+                concept_id = "/".join(path_parts[: i + 1])
+                if concept_id not in normalized_uri_map:
+                    # Find the corresponding original node ID
+                    # We need to track which original index maps to this normalized index
+                    orig_idx = _find_orig_index(orig_path, path_parts, i)
+                    if orig_idx is not None and f"off:{orig_path[orig_idx]}" in str(uri_map.values()):
+                        # Find the URI from original path
+                        orig_concept = "/".join(orig_path[: orig_idx + 1])
+                        if orig_concept in uri_map:
+                            normalized_uri_map[concept_id] = uri_map[orig_concept]
+
         # Convert path lists to path strings
         result_paths = []
-        for path_parts in paths:
+        for path_parts in normalized_paths:
             result_paths.append("/".join(path_parts))
 
-        return result_paths, uri_map
+        return result_paths, normalized_uri_map if normalized_uri_map else uri_map
 
     def _collect_paths(
         self,

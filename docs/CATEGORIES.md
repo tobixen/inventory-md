@@ -1,5 +1,19 @@
 # SKOS-Based Category System
 
+## Human-written notes
+
+Most of the content below is AI-generated.  I will look through and perhaps rewrite some of it at some point in the future ... when/if I get time.
+
+I generally think "don't reinvent the wheel" is a good idea - as well as "follow the standards", even when the standards are too complex or designed by people seeing the world with very different eyes than my own.
+
+According to Wikipedia, "Simple Knowledge Organization System (SKOS) is a W3C recommendation designed for representation of thesauri, classification schemes, taxonomies, subject-heading systems, or any other type of structured controlled vocabulary" - so it sounded just perfect.  The AI warned me that it would be too complex, I was probably wrong to ignore that warning - and the public database itself seems to be non-existent.  Two databases was found - AGROVOC is a public SKOS database for food products and agricultural purposes.  The idea was to at least use them for food products.  The agricultural focus can be a bit strong sometimes.  I had a category "bedding" for various douvets, pillows, matresses and bedclothes, but according to AGROVOC the primary purpose of "bedding" is to absorbing animal pee.
+
+DBpedia seems like a more complete and general-purpose database, but for my idea of "hierarchical navigation" it has proven more or less useless (perhaps it's not DBpedia that is the problem, maybe it's my idea of "hierarcihcal navigation" that is useless?).
+
+We're fetching EAN-based information from the openfoodfacts database - and they already have a categorization system - but it's mostly for food products, and even that one didn't work out perfectly in the hierarchical categorization system.
+
+We've ended up with a local vocabulary stiching together the different sources and bringing down the number of root nodes in the category system.  I'm not too happy with it, but let's try it out for a while before rethinking this.
+
 ## Overview
 
 The category system provides hierarchical classification for inventory items using SKOS (Simple Knowledge Organization System) vocabularies. Items can be classified using semantic categories that enable "find all food items" or "show all tools" searches.
@@ -26,10 +40,10 @@ The category system provides hierarchical classification for inventory items usi
 - **Plural normalization** - "books" → "book", "potatoes" → "potato"
 - **Source priority** - DBpedia for non-food terms, AGROVOC for food terms
 
-### Not Yet Implemented
-
-- [ ] **Local vocabulary import** - `local-vocabulary.yaml` with custom categories
-- [ ] **Aliases deprecation** - Migrate aliases.json to vocabulary altLabels
+- **Global vocabulary** - `~/.config/inventory-md/vocabulary.yaml` with custom categories
+- **Open Food Facts** - OFF taxonomy client for food categorization
+- **Path normalization** - Collapse duplicate path components (e.g., `food/foods` → `food`)
+- **Root category control** - Local vocabulary mappings reduce orphan root categories
 
 ## Two Category Modes
 
@@ -112,11 +126,13 @@ inventory-md vocabulary tree
 
 | File | Purpose |
 |------|---------|
-| `src/inventory_md/vocabulary.py` | Local vocabulary, category tree building |
+| `src/inventory_md/vocabulary.py` | Category tree building, path normalization |
 | `src/inventory_md/skos.py` | AGROVOC/DBpedia SPARQL client, Oxigraph |
+| `src/inventory_md/off.py` | Open Food Facts taxonomy client |
 | `src/inventory_md/parser.py` | Parse `category:` syntax from markdown |
 | `src/inventory_md/cli.py` | CLI commands for parse, skos, vocabulary |
 | `src/inventory_md/config.py` | Configuration with skos.enabled option |
+| `~/.config/inventory-md/vocabulary.yaml` | Global vocabulary (user-defined) |
 
 ### Generated Files
 
@@ -125,58 +141,70 @@ inventory-md vocabulary tree
 | `inventory.json` | Parsed inventory with categories in metadata |
 | `vocabulary.json` | Category tree for search.html UI |
 
-### SKOS Data Sources
+### Data Sources
 
-1. **AGROVOC** (FAO agricultural vocabulary)
+1. **Open Food Facts (OFF)** - Primary source for food items
+   - Local taxonomy via `openfoodfacts` Python package
+   - ~14K category nodes with localized names
+   - Paths normalized to avoid duplicates (e.g., `food/foods` → `food`)
+   - Has translations for many languages
+
+2. **AGROVOC** (FAO agricultural vocabulary)
    - Local Oxigraph database: `~/.cache/inventory-md/skos/agrovoc.nt.gz`
    - ~7M triples, loads in ~35s, then queries are fast
    - Good for food, agriculture, plants, animals
    - Has Norwegian (nb) labels
 
-2. **DBpedia** (Wikipedia structured data)
+3. **DBpedia** (Wikipedia structured data)
    - Remote SPARQL endpoint
+   - Uses both `gold:hypernym` (is-a) and `dct:subject` (category) relations
    - Good for general concepts: tools, electronics, books
    - No Norwegian labels
 
+4. **Global Vocabulary** - User-defined mappings
+   - `~/.config/inventory-md/vocabulary.yaml`
+   - Takes precedence over external sources
+   - Maps orphan categories to proper parents
+
 ### Priority Logic
 
-```python
-# In vocabulary._enrich_with_skos():
-is_food_term = label.lower() in _FOOD_TERMS
-primary_source = "agrovoc" if is_food_term else "dbpedia"
-```
+In hierarchy mode (`--hierarchy`), sources are checked in this order:
 
-Food terms (potato, carrot, etc.) → AGROVOC first
-Other terms (hammer, book, etc.) → DBpedia first
+1. **Global vocabulary** - If label matches a local concept (by ID or altLabel)
+2. **Open Food Facts** - For food-related terms
+3. **AGROVOC** - For agricultural/food terms not found in OFF
+4. **DBpedia** - Fallback for general concepts
 
-## Remaining Work
+Local vocabulary always takes precedence, allowing users to override external mappings.
 
-### Phase 1: Local Vocabulary (Low Priority)
+## Global Vocabulary
 
-Support `local-vocabulary.yaml` for site-specific categories:
+The global vocabulary file at `~/.config/inventory-md/vocabulary.yaml` provides:
+- Custom category definitions with prefLabel, altLabel, broader, narrower
+- Mappings from orphan categories to parent categories (reducing root nodes)
+- Override for external sources (OFF, AGROVOC, DBpedia)
 
+Example:
 ```yaml
 concepts:
-  christmas-decorations:
-    prefLabel: "Christmas decorations"
-    altLabel: ["jul", "xmas", "julepynt"]
-    broader: "seasonal/winter"
+  food:
+    prefLabel: "Food"
+    altLabel: ["groceries", "provisions"]
+    narrower:
+      - food/beverages
+      - food/dairy
+      - food/grains
 
-  boat-equipment/safety:
-    prefLabel: "Safety equipment"
-    altLabel: ["life vests", "flares"]
+  american_fashion:
+    prefLabel: "American fashion"
+    broader: clothing/fashion
+
+  instant-foods:
+    prefLabel: "Instant foods"
+    broader: food/preserved
 ```
 
-Migrate from `aliases.json`:
-```json
-{"potato": ["potet", "kartoffel"]}
-```
-to:
-```yaml
-concepts:
-  potato:
-    altLabel: ["potet", "kartoffel"]
-```
+Local vocabulary entries take precedence over external source lookups.
 
 ## Testing
 
