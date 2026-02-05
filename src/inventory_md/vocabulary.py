@@ -28,7 +28,7 @@ Local vocabulary format (local-vocabulary.yaml):
         prefLabel: "Seal"
         altLabel: ["rubber seal", "gasket", "o-ring"]
         uri: "http://dbpedia.org/resource/Hermetic_seal"
-        # source auto-detected as "dbpedia" from URI
+        # source is always "local" unless explicitly overridden
 """
 from __future__ import annotations
 
@@ -1719,7 +1719,12 @@ def build_vocabulary_with_skos_hierarchy(
                     for ext_cid, ext_uri in all_uris.items():
                         if ext_cid.endswith(concept_id) or concept_id in ext_cid:
                             all_uri_maps[local_broader_path] = ext_uri
+                            if ext_uri.startswith("off:"):
+                                off_node_ids[local_broader_path] = ext_uri[4:]
                             break
+                elif local_concept and local_concept.uri:
+                    # No external URI found, but local concept has a URI
+                    all_uri_maps[local_broader_path] = local_concept.uri
                 logger.debug("Local hierarchy '%s' enriched with %s metadata", label, source)
             else:
                 # Use external hierarchy paths
@@ -1731,10 +1736,6 @@ def build_vocabulary_with_skos_hierarchy(
             category_mappings[label] = final_paths
             all_uri_maps.update(all_uris)
             _add_paths_to_concepts(final_paths, concepts, source)
-        elif local_broader_path:
-            # Local vocab only, no external source found
-            category_mappings[label] = [local_broader_path]
-            _add_paths_to_concepts([local_broader_path], concepts, "local")
         else:
             # No source found - fall back to label as-is
             fallback_id = label.lower().replace(" ", "_")
@@ -1763,17 +1764,18 @@ def build_vocabulary_with_skos_hierarchy(
             store = client._get_oxigraph_store()
             if store is not None and store.is_loaded:
                 for concept_id, concept in concepts.items():
-                    if concept_id in all_uri_maps:
-                        uri = all_uri_maps[concept_id]
-                        # Skip OFF URIs for AGROVOC store lookups
-                        if uri.startswith("off:"):
-                            continue
-                        agrovoc_labels = _get_all_labels(uri, store, languages)
-                        if agrovoc_labels:
-                            # Merge: AGROVOC fills gaps, doesn't overwrite OFF
-                            merged_labels = dict(agrovoc_labels)
-                            merged_labels.update(concept.labels)
-                            concept.labels = merged_labels
+                    uri = all_uri_maps.get(concept_id) or concept.uri
+                    if not uri:
+                        continue
+                    # Skip OFF URIs for AGROVOC store lookups
+                    if uri.startswith("off:"):
+                        continue
+                    agrovoc_labels = _get_all_labels(uri, store, languages)
+                    if agrovoc_labels:
+                        # Merge: AGROVOC fills gaps, doesn't overwrite OFF
+                        merged_labels = dict(agrovoc_labels)
+                        merged_labels.update(concept.labels)
+                        concept.labels = merged_labels
 
     logger.info("Built vocabulary with %d concepts (%d leaf labels, %d path categories)",
                 len(concepts), len(leaf_labels), len(path_categories))

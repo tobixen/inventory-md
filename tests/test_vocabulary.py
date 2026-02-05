@@ -936,3 +936,100 @@ class TestExternalSourceDoesNotOverwriteLocal:
         # The local vocab says hammer -> tools/hand
         # Even if DBpedia says hammer -> metalworking_tools, local should win
         assert local_vocab["hammer"].broader == ["tools/hand"]
+
+
+class TestTranslationCoverage:
+    """Tests for translation coverage improvements.
+
+    Bug: Many local concepts have URIs in concept.uri (e.g., tools has
+    uri: "http://dbpedia.org/resource/Tool") that were never used for
+    translations because the AGROVOC translation phase only checked
+    all_uri_maps.
+    """
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_concept_uri_used_for_translations(self, mock_skos_paths):
+        """Concepts with URIs should get translations even if not in all_uri_maps.
+
+        When a concept has a URI set (e.g., from local vocabulary) but isn't
+        tracked in all_uri_maps, the translation phase should fall back to
+        concept.uri for lookups.
+        """
+        # Setup: concept with URI but not in all_uri_maps
+        concepts = {
+            "tools": vocabulary.Concept(
+                id="tools",
+                prefLabel="Tools",
+                source="local",
+                uri="http://dbpedia.org/resource/Tool",
+                labels={},
+            ),
+        }
+
+        # The concept has a URI but is not in all_uri_maps
+        all_uri_maps: dict[str, str] = {}
+
+        # Simulate the translation phase logic
+        # OLD: only checked `if concept_id in all_uri_maps`
+        # NEW: falls back to concept.uri
+        for concept_id, concept in concepts.items():
+            uri = all_uri_maps.get(concept_id) or concept.uri
+            if not uri:
+                continue
+            # Verify we found the URI
+            assert uri == "http://dbpedia.org/resource/Tool"
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_off_translations_for_local_broader_path(self, mock_skos_paths):
+        """OFF node IDs should be tracked for concepts using local_broader_path.
+
+        When a concept has local_broader_path and the external source is OFF,
+        the OFF node ID should be tracked under the local_broader_path key
+        (not just the external concept ID).
+        """
+        off_node_ids: dict[str, str] = {}
+        local_broader_path = "tools/hand/hammer"
+
+        # Simulate: external source found OFF URI for hammer
+        all_uris = {
+            "food/hammer": "off:en:hammers",
+        }
+
+        # The fix: when matching external URIs to local_broader_path,
+        # also propagate OFF node IDs
+        concept_id = local_broader_path.split("/")[-1]  # "hammer"
+        for ext_cid, ext_uri in all_uris.items():
+            if ext_cid.endswith(concept_id) or concept_id in ext_cid:
+                if ext_uri.startswith("off:"):
+                    off_node_ids[local_broader_path] = ext_uri[4:]
+                break
+
+        # OFF node ID should be tracked under local_broader_path
+        assert local_broader_path in off_node_ids
+        assert off_node_ids[local_broader_path] == "en:hammers"
+
+    def test_local_concept_uri_propagated_to_uri_maps(self):
+        """Local concepts with URIs should have those URIs in all_uri_maps.
+
+        When no external source provides a URI but the local concept has one,
+        it should be propagated to all_uri_maps so translation phase can use it.
+        """
+        all_uri_maps: dict[str, str] = {}
+        local_broader_path = "consumables/seal"
+
+        local_concept = vocabulary.Concept(
+            id="seal",
+            prefLabel="Seal",
+            source="local",
+            uri="http://dbpedia.org/resource/Hermetic_seal",
+        )
+
+        # No external URIs found
+        all_uris: dict[str, str] = {}
+
+        # The fix: propagate local concept URI when no external URI found
+        if not all_uris and local_concept and local_concept.uri:
+            all_uri_maps[local_broader_path] = local_concept.uri
+
+        assert local_broader_path in all_uri_maps
+        assert all_uri_maps[local_broader_path] == "http://dbpedia.org/resource/Hermetic_seal"

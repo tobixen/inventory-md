@@ -38,6 +38,22 @@ concepts:
     altLabel: ["equipment", "implements", "verktøy", "utstyr"]
     uri: "http://dbpedia.org/resource/Tool"
 
+  transport:
+    prefLabel: "Transport"
+    labels:
+      nb: "Transport"
+    narrower:
+      - automotive
+      - boat-equipment
+
+  hobby:
+    prefLabel: "Hobby"
+    labels:
+      nb: "Hobby"
+    narrower:
+      - automotive
+      - boat-equipment
+
   electronics:
     prefLabel: "Electronics"
     altLabel: ["electrical", "electric", "elektronikk", "elektrisk"]
@@ -158,6 +174,9 @@ concepts:
   boat-equipment:
     prefLabel: "Boat equipment"
     altLabel: ["marine", "nautical", "sailing", "båt", "båtutstyr"]
+    labels:
+      nb: "Båtutstyr"
+    broader: ["transport"]
 
   household:
     prefLabel: "Household"
@@ -1285,6 +1304,9 @@ concepts:
   automotive:
     prefLabel: "Automotive"
     altLabel: ["vehicles", "car parts", "auto", "bil", "kjøretøy"]
+    labels:
+      nb: "Kjøretøy"
+    broader: ["transport"]
     narrower:
       - automotive/accessories
       - automotive/lighting
@@ -2924,11 +2946,7 @@ concepts:
       nb: "Dyr"
     broader: misc
 
-  hobby:
-    prefLabel: "Hobby"
-    labels:
-      nb: "Hobby"
-    broader: misc
+  # hobby entry is now a root category defined in top-level section above
 
   garage:
     prefLabel: "Garage"
