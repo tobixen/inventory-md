@@ -1385,25 +1385,37 @@ def build_vocabulary_with_skos_hierarchy(
                 concept_id = label.lower().replace(" ", "_")
                 dbpedia_broader = dbpedia_concept.get("broader", [])
 
-                # Check for hypernym relations (is-a, e.g., "Activity book" is-a "Book")
-                # These are more useful than category relations for hierarchy building
-                hypernym_broader = None
-                for b in dbpedia_broader:
-                    if b.get("relType") == "hypernym":
-                        broader_label = b.get("label", "").lower().replace(" ", "_")
-                        if broader_label and not skos_module._is_irrelevant_dbpedia_category(b.get("label", "")):
-                            hypernym_broader = broader_label
-                            break
+                # Build paths from both hypernym (is-a) and useful dct:subject categories
+                # Hypernym is prioritized (listed first) as it's the most semantic
+                dbpedia_paths = []
+                broader_ids = []
 
-                if hypernym_broader:
-                    # Build path using hypernym: "book/activity_book"
-                    full_path = f"{hypernym_broader}/{concept_id}"
-                    category_mappings[label] = [full_path]
-                    _add_paths_to_concepts([full_path], concepts, "dbpedia")
-                    # Update the concept with broader relation
+                for b in dbpedia_broader:
+                    broader_label = b.get("label", "")
+                    if not broader_label or skos_module._is_irrelevant_dbpedia_category(broader_label):
+                        continue
+                    broader_id = broader_label.lower().replace(" ", "_")
+                    # Avoid duplicates and self-references
+                    if broader_id in broader_ids or broader_id == concept_id:
+                        continue
+                    broader_ids.append(broader_id)
+                    full_path = f"{broader_id}/{concept_id}"
+                    # Put hypernym paths first (more semantic)
+                    if b.get("relType") == "hypernym":
+                        dbpedia_paths.insert(0, full_path)
+                    else:
+                        dbpedia_paths.append(full_path)
+                    # Limit to avoid too many paths
+                    if len(dbpedia_paths) >= 3:
+                        break
+
+                if dbpedia_paths:
+                    category_mappings[label] = dbpedia_paths
+                    _add_paths_to_concepts(dbpedia_paths, concepts, "dbpedia")
+                    # Update concept with broader relations
                     if concept_id in concepts:
-                        concepts[concept_id].broader = [hypernym_broader]
-                    logger.debug("DBpedia hypernym for '%s' -> %s", label, full_path)
+                        concepts[concept_id].broader = broader_ids[:3]
+                    logger.debug("DBpedia paths for '%s' -> %s", label, dbpedia_paths)
                 else:
                     category_mappings[label] = [concept_id]
                     concepts[concept_id] = Concept(
