@@ -364,9 +364,7 @@ def build_category_tree(
         _infer_hierarchy(concepts)
 
     # Find roots - concepts that should appear at the top level of the tree
-    # This includes:
-    # 1. Path roots with children (e.g., "food" which has "food/vegetables")
-    # 2. Standalone concepts without broader and without "/" (e.g., "hammer")
+    # Only concepts without a broader relationship are true roots
     roots = []
 
     for concept_id, concept in concepts.items():
@@ -374,11 +372,9 @@ def build_category_tree(
         if "/" in concept_id:
             continue
 
-        # Include if it has children (it's a category root like "food")
-        if concept.narrower:
-            roots.append(concept_id)
-        # Also include if it has no broader (standalone concept like "hammer")
-        elif not concept.broader:
+        # Only include if it has no broader (it's a true root)
+        # This applies whether it has children or not
+        if not concept.broader:
             roots.append(concept_id)
 
     # Sort roots alphabetically by prefLabel
