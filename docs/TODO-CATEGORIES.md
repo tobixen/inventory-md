@@ -16,30 +16,27 @@ using the existing `_get_dbpedia_labels_batch` in `skos.py`.
 - Add DBpedia translation phase after AGROVOC phase (`vocabulary.py`)
 - Includes sanity check (same pattern as OFF/AGROVOC)
 
-## 2. AGROVOC Root Mapping Creates Nonsensical Paths / Orphaned Concepts
+## 2. ~~Orphaned OFF/AGROVOC Intermediate Concepts~~ (likely stale)
 
-**Status**: Open
-**Impact**: Junk hierarchy nodes clutter the vocabulary (173 orphans)
+**Status**: Probably resolved / stale
+**Original impact**: 173 junk hierarchy nodes clutter the vocabulary
 
-The `AGROVOC_ROOT_MAPPING` maps `"products" → "food"`, but AGROVOC's "products"
-root has both food and non-food children. This produces nonsensical paths like
-`food/non_food_products/clothing/workwear` — "non-food" placed under "food".
+This was observed during earlier iterations of the vocabulary builder. The concern was
+that AGROVOC paths like `food/non_food_products/clothing/workwear` would create orphan
+intermediate nodes when `local_broader_path` later overrides them.
 
-These incorrect paths get overridden by local vocabulary (which correctly defines
-`clothing` as a root), but the intermediate nodes remain as orphans.
+However, tracing the current code flow shows this doesn't happen: when
+`local_broader_path` is set, `_add_paths_to_concepts` is only called with the local
+path (e.g., `clothing/workwear`). The AGROVOC paths in `all_paths` are only used for
+URI extraction, never for concept creation.
 
-Examples:
-- `food/non_food_products/clothing/workwear` (AGROVOC: products/non_food_products/...)
-- `activities/monitoring/process_control/remote_control` (AGROVOC)
+The `food/non_food_products` path was itself a root mapping bug: AGROVOC's hierarchy is
+`products/non_food_products/clothing`, and `AGROVOC_ROOT_MAPPING` maps `"products"` →
+`"food"`. With `category_by_source`, the raw AGROVOC path is correctly preserved as
+`category_by_source/agrovoc/products/non_food_products/clothing/workwear`.
 
-**Root cause**: `AGROVOC_ROOT_MAPPING` blindly maps all descendants of "products" to
-"food", but "products" has non-food children like "non_food_products", "fibres",
-"rubber and gums", etc.
-
-**Fix approach**:
-- Don't map "products" → "food" when the path contains "non_food_products" or other
-  non-food branches; OR add those as separate roots in `AGROVOC_ROOT_MAPPING`
-- Then prune any remaining orphan concepts not reachable from `category_mappings`
+**Action**: Verify with a real run whether any orphan concepts still exist. If so,
+investigate which code path creates them. If not, close this issue.
 
 ## 3. Low Translation Coverage (18% overall)
 
