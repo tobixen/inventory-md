@@ -1033,3 +1033,171 @@ class TestTranslationCoverage:
 
         assert local_broader_path in all_uri_maps
         assert all_uri_maps[local_broader_path] == "http://dbpedia.org/resource/Hermetic_seal"
+
+
+class TestSingularPluralMerging:
+    """Tests for singular/plural duplicate detection and merging."""
+
+    def test_singular_plural_variant_detection(self):
+        """_is_singular_plural_variant should detect singular/plural pairs."""
+        assert vocabulary._is_singular_plural_variant("book", "books")
+        assert vocabulary._is_singular_plural_variant("books", "book")
+        assert vocabulary._is_singular_plural_variant("tool", "tools")
+        assert vocabulary._is_singular_plural_variant("battery", "batteries")
+        assert vocabulary._is_singular_plural_variant("box", "boxes")
+        # Case insensitive
+        assert vocabulary._is_singular_plural_variant("Book", "books")
+        # Not variants
+        assert not vocabulary._is_singular_plural_variant("book", "tool")
+        assert not vocabulary._is_singular_plural_variant("food", "clothing")
+
+    def test_singular_plural_merged_not_nested(self):
+        """When concept ID is singular of parent, local_broader_path should equal parent.
+
+        e.g., book (broader: books) -> local_broader_path = "books", NOT "books/book"
+        """
+        local_concept = vocabulary.Concept(
+            id="book",
+            prefLabel="Book",
+            source="local",
+            broader=["books"],
+        )
+        local_concept_id = "book"
+
+        # Simulate the fixed broader path logic
+        broader_path = local_concept.broader[0]
+        parent_leaf = broader_path.split("/")[-1]
+        if vocabulary._is_singular_plural_variant(local_concept_id, parent_leaf):
+            local_broader_path = broader_path
+        elif local_concept_id.startswith(broader_path + "/"):
+            local_broader_path = local_concept_id
+        else:
+            local_broader_path = f"{broader_path}/{local_concept_id}"
+
+        assert local_broader_path == "books"
+
+    def test_non_variant_still_nests(self):
+        """When concept is NOT a singular/plural variant, it should still nest."""
+        local_concept = vocabulary.Concept(
+            id="hammer",
+            prefLabel="Hammer",
+            source="local",
+            broader=["tools"],
+        )
+        local_concept_id = "hammer"
+
+        broader_path = local_concept.broader[0]
+        parent_leaf = broader_path.split("/")[-1]
+        if vocabulary._is_singular_plural_variant(local_concept_id, parent_leaf):
+            local_broader_path = broader_path
+        elif local_concept_id.startswith(broader_path + "/"):
+            local_broader_path = local_concept_id
+        else:
+            local_broader_path = f"{broader_path}/{local_concept_id}"
+
+        assert local_broader_path == "tools/hammer"
+
+    def test_nested_path_singular_plural(self):
+        """Singular/plural detection works with nested broader paths."""
+        local_concept = vocabulary.Concept(
+            id="spice",
+            prefLabel="Spice",
+            source="local",
+            broader=["food/spices"],
+        )
+        local_concept_id = "spice"
+
+        broader_path = local_concept.broader[0]
+        parent_leaf = broader_path.split("/")[-1]
+        if vocabulary._is_singular_plural_variant(local_concept_id, parent_leaf):
+            local_broader_path = broader_path
+        else:
+            local_broader_path = f"{broader_path}/{local_concept_id}"
+
+        assert local_broader_path == "food/spices"
+
+
+class TestURIMapStability:
+    """Tests for URI map first-wins behavior and translation sanity checks."""
+
+    def test_uri_map_first_wins(self):
+        """all_uri_maps should not overwrite existing entries."""
+        all_uri_maps = {"food": "http://example.com/food-correct"}
+
+        # Simulate later source trying to overwrite
+        all_uris = {
+            "food": "http://example.com/food-wrong",
+            "food/spices": "http://example.com/spices",
+        }
+
+        for k, v in all_uris.items():
+            if k not in all_uri_maps:
+                all_uri_maps[k] = v
+
+        # First entry preserved, new entry added
+        assert all_uri_maps["food"] == "http://example.com/food-correct"
+        assert all_uri_maps["food/spices"] == "http://example.com/spices"
+
+    def test_translation_sanity_check_skips_mismatch(self):
+        """If AGROVOC English label doesn't match prefLabel, skip translations."""
+        concept = vocabulary.Concept(
+            id="food",
+            prefLabel="Food",
+            source="local",
+            labels={},
+        )
+
+        agrovoc_labels = {"en": "Condiments", "nb": "Krydderier"}
+
+        # Simulate the sanity check
+        en_label = agrovoc_labels.get("en", "")
+        should_skip = False
+        if en_label and concept.prefLabel:
+            en_lower = en_label.lower()
+            pref_lower = concept.prefLabel.lower()
+            if en_lower not in pref_lower and pref_lower not in en_lower:
+                should_skip = True
+
+        assert should_skip, "Mismatched translation should be skipped"
+
+    def test_translation_sanity_check_allows_match(self):
+        """Matching labels should pass the sanity check."""
+        concept = vocabulary.Concept(
+            id="food",
+            prefLabel="Food",
+            source="local",
+            labels={},
+        )
+
+        agrovoc_labels = {"en": "Food", "nb": "Mat"}
+
+        en_label = agrovoc_labels.get("en", "")
+        should_skip = False
+        if en_label and concept.prefLabel:
+            en_lower = en_label.lower()
+            pref_lower = concept.prefLabel.lower()
+            if en_lower not in pref_lower and pref_lower not in en_lower:
+                should_skip = True
+
+        assert not should_skip, "Matching translation should not be skipped"
+
+    def test_translation_sanity_check_allows_substring(self):
+        """Substring matches (e.g., 'tool' in 'tools') should pass."""
+        concept = vocabulary.Concept(
+            id="tools",
+            prefLabel="Tools",
+            source="local",
+            labels={},
+        )
+
+        agrovoc_labels = {"en": "Tool", "nb": "Verktøy"}
+
+        en_label = agrovoc_labels.get("en", "")
+        should_skip = False
+        if en_label and concept.prefLabel:
+            en_lower = en_label.lower()
+            pref_lower = concept.prefLabel.lower()
+            if en_lower not in pref_lower and pref_lower not in en_lower:
+                should_skip = True
+
+        assert not should_skip, "Substring match should not be skipped"

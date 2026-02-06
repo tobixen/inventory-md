@@ -706,6 +706,13 @@ def _normalize_to_singular(word: str) -> str:
     return word
 
 
+def _is_singular_plural_variant(a: str, b: str) -> bool:
+    """Check if two strings are singular/plural variants of each other."""
+    a_singular = _normalize_to_singular(a.lower())
+    b_singular = _normalize_to_singular(b.lower())
+    return a_singular == b_singular
+
+
 def _enrich_with_skos(
     categories: set[str],
     existing_concepts: dict[str, Concept],
@@ -1567,7 +1574,9 @@ def build_vocabulary_with_skos_hierarchy(
                     )
                     if paths:
                         category_mappings[label] = paths
-                        all_uri_maps.update(uri_map)
+                        for k, v in uri_map.items():
+                            if k not in all_uri_maps:
+                                all_uri_maps[k] = v
                         _add_paths_to_concepts(paths, concepts, "agrovoc")
                         logger.debug("Local vocab '%s' -> AGROVOC hierarchy: %s", label, paths)
                         continue
@@ -1575,7 +1584,11 @@ def build_vocabulary_with_skos_hierarchy(
             # Record local broader for later use (but still do external lookups for metadata)
             if local_concept.broader:
                 broader_path = local_concept.broader[0]
-                if local_concept_id.startswith(broader_path + "/"):
+                parent_leaf = broader_path.split("/")[-1]
+                if _is_singular_plural_variant(local_concept_id, parent_leaf):
+                    # Concept is singular/plural of parent - merge into parent
+                    local_broader_path = broader_path
+                elif local_concept_id.startswith(broader_path + "/"):
                     local_broader_path = local_concept_id
                 else:
                     local_broader_path = f"{broader_path}/{local_concept_id}"
@@ -1714,10 +1727,10 @@ def build_vocabulary_with_skos_hierarchy(
                 source = primary_source or "local"
                 # Get URI from external source if available
                 if all_uris:
-                    # Map the local concept ID to external URI for translations
-                    concept_id = local_broader_path.split("/")[-1]
+                    # Use original concept ID for matching, not the (possibly redirected) path
+                    match_id = local_concept_id if local_concept_id else local_broader_path.split("/")[-1]
                     for ext_cid, ext_uri in all_uris.items():
-                        if ext_cid.endswith(concept_id) or concept_id in ext_cid:
+                        if ext_cid.endswith(match_id) or match_id in ext_cid:
                             all_uri_maps[local_broader_path] = ext_uri
                             if ext_uri.startswith("off:"):
                                 off_node_ids[local_broader_path] = ext_uri[4:]
@@ -1734,7 +1747,9 @@ def build_vocabulary_with_skos_hierarchy(
                 source = primary_source or "inventory"
 
             category_mappings[label] = final_paths
-            all_uri_maps.update(all_uris)
+            for k, v in all_uris.items():
+                if k not in all_uri_maps:
+                    all_uri_maps[k] = v
             _add_paths_to_concepts(final_paths, concepts, source)
         else:
             # No source found - fall back to label as-is
@@ -1772,6 +1787,18 @@ def build_vocabulary_with_skos_hierarchy(
                         continue
                     agrovoc_labels = _get_all_labels(uri, store, languages)
                     if agrovoc_labels:
+                        # Sanity check: skip if English label doesn't match concept
+                        en_label = agrovoc_labels.get("en", "")
+                        if en_label and concept.prefLabel:
+                            en_lower = en_label.lower()
+                            pref_lower = concept.prefLabel.lower()
+                            if en_lower not in pref_lower and pref_lower not in en_lower:
+                                logger.debug(
+                                    "Skipping mismatched AGROVOC labels for %s: "
+                                    "prefLabel='%s', AGROVOC en='%s'",
+                                    concept_id, concept.prefLabel, en_label
+                                )
+                                continue
                         # Merge: AGROVOC fills gaps, doesn't overwrite OFF
                         merged_labels = dict(agrovoc_labels)
                         merged_labels.update(concept.labels)
