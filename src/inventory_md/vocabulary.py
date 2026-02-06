@@ -1698,6 +1698,16 @@ def build_vocabulary_with_skos_hierarchy(
                 # If local vocab provides hierarchy, just capture the URI for translations
                 if local_broader_path:
                     all_uri_maps[local_broader_path] = dbpedia_concept["uri"]
+                    # Enrich local concept with DBpedia metadata
+                    target_id = local_concept_id or local_broader_path.split("/")[-1]
+                    if target_id in concepts:
+                        c = concepts[target_id]
+                        if not c.uri:
+                            c.uri = dbpedia_concept["uri"]
+                        if not c.description and dbpedia_concept.get("description"):
+                            c.description = dbpedia_concept["description"]
+                        if not c.wikipediaUrl and dbpedia_concept.get("wikipediaUrl"):
+                            c.wikipediaUrl = dbpedia_concept["wikipediaUrl"]
                     # Don't continue - let the local_broader_path handling below run
                 else:
                     # No local hierarchy - use DBpedia's hierarchy
@@ -1774,6 +1784,8 @@ def build_vocabulary_with_skos_hierarchy(
                                 existing.uri = dbpedia_concept["uri"]
                             if not existing.description:
                                 existing.description = dbpedia_concept.get("description")
+                            if not existing.wikipediaUrl:
+                                existing.wikipediaUrl = dbpedia_concept.get("wikipediaUrl")
                         logger.debug("DBpedia fallback for '%s' -> %s", label, dbpedia_concept["uri"])
                     continue
 

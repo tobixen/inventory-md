@@ -1574,3 +1574,129 @@ class TestCategoryBySource:
         assert "category_by_source/local/tools" in vocab
         assert "tools/hand_tools" in mappings
         assert "category_by_source/local/tools/hand_tools" in mappings["tools/hand_tools"]
+
+
+class TestDBpediaEnrichesLocalConcepts:
+    """Tests for enriching local vocab concepts with DBpedia metadata.
+
+    When a local concept has broader (hierarchy) but no uri/description/wikipediaUrl,
+    DBpedia should enrich it with metadata while keeping the local hierarchy.
+    """
+
+    @staticmethod
+    def _make_mock_skos_module():
+        """Create a mock skos module with _is_irrelevant_dbpedia_category."""
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        return mock_module
+
+    def test_local_concept_enriched_with_dbpedia_metadata(self):
+        """Local concept with broader gets uri, description, wikipediaUrl from DBpedia."""
+        local_vocab = {
+            "tools": vocabulary.Concept(
+                id="tools", prefLabel="Tools", source="local",
+            ),
+            "hammer": vocabulary.Concept(
+                id="hammer", prefLabel="Hammer", broader=["tools"],
+                source="local",
+            ),
+        }
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Hammer", "metadata": {"categories": ["hammer"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Hammer",
+            "prefLabel": "Hammer",
+            "source": "dbpedia",
+            "description": "A tool with a heavy head used for driving nails.",
+            "wikipediaUrl": "https://en.wikipedia.org/wiki/Hammer",
+            "broader": [],
+        }
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, local_vocab=local_vocab,
+                enabled_sources=["off", "dbpedia"],
+            )
+
+        # Hammer should use local hierarchy (tools/hammer)
+        assert "hammer" in mappings
+        assert any("tools" in p for p in mappings["hammer"])
+
+        # Local concept should be enriched with DBpedia metadata
+        hammer = vocab.get("hammer")
+        assert hammer is not None
+        assert hammer.uri == "http://dbpedia.org/resource/Hammer"
+        assert hammer.description == "A tool with a heavy head used for driving nails."
+        assert hammer.wikipediaUrl == "https://en.wikipedia.org/wiki/Hammer"
+        # Source should still be local (enriched, not replaced)
+        assert hammer.source == "local"
+
+    def test_enrichment_does_not_overwrite_existing_values(self):
+        """DBpedia metadata should not overwrite existing local values."""
+        local_vocab = {
+            "tools": vocabulary.Concept(
+                id="tools", prefLabel="Tools", source="local",
+            ),
+            "wrench": vocabulary.Concept(
+                id="wrench", prefLabel="Wrench", broader=["tools"],
+                source="local",
+                uri="http://dbpedia.org/resource/Wrench",
+                description="A hand tool for turning nuts.",
+                wikipediaUrl="https://en.wikipedia.org/wiki/Wrench",
+            ),
+        }
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Wrench", "metadata": {"categories": ["wrench"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Wrench_(wrong)",
+            "prefLabel": "Wrench",
+            "source": "dbpedia",
+            "description": "Wrong description from DBpedia.",
+            "wikipediaUrl": "https://en.wikipedia.org/wiki/Wrong",
+            "broader": [],
+        }
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, local_vocab=local_vocab,
+                enabled_sources=["off", "dbpedia"],
+            )
+
+        # Local values should be preserved (not overwritten by DBpedia)
+        wrench = vocab.get("wrench")
+        assert wrench is not None
+        assert wrench.uri == "http://dbpedia.org/resource/Wrench"
+        assert wrench.description == "A hand tool for turning nuts."
+        assert wrench.wikipediaUrl == "https://en.wikipedia.org/wiki/Wrench"

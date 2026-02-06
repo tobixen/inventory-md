@@ -73,7 +73,7 @@ concepts:
     prefLabel: "Electronics"
     altLabel: ["electrical", "electric", "elektronikk", "elektrisk"]
     narrower:
-      - electronics/cables
+      - cables
       - electronics/connectors
       - electronics/power
       - electronics/circuits
@@ -82,11 +82,6 @@ concepts:
   # =============================================================================
   # ELECTRONICS SUBCATEGORIES
   # =============================================================================
-
-  electronics/cables:
-    prefLabel: "Cables"
-    altLabel: ["wiring", "cords"]
-    broader: electronics
 
   electronics/connectors:
     prefLabel: "Connectors"
@@ -112,17 +107,17 @@ concepts:
   ac-cable:
     prefLabel: "AC cable"
     altLabel: ["ac_cable", "mains cable", "power cord"]
-    broader: electronics/cables
+    broader: electronics
 
   dc-cable:
     prefLabel: "DC cable"
     altLabel: ["dc_cable"]
-    broader: electronics/cables
+    broader: electronics
 
   electrical-cable:
     prefLabel: "Electrical cable"
     altLabel: ["electrical_cable"]
-    broader: electronics/cables
+    broader: electronics
 
   cables:
     prefLabel: "Cables"
@@ -139,11 +134,6 @@ concepts:
     altLabel: ["power_connector", "power-connector/converter"]
     broader: electronics/connectors
 
-  computer-connectors:
-    prefLabel: "Computer connectors"
-    altLabel: ["computer_connectors"]
-    broader: electronics/connectors
-
   dc-power-connectors:
     prefLabel: "DC power connectors"
     altLabel: ["dc_power_connectors"]
@@ -154,31 +144,11 @@ concepts:
     altLabel: ["mains_power_connectors"]
     broader: electronics/connectors
 
-  connector:
-    prefLabel: "Connector"
-    altLabel: ["connectors"]
-    broader: electronics/connectors
-
   # Electronics power mappings
-  charger:
-    prefLabel: "Charger"
-    altLabel: ["chargers"]
-    broader: electronics/power
-
-  battery:
-    prefLabel: "Battery"
-    altLabel: ["batteries"]
-    broader: electronics/power
-
   # Electronics component mappings
   adc-module:
     prefLabel: "ADC module"
     altLabel: ["adc_module", "analog to digital converter"]
-    broader: electronics/components
-
-  antenna:
-    prefLabel: "Antenna"
-    altLabel: ["antennas", "aerial", "antenna-adapter", "antenna_adapter"]
     broader: electronics/components
 
   analog-circuits:
@@ -218,97 +188,35 @@ concepts:
     altLabel: ["drinks"]
     broader: food
     narrower:
-      - food/beverages/alcohol
-      - food/beverages/coffee
-      - food/beverages/tea
+      - alcohol
+      - coffee
+      - tea
       - food/beverages/juice
       - food/beverages/soft-drinks
-
-  food/beverages/alcohol:
-    prefLabel: "Alcoholic beverages"
-    altLabel: ["alcohol", "booze", "spirits"]
-    broader: food/beverages
-
-  food/beverages/coffee:
-    prefLabel: "Coffee"
-    broader: food/beverages
-
-  food/beverages/tea:
-    prefLabel: "Tea"
-    broader: food/beverages
 
   food/dairy:
     prefLabel: "Dairy"
     altLabel: ["dairy products"]
     broader: food
     narrower:
-      - food/dairy/milk
-      - food/dairy/cheese
-      - food/dairy/yogurt
-      - food/dairy/butter
-      - food/dairy/cream
-
-  food/dairy/milk:
-    prefLabel: "Milk"
-    broader: food/dairy
-
-  food/dairy/cheese:
-    prefLabel: "Cheese"
-    broader: food/dairy
-
-  food/dairy/yogurt:
-    prefLabel: "Yogurt"
-    altLabel: ["yoghurt"]
-    broader: food/dairy
-
-  food/dairy/butter:
-    prefLabel: "Butter"
-    broader: food/dairy
-
-  food/dairy/cream:
-    prefLabel: "Cream"
-    altLabel: ["smetana"]
-    broader: food/dairy
+      - milk
+      - cheese
+      - yogurt
+      - butter
+      - cream
 
   food/grains:
     prefLabel: "Grains & cereals"
     altLabel: ["cereals", "grains"]
     broader: food
     narrower:
-      - food/grains/pasta
-      - food/grains/rice
-      - food/grains/bread
-      - food/grains/noodles
-      - food/grains/flour
+      - pasta
+      - rice
+      - bread
+      - noodles
+      - flour
       - food/grains/oats
-      - food/grains/buckwheat
-
-  food/grains/pasta:
-    prefLabel: "Pasta"
-    altLabel: ["spaghetti", "macaroni", "noodles"]
-    broader: food/grains
-
-  food/grains/rice:
-    prefLabel: "Rice"
-    broader: food/grains
-
-  food/grains/bread:
-    prefLabel: "Bread"
-    altLabel: ["loaf"]
-    broader: food/grains
-
-  food/grains/noodles:
-    prefLabel: "Noodles"
-    broader: food/grains
-
-  food/grains/flour:
-    prefLabel: "Flour"
-    broader: food/grains
-
-  food/grains/buckwheat:
-    prefLabel: "Buckwheat"
-    altLabel: ["гречка", "boghvede"]
-    broader: food/grains
+      - buckwheat
 
   food/meat:
     prefLabel: "Meat"
@@ -319,8 +227,8 @@ concepts:
       - food/meat/beef
       - food/meat/chicken
       - food/meat/lamb
-      - food/meat/sausage
-      - food/meat/ham
+      - sausage
+      - ham
       - food/meat/bacon
 
   food/meat/pork:
@@ -332,27 +240,14 @@ concepts:
     altLabel: ["poultry"]
     broader: food/meat
 
-  food/meat/sausage:
-    prefLabel: "Sausage"
-    altLabel: ["sausages", "kolbasa"]
-    broader: food/meat
-
-  food/meat/ham:
-    prefLabel: "Ham"
-    broader: food/meat
-
   food/seafood:
     prefLabel: "Seafood"
     altLabel: ["fish", "marine food"]
     broader: food
     narrower:
-      - food/seafood/fish
+      - fish
       - food/seafood/shellfish
       - food/seafood/canned-fish
-
-  food/seafood/fish:
-    prefLabel: "Fish"
-    broader: food/seafood
 
   food/seafood/canned-fish:
     prefLabel: "Canned fish"
@@ -364,196 +259,77 @@ concepts:
     altLabel: ["veggies", "greens"]
     broader: food
     narrower:
-      - food/vegetables/potatoes
-      - food/vegetables/onions
-      - food/vegetables/garlic
-      - food/vegetables/tomatoes
+      - potatoes
+      - onions
+      - garlic
+      - tomatoes
       - food/vegetables/peppers
       - food/vegetables/carrots
       - food/vegetables/cabbage
-      - food/vegetables/mushrooms
-
-  food/vegetables/potatoes:
-    prefLabel: "Potatoes"
-    altLabel: ["potato", "картофи"]
-    broader: food/vegetables
-
-  food/vegetables/onions:
-    prefLabel: "Onions"
-    altLabel: ["onion", "лук"]
-    broader: food/vegetables
-
-  food/vegetables/garlic:
-    prefLabel: "Garlic"
-    altLabel: ["чесън"]
-    broader: food/vegetables
-
-  food/vegetables/tomatoes:
-    prefLabel: "Tomatoes"
-    altLabel: ["tomato", "домати"]
-    broader: food/vegetables
-
-  food/vegetables/mushrooms:
-    prefLabel: "Mushrooms"
-    altLabel: ["mushroom", "гъби", "печурки"]
-    broader: food/vegetables
+      - mushrooms
 
   food/fruits:
     prefLabel: "Fruits"
     altLabel: ["fruit"]
     broader: food
     narrower:
-      - food/fruits/bananas
+      - bananas
       - food/fruits/apples
       - food/fruits/oranges
       - food/fruits/berries
-
-  food/fruits/bananas:
-    prefLabel: "Bananas"
-    altLabel: ["banana", "банани"]
-    broader: food/fruits
 
   food/legumes:
     prefLabel: "Legumes"
     altLabel: ["pulses", "beans and lentils"]
     broader: food
     narrower:
-      - food/legumes/beans
-      - food/legumes/lentils
-      - food/legumes/chickpeas
+      - beans
+      - lentils
+      - chickpeas
       - food/legumes/peas
-      - food/legumes/soybeans
-
-  food/legumes/beans:
-    prefLabel: "Beans"
-    altLabel: ["bean"]
-    broader: food/legumes
-
-  food/legumes/lentils:
-    prefLabel: "Lentils"
-    altLabel: ["lentil", "леща"]
-    broader: food/legumes
-
-  food/legumes/chickpeas:
-    prefLabel: "Chickpeas"
-    altLabel: ["chickpea", "garbanzo", "нахут"]
-    broader: food/legumes
-
-  food/legumes/soybeans:
-    prefLabel: "Soybeans"
-    altLabel: ["soy", "soja"]
-    broader: food/legumes
+      - soybeans
 
   food/condiments:
     prefLabel: "Condiments & sauces"
     altLabel: ["sauces", "condiment"]
     broader: food
     narrower:
-      - food/condiments/oil
-      - food/condiments/vinegar
-      - food/condiments/mayonnaise
+      - oil
+      - vinegar
+      - mayonnaise
       - food/condiments/ketchup
       - food/condiments/mustard
       - food/condiments/soy-sauce
-      - food/condiments/pesto
-      - food/condiments/bolognese
-      - food/condiments/salt
+      - pesto
+      - bolognese
+      - salt
       - food/condiments/pepper
-
-  food/condiments/oil:
-    prefLabel: "Oil"
-    altLabel: ["cooking oil", "olive oil"]
-    broader: food/condiments
-
-  food/condiments/vinegar:
-    prefLabel: "Vinegar"
-    altLabel: ["balsamic"]
-    broader: food/condiments
-
-  food/condiments/mayonnaise:
-    prefLabel: "Mayonnaise"
-    altLabel: ["mayo"]
-    broader: food/condiments
-
-  food/condiments/pesto:
-    prefLabel: "Pesto"
-    broader: food/condiments
-
-  food/condiments/bolognese:
-    prefLabel: "Bolognese sauce"
-    altLabel: ["bolognese", "meat sauce"]
-    broader: food/condiments
-
-  food/condiments/salt:
-    prefLabel: "Salt"
-    altLabel: ["table salt", "sea salt"]
-    broader: food/condiments
 
   food/snacks:
     prefLabel: "Snacks"
     altLabel: ["snack foods"]
     broader: food
     narrower:
-      - food/snacks/chips
-      - food/snacks/nuts
-      - food/snacks/biscuits
-      - food/snacks/chocolate
+      - chips
+      - nuts
+      - biscuits
+      - chocolate
       - food/snacks/crackers
-
-  food/snacks/chips:
-    prefLabel: "Chips"
-    altLabel: ["crisps", "potato chips"]
-    broader: food/snacks
-
-  food/snacks/nuts:
-    prefLabel: "Nuts"
-    altLabel: ["nut", "cashews", "peanuts", "almonds"]
-    broader: food/snacks
-
-  food/snacks/biscuits:
-    prefLabel: "Biscuits"
-    altLabel: ["cookies", "crackers"]
-    broader: food/snacks
-
-  food/snacks/chocolate:
-    prefLabel: "Chocolate"
-    altLabel: ["chocolates"]
-    broader: food/snacks
 
   food/preserved:
     prefLabel: "Preserved foods"
     altLabel: ["canned", "jarred", "preserves", "conserves"]
     broader: food
     narrower:
-      - food/preserved/canning
-      - food/preserved/jam
+      - canning
+      - jam
       - food/preserved/pickles
-      - food/preserved/preserved-vegetables
-      - food/preserved/pate
-
-  food/preserved/canning:
-    prefLabel: "Canning supplies"
-    altLabel: ["canning", "preserving"]
-    broader: food/preserved
-
-  food/preserved/jam:
-    prefLabel: "Jam"
-    altLabel: ["jelly", "marmalade", "preserves"]
-    broader: food/preserved
+      - preserved-vegetables
+      - pate
 
   food/preserved/pickles:
     prefLabel: "Pickles"
     altLabel: ["pickled vegetables"]
-    broader: food/preserved
-
-  food/preserved/preserved-vegetables:
-    prefLabel: "Preserved vegetables"
-    altLabel: ["jarred vegetables"]
-    broader: food/preserved
-
-  food/preserved/pate:
-    prefLabel: "Pâté"
-    altLabel: ["pate", "liver pate"]
     broader: food/preserved
 
   food/baking:
@@ -561,31 +337,16 @@ concepts:
     altLabel: ["baking supplies", "baking ingredients"]
     broader: food
     narrower:
-      - food/baking/sugar
+      - sugar
       - food/baking/yeast
       - food/baking/baking-powder
-
-  food/baking/sugar:
-    prefLabel: "Sugar"
-    altLabel: ["sucre", "захар"]
-    broader: food/baking
-
-  food/baking/sprinkles:
-    prefLabel: "Sprinkles"
-    altLabel: ["jimmies", "hundreds and thousands", "nonpareils"]
-    broader: food/baking
-
-  sprinkles:
-    prefLabel: "Sprinkles"
-    altLabel: ["jimmies", "hundreds and thousands"]
-    broader: food/baking
 
   food/spices:
     prefLabel: "Spices & herbs"
     altLabel: ["spice", "herbs", "seasonings"]
     broader: food
     narrower:
-      - food/spices/bouillon
+      - bouillon
       - food/spices/pepper
       - food/spices/cinnamon
       - food/spices/paprika
@@ -593,11 +354,6 @@ concepts:
       - food/spices/thyme
       - food/spices/oregano
       - food/spices/basil
-
-  food/spices/bouillon:
-    prefLabel: "Bouillon"
-    altLabel: ["stock cubes", "broth cubes"]
-    broader: food/spices
 
   food/spices/pepper:
     prefLabel: "Pepper"
@@ -622,15 +378,16 @@ concepts:
   beer:
     prefLabel: "Beer"
     altLabel: ["bier", "пиво"]
-    broader: food/beverages/alcohol
+    broader: food/beverages
 
   wine:
     prefLabel: "Wine"
     altLabel: ["вино"]
-    broader: food/beverages/alcohol
+    broader: food/beverages
 
   alcohol:
-    prefLabel: "Alcohol"
+    prefLabel: "Alcoholic beverages"
+    altLabel: ["alcohol", "booze", "spirits"]
     broader: food/beverages
 
   coffee:
@@ -690,11 +447,6 @@ concepts:
     altLabel: ["хляб"]
     broader: food/grains
 
-  breadcrumbs:
-    prefLabel: "Breadcrumbs"
-    altLabel: ["galeta"]
-    broader: food/grains
-
   noodles:
     prefLabel: "Noodles"
     broader: food/grains
@@ -731,10 +483,6 @@ concepts:
     altLabel: ["риба"]
     broader: food/seafood
 
-  seafood:
-    prefLabel: "Seafood"
-    broader: food
-
   tuna:
     prefLabel: "Tuna"
     altLabel: ["риба тон"]
@@ -746,19 +494,9 @@ concepts:
     broader: food/seafood/canned-fish
 
   # Vegetables
-  vegetables:
-    prefLabel: "Vegetables"
-    broader: food
-
   potatoes:
     prefLabel: "Potatoes"
     altLabel: ["potato", "картофи"]
-    broader: food/vegetables
-
-  potatoes-instant:
-    prefLabel: "Instant potatoes"
-    broader: food/vegetables
-    altLabel: ["mashed potato flakes"]
     broader: food/vegetables
 
   onions:
@@ -880,18 +618,18 @@ concepts:
 
   nuts:
     prefLabel: "Nuts"
-    altLabel: ["nut"]
+    altLabel: ["nut", "cashews", "peanuts", "almonds"]
     broader: food/snacks
 
   cashews:
     prefLabel: "Cashews"
     altLabel: ["cashew", "кашу"]
-    broader: food/snacks/nuts
+    broader: food/snacks
 
   peanuts:
     prefLabel: "Peanuts"
     altLabel: ["peanut", "groundnuts", "фъстъци"]
-    broader: food/snacks/nuts
+    broader: food/snacks
     uri: "http://dbpedia.org/resource/Peanut"
     # AGROVOC uses "groundnuts" which is less common
 
@@ -916,10 +654,6 @@ concepts:
     altLabel: ["marmalade", "конфитюр"]
     broader: food/preserved
 
-  preserves:
-    prefLabel: "Preserves"
-    broader: food/preserved
-
   pate:
     prefLabel: "Pâté"
     altLabel: ["liver pate", "пастет"]
@@ -941,10 +675,6 @@ concepts:
     altLabel: ["мед"]
     broader: food/baking
 
-  baking:
-    prefLabel: "Baking"
-    broader: food
-
   # Spices
   spice:
     prefLabel: "Spice"
@@ -957,11 +687,6 @@ concepts:
     broader: food/spices
 
   # Meals/dishes (still food)
-  dinner:
-    prefLabel: "Ready meal"
-    altLabel: ["dinner", "prepared meal"]
-    broader: food
-
   # =============================================================================
   # TOOLS SUBCATEGORIES
   # =============================================================================
@@ -1091,10 +816,6 @@ concepts:
   # ELECTRONICS SUBCATEGORIES
   # =============================================================================
 
-  electronics/cables:
-    prefLabel: "Cables"
-    broader: electronics
-
   electronics/connectors:
     prefLabel: "Connectors"
     broader: electronics
@@ -1104,31 +825,6 @@ concepts:
     broader: electronics
 
   # Simple electronics mappings
-  cable:
-    prefLabel: "Cable"
-    altLabel: ["cables"]
-    broader: electronics/cables
-
-  charger:
-    prefLabel: "Charger"
-    altLabel: ["chargers"]
-    broader: electronics/power
-
-  battery:
-    prefLabel: "Battery"
-    altLabel: ["batteries"]
-    broader: electronics/power
-
-  adapter:
-    prefLabel: "Adapter"
-    altLabel: ["adapters"]
-    broader: electronics
-
-  antenna:
-    prefLabel: "Antenna"
-    altLabel: ["antennas", "aerial"]
-    broader: electronics
-
   power-connector:
     prefLabel: "Power connector"
     broader: electronics/connectors
@@ -1136,11 +832,6 @@ concepts:
   electrical-connector:
     prefLabel: "Electrical connector"
     broader: electronics/connectors
-
-  fuse:
-    prefLabel: "Fuse"
-    altLabel: ["fuses"]
-    broader: electronics
 
   single-board-computer:
     prefLabel: "Single-board computer"
@@ -1155,41 +846,11 @@ concepts:
     prefLabel: "Cleaning supplies"
     broader: household
 
-  household/hygiene:
-    prefLabel: "Hygiene"
-    altLabel: ["personal care", "toiletries"]
-    broader: household
-
-  household/kitchen:
-    prefLabel: "Kitchen items"
-    broader: household
-
   household/storage:
     prefLabel: "Storage"
     broader: household
 
   # Simple household mappings
-  hygiene:
-    prefLabel: "Hygiene"
-    broader: household
-
-  kitchen:
-    prefLabel: "Kitchen"
-    broader: household
-
-  container:
-    prefLabel: "Container"
-    altLabel: ["containers"]
-    broader: household/storage
-
-  food-container:
-    prefLabel: "Food container"
-    broader: household/storage
-
-  air-freshener:
-    prefLabel: "Air freshener"
-    broader: household/cleaning
-
   bedding:
     prefLabel: "Bedding"
     altLabel: ["bed linen", "bedclothes", "duvet", "pillow"]
@@ -1200,31 +861,6 @@ concepts:
   # =============================================================================
   # BOOKS SUBCATEGORIES
   # =============================================================================
-
-  book:
-    prefLabel: "Book"
-    altLabel: ["books"]
-    broader: books
-
-  comic-book:
-    prefLabel: "Comic book"
-    altLabel: ["comics"]
-    broader: books
-
-  dvd:
-    prefLabel: "DVD"
-    altLabel: ["dvds", "video disc"]
-    broader: books
-
-  activity-book:
-    prefLabel: "Activity book"
-    altLabel: ["coloring book", "puzzle book"]
-    broader: books
-
-  catalog:
-    prefLabel: "Catalog"
-    altLabel: ["catalogue"]
-    broader: documents
 
   # =============================================================================
   # OTHER CATEGORIES
@@ -1237,11 +873,6 @@ concepts:
   hardware:
     prefLabel: "Hardware"
     altLabel: ["fasteners", "fixings", "jernvare", "beslag"]
-
-  paint:
-    prefLabel: "Paint"
-    altLabel: ["paints", "coating"]
-    broader: consumables
 
   adhesive:
     prefLabel: "Adhesive"
@@ -1283,11 +914,6 @@ concepts:
   safety-equipment:
     prefLabel: "Safety equipment"
     altLabel: ["PPE", "protective equipment", "sikkerhetsutstyr", "verneutstyr"]
-
-  marker:
-    prefLabel: "Marker"
-    altLabel: ["markers", "pen"]
-    broader: tools
 
   misc:
     prefLabel: "Miscellaneous"
@@ -1340,21 +966,6 @@ concepts:
     broader: automotive
 
   # Automotive mappings
-  automotive-accessories:
-    prefLabel: "Automotive accessories"
-    altLabel: ["automotive_accessories", "car accessories"]
-    broader: automotive
-
-  automotive-lamps:
-    prefLabel: "Automotive lamps"
-    altLabel: ["automotive_lamps", "car lights", "headlights"]
-    broader: automotive/lighting
-
-  car-part:
-    prefLabel: "Car part"
-    altLabel: ["car_part", "auto part"]
-    broader: automotive
-
   # =============================================================================
   # CAMPING / OUTDOOR
   # =============================================================================
@@ -1363,13 +974,9 @@ concepts:
     prefLabel: "Outdoor equipment"
     altLabel: ["camping", "hiking", "recreation", "friluft", "friluftsliv", "ute"]
     narrower:
-      - outdoor/camping
+      - camping
       - outdoor/hiking
       - outdoor/cooking
-
-  outdoor/camping:
-    prefLabel: "Camping equipment"
-    broader: outdoor
 
   outdoor/hiking:
     prefLabel: "Hiking equipment"
@@ -1380,24 +987,14 @@ concepts:
     broader: outdoor
 
   # Outdoor mappings
-  camping-equipment:
-    prefLabel: "Camping equipment"
-    altLabel: ["camping_equipment", "camp gear"]
-    broader: outdoor/camping
-
   camping:
     prefLabel: "Camping"
     broader: outdoor
 
-  tent:
-    prefLabel: "Tent"
-    altLabel: ["tents"]
-    broader: outdoor/camping
-
   sleeping-bag:
     prefLabel: "Sleeping bag"
     altLabel: ["sleeping_bag"]
-    broader: outdoor/camping
+    broader: outdoor
 
   backpack:
     prefLabel: "Backpack"
@@ -1408,16 +1005,8 @@ concepts:
   # CLOTHING SUBCATEGORIES
   # =============================================================================
 
-  clothing/fashion:
-    prefLabel: "Fashion"
-    broader: clothing
-
   clothing/workwear:
     prefLabel: "Workwear"
-    broader: clothing
-
-  clothing/sportswear:
-    prefLabel: "Sportswear"
     broader: clothing
 
   clothing/footwear:
@@ -1429,32 +1018,6 @@ concepts:
     broader: clothing
 
   # Clothing/fashion mappings
-  american-fashion:
-    prefLabel: "American fashion"
-    altLabel: ["american_fashion"]
-    broader: clothing/fashion
-
-  casual-wear:
-    prefLabel: "Casual wear"
-    altLabel: ["casual_wear"]
-    broader: clothing/fashion
-
-  fashion:
-    prefLabel: "Fashion"
-    broader: clothing
-
-  shoes:
-    prefLabel: "Shoes"
-    broader: clothing/footwear
-
-  boots:
-    prefLabel: "Boots"
-    broader: clothing/footwear
-
-  gloves:
-    prefLabel: "Gloves"
-    broader: clothing/accessories
-
   hat:
     prefLabel: "Hat"
     altLabel: ["hats", "cap"]
@@ -1468,23 +1031,14 @@ concepts:
     prefLabel: "Construction"
     altLabel: ["building", "building materials", "bygg", "byggematerialer"]
     narrower:
-      - construction/fasteners
+      - fasteners
       - construction/lumber
-      - construction/plumbing
+      - plumbing
       - construction/electrical
-
-  construction/fasteners:
-    prefLabel: "Fasteners"
-    altLabel: ["screws", "bolts", "nails"]
-    broader: construction
 
   construction/lumber:
     prefLabel: "Lumber"
     altLabel: ["wood", "timber"]
-    broader: construction
-
-  construction/plumbing:
-    prefLabel: "Plumbing"
     broader: construction
 
   construction/electrical:
@@ -1492,32 +1046,12 @@ concepts:
     broader: construction
 
   # Construction mappings
-  screw:
-    prefLabel: "Screw"
-    altLabel: ["screws"]
-    broader: construction/fasteners
-
-  bolt:
-    prefLabel: "Bolt"
-    altLabel: ["bolts"]
-    broader: construction/fasteners
-
-  nail:
-    prefLabel: "Nail"
-    altLabel: ["nails"]
-    broader: construction/fasteners
-
   washer:
     prefLabel: "Washer"
     altLabel: ["washers", "flat washer"]
-    broader: construction/fasteners
+    broader: construction
     uri: "http://dbpedia.org/resource/Washer_(hardware)"
     # AGROVOC returns "cleaning equipment" (washing machine) - use DBpedia
-
-  nut:
-    prefLabel: "Nut (fastener)"
-    altLabel: ["nuts (fastener)", "hex nut"]
-    broader: construction/fasteners
 
   # =============================================================================
   # OFFICE / STATIONERY
@@ -1587,21 +1121,6 @@ concepts:
     prefLabel: "Games"
     altLabel: ["toys", "puzzles", "spill", "leker", "puslespill"]
 
-  board-game:
-    prefLabel: "Board game"
-    altLabel: ["board_game", "boardgame"]
-    broader: games
-
-  puzzle:
-    prefLabel: "Puzzle"
-    altLabel: ["puzzles", "jigsaw"]
-    broader: games
-
-  toy:
-    prefLabel: "Toy"
-    altLabel: ["toys"]
-    broader: games
-
   # =============================================================================
   # MEDICAL / HEALTH
   # =============================================================================
@@ -1610,16 +1129,8 @@ concepts:
     prefLabel: "Medical"
     altLabel: ["health", "healthcare", "first aid", "medisin", "helse", "førstehjelp"]
     narrower:
-      - medical/first-aid
-      - medical/medicine
-
-  medical/first-aid:
-    prefLabel: "First aid"
-    broader: medical
-
-  medical/medicine:
-    prefLabel: "Medicine"
-    broader: medical
+      - first-aid
+      - medicine
 
   # Medical mappings
   first-aid:
@@ -1630,7 +1141,7 @@ concepts:
   bandage:
     prefLabel: "Bandage"
     altLabel: ["bandages"]
-    broader: medical/first-aid
+    broader: medical
 
   medicine:
     prefLabel: "Medicine"
@@ -1642,57 +1153,9 @@ concepts:
   # =============================================================================
 
   # Fashion/Clothing from DBpedia
-  american_fashion:
-    prefLabel: "American fashion"
-    broader: clothing/fashion
-
-  canadian_fashion:
-    prefLabel: "Canadian fashion"
-    broader: clothing/fashion
-
-  casual_wear:
-    prefLabel: "Casual wear"
-    broader: clothing/fashion
-
   # Automotive from DBpedia
-  automotive_accessories:
-    prefLabel: "Automotive accessories"
-    broader: automotive
-
-  automotive_lamps:
-    prefLabel: "Automotive lamps"
-    broader: automotive/lighting
-
   # Food-related DBpedia categories
-  british_desserts:
-    prefLabel: "British desserts"
-    broader: food/snacks
-
-  desserts:
-    prefLabel: "Desserts"
-    broader: food/snacks
-
-  bulgarian_cuisine:
-    prefLabel: "Bulgarian cuisine"
-    broader: food
-
-  chili_pepper_dishes:
-    prefLabel: "Chili pepper dishes"
-    broader: food
-
-  chutney:
-    prefLabel: "Chutney"
-    broader: food/condiments
-
-  cocoa_and_its_products:
-    prefLabel: "Cocoa products"
-    broader: food
-
   # Bikes from DBpedia
-  bicycle_tools:
-    prefLabel: "Bicycle tools"
-    broader: tools/bike
-
   bike_clamp:
     prefLabel: "Bike clamp"
     broader: tools/bike
@@ -1706,100 +1169,12 @@ concepts:
     broader: tools/bike
 
   # Camping/outdoor from DBpedia
-  camping_equipment:
-    prefLabel: "Camping equipment"
-    broader: outdoor/camping
-
-  canoeing_and_kayaking_equipment:
-    prefLabel: "Canoeing and kayaking equipment"
-    broader: outdoor
-
-  climbing_equipment:
-    prefLabel: "Climbing equipment"
-    broader: outdoor
-
   # Electronics from DBpedia
-  computer_buses:
-    prefLabel: "Computer buses"
-    broader: electronics
-
-  computer_connectors:
-    prefLabel: "Computer connectors"
-    broader: electronics/connectors
-
-  computer_enclosure:
-    prefLabel: "Computer enclosure"
-    broader: electronics
-
-  computer_networking:
-    prefLabel: "Computer networking"
-    broader: electronics
-
-  dc_power_connectors:
-    prefLabel: "DC power connectors"
-    broader: electronics/connectors
-
-  analog_circuits:
-    prefLabel: "Analog circuits"
-    broader: electronics/circuits
-
   # Household/cleaning from DBpedia
-  cleaning_chemical:
-    prefLabel: "Cleaning chemical"
-    broader: household/cleaning
-
-  cleaning_products:
-    prefLabel: "Cleaning products"
-    broader: household/cleaning
-
-  cleaning_tools:
-    prefLabel: "Cleaning tools"
-    broader: household/cleaning
-
-  cosmetics:
-    prefLabel: "Cosmetics"
-    broader: household/hygiene
-
-  bathrooms:
-    prefLabel: "Bathroom items"
-    broader: household
-
   # Kitchen from DBpedia
-  cookware_and_bakeware:
-    prefLabel: "Cookware and bakeware"
-    broader: household/kitchen
-
-  crockery:
-    prefLabel: "Crockery"
-    broader: household/kitchen
-
-  cooking_weights_and_measures:
-    prefLabel: "Cooking weights and measures"
-    broader: household/kitchen
-
   # Containers/storage
-  containers:
-    prefLabel: "Containers"
-    broader: household/storage
-
-  bags:
-    prefLabel: "Bags"
-    broader: household/storage
-
   # Construction/hardware from DBpedia
-  building_engineering:
-    prefLabel: "Building engineering"
-    broader: construction
-
   # Safety/detection
-  alarms:
-    prefLabel: "Alarms"
-    broader: safety-equipment
-
-  detectors:
-    prefLabel: "Detectors"
-    broader: safety-equipment
-
   # Boat equipment from DBpedia
   boat_hatch:
     prefLabel: "Boat hatch"
@@ -1814,38 +1189,14 @@ concepts:
     broader: boat-equipment
 
   # Tools
-  clamp:
-    prefLabel: "Clamp"
-    broader: tools
-
-  clip:
-    prefLabel: "Clip"
-    broader: tools
-
   # Misc items that need parents
-  adhesives:
-    prefLabel: "Adhesives"
-    broader: consumables
-
-  decorative_arts:
-    prefLabel: "Decorative arts"
-    broader: household
-
-  curtain_hardware:
-    prefLabel: "Curtain hardware"
-    broader: household
-
-  cover:
-    prefLabel: "Cover"
-    broader: household
-
   corner_bracket:
     prefLabel: "Corner bracket"
-    broader: construction/fasteners
+    broader: construction
 
   bushing:
     prefLabel: "Bushing"
-    broader: construction/fasteners
+    broader: construction
 
   block:
     prefLabel: "Block"
@@ -1864,44 +1215,12 @@ concepts:
     broader: consumables
 
   # Engineering/science (map to tools or electronics)
-  chemical_engineering:
-    prefLabel: "Chemical engineering"
-    broader: tools
-
-  aerodynamics:
-    prefLabel: "Aerodynamics"
-    broader: tools
-
-  cooling_technology:
-    prefLabel: "Cooling technology"
-    broader: electronics
-
   current_shunt:
     prefLabel: "Current shunt"
     broader: electronics/components
 
   # Fire safety
-  active_fire_protection:
-    prefLabel: "Fire protection"
-    broader: safety-equipment
-
   # Inventions categories (map to misc)
-  american_inventions:
-    prefLabel: "American inventions"
-    broader: misc
-
-  australian_inventions:
-    prefLabel: "Australian inventions"
-    broader: misc
-
-  austrian_inventions:
-    prefLabel: "Austrian inventions"
-    broader: misc
-
-  chinese_inventions:
-    prefLabel: "Chinese inventions"
-    broader: misc
-
   # Filter-related
   diesel_filter:
     prefLabel: "Diesel filter"
@@ -1912,109 +1231,17 @@ concepts:
     broader: household
 
   # Activities
-  activities:
-    prefLabel: "Activities"
-    broader: misc
-
-  advertising_techniques:
-    prefLabel: "Advertising techniques"
-    broader: misc
-
-  appropriate_technology:
-    prefLabel: "Appropriate technology"
-    broader: misc
-
-  architectural_design:
-    prefLabel: "Architectural design"
-    broader: construction
-
-  applied_and_interdisciplinary_physics:
-    prefLabel: "Applied physics"
-    broader: misc
-
-  anesthetic_equipment:
-    prefLabel: "Anesthetic equipment"
-    broader: medical
-
-  cigarettes:
-    prefLabel: "Cigarettes"
-    broader: consumables
-
   cigarette_lighter_plug:
     prefLabel: "Cigarette lighter plug"
     broader: automotive
 
   # More DBpedia mappings - Electronics
-  display_technology:
-    prefLabel: "Display technology"
-    broader: electronics
-
-  electric_heating:
-    prefLabel: "Electric heating"
-    broader: electronics
-
-  electrical_components:
-    prefLabel: "Electrical components"
-    broader: electronics/components
-
-  electrical_misc:
-    prefLabel: "Electrical misc"
-    broader: electronics
-
-  electrical_tool:
-    prefLabel: "Electrical tool"
-    broader: tools
-
-  electromagnetic_radiation:
-    prefLabel: "Electromagnetic radiation"
-    broader: electronics
-
-  electronic_circuits:
-    prefLabel: "Electronic circuits"
-    broader: electronics/circuits
-
-  electronic_test_equipment:
-    prefLabel: "Electronic test equipment"
-    broader: tools/measuring
-
   electronics_connector:
     prefLabel: "Electronics connector"
     broader: electronics/connectors
 
-  electronics_manual:
-    prefLabel: "Electronics manual"
-    broader: documents
-
-  electronics_tool:
-    prefLabel: "Electronics tool"
-    broader: tools
-
-  electronics_work_tools:
-    prefLabel: "Electronics work tools"
-    broader: tools
-
-  energy-saving_lighting:
-    prefLabel: "Energy-saving lighting"
-    broader: electronics
-
-  ethernet:
-    prefLabel: "Ethernet"
-    broader: electronics
-
   fuse_holder:
     prefLabel: "Fuse holder"
-    broader: electronics
-
-  gas_sensors:
-    prefLabel: "Gas sensors"
-    broader: electronics
-
-  geopositioning:
-    prefLabel: "Geopositioning"
-    broader: electronics
-
-  global_positioning_system:
-    prefLabel: "GPS"
     broader: electronics
 
   gps:
@@ -2023,104 +1250,24 @@ concepts:
     broader: electronics
     uri: "http://dbpedia.org/resource/Global_Positioning_System"
 
-  headset:
-    prefLabel: "Headset"
-    broader: electronics
-
-  home_automation:
-    prefLabel: "Home automation"
-    broader: electronics
-
-  incandescent_light_bulbs:
-    prefLabel: "Incandescent light bulbs"
-    broader: electronics
-
-  keyboard:
-    prefLabel: "Keyboard"
-    broader: electronics
-
   led_controller:
     prefLabel: "LED controller"
-    broader: electronics
-
-  led_lamps:
-    prefLabel: "LED lamps"
-    broader: electronics
-
-  led-light:
-    prefLabel: "LED light"
     broader: electronics
 
   led_strip:
     prefLabel: "LED strip"
     broader: electronics
 
-  light-emitting_diodes:
-    prefLabel: "LED"
-    broader: electronics
-
-  lighting_part:
-    prefLabel: "Lighting part"
-    broader: electronics
-
-  lighting_spare:
-    prefLabel: "Lighting spare"
-    broader: electronics
-
-  loudspeakers:
-    prefLabel: "Loudspeakers"
-    broader: electronics
-
-  mains_power_connectors:
-    prefLabel: "Mains power connectors"
-    broader: electronics/connectors
-
-  networking_hardware:
-    prefLabel: "Networking hardware"
-    broader: electronics
-
-  phone_mount:
-    prefLabel: "Phone mount"
-    broader: electronics
-
-  photovoltaics:
-    prefLabel: "Photovoltaics"
-    broader: electronics
-
-  plug:
-    prefLabel: "Plug"
-    broader: electronics
-
-  power_supplies:
-    prefLabel: "Power supplies"
-    broader: electronics/power
-
   resistive_components:
     prefLabel: "Resistive components"
     broader: electronics/components
-
-  router:
-    prefLabel: "Router"
-    broader: electronics
 
   sdr_receiver:
     prefLabel: "SDR receiver"
     broader: electronics
 
-  security_technology:
-    prefLabel: "Security technology"
-    broader: electronics
-
-  sensors:
-    prefLabel: "Sensors"
-    broader: electronics
-
   signal_cables:
     prefLabel: "Signal cables"
-    broader: electronics/cables
-
-  smart_devices:
-    prefLabel: "Smart devices"
     broader: electronics
 
   smart_home_sensor:
@@ -2131,145 +1278,13 @@ concepts:
     prefLabel: "Smart sensor"
     broader: electronics
 
-  solar-panel:
-    prefLabel: "Solar panel"
-    broader: electronics
-
-  solar-powered_devices:
-    prefLabel: "Solar-powered devices"
-    broader: electronics
-
-  storage_device:
-    prefLabel: "Storage device"
-    broader: electronics
-
-  switches:
-    prefLabel: "Switches"
-    broader: electronics
-
-  transducers:
-    prefLabel: "Transducers"
-    broader: electronics
-
-  types_of_lamp:
-    prefLabel: "Lamps"
-    broader: electronics
-
-  voltage_regulation:
-    prefLabel: "Voltage regulation"
-    broader: electronics
-
-  voltage_stability:
-    prefLabel: "Voltage stability"
-    broader: electronics
-
   zigbee_coordinator:
     prefLabel: "Zigbee coordinator"
     broader: electronics
 
-  internet_privacy_software:
-    prefLabel: "Internet privacy software"
-    broader: electronics
-
-  internet_protocols:
-    prefLabel: "Internet protocols"
-    broader: electronics
-
   # More DBpedia mappings - Tools
-  diy_tool:
-    prefLabel: "DIY tool"
-    broader: tools
-
   drill_bit_set:
     prefLabel: "Drill bit set"
-    broader: tools
-
-  flashlights:
-    prefLabel: "Flashlights"
-    broader: tools
-
-  grinding_tool:
-    prefLabel: "Grinding tool"
-    broader: tools
-
-  grip:
-    prefLabel: "Grip"
-    broader: tools
-
-  hand_tools:
-    prefLabel: "Hand tools"
-    broader: tools/hand
-
-  heat_tool:
-    prefLabel: "Heat tool"
-    broader: tools
-
-  hole_making:
-    prefLabel: "Hole making"
-    broader: tools
-
-  ladders:
-    prefLabel: "Ladders"
-    broader: tools
-
-  lighting_tool:
-    prefLabel: "Lighting tool"
-    broader: tools
-
-  marking_tool:
-    prefLabel: "Marking tool"
-    broader: tools
-
-  measuring_instruments:
-    prefLabel: "Measuring instruments"
-    broader: tools/measuring
-
-  mechanical_hand_tools:
-    prefLabel: "Mechanical hand tools"
-    broader: tools/hand
-
-  metalworking_cutting_tools:
-    prefLabel: "Metalworking cutting tools"
-    broader: tools
-
-  metalworking_hand_tools:
-    prefLabel: "Metalworking hand tools"
-    broader: tools/hand
-
-  metalworking_measuring_instruments:
-    prefLabel: "Metalworking measuring instruments"
-    broader: tools/measuring
-
-  metalworking_tool:
-    prefLabel: "Metalworking tool"
-    broader: tools
-
-  metrology:
-    prefLabel: "Metrology"
-    broader: tools/measuring
-
-  misc_tool:
-    prefLabel: "Misc tool"
-    broader: tools
-
-  mounting_tool:
-    prefLabel: "Mounting tool"
-    broader: tools
-
-  power-tool:
-    prefLabel: "Power tool"
-    broader: tools/power
-
-  power_tool_battery:
-    prefLabel: "Power tool battery"
-    broader: tools/power
-
-  power_metalworking_tool:
-    prefLabel: "Power metalworking tool"
-    broader: tools/power
-
-  pumps:
-    prefLabel: "Pumps"
     broader: tools
 
   sail_tool:
@@ -2288,207 +1303,35 @@ concepts:
     prefLabel: "Sanding sponge"
     broader: tools
 
-  saws:
-    prefLabel: "Saws"
-    broader: tools
-
   tool:
     prefLabel: "Tool"
     broader: tools
     uri: "http://dbpedia.org/resource/Tool"
     # AGROVOC returns "equipment" - use DBpedia for general tools
 
-  utility_blade:
-    prefLabel: "Utility blade"
-    broader: tools
-
   welding_electrode:
     prefLabel: "Welding electrode"
-    broader: tools
-
-  woodworking:
-    prefLabel: "Woodworking"
-    broader: tools
-
-  woodworking_hand_tools:
-    prefLabel: "Woodworking hand tools"
-    broader: tools/hand
-
-  woodworking_tools:
-    prefLabel: "Woodworking tools"
     broader: tools
 
   work_light:
     prefLabel: "Work light"
     broader: tools
 
-  wrenches:
-    prefLabel: "Wrenches"
-    broader: tools/hand
-
-  length,_distance,_or_range_measuring_devices:
-    prefLabel: "Measuring devices"
-    broader: tools/measuring
-
   # More DBpedia mappings - Household
-  dinnerware_designers:
-    prefLabel: "Dinnerware"
-    broader: household/kitchen
-
-  domestic_implements:
-    prefLabel: "Domestic implements"
-    broader: household
-
-  drinkware:
-    prefLabel: "Drinkware"
-    broader: household/kitchen
-
-  fireplaces:
-    prefLabel: "Fireplaces"
-    broader: household
-
-  food_preparation_utensils:
-    prefLabel: "Food preparation utensils"
-    broader: household/kitchen
-
-  furnishings:
-    prefLabel: "Furnishings"
-    broader: household
-
-  glass_jars:
-    prefLabel: "Glass jars"
-    broader: household/storage
-
-  grooming:
-    prefLabel: "Grooming"
-    broader: household/hygiene
-
-  home_appliances:
-    prefLabel: "Home appliances"
-    broader: household
-
-  kitchenware:
-    prefLabel: "Kitchenware"
-    broader: household/kitchen
-
-  linens:
-    prefLabel: "Linens"
-    broader: household
-
-  pillows:
-    prefLabel: "Pillows"
-    broader: household
-
-  pottery_shapes:
-    prefLabel: "Pottery"
-    broader: household
-
-  serving_and_dining:
-    prefLabel: "Serving and dining"
-    broader: household/kitchen
-
-  storage_vessels:
-    prefLabel: "Storage vessels"
-    broader: household/storage
-
   toilet_consumable_paper:
     prefLabel: "Toilet paper"
-    broader: household/hygiene
+    broader: household
 
   toilet_service_kit:
     prefLabel: "Toilet service kit"
-    broader: household/hygiene
+    broader: household
 
   water_filter_cartridge:
     prefLabel: "Water filter cartridge"
     broader: household
 
   # More DBpedia mappings - Clothing
-  fashion_accessories:
-    prefLabel: "Fashion accessories"
-    broader: clothing/accessories
-
-  footwear_components:
-    prefLabel: "Footwear components"
-    broader: clothing/footwear
-
-  headgear:
-    prefLabel: "Headgear"
-    broader: clothing
-
-  helmets:
-    prefLabel: "Helmets"
-    broader: safety-equipment
-
-  hiking_pants:
-    prefLabel: "Hiking pants"
-    broader: clothing
-
-  history_of_clothing:
-    prefLabel: "History of clothing"
-    broader: clothing
-
-  history_of_clothing_(western_fashion):
-    prefLabel: "History of fashion"
-    broader: clothing
-
-  history_of_fashion:
-    prefLabel: "History of fashion"
-    broader: clothing
-
-  home_clothing_use:
-    prefLabel: "Home clothing"
-    broader: clothing
-
-  jewellery:
-    prefLabel: "Jewellery"
-    broader: clothing/accessories
-
-  outdoor_clothing:
-    prefLabel: "Outdoor clothing"
-    broader: clothing
-
-  parts_of_clothing:
-    prefLabel: "Parts of clothing"
-    broader: clothing
-
-  shirts:
-    prefLabel: "Shirts"
-    broader: clothing
-
-  sportswear:
-    prefLabel: "Sportswear"
-    broader: clothing/sportswear
-
-  textile_closures:
-    prefLabel: "Textile closures"
-    broader: clothing
-
-  undergarments:
-    prefLabel: "Undergarments"
-    broader: clothing
-
-  winter_clothes:
-    prefLabel: "Winter clothes"
-    broader: clothing
-
   # More DBpedia mappings - Food
-  fish_and_meat_and_eggs:
-    prefLabel: "Fish, meat and eggs"
-    broader: food
-
-  gelatin:
-    prefLabel: "Gelatin"
-    broader: food
-
-  lunch:
-    prefLabel: "Lunch"
-    broader: food
-
-  pasteurised_products:
-    prefLabel: "Pasteurised products"
-    broader: food
-
   # More DBpedia mappings - Boat equipment
   engine_maintenance:
     prefLabel: "Engine maintenance"
@@ -2514,10 +1357,6 @@ concepts:
     prefLabel: "Marine electrical"
     broader: boat-equipment
 
-  marine_engineering:
-    prefLabel: "Marine engineering"
-    broader: boat-equipment
-
   marine_propulsion:
     prefLabel: "Marine propulsion"
     broader: boat-equipment/engine
@@ -2529,14 +1368,6 @@ concepts:
   mast_fitting:
     prefLabel: "Mast fitting"
     broader: boat-equipment/rigging
-
-  navigational_equipment:
-    prefLabel: "Navigational equipment"
-    broader: boat-equipment/navigation
-
-  navigational_equipment_manufacturers:
-    prefLabel: "Navigational equipment"
-    broader: boat-equipment/navigation
 
   pump_service_kit:
     prefLabel: "Pump service kit"
@@ -2553,98 +1384,31 @@ concepts:
   # More DBpedia mappings - Construction
   fasteners:
     prefLabel: "Fasteners"
-    broader: construction/fasteners
-
-  fences:
-    prefLabel: "Fences"
+    altLabel: ["screws", "bolts", "nails"]
     broader: construction
-
-  fitting:
-    prefLabel: "Fitting"
-    broader: construction
-
-  joinery:
-    prefLabel: "Joinery"
-    broader: construction
-
-  piping:
-    prefLabel: "Piping"
-    broader: construction/plumbing
 
   plumbing:
     prefLabel: "Plumbing"
-    broader: construction/plumbing
-
-  plumbing_valves:
-    prefLabel: "Plumbing valves"
-    broader: construction/plumbing
+    broader: construction
 
   screw_assortment:
     prefLabel: "Screw assortment"
-    broader: construction/fasteners
-
-  screws:
-    prefLabel: "Screws"
-    broader: construction/fasteners
+    broader: construction
 
   threaded_stud:
     prefLabel: "Threaded stud"
-    broader: construction/fasteners
-
-  valves:
-    prefLabel: "Valves"
-    broader: construction/plumbing
+    broader: construction
 
   # More DBpedia mappings - Outdoor
-  fishing_equipment:
-    prefLabel: "Fishing equipment"
-    broader: outdoor
-
-  mountaineering_equipment:
-    prefLabel: "Mountaineering equipment"
-    broader: outdoor
-
-  nets_(devices):
-    prefLabel: "Nets"
-    broader: outdoor
-
-  rowing_equipment:
-    prefLabel: "Rowing equipment"
-    broader: outdoor
-
-  sleeping:
-    prefLabel: "Sleeping gear"
-    broader: outdoor/camping
-
   sup_repair:
     prefLabel: "SUP repair"
     broader: outdoor
 
-  surfing_equipment:
-    prefLabel: "Surfing equipment"
-    broader: outdoor
-
   tent_spare:
     prefLabel: "Tent spare"
-    broader: outdoor/camping
+    broader: outdoor
 
   # More DBpedia mappings - Consumables
-  disposable_products:
-    prefLabel: "Disposable products"
-    broader: consumables
-
-  elastomers:
-    prefLabel: "Elastomers"
-    broader: consumables
-
-  filters:
-    prefLabel: "Filters"
-    broader: consumables
-
-  painting_materials:
-    prefLabel: "Painting materials"
-    broader: consumables
-
   patch_kit:
     prefLabel: "Patch kit"
     broader: consumables
@@ -2657,20 +1421,12 @@ concepts:
     prefLabel: "Pool chlorine"
     broader: consumables
 
-  sculpture_materials:
-    prefLabel: "Sculpture materials"
-    broader: consumables
-
   seal:
     prefLabel: "Seal"
     altLabel: ["rubber seal", "gasket", "o-ring"]
     broader: consumables
     uri: "http://dbpedia.org/resource/Hermetic_seal"
     # AGROVOC returns marine mammals - use DBpedia for hardware seals
-
-  silicones:
-    prefLabel: "Silicones"
-    broader: consumables
 
   tubing:
     prefLabel: "Tubing"
@@ -2680,44 +1436,8 @@ concepts:
     # AGROVOC returns agricultural pipes
 
   # More DBpedia mappings - Safety
-  firefighting_equipment:
-    prefLabel: "Firefighting equipment"
-    broader: safety-equipment
-
-  warning_systems:
-    prefLabel: "Warning systems"
-    broader: safety-equipment
-
-  water_alarm:
-    prefLabel: "Water alarm"
-    broader: safety-equipment
-
-  water_leak_sensor:
-    prefLabel: "Water leak sensor"
-    broader: safety-equipment
-
   # More DBpedia mappings - Office
-  magazines:
-    prefLabel: "Magazines"
-    broader: documents
-
-  office_equipment:
-    prefLabel: "Office equipment"
-    broader: office
-
-  paper_products:
-    prefLabel: "Paper products"
-    broader: office/paper
-
-  stationery:
-    prefLabel: "Stationery"
-    broader: office
-
   # More DBpedia mappings - Automotive
-  vehicle_parts:
-    prefLabel: "Vehicle parts"
-    broader: automotive
-
   # More DBpedia mappings - Hardware/misc
   disc:
     prefLabel: "Disc"
@@ -2725,176 +1445,12 @@ concepts:
     uri: "http://dbpedia.org/resource/Disc"
     # AGROVOC returns "cultivators" (disc harrow) - use DBpedia
 
-  mount:
-    prefLabel: "Mount"
-    broader: hardware
-
-  mounting_hardware:
-    prefLabel: "Mounting hardware"
-    broader: hardware
-
-  key:
-    prefLabel: "Key"
-    broader: misc
-
-  metallic_objects:
-    prefLabel: "Metallic objects"
-    broader: misc
-
   pedal:
     prefLabel: "Pedal"
     broader: tools/bike
 
-  half-life_(series):
-    prefLabel: "Half-Life (game)"
-    broader: games
-
-  sentimental_item:
-    prefLabel: "Sentimental item"
-    broader: misc
-
   # Misc categories
-  activities:
-    prefLabel: "Activities"
-    broader: misc
-
-  americium:
-    prefLabel: "Americium"
-    broader: misc
-
-  energy_conservation:
-    prefLabel: "Energy conservation"
-    broader: misc
-
-  entities:
-    prefLabel: "Entities"
-    broader: misc
-
-  features:
-    prefLabel: "Features"
-    broader: misc
-
-  gas_technologies:
-    prefLabel: "Gas technologies"
-    broader: misc
-
-  history_of_mass_media:
-    prefLabel: "History of mass media"
-    broader: misc
-
-  history_of_the_petroleum_industry:
-    prefLabel: "History of petroleum"
-    broader: misc
-
-  home_economics:
-    prefLabel: "Home economics"
-    broader: misc
-
-  human_appearance:
-    prefLabel: "Human appearance"
-    broader: misc
-
-  human_power:
-    prefLabel: "Human power"
-    broader: misc
-
-  human–machine_interaction:
-    prefLabel: "Human-machine interaction"
-    broader: misc
-
-  ieee_standards:
-    prefLabel: "IEEE standards"
-    broader: documents
-
-  industrial_design:
-    prefLabel: "Industrial design"
-    broader: misc
-
-  japanese_inventions:
-    prefLabel: "Japanese inventions"
-    broader: misc
-
-  magazine_publishing:
-    prefLabel: "Magazine publishing"
-    broader: misc
-
-  mechanisms_(engineering):
-    prefLabel: "Mechanisms"
-    broader: misc
-
-  merchandise:
-    prefLabel: "Merchandise"
-    broader: misc
-
-  natural_philosophy:
-    prefLabel: "Natural philosophy"
-    broader: misc
-
-  objects:
-    prefLabel: "Objects"
-    broader: misc
-
-  organisms:
-    prefLabel: "Organisms"
-    broader: misc
-
-  phenomena:
-    prefLabel: "Phenomena"
-    broader: misc
-
-  product_development:
-    prefLabel: "Product development"
-    broader: misc
-
-  prototypes:
-    prefLabel: "Prototypes"
-    broader: misc
-
-  sales_promotion:
-    prefLabel: "Sales promotion"
-    broader: misc
-
-  session_layer_protocols:
-    prefLabel: "Session layer protocols"
-    broader: electronics
-
-  state:
-    prefLabel: "State"
-    broader: misc
-
-  steam_boiler_components:
-    prefLabel: "Steam boiler components"
-    broader: misc
-
-  substances:
-    prefLabel: "Substances"
-    broader: misc
-
-  systems:
-    prefLabel: "Systems"
-    broader: misc
-
-  units_of_volume:
-    prefLabel: "Units of volume"
-    broader: misc
-
-  water_conservation:
-    prefLabel: "Water conservation"
-    broader: misc
-
-  water_supply_infrastructure:
-    prefLabel: "Water supply infrastructure"
-    broader: misc
-
-  implants_(medicine):
-    prefLabel: "Medical implants"
-    broader: medical
-
   antenna-adapter:
-    prefLabel: "Antenna adapter"
-    broader: electronics
-
-  antenna_adapter:
     prefLabel: "Antenna adapter"
     broader: electronics
 
