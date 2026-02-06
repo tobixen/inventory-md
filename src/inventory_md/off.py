@@ -430,10 +430,14 @@ class OFFTaxonomyClient:
         if not node.parents:
             # Reached a root - apply mapping
             root_label = label.lower()
-            if root_label in OFF_ROOT_MAPPING:
+            root_was_mapped = root_label in OFF_ROOT_MAPPING
+            if root_was_mapped:
                 new_path[0] = OFF_ROOT_MAPPING[root_label]
             # Build uri_map entries for this path
-            for i in range(len(new_path)):
+            # Skip mapped roots (index 0) - they're synthetic concepts
+            # (e.g., "food") that don't correspond to any single OFF node
+            start_idx = 1 if root_was_mapped else 0
+            for i in range(start_idx, len(new_path)):
                 concept_id = "/".join(new_path[: i + 1])
                 if concept_id not in uri_map:
                     uri_map[concept_id] = f"off:{new_ids[i]}"

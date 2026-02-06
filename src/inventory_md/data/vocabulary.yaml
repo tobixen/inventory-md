@@ -18,6 +18,21 @@ concepts:
   food:
     prefLabel: "Food"
     altLabel: ["groceries", "provisions", "foodstuffs", "mat", "matvarer"]
+    uri: "http://dbpedia.org/resource/Food"
+    labels:
+      en: "Food"
+      nb: "Mat"
+      de: "Lebensmittel"
+      fr: "Nourriture"
+      es: "Alimento"
+      it: "Alimento"
+      nl: "Voedsel"
+      sv: "Mat"
+      pl: "Żywność"
+      ru: "Пища"
+      uk: "Їжа"
+      fi: "Ruoka"
+      bg: "Храна"
     narrower:
       - food/beverages
       - food/dairy

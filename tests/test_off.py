@@ -259,6 +259,20 @@ class TestRootMapping:
         # "Plant-based foods and beverages" should be mapped to "food"
         assert all(p.startswith("food") for p in paths)
 
+    def test_mapped_root_excluded_from_uri_map(self, off_client):
+        """Mapped root concepts should NOT have OFF URIs in uri_map.
+
+        When a root like "plant-based foods and beverages" gets mapped to "food",
+        the "food" key should NOT appear in uri_map because "food" is a synthetic
+        concept that doesn't correspond to any single OFF node.
+        """
+        paths, uri_map = off_client.build_paths_to_root("en:condiments", lang="en")
+        assert paths, "Should have paths for condiments"
+        # "food" should NOT be in uri_map (it's a synthetic mapped root)
+        assert "food" not in uri_map, (
+            f"Mapped root 'food' should not have OFF URI, got: {uri_map.get('food')}"
+        )
+
 
 class TestGenerateVariations:
     """Tests for _generate_variations helper."""
