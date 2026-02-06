@@ -4,18 +4,17 @@ Known issues and improvement areas for the SKOS vocabulary and category hierarch
 
 ## 1. DBpedia Concepts Have No Translations (200 concepts)
 
-**Status**: Open
+**Status**: Fixed (2026-02-06)
 **Impact**: 200 DBpedia-sourced concepts have zero translations
 
-DBpedia URIs are used during concept lookup but never persisted to `concept.uri`
-in the output vocabulary. The translation phase queries AGROVOC and OFF stores,
-which can't resolve DBpedia URIs. Result: all 200 DBpedia concepts have empty labels.
+DBpedia URIs are now persisted to `concept.uri` during hierarchy building (Path B),
+and a new DBpedia translation phase fetches labels via `client.get_batch_labels()`
+using the existing `_get_dbpedia_labels_batch` in `skos.py`.
 
-**Fix approach**:
-- Persist DBpedia URIs to `concept.uri` during hierarchy building
-- Add a DBpedia translation phase (SPARQL query for `rdfs:label`)
-- The `_get_dbpedia_labels` / `_get_dbpedia_labels_batch` methods in `skos.py`
-  already exist for this purpose
+**Changes**:
+- Store DBpedia URI on leaf concept when paths are found (`vocabulary.py`)
+- Add DBpedia translation phase after AGROVOC phase (`vocabulary.py`)
+- Includes sanity check (same pattern as OFF/AGROVOC)
 
 ## 2. Orphaned OFF/AGROVOC Intermediate Concepts (173 concepts)
 
@@ -87,3 +86,22 @@ DBpedia has `http://dbpedia.org/resource/Food` with labels in 28+ languages incl
 and ensure the DBpedia translation phase works (issue #1).
 
 As a quick interim fix, add explicit labels to the packaged vocabulary.
+
+## 6. Source Hierarchy Preservation (category_by_source)
+
+**Status**: Implemented (2026-02-06)
+**Impact**: OFF/AGROVOC/DBpedia original hierarchies are now preserved
+
+When paths are mapped to synthetic roots (e.g., OFF's "Plant-based foods and beverages"
+mapped to "food"), the original pre-mapping paths are now stored under
+`category_by_source/<source>/<raw_path>`.
+
+**Examples**:
+- `category_by_source/off/plant_based_foods_and_beverages/vegetables/potatoes`
+- `category_by_source/agrovoc/products/plant_products/potatoes`
+- `category_by_source/dbpedia/american_inventions/widget`
+
+**Changes**:
+- `off.py`: `build_paths_to_root` now returns raw paths (3-tuple)
+- `vocabulary.py`: `_build_paths_to_root` and `build_skos_hierarchy_paths` return raw paths
+- `vocabulary.py`: Raw paths stored under `category_by_source/` during vocabulary building

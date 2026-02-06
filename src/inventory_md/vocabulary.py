@@ -998,7 +998,7 @@ def build_skos_hierarchy_paths(
     concept_label: str,
     client: SKOSClient,  # from .skos module
     lang: str = "en",
-) -> tuple[list[str], bool, dict[str, str]]:
+) -> tuple[list[str], bool, dict[str, str], list[str]]:
     """Build all hierarchy paths for a concept from SKOS.
 
     Given a concept label like "potatoes", queries AGROVOC to find
@@ -1013,27 +1013,28 @@ def build_skos_hierarchy_paths(
 
     Returns:
         Tuple of (list of hierarchy paths, bool indicating if SKOS was found,
-        dict mapping concept_id to AGROVOC URI).
+        dict mapping concept_id to AGROVOC URI,
+        list of raw paths before root mapping).
     """
     store = client._get_oxigraph_store()
     if store is None or not store.is_loaded:
         logger.warning("Oxigraph not available for hierarchy building")
-        return [concept_label.lower().replace(" ", "_")], False, {}
+        return [concept_label.lower().replace(" ", "_")], False, {}, []
 
     # First, find the concept URI
     uri = _find_agrovoc_uri(concept_label, store)
     if not uri:
         logger.debug("No AGROVOC URI found for %s", concept_label)
-        return [concept_label.lower().replace(" ", "_")], False, {}
+        return [concept_label.lower().replace(" ", "_")], False, {}, []
 
     # Build all paths from this concept up to roots
-    paths, uri_map = _build_paths_to_root(uri, store, lang)
+    paths, uri_map, raw_paths = _build_paths_to_root(uri, store, lang)
 
     if not paths:
         # Fall back to just the concept label
-        return [concept_label.lower().replace(" ", "_")], False, {}
+        return [concept_label.lower().replace(" ", "_")], False, {}, []
 
-    return paths, True, uri_map
+    return paths, True, uri_map, raw_paths
 
 
 def _find_agrovoc_uri(label: str, store) -> str | None:
@@ -1227,7 +1228,8 @@ def _build_paths_to_root(
     current_path: list | None = None,
     current_path_uris: list | None = None,
     uri_map: dict | None = None,
-) -> tuple[list[str], dict[str, str]]:
+    raw_paths: list | None = None,
+) -> tuple[list[str], dict[str, str], list[str]]:
     """Recursively build all paths from a concept to root(s).
 
     Args:
@@ -1238,9 +1240,11 @@ def _build_paths_to_root(
         current_path: Current path being built (concept labels).
         current_path_uris: URIs corresponding to each path component.
         uri_map: Dict mapping concept_id to URI for translation fetching.
+        raw_paths: Accumulator for pre-mapping paths (before root mapping).
 
     Returns:
-        Tuple of (list of complete paths, dict of concept_id -> URI).
+        Tuple of (list of complete paths, dict of concept_id -> URI,
+        list of raw paths before root mapping).
     """
     if visited is None:
         visited = set()
@@ -1250,9 +1254,11 @@ def _build_paths_to_root(
         current_path_uris = []
     if uri_map is None:
         uri_map = {}
+    if raw_paths is None:
+        raw_paths = []
 
     if uri in visited:
-        return [], uri_map
+        return [], uri_map, raw_paths
     visited.add(uri)
 
     # Get label for current concept
@@ -1267,6 +1273,9 @@ def _build_paths_to_root(
     broader_uris = _get_broader_concepts(uri, store)
 
     if not broader_uris:
+        # Save raw path before mapping
+        raw_paths.append("/".join(new_path))
+
         # We've reached a root - apply mapping if available
         root_label = label.lower()
         if root_label in AGROVOC_ROOT_MAPPING:
@@ -1279,17 +1288,18 @@ def _build_paths_to_root(
             concept_id = "/".join(new_path[: i + 1])
             if concept_id not in uri_map:
                 uri_map[concept_id] = new_path_uris[i]
-        return [full_path], uri_map
+        return [full_path], uri_map, raw_paths
 
     # Continue up the hierarchy for each broader concept
     all_paths = []
     for broader_uri in broader_uris:
-        paths, uri_map = _build_paths_to_root(
-            broader_uri, store, lang, visited.copy(), new_path, new_path_uris, uri_map
+        paths, uri_map, raw_paths = _build_paths_to_root(
+            broader_uri, store, lang, visited.copy(), new_path, new_path_uris, uri_map,
+            raw_paths
         )
         all_paths.extend(paths)
 
-    return all_paths, uri_map
+    return all_paths, uri_map, raw_paths
 
 
 def expand_category_to_skos_paths(
@@ -1321,7 +1331,7 @@ def expand_category_to_skos_paths(
         return [category_label.lower().replace(" ", "_")]
 
     client = skos.SKOSClient(use_oxigraph=use_oxigraph)
-    paths, _found, _uri_map = build_skos_hierarchy_paths(category_label, client, lang)
+    paths, _found, _uri_map, _raw = build_skos_hierarchy_paths(category_label, client, lang)
     return paths
 
 
@@ -1573,7 +1583,7 @@ def build_vocabulary_with_skos_hierarchy(
             if local_concept.uri and "agrovoc" in local_concept.uri.lower() and client:
                 store = client._get_oxigraph_store()
                 if store is not None and store.is_loaded:
-                    paths, uri_map = _build_paths_to_root(
+                    paths, uri_map, agrovoc_raw = _build_paths_to_root(
                         local_concept.uri, store, lang
                     )
                     if paths:
@@ -1582,6 +1592,10 @@ def build_vocabulary_with_skos_hierarchy(
                             if k not in all_uri_maps:
                                 all_uri_maps[k] = v
                         _add_paths_to_concepts(paths, concepts, "agrovoc")
+                        # Store raw source paths under category_by_source
+                        for rp in agrovoc_raw:
+                            src_path = f"category_by_source/agrovoc/{rp}"
+                            _add_paths_to_concepts([src_path], concepts, "agrovoc")
                         logger.debug("Local vocab '%s' -> AGROVOC hierarchy: %s", label, paths)
                         continue
 
@@ -1600,6 +1614,7 @@ def build_vocabulary_with_skos_hierarchy(
         # Try sources in priority order, collecting paths from all that match
         all_paths: list[str] = []
         all_uris: dict[str, str] = {}
+        all_raw_paths: list[str] = []
         primary_source: str | None = None
         sources_found: list[str] = []
 
@@ -1608,9 +1623,10 @@ def build_vocabulary_with_skos_hierarchy(
             off_result = off_client.lookup_concept(label, lang=lang)
             if off_result and off_result.get("node_id"):
                 node_id = off_result["node_id"]
-                off_paths, off_uri_map = off_client.build_paths_to_root(node_id, lang=lang)
+                off_paths, off_uri_map, off_raw = off_client.build_paths_to_root(node_id, lang=lang)
                 if off_paths:
                     all_paths, all_uris = off_paths, off_uri_map
+                    all_raw_paths.extend(off_raw)
                     primary_source = "off"
                     sources_found.append("off")
                     # Track OFF node IDs for translation fetching (first-wins)
@@ -1621,7 +1637,7 @@ def build_vocabulary_with_skos_hierarchy(
 
         # --- AGROVOC lookup ---
         if client is not None and "agrovoc" in enabled_sources:
-            agrovoc_paths, found_in_agrovoc, agrovoc_uri_map = build_skos_hierarchy_paths(
+            agrovoc_paths, found_in_agrovoc, agrovoc_uri_map, agrovoc_raw = build_skos_hierarchy_paths(
                 label, client, lang
             )
             if found_in_agrovoc:
@@ -1651,6 +1667,7 @@ def build_vocabulary_with_skos_hierarchy(
                         all_paths, all_uris = _merge_concept_data(
                             all_paths, all_uris, agrovoc_paths, agrovoc_uri_map
                         )
+                    all_raw_paths.extend(agrovoc_raw)
                     sources_found.append("agrovoc")
                     logger.debug("AGROVOC found '%s' -> %d paths", label, len(agrovoc_paths))
 
@@ -1692,12 +1709,29 @@ def build_vocabulary_with_skos_hierarchy(
                     if dbpedia_paths:
                         category_mappings[label] = dbpedia_paths
                         _add_paths_to_concepts(dbpedia_paths, concepts, "dbpedia")
+                        # Store DBpedia URI on leaf concept and in all_uri_maps
+                        leaf_path = dbpedia_paths[0]
+                        leaf_id = leaf_path.split("/")[-1] if "/" in leaf_path else leaf_path
+                        # Find the leaf concept (could be full path or just leaf ID)
+                        for candidate in (leaf_path, leaf_id, concept_id):
+                            if candidate in concepts:
+                                if not concepts[candidate].uri:
+                                    concepts[candidate].uri = dbpedia_concept["uri"]
+                                break
+                        if leaf_path not in all_uri_maps:
+                            all_uri_maps[leaf_path] = dbpedia_concept["uri"]
+                        if concept_id not in all_uri_maps:
+                            all_uri_maps[concept_id] = dbpedia_concept["uri"]
                         # Only set broader if concept doesn't come from local vocab
                         # (local vocab roots should remain roots, not get DBpedia broader)
                         if concept_id in concepts:
                             existing = concepts[concept_id]
                             if existing.source not in ("local",) and not existing.broader:
                                 concepts[concept_id].broader = broader_ids[:3]
+                        # Store raw source paths under category_by_source/dbpedia/
+                        for dp in dbpedia_paths:
+                            src_path = f"category_by_source/dbpedia/{dp}"
+                            _add_paths_to_concepts([src_path], concepts, "dbpedia")
                         logger.debug("DBpedia paths for '%s' -> %s", label, dbpedia_paths)
                     else:
                         category_mappings[label] = [concept_id]
@@ -1755,6 +1789,11 @@ def build_vocabulary_with_skos_hierarchy(
                 if k not in all_uri_maps:
                     all_uri_maps[k] = v
             _add_paths_to_concepts(final_paths, concepts, source)
+            # Store raw source paths under category_by_source/<source>/
+            if all_raw_paths and primary_source:
+                for rp in all_raw_paths:
+                    src_path = f"category_by_source/{primary_source}/{rp}"
+                    _add_paths_to_concepts([src_path], concepts, primary_source)
         else:
             # No source found - fall back to label as-is
             fallback_id = label.lower().replace(" ", "_")
@@ -1819,6 +1858,46 @@ def build_vocabulary_with_skos_hierarchy(
                         merged_labels = dict(agrovoc_labels)
                         merged_labels.update(concept.labels)
                         concept.labels = merged_labels
+
+        # DBpedia translations (via SPARQL)
+        if client is not None:
+            dbpedia_uris: list[tuple[str, str]] = []
+            dbpedia_concept_map: dict[str, str] = {}
+            for concept_id, concept in concepts.items():
+                uri = all_uri_maps.get(concept_id) or concept.uri
+                if not uri or not uri.startswith("http://dbpedia.org/"):
+                    continue
+                if concept.labels:
+                    continue  # Already has translations
+                dbpedia_uris.append((uri, "dbpedia"))
+                dbpedia_concept_map[uri] = concept_id
+
+            if dbpedia_uris:
+                logger.info("Fetching DBpedia translations for %d concepts...", len(dbpedia_uris))
+                dbpedia_translations = client.get_batch_labels(dbpedia_uris, languages)
+                for uri, labels in dbpedia_translations.items():
+                    cid = dbpedia_concept_map.get(uri)
+                    if not cid or cid not in concepts:
+                        continue
+                    concept = concepts[cid]
+                    if not labels:
+                        continue
+                    # Sanity check: skip if English label doesn't match concept
+                    en_label = labels.get("en", "")
+                    if en_label and concept.prefLabel:
+                        en_lower = en_label.lower()
+                        pref_lower = concept.prefLabel.lower()
+                        if en_lower not in pref_lower and pref_lower not in en_lower:
+                            logger.debug(
+                                "Skipping mismatched DBpedia labels for %s: "
+                                "prefLabel='%s', DBpedia en='%s'",
+                                cid, concept.prefLabel, en_label
+                            )
+                            continue
+                    # Merge: DBpedia fills gaps, doesn't overwrite OFF/AGROVOC
+                    merged_labels = dict(labels)
+                    merged_labels.update(concept.labels)
+                    concept.labels = merged_labels
 
     logger.info("Built vocabulary with %d concepts (%d leaf labels, %d path categories)",
                 len(concepts), len(leaf_labels), len(path_categories))

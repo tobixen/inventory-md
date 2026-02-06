@@ -624,6 +624,7 @@ class TestOFFIntegration:
             {"food": "off:en:plant-based-foods-and-beverages",
              "food/vegetables": "off:en:vegetables",
              "food/vegetables/potatoes": "off:en:potatoes"},
+            ["plant_based_foods_and_beverages/vegetables/potatoes"],
         )
         client.get_labels.return_value = {"en": "Potatoes", "de": "Kartoffeln"}
         return client
@@ -674,6 +675,7 @@ class TestOFFIntegration:
             ["food/legumes/lentils"],
             True,
             {"food/legumes/lentils": "http://aims.fao.org/aos/agrovoc/c_4235"},
+            ["products/legumes/lentils"],
         )
 
         with patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client):
@@ -719,6 +721,7 @@ class TestOFFIntegration:
         mock_off_client.build_paths_to_root.return_value = (
             ["food/vegetables/potatoes"],
             {"food/vegetables/potatoes": "off:en:potatoes"},
+            ["plant_based_foods_and_beverages/vegetables/potatoes"],
         )
 
         # AGROVOC provides additional paths
@@ -726,6 +729,7 @@ class TestOFFIntegration:
             ["food/plant_products/root_vegetables/potatoes"],
             True,
             {"food/plant_products/root_vegetables/potatoes": "http://aims.fao.org/aos/agrovoc/c_6139"},
+            ["products/plant_products/root_vegetables/potatoes"],
         )
 
         with patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client):
@@ -1237,3 +1241,260 @@ class TestURIMapStability:
 
         assert off_node_ids["food"] == "en:food"  # First value preserved
         assert off_node_ids["food/condiments"] == "en:condiments"  # New entry added
+
+
+class TestDBpediaURIPersistence:
+    """Tests for storing DBpedia URIs on leaf concepts when paths are found."""
+
+    @staticmethod
+    def _make_mock_skos_module():
+        """Create a mock skos module with _is_irrelevant_dbpedia_category."""
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        return mock_module
+
+    def test_dbpedia_uri_persisted_on_leaf(self):
+        """Verify leaf concept gets URI when DBpedia paths are found."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Widget",
+            "prefLabel": "Widget",
+            "source": "dbpedia",
+            "broader": [
+                {"uri": "http://dbpedia.org/resource/Inventions",
+                 "label": "Inventions", "relType": "hypernym"},
+            ],
+        }
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "dbpedia"]
+            )
+
+        # Widget should have DBpedia URI on the leaf concept
+        assert "widget" in mappings
+        # The leaf concept (could be inventions/widget or widget) should have the URI
+        found_uri = False
+        for cid, concept in vocab.items():
+            if concept.uri == "http://dbpedia.org/resource/Widget":
+                found_uri = True
+                break
+        assert found_uri, "DBpedia URI should be stored on leaf concept"
+
+
+class TestDBpediaTranslationPhase:
+    """Tests for DBpedia translation phase."""
+
+    @staticmethod
+    def _make_mock_skos_module():
+        """Create a mock skos module with _is_irrelevant_dbpedia_category."""
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        return mock_module
+
+    def test_dbpedia_translations_fetched(self):
+        """Verify DBpedia translations are fetched for concepts with DBpedia URIs."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Widget",
+            "prefLabel": "Widget",
+            "source": "dbpedia",
+            "broader": [
+                {"uri": "http://dbpedia.org/resource/Inventions",
+                 "label": "Inventions", "relType": "hypernym"},
+            ],
+        }
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {
+            "http://dbpedia.org/resource/Widget": {
+                "en": "Widget",
+                "de": "Widget (Technik)",
+                "fr": "Widget",
+            }
+        }
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                enabled_sources=["off", "dbpedia"],
+                languages=["en", "de", "fr"],
+            )
+
+        # get_batch_labels should have been called with DBpedia URIs
+        mock_client.get_batch_labels.assert_called()
+        # Find the concept with the DBpedia URI and check translations
+        widget_concept = None
+        for cid, concept in vocab.items():
+            if concept.uri == "http://dbpedia.org/resource/Widget":
+                widget_concept = concept
+                break
+        assert widget_concept is not None
+        assert widget_concept.labels.get("de") == "Widget (Technik)"
+
+    def test_dbpedia_translations_sanity_check_passes_substring(self):
+        """Verify sanity check allows labels where prefLabel is a substring."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Seal", "metadata": {"categories": ["seal"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Hermetic_seal",
+            "prefLabel": "Seal",
+            "source": "dbpedia",
+            "broader": [],
+        }
+        mock_client._get_oxigraph_store.return_value = None
+        # "seal" is a substring of "seal (mechanical)" -> passes sanity check
+        mock_client.get_batch_labels.return_value = {
+            "http://dbpedia.org/resource/Hermetic_seal": {
+                "en": "Seal (mechanical)",
+                "de": "Dichtung",
+            }
+        }
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, _ = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                enabled_sources=["off", "dbpedia"],
+                languages=["en", "de"],
+            )
+
+        # "seal" is in "seal (mechanical)" -> passes sanity check
+        seal_concept = None
+        for cid, concept in vocab.items():
+            if concept.uri == "http://dbpedia.org/resource/Hermetic_seal":
+                seal_concept = concept
+                break
+        assert seal_concept is not None
+        assert seal_concept.labels.get("de") == "Dichtung"
+
+
+class TestCategoryBySource:
+    """Tests for category_by_source concept creation."""
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_category_by_source_off(self, mock_skos_paths):
+        """Verify category_by_source/off/ concepts are created with raw OFF paths."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+            }]
+        }
+
+        mock_off_client = MagicMock()
+        mock_off_client.lookup_concept.return_value = {
+            "uri": "off:en:potatoes",
+            "prefLabel": "Potatoes",
+            "source": "off",
+            "broader": [{"uri": "off:en:vegetables", "label": "Vegetables"}],
+            "node_id": "en:potatoes",
+        }
+        mock_off_client.build_paths_to_root.return_value = (
+            ["food/vegetables/potatoes"],
+            {"food/vegetables/potatoes": "off:en:potatoes"},
+            ["plant_based_foods_and_beverages/vegetables/potatoes"],
+        )
+        mock_off_client.get_labels.return_value = {}
+
+        # No AGROVOC
+        mock_skos_paths.return_value = (["potatoes"], False, {}, [])
+
+        with patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client):
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off"]
+            )
+
+        # category_by_source/off/ path should exist
+        assert "category_by_source" in vocab
+        assert "category_by_source/off" in vocab
+        assert "category_by_source/off/plant_based_foods_and_beverages" in vocab
+        assert "category_by_source/off/plant_based_foods_and_beverages/vegetables" in vocab
+        assert "category_by_source/off/plant_based_foods_and_beverages/vegetables/potatoes" in vocab
+
+    def test_category_by_source_dbpedia(self):
+        """Verify category_by_source/dbpedia/ concepts are created."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Widget",
+            "prefLabel": "Widget",
+            "source": "dbpedia",
+            "broader": [
+                {"uri": "http://dbpedia.org/resource/Inventions",
+                 "label": "Inventions", "relType": "hypernym"},
+            ],
+        }
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = MagicMock()
+        mock_skos._is_irrelevant_dbpedia_category.return_value = False
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "dbpedia"]
+            )
+
+        # category_by_source/dbpedia/ path should exist
+        assert "category_by_source" in vocab
+        assert "category_by_source/dbpedia" in vocab
+        # DBpedia paths are already unmapped (no root mapping)
+        assert "category_by_source/dbpedia/inventions" in vocab
+        assert "category_by_source/dbpedia/inventions/widget" in vocab

@@ -161,7 +161,7 @@ class TestBuildPathsToRoot:
 
     def test_paths_for_soy_sauces(self, off_client):
         """Test that soy sauces has multiple paths (DAG)."""
-        paths, uri_map = off_client.build_paths_to_root("en:soy-sauces", lang="en")
+        paths, uri_map, raw_paths = off_client.build_paths_to_root("en:soy-sauces", lang="en")
         assert len(paths) >= 2  # At least condiments and sauces paths
 
         # All paths should start with "food" (mapped from root)
@@ -174,14 +174,14 @@ class TestBuildPathsToRoot:
 
     def test_paths_for_potatoes(self, off_client):
         """Test hierarchy paths for potatoes."""
-        paths, uri_map = off_client.build_paths_to_root("en:potatoes", lang="en")
+        paths, uri_map, raw_paths = off_client.build_paths_to_root("en:potatoes", lang="en")
         assert len(paths) >= 1
         assert any("vegetables" in p for p in paths)
         assert all(p.startswith("food/") for p in paths)
 
     def test_uri_map_populated(self, off_client):
         """Test that uri_map contains entries for path components."""
-        paths, uri_map = off_client.build_paths_to_root("en:potatoes", lang="en")
+        paths, uri_map, raw_paths = off_client.build_paths_to_root("en:potatoes", lang="en")
         assert len(uri_map) > 0
         # Should have entries with "off:" prefix
         for _concept_id, uri in uri_map.items():
@@ -189,15 +189,37 @@ class TestBuildPathsToRoot:
 
     def test_root_node_returns_single_path(self, off_client):
         """Test that a root node without mapping returns itself."""
-        paths, uri_map = off_client.build_paths_to_root("en:bulk", lang="en")
+        paths, uri_map, raw_paths = off_client.build_paths_to_root("en:bulk", lang="en")
         assert len(paths) == 1
         assert paths[0] == "bulk"
 
     def test_nonexistent_node(self, off_client):
         """Test that nonexistent node returns empty."""
-        paths, uri_map = off_client.build_paths_to_root("en:nonexistent", lang="en")
+        paths, uri_map, raw_paths = off_client.build_paths_to_root("en:nonexistent", lang="en")
         assert paths == []
         assert uri_map == {}
+        assert raw_paths == []
+
+    def test_raw_paths_returned(self, off_client):
+        """Test that raw (pre-mapping) paths are returned."""
+        paths, uri_map, raw_paths = off_client.build_paths_to_root("en:soy-sauces", lang="en")
+        assert len(raw_paths) >= 2  # Same count as mapped paths
+
+        # Raw paths should NOT start with "food" - they use original root labels
+        for rp in raw_paths:
+            assert not rp.startswith("food/"), f"Raw path should not be mapped: {rp}"
+            # Should contain the original root label
+            assert "plant_based_foods_and_beverages" in rp
+
+        # Raw paths should end with soy_sauces
+        for rp in raw_paths:
+            assert rp.endswith("soy_sauces"), f"Raw path should end with soy_sauces: {rp}"
+
+    def test_raw_paths_unmapped_root(self, off_client):
+        """Test that raw paths for unmapped roots are same as mapped paths."""
+        paths, uri_map, raw_paths = off_client.build_paths_to_root("en:bulk", lang="en")
+        assert paths == ["bulk"]
+        assert raw_paths == ["bulk"]
 
 
 class TestGetLabels:
@@ -255,7 +277,7 @@ class TestRootMapping:
 
     def test_mapping_applied_in_paths(self, off_client):
         """Test that root mapping is applied in build_paths_to_root."""
-        paths, _ = off_client.build_paths_to_root("en:condiments", lang="en")
+        paths, _, _raw = off_client.build_paths_to_root("en:condiments", lang="en")
         # "Plant-based foods and beverages" should be mapped to "food"
         assert all(p.startswith("food") for p in paths)
 
@@ -266,7 +288,7 @@ class TestRootMapping:
         the "food" key should NOT appear in uri_map because "food" is a synthetic
         concept that doesn't correspond to any single OFF node.
         """
-        paths, uri_map = off_client.build_paths_to_root("en:condiments", lang="en")
+        paths, uri_map, _raw = off_client.build_paths_to_root("en:condiments", lang="en")
         assert paths, "Should have paths for condiments"
         # "food" should NOT be in uri_map (it's a synthetic mapped root)
         assert "food" not in uri_map, (

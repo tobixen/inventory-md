@@ -339,7 +339,7 @@ class OFFTaxonomyClient:
 
     def build_paths_to_root(
         self, node_id: str, lang: str = "en"
-    ) -> tuple[list[str], dict[str, str]]:
+    ) -> tuple[list[str], dict[str, str], list[str]]:
         """Build all hierarchy paths from root to a node.
 
         Returns paths matching the AGROVOC interface format.
@@ -351,18 +351,20 @@ class OFFTaxonomyClient:
             lang: Language code for path labels.
 
         Returns:
-            Tuple of (list of path strings, dict of concept_id -> OFF URI).
+            Tuple of (list of mapped path strings, dict of concept_id -> OFF URI,
+            list of raw path strings before root mapping).
             Paths use "/" separators like "food/condiments/sauces/soy_sauces".
         """
         taxonomy = self._get_taxonomy()
         if taxonomy is None or node_id not in taxonomy:
-            return [], {}
+            return [], {}, []
 
         node = taxonomy[node_id]
         paths: list[list[str]] = []
+        raw_paths: list[list[str]] = []
         uri_map: dict[str, str] = {}
 
-        self._collect_paths(node, lang, [], [], paths, uri_map, set())
+        self._collect_paths(node, lang, [], [], paths, uri_map, set(), raw_paths)
 
         # Normalize paths: collapse consecutive similar components
         # e.g., ["food", "food", "condiments"] -> ["food", "condiments"]
@@ -393,7 +395,10 @@ class OFFTaxonomyClient:
         for path_parts in normalized_paths:
             result_paths.append("/".join(path_parts))
 
-        return result_paths, normalized_uri_map if normalized_uri_map else uri_map
+        # Convert raw path lists to path strings
+        raw_path_strings = ["/".join(rp) for rp in raw_paths]
+
+        return result_paths, normalized_uri_map if normalized_uri_map else uri_map, raw_path_strings
 
     def _collect_paths(
         self,
@@ -404,6 +409,7 @@ class OFFTaxonomyClient:
         all_paths: list[list[str]],
         uri_map: dict[str, str],
         visited: set[str],
+        raw_paths: list[list[str]] | None = None,
     ) -> None:
         """Recursively collect all paths from a node to roots.
 
@@ -412,9 +418,10 @@ class OFFTaxonomyClient:
             lang: Language code for labels.
             current_path: Path components collected so far (leaf to current).
             current_ids: Node IDs corresponding to path components.
-            all_paths: Accumulator for complete paths.
+            all_paths: Accumulator for complete paths (after root mapping).
             uri_map: Accumulator for concept_id -> URI mappings.
             visited: Set of visited node IDs to avoid cycles.
+            raw_paths: Accumulator for pre-mapping paths (before root mapping).
         """
         if node.id in visited:
             return
@@ -428,6 +435,10 @@ class OFFTaxonomyClient:
         new_ids = [node.id] + current_ids
 
         if not node.parents:
+            # Save raw path before mapping
+            if raw_paths is not None:
+                raw_paths.append(list(new_path))
+
             # Reached a root - apply mapping
             root_label = label.lower()
             root_was_mapped = root_label in OFF_ROOT_MAPPING
@@ -446,7 +457,7 @@ class OFFTaxonomyClient:
 
         for parent in node.parents:
             self._collect_paths(
-                parent, lang, new_path, new_ids, all_paths, uri_map, visited
+                parent, lang, new_path, new_ids, all_paths, uri_map, visited, raw_paths
             )
 
     def _node_label(self, node, lang: str) -> str:
