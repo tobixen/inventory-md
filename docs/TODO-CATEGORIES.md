@@ -2,13 +2,24 @@
 
 Known issues and improvement areas for the SKOS vocabulary and category hierarchy system.  We focus first on getting a good, working category system for ~/solveig-inventory, afterwards ~/furuset-inventory should be dealt with.
 
-## Weirdnesses in the root categories
+## ~~Unwanted external root categories~~
 
-The roots array has 24 entries - that's what the UI dropdown shows. It includes the 19 package vocabulary roots plus `category_by_source`, `environmental_design`, `goods_(economics)`, `industrial_equipment`, and `subjects`.
+**Status**: Fixed (2026-02-06)
+**Impact**: External sources (DBpedia, AGROVOC) leaked unwanted roots like
+`environmental_design`, `goods_(economics)`, `industrial_equipment`, `subjects`
 
-Those latter have leaked in somehow and does not belong as roots.
+A virtual root concept (`_root`) in `vocabulary.yaml` now explicitly defines which
+concepts are top-level roots and their display order. External rootless concepts are
+excluded (whitelist behavior). Falls back to the previous inferred-root behavior when
+`_root` is absent.
 
-Let's merge together some of the roots.  Hobby, transport, sports and outdoors could be one root.  Construction and most of Consumables should go under Hardware.  Documents, Office supplies and Domestic stuff could go into one root.
+## Consider merging some root categories
+
+Hobby, transport, sports and outdoors could be one root. Construction and most of
+Consumables should go under Hardware. Documents, Office supplies and Domestic stuff
+could go into one root. The `_root.narrower` list controls which concepts appear as
+roots, so merging just requires adding `broader` to demoted roots and updating
+`_root.narrower`.
 
 ## Too many "local" categories
 
@@ -85,22 +96,13 @@ root category was processed first.
   not real OFF concepts)
 - Use DBpedia URI for `food` translations instead (see below)
 
-## `food` Concept Needs DBpedia URI and Manual Labels
+## ~~`food` Concept Needs DBpedia URI and Manual Labels~~
 
-**Status**: Open (quick win)
+**Status**: Fixed (2026-02-06)
 **Impact**: `food` gets wrong or overly-specific translations
 
-Neither AGROVOC nor OFF have a single "food" top-level concept. AGROVOC has
-`products`/`plant products`/`animal products`, OFF has 85 specific root categories.
-Both get mapped to synthetic `"food"` path roots.
-
-DBpedia has `http://dbpedia.org/resource/Food` with labels in 28+ languages including:
-- en: Food, nb: Mat, de: Lebensmittel, fr: Nourriture, sv: Mat, es: Alimento, etc.
-
-**Fix**: Add `uri: "http://dbpedia.org/resource/Food"` to `food` in `vocabulary.yaml`
-and ensure the DBpedia translation phase works (issue #1).
-
-As a quick interim fix, add explicit labels to the packaged vocabulary.
+The `food` concept in `vocabulary.yaml` now has `uri: "http://dbpedia.org/resource/Food"`
+and explicit labels in 12 languages (en, nb, de, fr, es, it, nl, sv, pl, ru, uk, fi, bg).
 
 ## Source Hierarchy Preservation (category_by_source)
 
