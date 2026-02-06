@@ -1398,7 +1398,7 @@ class TestDBpediaURIPersistence:
         assert "widget" in mappings
         # The leaf concept (could be inventions/widget or widget) should have the URI
         found_uri = False
-        for cid, concept in vocab.items():
+        for _cid, concept in vocab.items():
             if concept.uri == "http://dbpedia.org/resource/Widget":
                 found_uri = True
                 break
@@ -1462,7 +1462,7 @@ class TestDBpediaTranslationPhase:
         mock_client.get_batch_labels.assert_called()
         # Find the concept with the DBpedia URI and check translations
         widget_concept = None
-        for cid, concept in vocab.items():
+        for _cid, concept in vocab.items():
             if concept.uri == "http://dbpedia.org/resource/Widget":
                 widget_concept = concept
                 break
@@ -1511,7 +1511,7 @@ class TestDBpediaTranslationPhase:
 
         # "seal" is in "seal (mechanical)" -> passes sanity check
         seal_concept = None
-        for cid, concept in vocab.items():
+        for _cid, concept in vocab.items():
             if concept.uri == "http://dbpedia.org/resource/Hermetic_seal":
                 seal_concept = concept
                 break

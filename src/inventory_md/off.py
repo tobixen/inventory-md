@@ -376,7 +376,7 @@ class OFFTaxonomyClient:
 
         # Rebuild uri_map for normalized paths
         normalized_uri_map: dict[str, str] = {}
-        for path_parts, orig_path in zip(normalized_paths, paths):
+        for path_parts, orig_path in zip(normalized_paths, paths, strict=True):
             # Map original node IDs to normalized concept IDs
             for i in range(len(path_parts)):
                 concept_id = "/".join(path_parts[: i + 1])
