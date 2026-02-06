@@ -16,24 +16,30 @@ using the existing `_get_dbpedia_labels_batch` in `skos.py`.
 - Add DBpedia translation phase after AGROVOC phase (`vocabulary.py`)
 - Includes sanity check (same pattern as OFF/AGROVOC)
 
-## 2. Orphaned OFF/AGROVOC Intermediate Concepts (173 concepts)
+## 2. AGROVOC Root Mapping Creates Nonsensical Paths / Orphaned Concepts
 
 **Status**: Open
-**Impact**: Junk hierarchy nodes clutter the vocabulary
+**Impact**: Junk hierarchy nodes clutter the vocabulary (173 orphans)
 
-When leaf labels are looked up in OFF/AGROVOC, intermediate path nodes get created
-by `_add_paths_to_concepts`. If `local_broader_path` later overrides the final path,
-the intermediate nodes remain as orphans (not referenced by any `category_mappings` entry).
+The `AGROVOC_ROOT_MAPPING` maps `"products" → "food"`, but AGROVOC's "products"
+root has both food and non-food children. This produces nonsensical paths like
+`food/non_food_products/clothing/workwear` — "non-food" placed under "food".
+
+These incorrect paths get overridden by local vocabulary (which correctly defines
+`clothing` as a root), but the intermediate nodes remain as orphans.
 
 Examples:
-- `food/non_food_products/clothing/workwear` (AGROVOC)
-- `food/plant_based_foods/...` deep OFF hierarchy duplicating local structure
+- `food/non_food_products/clothing/workwear` (AGROVOC: products/non_food_products/...)
 - `activities/monitoring/process_control/remote_control` (AGROVOC)
 
+**Root cause**: `AGROVOC_ROOT_MAPPING` blindly maps all descendants of "products" to
+"food", but "products" has non-food children like "non_food_products", "fibres",
+"rubber and gums", etc.
+
 **Fix approach**:
-- Prune concepts not reachable from any `category_mappings` path
-- Or: don't call `_add_paths_to_concepts` for external paths when `local_broader_path`
-  will override them
+- Don't map "products" → "food" when the path contains "non_food_products" or other
+  non-food branches; OR add those as separate roots in `AGROVOC_ROOT_MAPPING`
+- Then prune any remaining orphan concepts not reachable from `category_mappings`
 
 ## 3. Low Translation Coverage (18% overall)
 
@@ -105,3 +111,24 @@ mapped to "food"), the original pre-mapping paths are now stored under
 - `off.py`: `build_paths_to_root` now returns raw paths (3-tuple)
 - `vocabulary.py`: `_build_paths_to_root` and `build_skos_hierarchy_paths` return raw paths
 - `vocabulary.py`: Raw paths stored under `category_by_source/` during vocabulary building
+
+## 7. Package Vocabulary Has No Distinct Source/Namespace
+
+**Status**: Open
+**Impact**: Cannot distinguish package-provided concepts from user-defined local concepts
+
+The package vocabulary (`src/inventory_md/data/vocabulary.yaml`) loads with
+`source="local"`, same as user-provided `local-vocabulary.yaml` files. There's no way
+to tell whether a concept like `clothing` was defined by the package or by the user.
+
+This matters for:
+- Conflict resolution (user definitions should override package defaults)
+- Debugging (which file did this concept come from?)
+- Future tooling (e.g., "show me only my custom vocabulary")
+
+**Fix approach**:
+- Introduce a `source="package"` (or `"inventory-md"`) for concepts loaded from
+  the package data directory
+- User local vocabulary keeps `source="local"` and takes priority over package
+- Alternatively, use a namespace prefix like `pkg:` for concept IDs, though this
+  would be a bigger change
