@@ -1520,7 +1520,9 @@ def build_vocabulary_with_skos_hierarchy(
     for path_cat in sorted(path_categories):
         parts = path_cat.split("/")
         # Map the full path to itself
-        category_mappings[path_cat] = [path_cat]
+        local_src_path = f"category_by_source/local/{path_cat}"
+        category_mappings[path_cat] = [path_cat, local_src_path]
+        _add_paths_to_concepts([local_src_path], concepts, "local")
         # Create concept for each path component
         for i in range(len(parts)):
             concept_id = "/".join(parts[: i + 1])
@@ -1593,9 +1595,12 @@ def build_vocabulary_with_skos_hierarchy(
                                 all_uri_maps[k] = v
                         _add_paths_to_concepts(paths, concepts, "agrovoc")
                         # Store raw source paths under category_by_source
+                        agrovoc_src_paths = []
                         for rp in agrovoc_raw:
                             src_path = f"category_by_source/agrovoc/{rp}"
                             _add_paths_to_concepts([src_path], concepts, "agrovoc")
+                            agrovoc_src_paths.append(src_path)
+                        category_mappings[label].extend(agrovoc_src_paths)
                         logger.debug("Local vocab '%s' -> AGROVOC hierarchy: %s", label, paths)
                         continue
 
@@ -1707,7 +1712,11 @@ def build_vocabulary_with_skos_hierarchy(
                             break
 
                     if dbpedia_paths:
-                        category_mappings[label] = dbpedia_paths
+                        # Build category_by_source paths before assigning to mappings
+                        dbpedia_src_paths = [
+                            f"category_by_source/dbpedia/{dp}" for dp in dbpedia_paths
+                        ]
+                        category_mappings[label] = dbpedia_paths + dbpedia_src_paths
                         _add_paths_to_concepts(dbpedia_paths, concepts, "dbpedia")
                         # Store DBpedia URI on leaf concept and in all_uri_maps
                         leaf_path = dbpedia_paths[0]
@@ -1729,9 +1738,8 @@ def build_vocabulary_with_skos_hierarchy(
                             if existing.source not in ("local",) and not existing.broader:
                                 concepts[concept_id].broader = broader_ids[:3]
                         # Store raw source paths under category_by_source/dbpedia/
-                        for dp in dbpedia_paths:
-                            src_path = f"category_by_source/dbpedia/{dp}"
-                            _add_paths_to_concepts([src_path], concepts, "dbpedia")
+                        for sp in dbpedia_src_paths:
+                            _add_paths_to_concepts([sp], concepts, "dbpedia")
                         logger.debug("DBpedia paths for '%s' -> %s", label, dbpedia_paths)
                     else:
                         category_mappings[label] = [concept_id]
@@ -1794,11 +1802,19 @@ def build_vocabulary_with_skos_hierarchy(
                 for rp in all_raw_paths:
                     src_path = f"category_by_source/{primary_source}/{rp}"
                     _add_paths_to_concepts([src_path], concepts, primary_source)
+                    category_mappings[label].append(src_path)
+            # Also create category_by_source/local/ path for local vocab entries
+            if local_broader_path:
+                local_src_path = f"category_by_source/local/{local_broader_path}"
+                _add_paths_to_concepts([local_src_path], concepts, "local")
+                category_mappings[label].append(local_src_path)
         else:
             # No source found - fall back to label as-is
             fallback_id = label.lower().replace(" ", "_")
-            category_mappings[label] = [fallback_id]
+            local_src_path = f"category_by_source/local/{fallback_id}"
+            category_mappings[label] = [fallback_id, local_src_path]
             _add_paths_to_concepts([fallback_id], concepts, "inventory")
+            _add_paths_to_concepts([local_src_path], concepts, "local")
 
     # Fetch translations for concepts with URIs
     if languages and len(languages) > 1:

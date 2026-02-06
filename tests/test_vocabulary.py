@@ -1456,6 +1456,11 @@ class TestCategoryBySource:
         assert "category_by_source/off/plant_based_foods_and_beverages/vegetables" in vocab
         assert "category_by_source/off/plant_based_foods_and_beverages/vegetables/potatoes" in vocab
 
+        # category_by_source paths should appear in mappings so items are browsable
+        assert "potatoes" in mappings
+        cbs_paths = [p for p in mappings["potatoes"] if p.startswith("category_by_source/")]
+        assert "category_by_source/off/plant_based_foods_and_beverages/vegetables/potatoes" in cbs_paths
+
     def test_category_by_source_dbpedia(self):
         """Verify category_by_source/dbpedia/ concepts are created."""
         inventory = {
@@ -1498,3 +1503,67 @@ class TestCategoryBySource:
         # DBpedia paths are already unmapped (no root mapping)
         assert "category_by_source/dbpedia/inventions" in vocab
         assert "category_by_source/dbpedia/inventions/widget" in vocab
+
+        # category_by_source paths should appear in mappings so items are browsable
+        assert "widget" in mappings
+        cbs_paths = [p for p in mappings["widget"] if p.startswith("category_by_source/")]
+        assert "category_by_source/dbpedia/inventions/widget" in cbs_paths
+
+    def test_category_by_source_local_fallback(self):
+        """Verify category_by_source/local/ concepts created for fallback (no source found)."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Gizmo", "metadata": {"categories": ["gizmo"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = None
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = MagicMock()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "dbpedia"]
+            )
+
+        # category_by_source/local/ path should exist in both vocab and mappings
+        assert "category_by_source/local" in vocab
+        assert "category_by_source/local/gizmo" in vocab
+        assert "gizmo" in mappings
+        assert "category_by_source/local/gizmo" in mappings["gizmo"]
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_category_by_source_local_path_category(self, mock_skos_paths):
+        """Verify category_by_source/local/ concepts for path-based categories."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Wrench", "metadata": {"categories": ["tools/hand_tools"]}}],
+            }]
+        }
+
+        # No AGROVOC results
+        mock_skos_paths.return_value = ([], False, {}, [])
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off"]
+            )
+
+        # category_by_source/local/ mirror should exist
+        assert "category_by_source/local/tools/hand_tools" in vocab
+        assert "category_by_source/local/tools" in vocab
+        assert "tools/hand_tools" in mappings
+        assert "category_by_source/local/tools/hand_tools" in mappings["tools/hand_tools"]
