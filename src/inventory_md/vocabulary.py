@@ -1536,6 +1536,10 @@ def build_vocabulary_with_skos_hierarchy(
         for concept_id, concept in local_vocab.items():
             # Index by concept ID (both original and normalized forms)
             local_vocab_labels[concept_id.lower()] = concept_id
+            # Also index singular form so "alarm" matches "alarms" concept
+            singular_id = _normalize_to_singular(concept_id.lower())
+            if singular_id != concept_id.lower():
+                local_vocab_labels[singular_id] = concept_id
             # Also index with - and _ replaced by space (to match leaf label normalization)
             normalized_id = concept_id.lower().replace("-", " ").replace("_", " ")
             if normalized_id != concept_id.lower():
@@ -1609,9 +1613,9 @@ def build_vocabulary_with_skos_hierarchy(
                     all_paths, all_uris = off_paths, off_uri_map
                     primary_source = "off"
                     sources_found.append("off")
-                    # Track OFF node IDs for translation fetching
+                    # Track OFF node IDs for translation fetching (first-wins)
                     for cid, uri in off_uri_map.items():
-                        if uri.startswith("off:"):
+                        if uri.startswith("off:") and cid not in off_node_ids:
                             off_node_ids[cid] = uri[4:]  # Strip "off:" prefix
                     logger.debug("OFF found '%s' -> %d paths", label, len(off_paths))
 
@@ -1769,6 +1773,18 @@ def build_vocabulary_with_skos_hierarchy(
                     concept = concepts[concept_id]
                     off_labels = off_client.get_labels(node_id, languages)
                     if off_labels:
+                        # Sanity check: skip if English label doesn't match concept
+                        en_label = off_labels.get("en", "")
+                        if en_label and concept.prefLabel:
+                            en_lower = en_label.lower()
+                            pref_lower = concept.prefLabel.lower()
+                            if en_lower not in pref_lower and pref_lower not in en_lower:
+                                logger.debug(
+                                    "Skipping mismatched OFF labels for %s: "
+                                    "prefLabel='%s', OFF en='%s'",
+                                    concept_id, concept.prefLabel, en_label
+                                )
+                                continue
                         # Merge: OFF labels as base, don't overwrite existing
                         merged_labels = dict(off_labels)
                         merged_labels.update(concept.labels)

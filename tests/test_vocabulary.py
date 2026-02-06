@@ -1201,3 +1201,39 @@ class TestURIMapStability:
                 should_skip = True
 
         assert not should_skip, "Substring match should not be skipped"
+
+    def test_local_vocab_labels_indexes_singular_forms(self):
+        """local_vocab_labels should index singular forms so 'alarm' matches 'alarms'."""
+        local_vocab_labels: dict[str, str] = {}
+
+        # Simulate building the index with singular form indexing
+        concept_id = "alarms"
+        local_vocab_labels[concept_id.lower()] = concept_id
+        singular_id = vocabulary._normalize_to_singular(concept_id.lower())
+        if singular_id != concept_id.lower():
+            local_vocab_labels[singular_id] = concept_id
+
+        # "alarm" (singular) should match "alarms" concept
+        assert "alarm" in local_vocab_labels
+        assert local_vocab_labels["alarm"] == "alarms"
+        # "alarms" (plural) should also match
+        assert "alarms" in local_vocab_labels
+
+    def test_off_node_ids_first_wins(self):
+        """off_node_ids should not overwrite existing entries."""
+        off_node_ids: dict[str, str] = {}
+
+        # First label sets food node ID
+        uri_map_1 = {"food": "off:en:food", "food/fruits": "off:en:fruits"}
+        for cid, uri in uri_map_1.items():
+            if uri.startswith("off:") and cid not in off_node_ids:
+                off_node_ids[cid] = uri[4:]
+
+        # Second label should NOT overwrite food
+        uri_map_2 = {"food": "off:en:condiments", "food/condiments": "off:en:condiments"}
+        for cid, uri in uri_map_2.items():
+            if uri.startswith("off:") and cid not in off_node_ids:
+                off_node_ids[cid] = uri[4:]
+
+        assert off_node_ids["food"] == "en:food"  # First value preserved
+        assert off_node_ids["food/condiments"] == "en:condiments"  # New entry added
