@@ -710,6 +710,48 @@ def _is_singular_plural_variant(a: str, b: str) -> bool:
     return a_singular == b_singular
 
 
+def _resolve_broader_chain(
+    concept_id: str,
+    local_vocab: dict[str, Concept],
+    _visited: set[str] | None = None,
+) -> str:
+    """Resolve a local vocab concept ID to its full hierarchical path.
+
+    Walks up the broader chain so that e.g. ``sandpaper`` with
+    ``broader: consumables`` resolves to ``consumables/sandpaper``.
+    """
+    if _visited is None:
+        _visited = set()
+    if concept_id in _visited:
+        return concept_id  # cycle protection
+    _visited.add(concept_id)
+
+    concept = local_vocab.get(concept_id)
+    if not concept or not concept.broader:
+        return concept_id  # root or not in vocab
+
+    parent_ref = concept.broader[0]
+
+    # Already a path that embeds the parent (e.g. "food/vegetables" broader "food")
+    # But the parent itself might need resolution (e.g. "automotive/accessories"
+    # where "automotive" has broader "transport" → "transport/automotive/accessories")
+    if concept_id.startswith(parent_ref + "/"):
+        resolved_parent = _resolve_broader_chain(parent_ref, local_vocab, _visited)
+        if resolved_parent != parent_ref:
+            suffix = concept_id[len(parent_ref):]
+            return resolved_parent + suffix
+        return concept_id
+
+    # Singular/plural merge: concept collapses into its parent
+    parent_leaf = parent_ref.split("/")[-1]
+    if _is_singular_plural_variant(concept_id, parent_leaf):
+        return _resolve_broader_chain(parent_ref, local_vocab, _visited)
+
+    # Resolve parent first, then build full path
+    resolved_parent = _resolve_broader_chain(parent_ref, local_vocab, _visited)
+    return f"{resolved_parent}/{concept_id}"
+
+
 def _enrich_with_skos(
     categories: set[str],
     existing_concepts: dict[str, Concept],
@@ -1615,13 +1657,22 @@ def build_vocabulary_with_skos_hierarchy(
 
             # Record local broader for later use (but still do external lookups for metadata)
             if local_concept.broader:
-                broader_path = local_concept.broader[0]
+                # Resolve the full ancestor chain so that e.g. sandpaper-sheet
+                # (broader: sandpaper, which has broader: consumables) becomes
+                # consumables/sandpaper/sandpaper-sheet, not sandpaper/sandpaper-sheet
+                original_broader = local_concept.broader[0]
+                broader_path = _resolve_broader_chain(original_broader, local_vocab)
                 parent_leaf = broader_path.split("/")[-1]
                 if _is_singular_plural_variant(local_concept_id, parent_leaf):
                     # Concept is singular/plural of parent - merge into parent
                     local_broader_path = broader_path
                 elif local_concept_id.startswith(broader_path + "/"):
                     local_broader_path = local_concept_id
+                elif local_concept_id.startswith(original_broader + "/"):
+                    # ID already embeds the original parent (e.g. "automotive/accessories"
+                    # with broader "automotive") — replace prefix with resolved path
+                    suffix = local_concept_id[len(original_broader):]
+                    local_broader_path = broader_path + suffix
                 else:
                     local_broader_path = f"{broader_path}/{local_concept_id}"
 
@@ -1973,6 +2024,60 @@ def build_vocabulary_with_skos_hierarchy(
                     merged_labels = dict(labels)
                     merged_labels.update(concept.labels)
                     concept.labels = merged_labels
+
+    # Final dedup pass: move local concepts to their resolved path-prefixed form.
+    # Flat versions can be (re-)created as intermediate nodes by _add_paths_to_concepts
+    # when processing child concepts or path-based categories.
+    if local_vocab:
+        to_delete = []
+        for concept_id, concept in local_vocab.items():
+            if concept_id.startswith("_") or not concept.broader:
+                continue
+            resolved = _resolve_broader_chain(concept_id, local_vocab)
+            if resolved == concept_id or concept_id not in concepts:
+                continue
+            _flat = concepts[concept_id]
+            if resolved in concepts:
+                # Both exist: merge metadata into the path-prefixed target
+                _target = concepts[resolved]
+                if _flat.prefLabel and not _target.prefLabel:
+                    _target.prefLabel = _flat.prefLabel
+                existing_alts = set(_target.altLabels)
+                for alt in _flat.altLabels:
+                    if alt not in existing_alts:
+                        _target.altLabels.append(alt)
+                if _flat.uri and not _target.uri:
+                    _target.uri = _flat.uri
+                if _flat.description and not _target.description:
+                    _target.description = _flat.description
+                if _flat.wikipediaUrl and not _target.wikipediaUrl:
+                    _target.wikipediaUrl = _flat.wikipediaUrl
+                if _flat.labels:
+                    merged = dict(_flat.labels)
+                    merged.update(_target.labels)
+                    _target.labels = merged
+                if _flat.descriptions:
+                    merged = dict(_flat.descriptions)
+                    merged.update(_target.descriptions)
+                    _target.descriptions = merged
+                _target.source = "local"
+            else:
+                # Only flat exists: move it to the resolved path
+                _add_paths_to_concepts([resolved], concepts, "local")
+                _target = concepts[resolved]
+                _target.prefLabel = _flat.prefLabel
+                _target.altLabels = _flat.altLabels.copy()
+                _target.uri = _flat.uri
+                _target.description = _flat.description
+                _target.wikipediaUrl = _flat.wikipediaUrl
+                _target.labels = dict(_flat.labels)
+                _target.descriptions = dict(_flat.descriptions)
+                _target.source = "local"
+            to_delete.append(concept_id)
+        for cid in to_delete:
+            del concepts[cid]
+        if to_delete:
+            logger.debug("Final dedup removed %d flat concepts: %s", len(to_delete), to_delete)
 
     logger.info("Built vocabulary with %d concepts (%d leaf labels, %d path categories)",
                 len(concepts), len(leaf_labels), len(path_categories))

@@ -1947,3 +1947,148 @@ class TestConceptDeduplication:
         assert "hardcover" in books.altLabels
         # Flat "book" should be removed
         assert vocab.get("book") is None
+
+    def test_broader_chain_resolved_for_grandchild(self):
+        """sandpaper-sheet (broader: sandpaper, broader: consumables) -> consumables/sandpaper/sandpaper-sheet."""
+        local_vocab = {
+            "consumables": vocabulary.Concept(
+                id="consumables", prefLabel="Consumables", source="local",
+            ),
+            "sandpaper": vocabulary.Concept(
+                id="sandpaper", prefLabel="Sandpaper",
+                broader=["consumables"], source="local",
+            ),
+            "sandpaper-sheet": vocabulary.Concept(
+                id="sandpaper-sheet", prefLabel="Sandpaper sheet",
+                broader=["sandpaper"], source="local",
+            ),
+        }
+        items = [
+            {"name": "Sandpaper", "metadata": {"categories": ["sandpaper"]}},
+            {"name": "Sandpaper sheet", "metadata": {"categories": ["sandpaper-sheet"]}},
+        ]
+
+        vocab, mappings = self._build_with_local_vocab(local_vocab, items)
+
+        # Full chain resolved: consumables/sandpaper/sandpaper-sheet
+        assert vocab.get("consumables/sandpaper/sandpaper-sheet") is not None
+        assert vocab.get("consumables/sandpaper") is not None
+        # No orphaned flat concepts
+        assert vocab.get("sandpaper") is None
+        assert vocab.get("sandpaper-sheet") is None
+        # Mapping key uses normalized label (hyphens -> spaces)
+        assert any(
+            "consumables/sandpaper/sandpaper-sheet" in p
+            for p in mappings.get("sandpaper sheet", [])
+        )
+
+    def test_path_prefixed_child_gets_resolved_parent(self):
+        """automotive/accessories (broader: automotive, broader: transport) -> transport/automotive/accessories."""
+        local_vocab = {
+            "transport": vocabulary.Concept(
+                id="transport", prefLabel="Transport", source="local",
+            ),
+            "automotive": vocabulary.Concept(
+                id="automotive", prefLabel="Automotive",
+                broader=["transport"], source="local",
+            ),
+            "automotive/accessories": vocabulary.Concept(
+                id="automotive/accessories", prefLabel="Automotive accessories",
+                broader=["automotive"], source="local",
+            ),
+        }
+        items = [
+            {"name": "Car stuff", "metadata": {"categories": ["automotive"]}},
+            {"name": "Car accessory", "metadata": {"categories": ["automotive/accessories"]}},
+        ]
+
+        vocab, _mappings = self._build_with_local_vocab(local_vocab, items)
+
+        # Full chain: transport/automotive/accessories
+        assert vocab.get("transport/automotive/accessories") is not None
+        assert vocab.get("transport/automotive") is not None
+        # No orphaned flat concepts
+        assert vocab.get("automotive") is None
+        assert vocab.get("automotive/accessories") is None
+
+
+class TestResolveBroaderChain:
+    """Unit tests for _resolve_broader_chain helper."""
+
+    def test_root_concept(self):
+        """Root concept (no broader) returns its own ID."""
+        local_vocab = {
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools", source="local"),
+        }
+        assert vocabulary._resolve_broader_chain("tools", local_vocab) == "tools"
+
+    def test_one_level(self):
+        """Single broader hop."""
+        local_vocab = {
+            "electronics": vocabulary.Concept(
+                id="electronics", prefLabel="Electronics", source="local",
+            ),
+            "ac-cable": vocabulary.Concept(
+                id="ac-cable", prefLabel="AC Cable",
+                broader=["electronics"], source="local",
+            ),
+        }
+        assert vocabulary._resolve_broader_chain("ac-cable", local_vocab) == "electronics/ac-cable"
+
+    def test_two_levels(self):
+        """Two broader hops: sandpaper -> consumables, sandpaper-sheet -> sandpaper."""
+        local_vocab = {
+            "consumables": vocabulary.Concept(
+                id="consumables", prefLabel="Consumables", source="local",
+            ),
+            "sandpaper": vocabulary.Concept(
+                id="sandpaper", prefLabel="Sandpaper",
+                broader=["consumables"], source="local",
+            ),
+            "sandpaper-sheet": vocabulary.Concept(
+                id="sandpaper-sheet", prefLabel="Sandpaper sheet",
+                broader=["sandpaper"], source="local",
+            ),
+        }
+        assert vocabulary._resolve_broader_chain("sandpaper", local_vocab) == "consumables/sandpaper"
+        assert vocabulary._resolve_broader_chain("sandpaper-sheet", local_vocab) == "consumables/sandpaper/sandpaper-sheet"
+
+    def test_already_path_prefixed(self):
+        """Concept ID already embeds its parent path."""
+        local_vocab = {
+            "food": vocabulary.Concept(
+                id="food", prefLabel="Food", source="local",
+            ),
+            "food/vegetables": vocabulary.Concept(
+                id="food/vegetables", prefLabel="Vegetables",
+                broader=["food"], source="local",
+            ),
+        }
+        assert vocabulary._resolve_broader_chain("food/vegetables", local_vocab) == "food/vegetables"
+
+    def test_concept_not_in_vocab(self):
+        """Unknown concept returns its own ID."""
+        assert vocabulary._resolve_broader_chain("unknown", {}) == "unknown"
+
+    def test_cycle_protection(self):
+        """Cycle in broader chain doesn't cause infinite recursion."""
+        local_vocab = {
+            "a": vocabulary.Concept(id="a", prefLabel="A", broader=["b"], source="local"),
+            "b": vocabulary.Concept(id="b", prefLabel="B", broader=["a"], source="local"),
+        }
+        # Should not hang — returns something reasonable
+        result = vocabulary._resolve_broader_chain("a", local_vocab)
+        assert isinstance(result, str)
+
+    def test_singular_plural_collapses(self):
+        """Singular/plural variant collapses into parent."""
+        local_vocab = {
+            "books": vocabulary.Concept(
+                id="books", prefLabel="Books", source="local",
+            ),
+            "book": vocabulary.Concept(
+                id="book", prefLabel="Book",
+                broader=["books"], source="local",
+            ),
+        }
+        assert vocabulary._resolve_broader_chain("book", local_vocab) == "books"
