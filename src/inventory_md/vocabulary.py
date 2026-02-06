@@ -1382,6 +1382,16 @@ def _normalize_hierarchy_path(path: str) -> str:
     return "/".join(result)
 
 
+# Override labels for well-known concept IDs (avoids .title() mangling)
+_CONCEPT_LABEL_OVERRIDES: dict[str, str] = {
+    "category_by_source": "Category by Source",
+    "category_by_source/off": "OpenFoodFacts",
+    "category_by_source/agrovoc": "AGROVOC",
+    "category_by_source/dbpedia": "DBpedia",
+    "category_by_source/local": "Local",
+}
+
+
 def _add_paths_to_concepts(
     paths: list[str],
     concepts: dict[str, Concept],
@@ -1399,7 +1409,9 @@ def _add_paths_to_concepts(
         for i in range(len(parts)):
             concept_id = "/".join(parts[: i + 1])
             if concept_id not in concepts:
-                concept_label = parts[i].replace("_", " ").title()
+                concept_label = _CONCEPT_LABEL_OVERRIDES.get(
+                    concept_id, parts[i].replace("_", " ").title()
+                )
                 concepts[concept_id] = Concept(
                     id=concept_id, prefLabel=concept_label, source=source,
                 )

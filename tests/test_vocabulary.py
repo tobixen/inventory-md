@@ -1461,6 +1461,10 @@ class TestCategoryBySource:
         cbs_paths = [p for p in mappings["potatoes"] if p.startswith("category_by_source/")]
         assert "category_by_source/off/plant_based_foods_and_beverages/vegetables/potatoes" in cbs_paths
 
+        # Well-known concepts should have proper display labels
+        assert vocab["category_by_source"].prefLabel == "Category by Source"
+        assert vocab["category_by_source/off"].prefLabel == "OpenFoodFacts"
+
     def test_category_by_source_dbpedia(self):
         """Verify category_by_source/dbpedia/ concepts are created."""
         inventory = {
@@ -1508,6 +1512,9 @@ class TestCategoryBySource:
         assert "widget" in mappings
         cbs_paths = [p for p in mappings["widget"] if p.startswith("category_by_source/")]
         assert "category_by_source/dbpedia/inventions/widget" in cbs_paths
+
+        # Proper display labels for well-known concepts
+        assert vocab["category_by_source/dbpedia"].prefLabel == "DBpedia"
 
     def test_category_by_source_local_fallback(self):
         """Verify category_by_source/local/ concepts created for fallback (no source found)."""
