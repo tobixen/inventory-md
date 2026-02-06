@@ -269,6 +269,112 @@ class TestBuildCategoryTree:
         assert tree.label_index.get("veggies") == "food/vegetables"
         assert tree.label_index.get("food/vegetables") == "food/vegetables"
 
+    def test_virtual_root_defines_roots(self):
+        """Test that _root.narrower controls which concepts are roots."""
+        vocab = {
+            "_root": vocabulary.Concept(
+                id="_root", prefLabel="Root", narrower=["food", "tools"]
+            ),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
+            "environmental_design": vocabulary.Concept(
+                id="environmental_design", prefLabel="Environmental design"
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert tree.roots == ["food", "tools"]
+
+    def test_virtual_root_excluded_from_tree(self):
+        """Test that _root is removed from concepts after root detection."""
+        vocab = {
+            "_root": vocabulary.Concept(
+                id="_root", prefLabel="Root", narrower=["food"]
+            ),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert "_root" not in tree.concepts
+        assert "_root" not in tree.roots
+
+    def test_virtual_root_excluded_from_label_index(self):
+        """Test that _root does not appear in the label index."""
+        vocab = {
+            "_root": vocabulary.Concept(
+                id="_root", prefLabel="Root", narrower=["food"]
+            ),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert "_root" not in tree.label_index
+        assert "root" not in tree.label_index
+
+    def test_fallback_without_virtual_root(self):
+        """Test backward-compatible behavior when _root is absent."""
+        vocab = {
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        # Should be sorted alphabetically by prefLabel
+        assert tree.roots == ["food", "tools"]
+
+    def test_virtual_root_skips_missing_children(self):
+        """Test that nonexistent narrower entries are ignored."""
+        vocab = {
+            "_root": vocabulary.Concept(
+                id="_root", prefLabel="Root",
+                narrower=["food", "nonexistent", "tools"],
+            ),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert tree.roots == ["food", "tools"]
+
+    def test_virtual_root_blocks_external_rootless_concepts(self):
+        """Test that external rootless concepts are excluded from roots."""
+        vocab = {
+            "_root": vocabulary.Concept(
+                id="_root", prefLabel="Root", narrower=["food"]
+            ),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "environmental_design": vocabulary.Concept(
+                id="environmental_design", prefLabel="Environmental design"
+            ),
+            "goods_(economics)": vocabulary.Concept(
+                id="goods_(economics)", prefLabel="Goods (economics)"
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert tree.roots == ["food"]
+        # External concepts still exist but are not roots
+        assert "environmental_design" in tree.concepts
+        assert "goods_(economics)" in tree.concepts
+
+    def test_virtual_root_preserves_narrower_order(self):
+        """Test that roots appear in _root.narrower order, not alphabetical."""
+        vocab = {
+            "_root": vocabulary.Concept(
+                id="_root", prefLabel="Root",
+                narrower=["tools", "food", "electronics"],
+            ),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
+            "electronics": vocabulary.Concept(
+                id="electronics", prefLabel="Electronics"
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        # Order matches _root.narrower, NOT alphabetical
+        assert tree.roots == ["tools", "food", "electronics"]
+
 
 class TestBuildVocabularyFromInventory:
     """Tests for build_vocabulary_from_inventory function."""

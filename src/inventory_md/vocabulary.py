@@ -45,6 +45,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+VIRTUAL_ROOT_ID = "_root"
+
 
 # =============================================================================
 # VOCABULARY FILE DISCOVERY
@@ -566,21 +568,16 @@ def build_category_tree(
         _infer_hierarchy(concepts)
 
     # Find roots - concepts that should appear at the top level of the tree
-    # Only concepts without a broader relationship are true roots
-    roots = []
-
-    for concept_id, concept in concepts.items():
-        # Skip concepts with "/" - they're part of a hierarchy, not roots
-        if "/" in concept_id:
-            continue
-
-        # Only include if it has no broader (it's a true root)
-        # This applies whether it has children or not
-        if not concept.broader:
-            roots.append(concept_id)
-
-    # Sort roots alphabetically by prefLabel
-    roots.sort(key=lambda x: concepts[x].prefLabel.lower())
+    if VIRTUAL_ROOT_ID in concepts:
+        # Virtual root defines explicit roots via its narrower list
+        virtual_root = concepts[VIRTUAL_ROOT_ID]
+        roots = [cid for cid in virtual_root.narrower if cid in concepts]
+        del concepts[VIRTUAL_ROOT_ID]
+    else:
+        # Fallback: infer roots from concepts with no broader and no "/"
+        roots = [cid for cid, c in concepts.items()
+                 if "/" not in cid and not c.broader]
+        roots.sort(key=lambda x: concepts[x].prefLabel.lower())
 
     # Build label index
     label_index = build_label_index(concepts)

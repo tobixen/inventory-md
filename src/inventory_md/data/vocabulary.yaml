@@ -12,6 +12,34 @@
 
 concepts:
   # =============================================================================
+  # VIRTUAL ROOT — defines which concepts are top-level roots and their order
+  # =============================================================================
+
+  _root:
+    prefLabel: "Root"
+    narrower:
+      - food
+      - tools
+      - electronics
+      - household
+      - clothing
+      - construction
+      - outdoor
+      - sports
+      - medical
+      - safety-equipment
+      - consumables
+      - hardware
+      - office
+      - books
+      - documents
+      - games
+      - transport
+      - hobby
+      - misc
+      - category_by_source
+
+  # =============================================================================
   # TOP-LEVEL CATEGORIES
   # =============================================================================
 
