@@ -1,8 +1,20 @@
 # Category/Vocabulary TODO
 
-Known issues and improvement areas for the SKOS vocabulary and category hierarchy system.
+Known issues and improvement areas for the SKOS vocabulary and category hierarchy system.  We focus first on getting a good, working category system for ~/solveig-inventory, afterwards ~/furuset-inventory should be dealt with.
 
-## 1. DBpedia Concepts Have No Translations (200 concepts)
+## Weirdnesses in the root categories
+
+The roots array has 24 entries - that's what the UI dropdown shows. It includes the 19 package vocabulary roots plus `category_by_source`, `environmental_design`, `goods_(economics)`, `industrial_equipment`, and `subjects`.
+
+Those latter have leaked in somehow and does not belong as roots.
+
+Let's merge together some of the roots.  Hobby, transport, sports and outdoors could be one root.  Construction and most of Consumables should go under Hardware.  Documents, Office supplies and Domestic stuff could go into one root.
+
+## Too many "local" categories
+
+The original plan with the package vocabulary was not to introduce a lot of categories, but to put existing categories into a hiearchical system that is easy to navigate and which make sense for a typical domestic inventory system.  However, I can see full trees of "local" categories (from the inventory-md vocabulary) without any DBpedia entries in it.  I believe the current entries in the package vocabulary is overwriting DBpedia entires rather than augmenting them.  It needs to be investigated.
+
+## DBpedia Concepts Have No Translations (200 concepts)
 
 **Status**: Fixed (2026-02-06)
 **Impact**: 200 DBpedia-sourced concepts have zero translations
@@ -16,7 +28,7 @@ using the existing `_get_dbpedia_labels_batch` in `skos.py`.
 - Add DBpedia translation phase after AGROVOC phase (`vocabulary.py`)
 - Includes sanity check (same pattern as OFF/AGROVOC)
 
-## 2. ~~Orphaned OFF/AGROVOC Intermediate Concepts~~ (likely stale)
+## ~~Orphaned OFF/AGROVOC Intermediate Concepts~~ (likely stale)
 
 **Status**: Probably resolved / stale
 **Original impact**: 173 junk hierarchy nodes clutter the vocabulary
@@ -38,7 +50,7 @@ The `food/non_food_products` path was itself a root mapping bug: AGROVOC's hiera
 **Action**: Verify with a real run whether any orphan concepts still exist. If so,
 investigate which code path creates them. If not, close this issue.
 
-## 3. Low Translation Coverage (18% overall)
+## Low Translation Coverage (18% overall)
 
 **Status**: Open
 **Impact**: 663 non-food local concepts have no translations
@@ -53,7 +65,7 @@ translations.
 - Consider batch-querying DBpedia by prefLabel for concepts without URIs
 - Fix DBpedia translation phase (issue #1) to make added URIs actually work
 
-## 4. OFF Path-to-Translation Mismatch (fixed for labels, URI issue remains)
+## OFF Path-to-Translation Mismatch (fixed for labels, URI issue remains)
 
 **Status**: Partially fixed (2026-02-06)
 **Impact**: Intermediate path concepts can get wrong translations from OFF
@@ -73,7 +85,7 @@ root category was processed first.
   not real OFF concepts)
 - Use DBpedia URI for `food` translations instead (see below)
 
-## 5. `food` Concept Needs DBpedia URI and Manual Labels
+## `food` Concept Needs DBpedia URI and Manual Labels
 
 **Status**: Open (quick win)
 **Impact**: `food` gets wrong or overly-specific translations
@@ -90,7 +102,7 @@ and ensure the DBpedia translation phase works (issue #1).
 
 As a quick interim fix, add explicit labels to the packaged vocabulary.
 
-## 6. Source Hierarchy Preservation (category_by_source)
+## Source Hierarchy Preservation (category_by_source)
 
 **Status**: Implemented (2026-02-06)
 **Impact**: OFF/AGROVOC/DBpedia original hierarchies are now preserved
@@ -109,7 +121,7 @@ mapped to "food"), the original pre-mapping paths are now stored under
 - `vocabulary.py`: `_build_paths_to_root` and `build_skos_hierarchy_paths` return raw paths
 - `vocabulary.py`: Raw paths stored under `category_by_source/` during vocabulary building
 
-## 7. Package Vocabulary Has No Distinct Source/Namespace
+## Package Vocabulary Has No Distinct Source/Namespace
 
 **Status**: Open
 **Impact**: Cannot distinguish package-provided concepts from user-defined local concepts
