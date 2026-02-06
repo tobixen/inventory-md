@@ -1817,7 +1817,45 @@ def build_vocabulary_with_skos_hierarchy(
             for k, v in all_uris.items():
                 if k not in all_uri_maps:
                     all_uri_maps[k] = v
+            _target_existed = local_broader_path in concepts
             _add_paths_to_concepts(final_paths, concepts, source)
+
+            # Transfer metadata from flat local concept to path-prefixed concept
+            # and remove the orphaned flat concept to eliminate duplication
+            if (local_broader_path and local_concept_id
+                    and local_concept_id != local_broader_path
+                    and local_concept_id in concepts
+                    and local_broader_path in concepts):
+                _flat = concepts[local_concept_id]
+                _target = concepts[local_broader_path]
+                if not _target_existed:
+                    # Newly created by _add_paths_to_concepts: overwrite metadata
+                    _target.prefLabel = _flat.prefLabel
+                    _target.altLabels = _flat.altLabels.copy()
+                else:
+                    # Existing concept (e.g., singular/plural merge): merge altLabels
+                    existing_alts = set(_target.altLabels)
+                    for alt in _flat.altLabels:
+                        if alt not in existing_alts:
+                            _target.altLabels.append(alt)
+                # Fill missing metadata (works for both cases)
+                if _flat.uri and not _target.uri:
+                    _target.uri = _flat.uri
+                if _flat.description and not _target.description:
+                    _target.description = _flat.description
+                if _flat.wikipediaUrl and not _target.wikipediaUrl:
+                    _target.wikipediaUrl = _flat.wikipediaUrl
+                if _flat.labels:
+                    merged = dict(_flat.labels)
+                    merged.update(_target.labels)
+                    _target.labels = merged
+                if _flat.descriptions:
+                    merged = dict(_flat.descriptions)
+                    merged.update(_target.descriptions)
+                    _target.descriptions = merged
+                _target.source = "local"
+                del concepts[local_concept_id]
+
             # Store raw source paths under category_by_source/<source>/
             if all_raw_paths and primary_source:
                 for rp in all_raw_paths:

@@ -21,9 +21,17 @@ could go into one root. The `_root.narrower` list controls which concepts appear
 roots, so merging just requires adding `broader` to demoted roots and updating
 `_root.narrower`.
 
-## Too many "local" categories
+## ~~Too many "local" categories~~
 
-The original plan with the package vocabulary was not to introduce a lot of categories, but to put existing categories into a hiearchical system that is easy to navigate and which make sense for a typical domestic inventory system.  However, I can see full trees of "local" categories (from the inventory-md vocabulary) without any DBpedia entries in it.  I believe the current entries in the package vocabulary is overwriting DBpedia entires rather than augmenting them.  It needs to be investigated.
+**Status**: Fixed (2026-02-06)
+**Impact**: Local concepts with `broader` produced duplicate flat and path-prefixed
+concepts (e.g., both `ac-cable` and `electronics/ac-cable`), resulting in 138
+orphaned flat concepts
+
+When a local vocabulary concept like `ac-cable` has `broader: ['electronics']`, the
+builder now transfers metadata from the flat concept to the path-prefixed concept and
+removes the flat duplicate. The path-prefixed form is kept because the UI uses
+`category.startsWith(selected + '/')` for filtering.
 
 ## DBpedia Concepts Have No Translations (200 concepts)
 

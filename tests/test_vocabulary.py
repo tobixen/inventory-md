@@ -1745,13 +1745,16 @@ class TestDBpediaEnrichesLocalConcepts:
         assert any("tools" in p for p in mappings["hammer"])
 
         # Local concept should be enriched with DBpedia metadata
-        hammer = vocab.get("hammer")
+        # After deduplication, flat "hammer" is merged into path-prefixed "tools/hammer"
+        hammer = vocab.get("tools/hammer")
         assert hammer is not None
         assert hammer.uri == "http://dbpedia.org/resource/Hammer"
         assert hammer.description == "A tool with a heavy head used for driving nails."
         assert hammer.wikipediaUrl == "https://en.wikipedia.org/wiki/Hammer"
         # Source should still be local (enriched, not replaced)
         assert hammer.source == "local"
+        # Flat "hammer" should no longer exist
+        assert vocab.get("hammer") is None
 
     def test_enrichment_does_not_overwrite_existing_values(self):
         """DBpedia metadata should not overwrite existing local values."""
@@ -1801,8 +1804,146 @@ class TestDBpediaEnrichesLocalConcepts:
             )
 
         # Local values should be preserved (not overwritten by DBpedia)
-        wrench = vocab.get("wrench")
+        # After deduplication, flat "wrench" is merged into "tools/wrench"
+        wrench = vocab.get("tools/wrench")
         assert wrench is not None
         assert wrench.uri == "http://dbpedia.org/resource/Wrench"
         assert wrench.description == "A hand tool for turning nuts."
         assert wrench.wikipediaUrl == "https://en.wikipedia.org/wiki/Wrench"
+        # Flat "wrench" should no longer exist
+        assert vocab.get("wrench") is None
+
+
+class TestConceptDeduplication:
+    """Tests for flat/path-prefixed concept deduplication."""
+
+    @staticmethod
+    def _make_mock_skos_module():
+        """Create a mock skos module with _is_irrelevant_dbpedia_category."""
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        return mock_module
+
+    def _build_with_local_vocab(self, local_vocab, items, *, enabled_sources=None):
+        """Helper to run build_vocabulary_with_skos_hierarchy with mocked externals."""
+        if enabled_sources is None:
+            enabled_sources = ["off", "dbpedia"]
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": items,
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = None
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, local_vocab=local_vocab,
+                enabled_sources=enabled_sources,
+            )
+        return vocab, mappings
+
+    def test_no_flat_duplicate_when_broader_set(self):
+        """ac-cable with broader:electronics only produces electronics/ac-cable, not both."""
+        local_vocab = {
+            "electronics": vocabulary.Concept(
+                id="electronics", prefLabel="Electronics", source="local",
+            ),
+            "ac-cable": vocabulary.Concept(
+                id="ac-cable", prefLabel="AC Cable", broader=["electronics"],
+                source="local",
+            ),
+        }
+        items = [{"name": "AC Cable", "metadata": {"categories": ["ac-cable"]}}]
+
+        vocab, mappings = self._build_with_local_vocab(local_vocab, items)
+
+        # Path-prefixed concept should exist
+        assert vocab.get("electronics/ac-cable") is not None
+        # Flat concept should NOT exist (deduplicated)
+        assert vocab.get("ac-cable") is None
+
+    def test_metadata_transferred_to_path_prefixed(self):
+        """prefLabel, altLabels, URI etc. are on the path-prefixed concept."""
+        local_vocab = {
+            "electronics": vocabulary.Concept(
+                id="electronics", prefLabel="Electronics", source="local",
+            ),
+            "ac-cable": vocabulary.Concept(
+                id="ac-cable", prefLabel="AC Cable",
+                altLabels=["power cord", "mains cable"],
+                broader=["electronics"], source="local",
+                uri="http://example.com/ac-cable",
+                description="A cable for AC power.",
+            ),
+        }
+        items = [{"name": "AC Cable", "metadata": {"categories": ["ac-cable"]}}]
+
+        vocab, _mappings = self._build_with_local_vocab(local_vocab, items)
+
+        concept = vocab.get("electronics/ac-cable")
+        assert concept is not None
+        assert concept.prefLabel == "AC Cable"
+        assert "power cord" in concept.altLabels
+        assert "mains cable" in concept.altLabels
+        assert concept.uri == "http://example.com/ac-cable"
+        assert concept.description == "A cable for AC power."
+        assert concept.source == "local"
+
+    def test_concept_already_path_prefixed_not_affected(self):
+        """electronics/ac-cable with broader:electronics doesn't get deleted."""
+        local_vocab = {
+            "electronics": vocabulary.Concept(
+                id="electronics", prefLabel="Electronics", source="local",
+            ),
+            "electronics/ac-cable": vocabulary.Concept(
+                id="electronics/ac-cable", prefLabel="AC Cable",
+                broader=["electronics"], source="local",
+            ),
+        }
+        items = [{"name": "AC Cable", "metadata": {"categories": ["electronics/ac-cable"]}}]
+
+        vocab, _mappings = self._build_with_local_vocab(local_vocab, items)
+
+        # The concept should still exist (local_concept_id == local_broader_path)
+        assert vocab.get("electronics/ac-cable") is not None
+
+    def test_singular_plural_merges_altLabels(self):
+        """When book merges into books (singular/plural), altLabels are combined."""
+        local_vocab = {
+            "books": vocabulary.Concept(
+                id="books", prefLabel="Books",
+                altLabels=["reading material"],
+                source="local",
+            ),
+            "book": vocabulary.Concept(
+                id="book", prefLabel="Book",
+                altLabels=["paperback", "hardcover"],
+                broader=["books"], source="local",
+            ),
+        }
+        items = [{"name": "Book", "metadata": {"categories": ["book"]}}]
+
+        vocab, _mappings = self._build_with_local_vocab(local_vocab, items)
+
+        # "book" merges into "books" (singular/plural variant)
+        books = vocab.get("books")
+        assert books is not None
+        # altLabels from both should be present
+        assert "reading material" in books.altLabels
+        assert "paperback" in books.altLabels
+        assert "hardcover" in books.altLabels
+        # Flat "book" should be removed
+        assert vocab.get("book") is None
