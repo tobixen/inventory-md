@@ -217,6 +217,23 @@ class TestBuildCategoryTree:
         assert "tools" in tree.roots
         assert len(tree.roots) == 2
 
+    def test_description_and_wikipedia_preserved(self):
+        """build_category_tree must preserve description and wikipediaUrl."""
+        vocab = {
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
+            "tools/hammer": vocabulary.Concept(
+                id="tools/hammer", prefLabel="Hammer",
+                broader=["tools"], source="local",
+                uri="http://dbpedia.org/resource/Hammer",
+                description="A tool for driving nails.",
+                wikipediaUrl="https://en.wikipedia.org/wiki/Hammer",
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+        hammer = tree.concepts["tools/hammer"]
+        assert hammer.description == "A tool for driving nails."
+        assert hammer.wikipediaUrl == "https://en.wikipedia.org/wiki/Hammer"
+
     def test_infer_hierarchy_from_paths(self):
         """Test inferring hierarchy from path separators."""
         vocab = {
@@ -1751,8 +1768,8 @@ class TestDBpediaEnrichesLocalConcepts:
         assert hammer.uri == "http://dbpedia.org/resource/Hammer"
         assert hammer.description == "A tool with a heavy head used for driving nails."
         assert hammer.wikipediaUrl == "https://en.wikipedia.org/wiki/Hammer"
-        # Source should still be local (enriched, not replaced)
-        assert hammer.source == "local"
+        # Source should reflect the metadata origin (DBpedia provided the URI/description)
+        assert hammer.source == "dbpedia"
         # Flat "hammer" should no longer exist
         assert vocab.get("hammer") is None
 

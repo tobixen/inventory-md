@@ -671,6 +671,103 @@ class TestRESTAPI:
         assert result["uri"] == "http://dbpedia.org/resource/Potato"
         mock_sparql.assert_called_once()
 
+    def test_lookup_dbpedia_sparql_returns_description_and_wikipedia_url(self, tmp_path):
+        """Test that _lookup_dbpedia_sparql returns description and wikipediaUrl."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        sparql_bindings = [
+            {
+                "resource": {"value": "http://dbpedia.org/resource/Hammer"},
+                "label": {"value": "Hammer"},
+                "comment": {"value": "A hammer is a tool for driving nails."},
+            }
+        ]
+
+        with patch.object(client, "_sparql_query", return_value=sparql_bindings):
+            with patch.object(client, "_get_broader_dbpedia", return_value=[]):
+                result, failed = client._lookup_dbpedia_sparql("hammer", "en")
+
+        assert not failed
+        assert result is not None
+        assert result["description"] == "A hammer is a tool for driving nails."
+        assert result["wikipediaUrl"] == "https://en.wikipedia.org/wiki/Hammer"
+
+    def test_lookup_dbpedia_sparql_without_comment(self, tmp_path):
+        """Test that _lookup_dbpedia_sparql handles missing comment gracefully."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        sparql_bindings = [
+            {
+                "resource": {"value": "http://dbpedia.org/resource/Gadget"},
+                "label": {"value": "Gadget"},
+            }
+        ]
+
+        with patch.object(client, "_sparql_query", return_value=sparql_bindings):
+            with patch.object(client, "_get_broader_dbpedia", return_value=[]):
+                result, failed = client._lookup_dbpedia_sparql("gadget", "en")
+
+        assert not failed
+        assert result is not None
+        assert result["description"] is None
+        assert result["wikipediaUrl"] == "https://en.wikipedia.org/wiki/Gadget"
+
+    def test_lookup_concept_refetches_stale_dbpedia_cache(self, tmp_path):
+        """Test that cached DBpedia entries without description are re-fetched."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        # Pre-populate cache with stale entry (no description)
+        stale_entry = {
+            "uri": "http://dbpedia.org/resource/Hammer",
+            "prefLabel": "Hammer",
+            "source": "dbpedia",
+            "broader": [],
+        }
+        cache_key = "concept:dbpedia:en:hammer"
+        cache_path = skos._get_cache_path(tmp_path, cache_key)
+        skos._save_to_cache(cache_path, stale_entry)
+
+        # Fresh entry with description
+        fresh_entry = {
+            "uri": "http://dbpedia.org/resource/Hammer",
+            "prefLabel": "Hammer",
+            "source": "dbpedia",
+            "broader": [],
+            "description": "A hammer is a tool for driving nails.",
+            "wikipediaUrl": "https://en.wikipedia.org/wiki/Hammer",
+        }
+
+        with patch.object(client, "_lookup_dbpedia", return_value=(fresh_entry, False)):
+            result = client.lookup_concept("hammer", lang="en", source="dbpedia")
+
+        assert result is not None
+        assert result["description"] == "A hammer is a tool for driving nails."
+        assert result["wikipediaUrl"] == "https://en.wikipedia.org/wiki/Hammer"
+
+    def test_lookup_concept_keeps_complete_dbpedia_cache(self, tmp_path):
+        """Test that cached DBpedia entries WITH description are served from cache."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
+
+        # Pre-populate cache with complete entry
+        complete_entry = {
+            "uri": "http://dbpedia.org/resource/Hammer",
+            "prefLabel": "Hammer",
+            "source": "dbpedia",
+            "broader": [],
+            "description": "A hammer is a tool for driving nails.",
+            "wikipediaUrl": "https://en.wikipedia.org/wiki/Hammer",
+        }
+        cache_key = "concept:dbpedia:en:hammer"
+        cache_path = skos._get_cache_path(tmp_path, cache_key)
+        skos._save_to_cache(cache_path, complete_entry)
+
+        with patch.object(client, "_lookup_dbpedia") as mock_lookup:
+            result = client.lookup_concept("hammer", lang="en", source="dbpedia")
+
+        # Should NOT have re-fetched
+        mock_lookup.assert_not_called()
+        assert result["description"] == "A hammer is a tool for driving nails."
+
     @patch("niquests.get")
     def test_lookup_dbpedia_rest_filters_list_articles(self, mock_get, tmp_path):
         """Test DBpedia REST API filters out 'List of...' articles."""

@@ -568,7 +568,12 @@ class SKOSClient:
         # Check positive cache (found concepts)
         cached = _load_from_cache(cache_path)
         if cached is not None:
-            return cached if cached.get("uri") else None
+            # Re-fetch stale DBpedia entries that lack description
+            if (source == "dbpedia" and cached.get("uri")
+                    and "description" not in cached):
+                pass  # Fall through to re-query
+            else:
+                return cached if cached.get("uri") else None
 
         # Check not-found cache (consolidated file for 404s)
         if _is_in_not_found_cache(self.cache_dir, cache_key):
@@ -1562,11 +1567,12 @@ class SKOSClient:
         PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
         PREFIX dct: <http://purl.org/dc/terms/>
 
-        SELECT DISTINCT ?resource ?label ?category WHERE {{
+        SELECT DISTINCT ?resource ?label ?category ?comment WHERE {{
             ?resource rdfs:label "{label_title}"@{lang} .
             ?resource rdfs:label ?label .
             FILTER(lang(?label) = "{lang}")
             OPTIONAL {{ ?resource dct:subject ?category }}
+            OPTIONAL {{ ?resource rdfs:comment ?comment . FILTER(lang(?comment) = "{lang}") }}
         }}
         LIMIT 1
         """
@@ -1580,6 +1586,15 @@ class SKOSClient:
         resource_uri = results[0]["resource"]["value"]
         pref_label = results[0].get("label", {}).get("value", label)
 
+        # Extract description from rdfs:comment
+        description = results[0].get("comment", {}).get("value")
+
+        # Generate Wikipedia URL from DBpedia resource URI
+        wikipedia_url = None
+        if resource_uri.startswith("http://dbpedia.org/resource/"):
+            article_name = resource_uri.split("/resource/")[-1]
+            wikipedia_url = f"https://en.wikipedia.org/wiki/{article_name}"
+
         # Get category hierarchy
         broader = self._get_broader_dbpedia(resource_uri, lang)
 
@@ -1588,6 +1603,8 @@ class SKOSClient:
             "prefLabel": pref_label,
             "source": "dbpedia",
             "broader": broader,
+            "description": description,
+            "wikipediaUrl": wikipedia_url,
         }, False
 
     def _get_broader_dbpedia(self, resource_uri: str, lang: str) -> list[dict]:

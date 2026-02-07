@@ -562,6 +562,9 @@ def build_category_tree(
         source=v.source,
         uri=v.uri,
         labels=v.labels.copy() if v.labels else {},
+        description=v.description,
+        wikipediaUrl=v.wikipediaUrl,
+        descriptions=v.descriptions.copy() if v.descriptions else {},
     ) for k, v in vocabulary.items()}
 
     if infer_hierarchy:
@@ -1746,6 +1749,7 @@ def build_vocabulary_with_skos_hierarchy(
                 # If local vocab provides hierarchy, just capture the URI for translations
                 if local_broader_path:
                     all_uri_maps[local_broader_path] = dbpedia_concept["uri"]
+                    primary_source = "dbpedia"
                     # Enrich local concept with DBpedia metadata
                     target_id = local_concept_id or local_broader_path.split("/")[-1]
                     if target_id in concepts:
@@ -1904,7 +1908,9 @@ def build_vocabulary_with_skos_hierarchy(
                     merged = dict(_flat.descriptions)
                     merged.update(_target.descriptions)
                     _target.descriptions = merged
-                _target.source = "local"
+                # Preserve external source when metadata came from an external lookup
+                if _target.source not in ("dbpedia", "off", "agrovoc"):
+                    _target.source = "local"
                 del concepts[local_concept_id]
 
             # Store raw source paths under category_by_source/<source>/
@@ -2060,7 +2066,9 @@ def build_vocabulary_with_skos_hierarchy(
                     merged = dict(_flat.descriptions)
                     merged.update(_target.descriptions)
                     _target.descriptions = merged
-                _target.source = "local"
+                # Preserve external source when metadata came from an external lookup
+                if _target.source not in ("dbpedia", "off", "agrovoc"):
+                    _target.source = "local"
             else:
                 # Only flat exists: move it to the resolved path
                 _add_paths_to_concepts([resolved], concepts, "local")
@@ -2072,7 +2080,8 @@ def build_vocabulary_with_skos_hierarchy(
                 _target.wikipediaUrl = _flat.wikipediaUrl
                 _target.labels = dict(_flat.labels)
                 _target.descriptions = dict(_flat.descriptions)
-                _target.source = "local"
+                # Use the flat concept's source if it had external metadata
+                _target.source = _flat.source if _flat.source in ("dbpedia", "off", "agrovoc") else "local"
             to_delete.append(concept_id)
         for cid in to_delete:
             del concepts[cid]
