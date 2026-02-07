@@ -1618,6 +1618,19 @@ def build_vocabulary_with_skos_hierarchy(
                 if normalized_alt != alt.lower():
                     local_vocab_labels[normalized_alt] = concept_id
 
+    # Add local vocab concepts that need enrichment (have broader but lack metadata)
+    if local_vocab:
+        existing_lower = {lbl.lower() for lbl in leaf_labels}
+        for concept_id, concept in local_vocab.items():
+            if not concept.broader:
+                continue  # Skip root categories
+            if concept.uri and concept.description:
+                continue  # Already has metadata
+            label = concept.prefLabel or concept_id
+            if label.lower() not in existing_lower:
+                leaf_labels.add(label)
+                existing_lower.add(label.lower())
+
     # Expand each leaf label using source priority chain
     total = len(leaf_labels)
     for idx, label in enumerate(sorted(leaf_labels), 1):

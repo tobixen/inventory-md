@@ -1830,6 +1830,70 @@ class TestDBpediaEnrichesLocalConcepts:
         # Flat "wrench" should no longer exist
         assert vocab.get("wrench") is None
 
+    def test_local_concepts_enriched_even_without_inventory_categories(self):
+        """Local vocab concepts get DBpedia metadata even when inventory has no categories."""
+        local_vocab = {
+            "tools": vocabulary.Concept(
+                id="tools", prefLabel="Tools", source="local",
+            ),
+            "hammer": vocabulary.Concept(
+                id="hammer", prefLabel="Hammer", broader=["tools"],
+                source="local",
+            ),
+            "screwdriver": vocabulary.Concept(
+                id="screwdriver", prefLabel="Screwdriver", broader=["tools"],
+                source="local",
+                uri="http://dbpedia.org/resource/Screwdriver",
+                description="A tool for driving screws.",
+                wikipediaUrl="https://en.wikipedia.org/wiki/Screwdriver",
+            ),
+        }
+        # Empty inventory — no items have categories
+        inventory = {"containers": [{"id": "box1", "items": []}]}
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Hammer",
+            "prefLabel": "Hammer",
+            "source": "dbpedia",
+            "description": "A tool with a heavy head used for driving nails.",
+            "wikipediaUrl": "https://en.wikipedia.org/wiki/Hammer",
+            "broader": [],
+        }
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, local_vocab=local_vocab,
+                enabled_sources=["off", "dbpedia"],
+            )
+
+        # Hammer should be enriched with DBpedia metadata via local vocab injection
+        hammer = vocab.get("tools/hammer")
+        assert hammer is not None
+        assert hammer.uri == "http://dbpedia.org/resource/Hammer"
+        assert hammer.description == "A tool with a heavy head used for driving nails."
+        assert hammer.wikipediaUrl == "https://en.wikipedia.org/wiki/Hammer"
+        assert hammer.source == "dbpedia"
+
+        # Screwdriver already had metadata — should NOT be added to leaf_labels
+        # (it's already complete), so lookup_concept should only be called for Hammer
+        call_labels = [
+            call.args[0].lower()
+            for call in mock_client.lookup_concept.call_args_list
+        ]
+        assert "hammer" in call_labels
+        assert "screwdriver" not in call_labels
+
 
 class TestConceptDeduplication:
     """Tests for flat/path-prefixed concept deduplication."""
