@@ -1324,7 +1324,7 @@ concepts:
     broader: tools
 
   # More DBpedia mappings - Household
-  toilet_consumable_paper:
+  toilet_paper:
     prefLabel: "Toilet paper"
     broader: household
 
