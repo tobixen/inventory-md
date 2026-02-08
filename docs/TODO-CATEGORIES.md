@@ -84,25 +84,17 @@ translations.
 - Consider batch-querying DBpedia by prefLabel for concepts without URIs
 - Fix DBpedia translation phase (issue #1) to make added URIs actually work
 
-## OFF Path-to-Translation Mismatch (fixed for labels, URI issue remains)
+## ~~OFF Path-to-Translation Mismatch~~
 
-**Status**: Partially fixed (2026-02-06)
-**Impact**: Intermediate path concepts can get wrong translations from OFF
+**Status**: Fixed (2026-02-08)
+**Impact**: Intermediate path concepts could get wrong translations from OFF
 
 OFF has ~85 root categories (`plant-based foods and beverages`, `meats`, `seafood`,
 `dairies`, etc.). `OFF_ROOT_MAPPING` in `off.py` correctly maps these to `"food"` for
-path construction. However, the OFF node ID stored in `off_node_ids["food"]` still
-points to the specific root node (e.g., `en:plant-based-foods-and-beverages`), giving
-wrong translation labels.
-
-The sanity check (comparing English label to prefLabel) now catches obvious mismatches,
-but the root cause is that OFF's translation for `"food"` comes from whichever specific
-root category was processed first.
-
-**Fix approach**:
-- Don't store OFF node IDs for mapped root concepts (they're synthetic "food" nodes,
-  not real OFF concepts)
-- Use DBpedia URI for `food` translations instead (see below)
+path construction. The AGROVOC `_build_paths_to_root` now skips mapped root URIs
+(same pattern as `off.py`), and the translation phases iterate candidate URIs from both
+`all_uri_maps` and `concept.uri`, filtering by source type. The DBpedia phase no longer
+skips concepts that already have partial translations, allowing it to fill gaps.
 
 ## ~~`food` Concept Needs DBpedia URI and Manual Labels~~
 

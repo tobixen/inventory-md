@@ -1320,13 +1320,16 @@ def _build_paths_to_root(
 
         # We've reached a root - apply mapping if available
         root_label = label.lower()
-        if root_label in AGROVOC_ROOT_MAPPING:
-            mapped_root = AGROVOC_ROOT_MAPPING[root_label]
-            new_path[0] = mapped_root
+        root_was_mapped = root_label in AGROVOC_ROOT_MAPPING
+        if root_was_mapped:
+            new_path[0] = AGROVOC_ROOT_MAPPING[root_label]
         # Return the complete path
         full_path = "/".join(new_path)
         # Track URI for each concept in the path (using matching URIs)
-        for i in range(len(new_path)):
+        # Skip mapped roots (index 0) — synthetic concepts that don't
+        # correspond to any single AGROVOC concept
+        start_idx = 1 if root_was_mapped else 0
+        for i in range(start_idx, len(new_path)):
             concept_id = "/".join(new_path[: i + 1])
             if concept_id not in uri_map:
                 uri_map[concept_id] = new_path_uris[i]
@@ -1979,41 +1982,47 @@ def build_vocabulary_with_skos_hierarchy(
             store = client._get_oxigraph_store()
             if store is not None and store.is_loaded:
                 for concept_id, concept in concepts.items():
-                    uri = all_uri_maps.get(concept_id) or concept.uri
-                    if not uri:
-                        continue
-                    # Skip OFF URIs for AGROVOC store lookups
-                    if uri.startswith("off:"):
-                        continue
-                    agrovoc_labels = _get_all_labels(uri, store, languages)
-                    if agrovoc_labels:
-                        # Sanity check: skip if English label doesn't match concept
-                        en_label = agrovoc_labels.get("en", "")
-                        if en_label and concept.prefLabel:
-                            en_lower = en_label.lower()
-                            pref_lower = concept.prefLabel.lower()
-                            if en_lower not in pref_lower and pref_lower not in en_lower:
-                                logger.debug(
-                                    "Skipping mismatched AGROVOC labels for %s: "
-                                    "prefLabel='%s', AGROVOC en='%s'",
-                                    concept_id, concept.prefLabel, en_label
-                                )
-                                continue
-                        # Merge: AGROVOC fills gaps, doesn't overwrite OFF
-                        merged_labels = dict(agrovoc_labels)
-                        merged_labels.update(concept.labels)
-                        concept.labels = merged_labels
+                    candidate_uris = list(dict.fromkeys(
+                        filter(None, [all_uri_maps.get(concept_id), concept.uri])
+                    ))
+                    for uri in candidate_uris:
+                        # Skip OFF and DBpedia URIs for AGROVOC store lookups
+                        if uri.startswith("off:") or uri.startswith("http://dbpedia.org/"):
+                            continue
+                        agrovoc_labels = _get_all_labels(uri, store, languages)
+                        if agrovoc_labels:
+                            # Sanity check: skip if English label doesn't match
+                            en_label = agrovoc_labels.get("en", "")
+                            if en_label and concept.prefLabel:
+                                en_lower = en_label.lower()
+                                pref_lower = concept.prefLabel.lower()
+                                if en_lower not in pref_lower and pref_lower not in en_lower:
+                                    logger.debug(
+                                        "Skipping mismatched AGROVOC labels for %s: "
+                                        "prefLabel='%s', AGROVOC en='%s'",
+                                        concept_id, concept.prefLabel, en_label
+                                    )
+                                    continue
+                            # Merge: AGROVOC fills gaps, doesn't overwrite OFF
+                            merged_labels = dict(agrovoc_labels)
+                            merged_labels.update(concept.labels)
+                            concept.labels = merged_labels
+                            break
 
         # DBpedia translations (via SPARQL)
         if client is not None:
             dbpedia_uris: list[tuple[str, str]] = []
             dbpedia_concept_map: dict[str, str] = {}
             for concept_id, concept in concepts.items():
-                uri = all_uri_maps.get(concept_id) or concept.uri
-                if not uri or not uri.startswith("http://dbpedia.org/"):
+                candidate_uris = list(dict.fromkeys(
+                    filter(None, [all_uri_maps.get(concept_id), concept.uri])
+                ))
+                uri = next(
+                    (u for u in candidate_uris if u.startswith("http://dbpedia.org/")),
+                    None,
+                )
+                if not uri:
                     continue
-                if concept.labels:
-                    continue  # Already has translations
                 dbpedia_uris.append((uri, "dbpedia"))
                 dbpedia_concept_map[uri] = concept_id
 

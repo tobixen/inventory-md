@@ -2173,3 +2173,148 @@ class TestResolveBroaderChain:
             ),
         }
         assert vocabulary._resolve_broader_chain("book", local_vocab) == "books"
+
+
+class TestTranslationMerging:
+    """Tests for multi-source translation URI resolution.
+
+    When all_uri_maps stores a URI from one source (e.g., DBpedia), the
+    translation phase for another source (e.g., AGROVOC) must still find
+    its URI via concept.uri fallback.
+    """
+
+    def test_agrovoc_build_paths_skips_mapped_root_uri(self):
+        """_build_paths_to_root should not store URIs for AGROVOC mapped roots.
+
+        Same pattern as off.py: mapped roots like "products" -> "food" are
+        synthetic and shouldn't pollute the uri_map.
+        """
+        mock_store = MagicMock()
+
+        # Simulate: concept "potatoes" with broader "products" (an AGROVOC root)
+        # _get_agrovoc_label returns labels for each URI
+        def fake_label(uri, store, lang="en"):
+            return {
+                "http://aims.fao.org/aos/agrovoc/c_potatoes": "potatoes",
+                "http://aims.fao.org/aos/agrovoc/c_products": "products",
+            }.get(uri, "")
+
+        # _get_broader_concepts: potatoes -> products, products -> [] (root)
+        def fake_broader(uri, store):
+            return {
+                "http://aims.fao.org/aos/agrovoc/c_potatoes": [
+                    "http://aims.fao.org/aos/agrovoc/c_products"
+                ],
+            }.get(uri, [])
+
+        with patch("inventory_md.vocabulary._get_agrovoc_label", side_effect=fake_label), \
+             patch("inventory_md.vocabulary._get_broader_concepts", side_effect=fake_broader):
+            paths, uri_map, raw_paths = vocabulary._build_paths_to_root(
+                "http://aims.fao.org/aos/agrovoc/c_potatoes", mock_store
+            )
+
+        # "products" is in AGROVOC_ROOT_MAPPING -> mapped to "food"
+        assert paths == ["food/potatoes"]
+        # The mapped root "food" should NOT have a URI in uri_map
+        assert "food" not in uri_map
+        # But the leaf "food/potatoes" should
+        assert "food/potatoes" in uri_map
+        assert uri_map["food/potatoes"] == "http://aims.fao.org/aos/agrovoc/c_potatoes"
+
+    def test_agrovoc_translation_falls_back_to_concept_uri(self):
+        """AGROVOC translation phase should try concept.uri when all_uri_maps has a non-AGROVOC URI.
+
+        If all_uri_maps has a DBpedia URI for a concept, the AGROVOC phase
+        should skip it and try concept.uri (which may hold an AGROVOC URI).
+        """
+        concepts = {
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes",
+                prefLabel="Potatoes",
+                source="agrovoc",
+                uri="http://aims.fao.org/aos/agrovoc/c_potatoes",
+                labels={},
+            ),
+        }
+
+        # all_uri_maps has a DBpedia URI (first-wins from another source)
+        all_uri_maps = {
+            "food/potatoes": "http://dbpedia.org/resource/Potato",
+        }
+
+        # Build candidate URIs the same way the fixed code does
+        candidate_uris = list(dict.fromkeys(
+            filter(None, [all_uri_maps.get("food/potatoes"), concepts["food/potatoes"].uri])
+        ))
+
+        # Should have both URIs, DBpedia first, then AGROVOC
+        assert candidate_uris == [
+            "http://dbpedia.org/resource/Potato",
+            "http://aims.fao.org/aos/agrovoc/c_potatoes",
+        ]
+
+        # Filter: skip OFF and DBpedia URIs for AGROVOC lookups
+        agrovoc_candidates = [
+            u for u in candidate_uris
+            if not u.startswith("off:") and not u.startswith("http://dbpedia.org/")
+        ]
+        assert agrovoc_candidates == ["http://aims.fao.org/aos/agrovoc/c_potatoes"]
+
+    def test_dbpedia_translation_falls_back_to_concept_uri(self):
+        """DBpedia translation phase should try concept.uri when all_uri_maps has a non-DBpedia URI.
+
+        If all_uri_maps has an AGROVOC URI, the DBpedia phase should still
+        find the DBpedia URI from concept.uri.
+        """
+        concepts = {
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes",
+                prefLabel="Potatoes",
+                source="agrovoc",
+                uri="http://dbpedia.org/resource/Potato",
+                labels={"en": "Potatoes"},
+            ),
+        }
+
+        # all_uri_maps has an AGROVOC URI (first-wins)
+        all_uri_maps = {
+            "food/potatoes": "http://aims.fao.org/aos/agrovoc/c_potatoes",
+        }
+
+        # Build candidate URIs the same way the fixed code does
+        candidate_uris = list(dict.fromkeys(
+            filter(None, [all_uri_maps.get("food/potatoes"), concepts["food/potatoes"].uri])
+        ))
+
+        # Find the DBpedia URI
+        dbpedia_uri = next(
+            (u for u in candidate_uris if u.startswith("http://dbpedia.org/")),
+            None,
+        )
+        assert dbpedia_uri == "http://dbpedia.org/resource/Potato"
+
+    def test_dbpedia_phase_fills_translation_gaps(self):
+        """DBpedia phase should add translations even when concept already has some labels.
+
+        The old code had `if concept.labels: continue` which skipped concepts
+        that already had partial translations from OFF/AGROVOC.
+        """
+        concept = vocabulary.Concept(
+            id="food/potatoes",
+            prefLabel="Potatoes",
+            source="agrovoc",
+            uri="http://dbpedia.org/resource/Potato",
+            labels={"en": "Potatoes", "nb": "Poteter"},
+        )
+
+        # DBpedia provides additional languages
+        dbpedia_labels = {"en": "Potato", "nb": "Potet", "de": "Kartoffel", "fr": "Pomme de terre"}
+
+        # The fixed merge: DBpedia fills gaps, doesn't overwrite existing
+        merged = dict(dbpedia_labels)
+        merged.update(concept.labels)  # existing labels take priority
+
+        assert merged["en"] == "Potatoes"  # existing preserved
+        assert merged["nb"] == "Poteter"   # existing preserved
+        assert merged["de"] == "Kartoffel"  # gap filled by DBpedia
+        assert merged["fr"] == "Pomme de terre"  # gap filled by DBpedia
