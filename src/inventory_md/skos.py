@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 ENDPOINTS = {
     "agrovoc": "https://agrovoc.fao.org/sparql",
     "dbpedia": "https://dbpedia.org/sparql",
+    "wikidata": "https://query.wikidata.org/sparql",
 }
 
 # REST API endpoints (Skosmos for AGROVOC, Lookup for DBpedia)
@@ -531,7 +532,10 @@ class SKOSClient:
                     "Install with: pip install inventory-md[skos]"
                 ) from e
 
-        headers = {"Accept": "application/sparql-results+json"}
+        headers = {
+            "Accept": "application/sparql-results+json",
+            "User-Agent": "inventory-md (SKOS vocabulary builder)",
+        }
         params = {"query": query, "format": "json"}
 
         try:
@@ -662,6 +666,7 @@ class SKOSClient:
         results: dict[str, dict[str, str]] = {}
         uncached_agrovoc: list[str] = []
         uncached_dbpedia: list[str] = []
+        uncached_wikidata: list[str] = []
 
         # Check cache for each URI
         for uri, source in uris:
@@ -678,6 +683,8 @@ class SKOSClient:
                     uncached_agrovoc.append(uri)
                 elif source == "dbpedia":
                     uncached_dbpedia.append(uri)
+                elif source == "wikidata":
+                    uncached_wikidata.append(uri)
 
         # Batch fetch uncached AGROVOC labels
         if uncached_agrovoc:
@@ -700,6 +707,17 @@ class SKOSClient:
                 cache_key = f"labels:dbpedia:{uri_hash}"
                 cache_path = _get_cache_path(self.cache_dir, cache_key)
                 _save_to_cache(cache_path, {"uri": uri, "source": "dbpedia", "labels": labels})
+
+        # Batch fetch uncached Wikidata labels (uses DBpedia URIs internally)
+        if uncached_wikidata:
+            batch_results = self._get_wikidata_labels_batch(uncached_wikidata, languages)
+            for uri, labels in batch_results.items():
+                results[uri] = labels
+                # Cache each result
+                uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+                cache_key = f"labels:wikidata:{uri_hash}"
+                cache_path = _get_cache_path(self.cache_dir, cache_key)
+                _save_to_cache(cache_path, {"uri": uri, "source": "wikidata", "labels": labels})
 
         return results
 
@@ -878,6 +896,94 @@ class SKOSClient:
                         uri_labels[requested_lang] = uri_labels[fallback_lang]
 
         return labels_by_uri
+
+    def _get_wikidata_labels_batch(
+        self, dbpedia_uris: list[str], languages: list[str]
+    ) -> dict[str, dict[str, str]]:
+        """Get labels for multiple concepts from Wikidata, keyed by DBpedia URI.
+
+        Converts DBpedia URIs to Wikipedia URLs, queries Wikidata via
+        schema:about, and maps results back to the original DBpedia URIs.
+
+        Args:
+            dbpedia_uris: List of DBpedia URIs
+                (e.g., "http://dbpedia.org/resource/Toilet_paper").
+            languages: List of language codes to fetch.
+
+        Returns:
+            Dictionary mapping original DBpedia URIs to label dictionaries.
+        """
+        endpoint = self.endpoints.get("wikidata")
+        if not endpoint or not dbpedia_uris:
+            return {}
+
+        # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
+        query_languages = set(languages)
+        for lang in languages:
+            if lang in LANGUAGE_FALLBACKS:
+                query_languages.add(LANGUAGE_FALLBACKS[lang])
+
+        # Convert DBpedia URIs to Wikipedia URLs and build mapping
+        dbpedia_prefix = "http://dbpedia.org/resource/"
+        wp_to_dbpedia: dict[str, str] = {}
+        for uri in dbpedia_uris:
+            if uri.startswith(dbpedia_prefix):
+                article = uri[len(dbpedia_prefix):]
+                wp_url = f"https://en.wikipedia.org/wiki/{article}"
+                wp_to_dbpedia[wp_url] = uri
+
+        if not wp_to_dbpedia:
+            return {}
+
+        # Deduplicate
+        unique_wp_urls = list(dict.fromkeys(wp_to_dbpedia.keys()))
+        labels_by_dbpedia: dict[str, dict[str, str]] = {
+            uri: {} for uri in dict.fromkeys(dbpedia_uris)
+        }
+
+        # Split into chunks (Wikidata has query limits)
+        chunk_size = 20
+        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
+
+        for i in range(0, len(unique_wp_urls), chunk_size):
+            chunk = unique_wp_urls[i:i + chunk_size]
+            wp_values = " ".join(f"<{url}>" for url in chunk)
+
+            query = f"""
+            PREFIX schema: <http://schema.org/>
+            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+            SELECT ?wpPage ?lang ?label WHERE {{
+                VALUES ?wpPage {{ {wp_values} }}
+                ?wpPage schema:about ?item .
+                ?item rdfs:label ?label .
+                BIND(LANG(?label) AS ?lang)
+                FILTER(?lang IN ({lang_filter}))
+            }}
+            """
+
+            results = self._sparql_query(endpoint, query)
+            if results is None:
+                continue
+
+            for r in results:
+                wp_url = r.get("wpPage", {}).get("value", "")
+                lang = r.get("lang", {}).get("value", "")
+                label = r.get("label", {}).get("value", "")
+                if wp_url and lang and label:
+                    dbpedia_uri = wp_to_dbpedia.get(wp_url)
+                    if dbpedia_uri and dbpedia_uri in labels_by_dbpedia:
+                        labels_by_dbpedia[dbpedia_uri][lang] = label
+
+        # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
+        for uri_labels in labels_by_dbpedia.values():
+            for requested_lang in languages:
+                if requested_lang not in uri_labels:
+                    fallback_lang = LANGUAGE_FALLBACKS.get(requested_lang)
+                    if fallback_lang and fallback_lang in uri_labels:
+                        uri_labels[requested_lang] = uri_labels[fallback_lang]
+
+        return labels_by_dbpedia
 
     def _get_agrovoc_labels(self, uri: str, languages: list[str]) -> dict[str, str]:
         """Get labels from AGROVOC in multiple languages using SPARQL."""

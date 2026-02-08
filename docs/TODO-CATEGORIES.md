@@ -71,18 +71,24 @@ investigate which code path creates them. If not, close this issue.
 
 ## Low Translation Coverage (18% overall)
 
-**Status**: Open
+**Status**: Partially addressed (2026-02-08)
 **Impact**: 663 non-food local concepts have no translations
 
 Most local concepts lack URIs, so the translation phase can't look them up.
 Only concepts with AGROVOC/OFF/DBpedia URIs (or matches in `all_uri_maps`) get
 translations.
 
-**Fix approach**:
+**Recent improvements**:
+- Added Wikidata as a fourth translation source (after OFF, AGROVOC, DBpedia).
+  Wikidata has excellent Norwegian coverage where DBpedia is sparse.
+- Added a final language fallback pass that applies `DEFAULT_LANGUAGE_FALLBACKS`
+  to every concept's labels after all translation phases complete. This fills
+  gaps like "nb" from "sv" (or "da", "nn") when no source has Norwegian.
+
+**Remaining approach**:
 - Add DBpedia URIs to more local vocabulary entries (like was done for `tools`,
   `bedding`, `peanuts`, etc.)
 - Consider batch-querying DBpedia by prefLabel for concepts without URIs
-- Fix DBpedia translation phase (issue #1) to make added URIs actually work
 
 ## ~~OFF Path-to-Translation Mismatch~~
 

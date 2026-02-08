@@ -951,6 +951,113 @@ class TestLanguageFallback:
         assert result["http://example.org/b"]["nb"] == "B-nb"
 
 
+class TestWikidataLabels:
+    """Tests for Wikidata label fetching."""
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_wikidata_batch_converts_dbpedia_uris_to_wikipedia_urls(self, mock_query, tmp_path):
+        """_get_wikidata_labels_batch converts DBpedia URIs to Wikipedia URLs in SPARQL."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_query.return_value = [
+            {
+                "wpPage": {"value": "https://en.wikipedia.org/wiki/Toilet_paper"},
+                "lang": {"value": "nb"},
+                "label": {"value": "toalettpapir"},
+            },
+        ]
+
+        client._get_wikidata_labels_batch(
+            ["http://dbpedia.org/resource/Toilet_paper"],
+            languages=["nb"],
+        )
+
+        # Should have called SPARQL with Wikipedia URL, not DBpedia URI
+        query_arg = mock_query.call_args[0][1]
+        assert "https://en.wikipedia.org/wiki/Toilet_paper" in query_arg
+        assert "schema:about" in query_arg
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_wikidata_batch_maps_results_back_to_dbpedia_uris(self, mock_query, tmp_path):
+        """Results are keyed by original DBpedia URI, not Wikipedia URL."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_query.return_value = [
+            {
+                "wpPage": {"value": "https://en.wikipedia.org/wiki/Toilet_paper"},
+                "lang": {"value": "nb"},
+                "label": {"value": "toalettpapir"},
+            },
+            {
+                "wpPage": {"value": "https://en.wikipedia.org/wiki/Potato"},
+                "lang": {"value": "nb"},
+                "label": {"value": "potet"},
+            },
+        ]
+
+        result = client._get_wikidata_labels_batch(
+            ["http://dbpedia.org/resource/Toilet_paper", "http://dbpedia.org/resource/Potato"],
+            languages=["nb"],
+        )
+
+        assert "http://dbpedia.org/resource/Toilet_paper" in result
+        assert result["http://dbpedia.org/resource/Toilet_paper"]["nb"] == "toalettpapir"
+        assert "http://dbpedia.org/resource/Potato" in result
+        assert result["http://dbpedia.org/resource/Potato"]["nb"] == "potet"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_wikidata_batch_applies_language_fallback(self, mock_query, tmp_path):
+        """Wikidata batch applies nb->no fallback like other sources."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_query.return_value = [
+            {
+                "wpPage": {"value": "https://en.wikipedia.org/wiki/Potato"},
+                "lang": {"value": "no"},
+                "label": {"value": "potet"},
+            },
+        ]
+
+        result = client._get_wikidata_labels_batch(
+            ["http://dbpedia.org/resource/Potato"],
+            languages=["nb"],
+        )
+
+        assert result["http://dbpedia.org/resource/Potato"]["nb"] == "potet"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_wikidata_batch_ignores_non_dbpedia_uris(self, mock_query, tmp_path):
+        """Non-DBpedia URIs are ignored (no Wikipedia URL conversion possible)."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        result = client._get_wikidata_labels_batch(
+            ["http://aims.fao.org/aos/agrovoc/c_13551"],
+            languages=["nb"],
+        )
+
+        mock_query.assert_not_called()
+        assert result == {}
+
+    @patch("inventory_md.skos.SKOSClient._get_wikidata_labels_batch")
+    def test_get_batch_labels_dispatches_wikidata(self, mock_wikidata, tmp_path):
+        """get_batch_labels dispatches 'wikidata' source to _get_wikidata_labels_batch."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_wikidata.return_value = {
+            "http://dbpedia.org/resource/Potato": {"nb": "potet"},
+        }
+
+        result = client.get_batch_labels(
+            [("http://dbpedia.org/resource/Potato", "wikidata")],
+            languages=["nb"],
+        )
+
+        mock_wikidata.assert_called_once_with(
+            ["http://dbpedia.org/resource/Potato"], ["nb"]
+        )
+        assert result["http://dbpedia.org/resource/Potato"]["nb"] == "potet"
+
+
 class TestOxigraphStore:
     """Tests for Oxigraph local store functionality."""
 

@@ -2318,3 +2318,48 @@ class TestTranslationMerging:
         assert merged["nb"] == "Poteter"   # existing preserved
         assert merged["de"] == "Kartoffel"  # gap filled by DBpedia
         assert merged["fr"] == "Pomme de terre"  # gap filled by DBpedia
+
+    def test_wikidata_phase_fills_gaps_without_overwriting(self):
+        """Wikidata phase should fill translation gaps without overwriting existing labels."""
+        concept = vocabulary.Concept(
+            id="food/potatoes",
+            prefLabel="Potatoes",
+            source="agrovoc",
+            uri="http://dbpedia.org/resource/Potato",
+            labels={"en": "Potatoes", "de": "Kartoffel"},
+        )
+
+        # Wikidata provides Norwegian (which DBpedia lacked)
+        wikidata_labels = {"en": "Potato", "nb": "potet", "de": "Kartoffel (Pflanze)"}
+
+        # Same merge pattern: Wikidata fills gaps, doesn't overwrite
+        merged = dict(wikidata_labels)
+        merged.update(concept.labels)
+
+        assert merged["en"] == "Potatoes"  # existing preserved
+        assert merged["de"] == "Kartoffel"  # existing preserved (not overwritten)
+        assert merged["nb"] == "potet"  # gap filled by Wikidata
+
+    def test_final_fallback_pass_fills_nb_from_sv(self):
+        """Final fallback pass should fill 'nb' from 'sv' when direct translation missing."""
+        labels = {"en": "Toilet paper", "sv": "toalettpapper"}
+        result = vocabulary.apply_language_fallbacks(labels, ["en", "nb", "sv"])
+
+        assert result["en"] == "Toilet paper"
+        assert result["sv"] == "toalettpapper"
+        # nb falls back through chain: no (missing), da (missing), nn (missing), sv (found!)
+        assert result["nb"] == "toalettpapper"
+
+    def test_final_fallback_pass_prefers_closer_fallback(self):
+        """Final fallback pass should prefer closer languages in the chain."""
+        labels = {"en": "Milk", "da": "Mælk", "sv": "Mjölk"}
+        result = vocabulary.apply_language_fallbacks(labels, ["en", "nb", "da", "sv"])
+
+        assert result["nb"] == "Mælk"  # da is before sv in the chain
+
+    def test_final_fallback_not_applied_when_direct_exists(self):
+        """Fallback should not overwrite direct translations."""
+        labels = {"en": "Milk", "nb": "Melk", "sv": "Mjölk"}
+        result = vocabulary.apply_language_fallbacks(labels, ["en", "nb", "sv"])
+
+        assert result["nb"] == "Melk"  # direct translation preserved

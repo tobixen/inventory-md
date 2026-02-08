@@ -2053,6 +2053,32 @@ def build_vocabulary_with_skos_hierarchy(
                     merged_labels.update(concept.labels)
                     concept.labels = merged_labels
 
+        # Wikidata translations (fills Norwegian/other gaps from DBpedia)
+        if client is not None and dbpedia_uris:
+            logger.info("Fetching Wikidata translations for %d concepts...", len(dbpedia_uris))
+            wikidata_translations = client.get_batch_labels(
+                [(uri, "wikidata") for uri, _ in dbpedia_uris], languages
+            )
+            for uri, labels in wikidata_translations.items():
+                cid = dbpedia_concept_map.get(uri)
+                if not cid or cid not in concepts:
+                    continue
+                concept = concepts[cid]
+                if not labels:
+                    continue
+                # Merge: Wikidata fills gaps, doesn't overwrite
+                merged_labels = dict(labels)
+                merged_labels.update(concept.labels)
+                concept.labels = merged_labels
+
+    # Apply language fallbacks to fill remaining gaps (e.g., nb from sv)
+    if languages and len(languages) > 1:
+        for concept in concepts.values():
+            if concept.labels:
+                concept.labels = apply_language_fallbacks(
+                    concept.labels, languages
+                )
+
     # Final dedup pass: move local concepts to their resolved path-prefixed form.
     # Flat versions can be (re-)created as intermediate nodes by _add_paths_to_concepts
     # when processing child concepts or path-based categories.
