@@ -951,6 +951,141 @@ class TestLanguageFallback:
         assert result["http://example.org/b"]["nb"] == "B-nb"
 
 
+class TestWikidataLookup:
+    """Tests for Wikidata concept lookup."""
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_lookup_wikidata_sparql_found(self, mock_query, tmp_path):
+        """Concept found with broader, description, and wikipediaUrl."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        # First call: lookup query returns a result
+        lookup_results = [
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q10998"},
+                "label": {"value": "toilet paper"},
+                "description": {"value": "tissue paper product for personal hygiene"},
+                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Toilet_paper"},
+            }
+        ]
+        # Second call: broader query returns instance_of and subclass_of
+        broader_results = [
+            {
+                "broader": {"value": "http://www.wikidata.org/entity/Q5060228"},
+                "label": {"value": "paper product"},
+                "relType": {"value": "instance_of"},
+            },
+            {
+                "broader": {"value": "http://www.wikidata.org/entity/Q39546"},
+                "label": {"value": "tool"},
+                "relType": {"value": "subclass_of"},
+            },
+        ]
+        mock_query.side_effect = [lookup_results, broader_results]
+
+        result, failed = client._lookup_wikidata_sparql("toilet paper", "en")
+
+        assert not failed
+        assert result is not None
+        assert result["uri"] == "http://www.wikidata.org/entity/Q10998"
+        assert result["prefLabel"] == "toilet paper"
+        assert result["source"] == "wikidata"
+        assert result["description"] == "tissue paper product for personal hygiene"
+        assert result["wikipediaUrl"] == "https://en.wikipedia.org/wiki/Toilet_paper"
+        assert len(result["broader"]) == 2
+        # instance_of should be sorted first
+        assert result["broader"][0]["relType"] == "instance_of"
+        assert result["broader"][0]["label"] == "paper product"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_lookup_wikidata_not_found(self, mock_query, tmp_path):
+        """Returns None when not found."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        # Both label variants return empty results
+        mock_query.return_value = []
+
+        result, failed = client._lookup_wikidata_sparql("nonexistentxyz", "en")
+
+        assert not failed
+        assert result is None
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_lookup_wikidata_query_failed(self, mock_query, tmp_path):
+        """Returns None with query_failed=True on SPARQL error."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        mock_query.return_value = None  # Simulates timeout/error
+
+        result, failed = client._lookup_wikidata_sparql("toilet paper", "en")
+
+        assert failed is True
+        assert result is None
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_lookup_wikidata_tries_title_case(self, mock_query, tmp_path):
+        """Falls back to .title() variant if lowercase not found."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        # First call (lowercase): empty
+        # Second call (Title Case): found
+        lookup_results = [
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q10998"},
+                "label": {"value": "Toilet paper"},
+                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Toilet_paper"},
+            }
+        ]
+        mock_query.side_effect = [[], lookup_results, []]  # empty, found, broader
+
+        result, failed = client._lookup_wikidata_sparql("toilet paper", "en")
+
+        assert not failed
+        assert result is not None
+        assert result["uri"] == "http://www.wikidata.org/entity/Q10998"
+
+    def test_abstract_wikidata_class_filter(self):
+        """Q35120 (entity) filtered, normal Q-number not."""
+        assert skos._is_abstract_wikidata_class("http://www.wikidata.org/entity/Q35120") is True
+        assert skos._is_abstract_wikidata_class("http://www.wikidata.org/entity/Q223557") is True
+        assert skos._is_abstract_wikidata_class("http://www.wikidata.org/entity/Q10998") is False
+        assert skos._is_abstract_wikidata_class("http://www.wikidata.org/entity/Q5060228") is False
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_get_broader_wikidata_filters_abstract(self, mock_query, tmp_path):
+        """Abstract classes are filtered from broader results."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        mock_query.return_value = [
+            {
+                "broader": {"value": "http://www.wikidata.org/entity/Q5060228"},
+                "label": {"value": "paper product"},
+                "relType": {"value": "instance_of"},
+            },
+            {
+                "broader": {"value": "http://www.wikidata.org/entity/Q35120"},
+                "label": {"value": "entity"},
+                "relType": {"value": "subclass_of"},
+            },
+        ]
+
+        result = client._get_broader_wikidata("http://www.wikidata.org/entity/Q10998", "en")
+
+        assert len(result) == 1
+        assert result[0]["label"] == "paper product"
+
+    @patch("inventory_md.skos.SKOSClient._lookup_wikidata_sparql")
+    def test_lookup_wikidata_dispatches_to_sparql(self, mock_sparql, tmp_path):
+        """_lookup_wikidata delegates to _lookup_wikidata_sparql."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        mock_sparql.return_value = ({"uri": "http://www.wikidata.org/entity/Q10998"}, False)
+
+        result, failed = client._lookup_wikidata("toilet paper", "en")
+
+        mock_sparql.assert_called_once_with("toilet paper", "en")
+        assert result["uri"] == "http://www.wikidata.org/entity/Q10998"
+
+
 class TestWikidataLabels:
     """Tests for Wikidata label fetching."""
 
@@ -1027,7 +1162,7 @@ class TestWikidataLabels:
 
     @patch("inventory_md.skos.SKOSClient._sparql_query")
     def test_wikidata_batch_ignores_non_dbpedia_uris(self, mock_query, tmp_path):
-        """Non-DBpedia URIs are ignored (no Wikipedia URL conversion possible)."""
+        """Non-DBpedia/non-Wikidata URIs produce no SPARQL query and empty labels."""
         client = skos.SKOSClient(cache_dir=tmp_path)
 
         result = client._get_wikidata_labels_batch(
@@ -1036,7 +1171,8 @@ class TestWikidataLabels:
         )
 
         mock_query.assert_not_called()
-        assert result == {}
+        # URI is present but with no labels (no query was made for it)
+        assert result["http://aims.fao.org/aos/agrovoc/c_13551"] == {}
 
     @patch("inventory_md.skos.SKOSClient._get_wikidata_labels_batch")
     def test_get_batch_labels_dispatches_wikidata(self, mock_wikidata, tmp_path):
@@ -1056,6 +1192,65 @@ class TestWikidataLabels:
             ["http://dbpedia.org/resource/Potato"], ["nb"]
         )
         assert result["http://dbpedia.org/resource/Potato"]["nb"] == "potet"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_wikidata_batch_handles_native_wikidata_uris(self, mock_query, tmp_path):
+        """Native Wikidata entity URIs are queried directly via rdfs:label."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_query.return_value = [
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q10998"},
+                "lang": {"value": "nb"},
+                "label": {"value": "toalettpapir"},
+            },
+        ]
+
+        result = client._get_wikidata_labels_batch(
+            ["http://www.wikidata.org/entity/Q10998"],
+            languages=["nb"],
+        )
+
+        assert "http://www.wikidata.org/entity/Q10998" in result
+        assert result["http://www.wikidata.org/entity/Q10998"]["nb"] == "toalettpapir"
+        # Should query directly with rdfs:label, not schema:about
+        query_arg = mock_query.call_args[0][1]
+        assert "rdfs:label" in query_arg
+        assert "schema:about" not in query_arg
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_wikidata_batch_mixed_uris(self, mock_query, tmp_path):
+        """Both DBpedia and native Wikidata URIs handled in one batch call."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        # First call: DBpedia URIs via Wikipedia sitelinks
+        dbpedia_results = [
+            {
+                "wpPage": {"value": "https://en.wikipedia.org/wiki/Potato"},
+                "lang": {"value": "nb"},
+                "label": {"value": "potet"},
+            },
+        ]
+        # Second call: native Wikidata URIs via rdfs:label
+        wikidata_results = [
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q10998"},
+                "lang": {"value": "nb"},
+                "label": {"value": "toalettpapir"},
+            },
+        ]
+        mock_query.side_effect = [dbpedia_results, wikidata_results]
+
+        result = client._get_wikidata_labels_batch(
+            [
+                "http://dbpedia.org/resource/Potato",
+                "http://www.wikidata.org/entity/Q10998",
+            ],
+            languages=["nb"],
+        )
+
+        assert result["http://dbpedia.org/resource/Potato"]["nb"] == "potet"
+        assert result["http://www.wikidata.org/entity/Q10998"]["nb"] == "toalettpapir"
 
 
 class TestOxigraphStore:

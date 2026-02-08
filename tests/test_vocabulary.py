@@ -2363,3 +2363,247 @@ class TestTranslationMerging:
         result = vocabulary.apply_language_fallbacks(labels, ["en", "nb", "sv"])
 
         assert result["nb"] == "Melk"  # direct translation preserved
+
+
+class TestWikidataFallbackPhase:
+    """Tests for Wikidata as a full independent category source."""
+
+    @staticmethod
+    def _make_mock_skos_module():
+        """Create a mock skos module with required filter functions."""
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        mock_module._is_abstract_wikidata_class.return_value = False
+        return mock_module
+
+    def test_wikidata_fallback_creates_hierarchy_paths(self):
+        """Paths created when OFF/AGROVOC/DBpedia all miss but Wikidata finds it."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        # OFF, AGROVOC, DBpedia all miss
+        mock_client.lookup_concept.side_effect = lambda label, lang, source: {
+            "wikidata": {
+                "uri": "http://www.wikidata.org/entity/Q1234",
+                "prefLabel": "Gadget",
+                "source": "wikidata",
+                "description": "A small mechanical device",
+                "wikipediaUrl": "https://en.wikipedia.org/wiki/Gadget",
+                "broader": [
+                    {"uri": "http://www.wikidata.org/entity/Q39546",
+                     "label": "Tool", "relType": "instance_of"},
+                ],
+            },
+        }.get(source)
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "dbpedia", "wikidata"]
+            )
+
+        # Should have hierarchy path from Wikidata broader
+        assert "gadget" in mappings
+        hierarchy_paths = [p for p in mappings["gadget"] if not p.startswith("category_by_source/")]
+        assert any("tool" in p for p in hierarchy_paths)
+        assert "tool/gadget" in hierarchy_paths
+
+    def test_category_by_source_wikidata(self):
+        """category_by_source/wikidata/ entries exist when Wikidata is the source."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.side_effect = lambda label, lang, source: {
+            "wikidata": {
+                "uri": "http://www.wikidata.org/entity/Q1234",
+                "prefLabel": "Gadget",
+                "source": "wikidata",
+                "broader": [
+                    {"uri": "http://www.wikidata.org/entity/Q39546",
+                     "label": "Tool", "relType": "instance_of"},
+                ],
+            },
+        }.get(source)
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "dbpedia", "wikidata"]
+            )
+
+        # category_by_source/wikidata/ path should exist
+        assert "category_by_source" in vocab
+        assert "category_by_source/wikidata" in vocab
+        assert "category_by_source/wikidata/tool" in vocab
+        assert "category_by_source/wikidata/tool/gadget" in vocab
+
+        # Proper display label
+        assert vocab["category_by_source/wikidata"].prefLabel == "Wikidata"
+
+        # category_by_source paths should appear in mappings
+        assert "gadget" in mappings
+        cbs_paths = [p for p in mappings["gadget"] if p.startswith("category_by_source/")]
+        assert "category_by_source/wikidata/tool/gadget" in cbs_paths
+
+    def test_wikidata_uri_persisted_on_leaf(self):
+        """Leaf concept gets Wikidata entity URI."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.side_effect = lambda label, lang, source: {
+            "wikidata": {
+                "uri": "http://www.wikidata.org/entity/Q1234",
+                "prefLabel": "Gadget",
+                "source": "wikidata",
+                "broader": [
+                    {"uri": "http://www.wikidata.org/entity/Q39546",
+                     "label": "Tool", "relType": "instance_of"},
+                ],
+            },
+        }.get(source)
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "dbpedia", "wikidata"]
+            )
+
+        # Find the concept with URI (could be at tool/gadget or gadget)
+        found = False
+        for _cid, concept in vocab.items():
+            if concept.uri == "http://www.wikidata.org/entity/Q1234":
+                found = True
+                break
+        assert found, "Wikidata URI not persisted on any concept"
+
+    def test_wikidata_enriches_local_concept(self):
+        """Local concept with broader gets enriched by Wikidata metadata."""
+        local_vocab = {
+            "tools": vocabulary.Concept(
+                id="tools", prefLabel="Tools", source="local",
+            ),
+            "gadget": vocabulary.Concept(
+                id="gadget", prefLabel="Gadget", broader=["tools"],
+                source="local",
+            ),
+        }
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        # OFF and DBpedia miss, Wikidata finds it
+        mock_client.lookup_concept.side_effect = lambda label, lang, source: {
+            "wikidata": {
+                "uri": "http://www.wikidata.org/entity/Q1234",
+                "prefLabel": "Gadget",
+                "source": "wikidata",
+                "description": "A small mechanical device",
+                "wikipediaUrl": "https://en.wikipedia.org/wiki/Gadget",
+                "broader": [],
+            },
+        }.get(source)
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, local_vocab=local_vocab,
+                enabled_sources=["off", "dbpedia", "wikidata"],
+            )
+
+        # Gadget should use local hierarchy (tools/gadget)
+        assert "gadget" in mappings
+        assert any("tools" in p for p in mappings["gadget"])
+
+        # After dedup, flat "gadget" merges into "tools/gadget"
+        gadget = vocab.get("tools/gadget")
+        assert gadget is not None
+        assert gadget.uri == "http://www.wikidata.org/entity/Q1234"
+        assert gadget.description == "A small mechanical device"
+        assert gadget.wikipediaUrl == "https://en.wikipedia.org/wiki/Gadget"
+
+    def test_wikidata_not_used_when_not_in_enabled_sources(self):
+        """Wikidata fallback skipped when not in enabled_sources."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Gizmo", "metadata": {"categories": ["gizmo"]}}],
+            }]
+        }
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = None
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "dbpedia"]  # no wikidata
+            )
+
+        # Should NOT have called lookup_concept with source="wikidata"
+        for call in mock_client.lookup_concept.call_args_list:
+            assert call.kwargs.get("source") != "wikidata"
+            assert len(call.args) < 3 or call.args[2] != "wikidata"

@@ -1433,6 +1433,7 @@ _CONCEPT_LABEL_OVERRIDES: dict[str, str] = {
     "category_by_source/off": "OpenFoodFacts",
     "category_by_source/agrovoc": "AGROVOC",
     "category_by_source/dbpedia": "DBpedia",
+    "category_by_source/wikidata": "Wikidata",
     "category_by_source/local": "Local",
 }
 
@@ -1536,10 +1537,10 @@ def build_vocabulary_with_skos_hierarchy(
         except ImportError:
             logger.info("OFF module not available, skipping Open Food Facts lookups")
 
-    # Initialize SKOS client if AGROVOC or DBpedia enabled
+    # Initialize SKOS client if AGROVOC, DBpedia, or Wikidata enabled
     skos_module = None
     client = None
-    if "agrovoc" in enabled_sources or "dbpedia" in enabled_sources:
+    if "agrovoc" in enabled_sources or "dbpedia" in enabled_sources or "wikidata" in enabled_sources:
         try:
             from . import skos as skos_module
             client = skos_module.SKOSClient(use_oxigraph=True)
@@ -1857,6 +1858,105 @@ def build_vocabulary_with_skos_hierarchy(
                         logger.debug("DBpedia fallback for '%s' -> %s", label, dbpedia_concept["uri"])
                     continue
 
+        # --- Wikidata fallback ---
+        # Only use Wikidata hierarchy if no other source found it
+        if primary_source is None and client is not None and "wikidata" in enabled_sources:
+            wikidata_concept = client.lookup_concept(label, lang, source="wikidata")
+            if wikidata_concept and wikidata_concept.get("uri"):
+                concept_id = label.lower().replace(" ", "_")
+
+                # If local vocab provides hierarchy, just capture the URI for translations
+                if local_broader_path:
+                    all_uri_maps[local_broader_path] = wikidata_concept["uri"]
+                    primary_source = "wikidata"
+                    # Enrich local concept with Wikidata metadata
+                    target_id = local_concept_id or local_broader_path.split("/")[-1]
+                    if target_id in concepts:
+                        c = concepts[target_id]
+                        if not c.uri:
+                            c.uri = wikidata_concept["uri"]
+                        if not c.description and wikidata_concept.get("description"):
+                            c.description = wikidata_concept["description"]
+                        if not c.wikipediaUrl and wikidata_concept.get("wikipediaUrl"):
+                            c.wikipediaUrl = wikidata_concept["wikipediaUrl"]
+                    # Don't continue - let the local_broader_path handling below run
+                else:
+                    # No local hierarchy - use Wikidata's hierarchy
+                    wikidata_broader = wikidata_concept.get("broader", [])
+
+                    # Build paths from instance_of and subclass_of relations
+                    wikidata_paths = []
+                    broader_ids = []
+
+                    for b in wikidata_broader:
+                        broader_label = b.get("label", "")
+                        broader_uri = b.get("uri", "")
+                        if not broader_label or skos_module._is_abstract_wikidata_class(broader_uri):
+                            continue
+                        broader_id = broader_label.lower().replace(" ", "_")
+                        if broader_id in broader_ids or broader_id == concept_id:
+                            continue
+                        broader_ids.append(broader_id)
+                        full_path = f"{broader_id}/{concept_id}"
+                        if b.get("relType") == "instance_of":
+                            wikidata_paths.insert(0, full_path)
+                        else:
+                            wikidata_paths.append(full_path)
+                        if len(wikidata_paths) >= 3:
+                            break
+
+                    if wikidata_paths:
+                        # Build category_by_source paths before assigning to mappings
+                        wikidata_src_paths = [
+                            f"category_by_source/wikidata/{wp}" for wp in wikidata_paths
+                        ]
+                        category_mappings[label] = wikidata_paths + wikidata_src_paths
+                        _add_paths_to_concepts(wikidata_paths, concepts, "wikidata")
+                        # Store Wikidata URI on leaf concept and in all_uri_maps
+                        leaf_path = wikidata_paths[0]
+                        leaf_id = leaf_path.split("/")[-1] if "/" in leaf_path else leaf_path
+                        for candidate in (leaf_path, leaf_id, concept_id):
+                            if candidate in concepts:
+                                if not concepts[candidate].uri:
+                                    concepts[candidate].uri = wikidata_concept["uri"]
+                                break
+                        if leaf_path not in all_uri_maps:
+                            all_uri_maps[leaf_path] = wikidata_concept["uri"]
+                        if concept_id not in all_uri_maps:
+                            all_uri_maps[concept_id] = wikidata_concept["uri"]
+                        # Only set broader if concept doesn't come from local vocab
+                        if concept_id in concepts:
+                            existing = concepts[concept_id]
+                            if existing.source not in ("local",) and not existing.broader:
+                                concepts[concept_id].broader = broader_ids[:3]
+                        # Store raw source paths under category_by_source/wikidata/
+                        for sp in wikidata_src_paths:
+                            _add_paths_to_concepts([sp], concepts, "wikidata")
+                        logger.debug("Wikidata paths for '%s' -> %s", label, wikidata_paths)
+                    else:
+                        category_mappings[label] = [concept_id]
+                        if concept_id not in concepts:
+                            concepts[concept_id] = Concept(
+                                id=concept_id,
+                                prefLabel=wikidata_concept.get("prefLabel", label.title()),
+                                altLabels=wikidata_concept.get("altLabels", []),
+                                source="wikidata",
+                                uri=wikidata_concept["uri"],
+                                description=wikidata_concept.get("description"),
+                                wikipediaUrl=wikidata_concept.get("wikipediaUrl"),
+                            )
+                        else:
+                            # Enrich existing concept with Wikidata metadata if missing
+                            existing = concepts[concept_id]
+                            if not existing.uri:
+                                existing.uri = wikidata_concept["uri"]
+                            if not existing.description:
+                                existing.description = wikidata_concept.get("description")
+                            if not existing.wikipediaUrl:
+                                existing.wikipediaUrl = wikidata_concept.get("wikipediaUrl")
+                        logger.debug("Wikidata fallback for '%s' -> %s", label, wikidata_concept["uri"])
+                    continue
+
         if all_paths or local_broader_path:
             # If local vocabulary provides hierarchy, use it; otherwise use external paths
             if local_broader_path:
@@ -1925,7 +2025,7 @@ def build_vocabulary_with_skos_hierarchy(
                     merged.update(_target.descriptions)
                     _target.descriptions = merged
                 # Preserve external source when metadata came from an external lookup
-                if _target.source not in ("dbpedia", "off", "agrovoc"):
+                if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
                     _target.source = "local"
                 del concepts[local_concept_id]
 
@@ -1986,8 +2086,10 @@ def build_vocabulary_with_skos_hierarchy(
                         filter(None, [all_uri_maps.get(concept_id), concept.uri])
                     ))
                     for uri in candidate_uris:
-                        # Skip OFF and DBpedia URIs for AGROVOC store lookups
-                        if uri.startswith("off:") or uri.startswith("http://dbpedia.org/"):
+                        # Skip OFF, DBpedia, and Wikidata URIs for AGROVOC store lookups
+                        if (uri.startswith("off:")
+                                or uri.startswith("http://dbpedia.org/")
+                                or uri.startswith("http://www.wikidata.org/")):
                             continue
                         agrovoc_labels = _get_all_labels(uri, store, languages)
                         if agrovoc_labels:
@@ -2053,23 +2155,35 @@ def build_vocabulary_with_skos_hierarchy(
                     merged_labels.update(concept.labels)
                     concept.labels = merged_labels
 
-        # Wikidata translations (fills Norwegian/other gaps from DBpedia)
-        if client is not None and dbpedia_uris:
-            logger.info("Fetching Wikidata translations for %d concepts...", len(dbpedia_uris))
-            wikidata_translations = client.get_batch_labels(
-                [(uri, "wikidata") for uri, _ in dbpedia_uris], languages
-            )
-            for uri, labels in wikidata_translations.items():
-                cid = dbpedia_concept_map.get(uri)
-                if not cid or cid not in concepts:
-                    continue
-                concept = concepts[cid]
-                if not labels:
-                    continue
-                # Merge: Wikidata fills gaps, doesn't overwrite
-                merged_labels = dict(labels)
-                merged_labels.update(concept.labels)
-                concept.labels = merged_labels
+        # Wikidata translations (fills Norwegian/other gaps)
+        # Collect both DBpedia URIs (via Wikipedia sitelinks) and native Wikidata URIs
+        if client is not None:
+            wikidata_uris: list[tuple[str, str]] = []
+            wikidata_concept_map: dict[str, str] = {}
+            for concept_id, concept in concepts.items():
+                candidate_uris = list(dict.fromkeys(
+                    filter(None, [all_uri_maps.get(concept_id), concept.uri])
+                ))
+                for uri in candidate_uris:
+                    if uri.startswith("http://dbpedia.org/") or uri.startswith("http://www.wikidata.org/"):
+                        wikidata_uris.append((uri, "wikidata"))
+                        wikidata_concept_map[uri] = concept_id
+                        break  # One URI per concept is enough
+
+            if wikidata_uris:
+                logger.info("Fetching Wikidata translations for %d concepts...", len(wikidata_uris))
+                wikidata_translations = client.get_batch_labels(wikidata_uris, languages)
+                for uri, labels in wikidata_translations.items():
+                    cid = wikidata_concept_map.get(uri)
+                    if not cid or cid not in concepts:
+                        continue
+                    concept = concepts[cid]
+                    if not labels:
+                        continue
+                    # Merge: Wikidata fills gaps, doesn't overwrite
+                    merged_labels = dict(labels)
+                    merged_labels.update(concept.labels)
+                    concept.labels = merged_labels
 
     # Apply language fallbacks to fill remaining gaps (e.g., nb from sv)
     if languages and len(languages) > 1:
@@ -2115,7 +2229,7 @@ def build_vocabulary_with_skos_hierarchy(
                     merged.update(_target.descriptions)
                     _target.descriptions = merged
                 # Preserve external source when metadata came from an external lookup
-                if _target.source not in ("dbpedia", "off", "agrovoc"):
+                if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
                     _target.source = "local"
             else:
                 # Only flat exists: move it to the resolved path
@@ -2129,7 +2243,7 @@ def build_vocabulary_with_skos_hierarchy(
                 _target.labels = dict(_flat.labels)
                 _target.descriptions = dict(_flat.descriptions)
                 # Use the flat concept's source if it had external metadata
-                _target.source = _flat.source if _flat.source in ("dbpedia", "off", "agrovoc") else "local"
+                _target.source = _flat.source if _flat.source in ("dbpedia", "off", "agrovoc", "wikidata") else "local"
             to_delete.append(concept_id)
         for cid in to_delete:
             del concepts[cid]

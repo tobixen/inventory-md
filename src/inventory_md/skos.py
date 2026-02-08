@@ -1,8 +1,8 @@
 """
 SKOS (Simple Knowledge Organization System) support for tag hierarchies.
 
-Provides on-demand lookup of concepts from SKOS vocabularies (AGROVOC, DBpedia)
-with local caching. Used to expand user tags into hierarchical paths.
+Provides on-demand lookup of concepts from SKOS vocabularies (AGROVOC, DBpedia,
+Wikidata) with local caching. Used to expand user tags into hierarchical paths.
 
 Example:
     >>> from inventory_md.skos import SKOSClient
@@ -115,6 +115,46 @@ def _is_irrelevant_dbpedia_category(label: str) -> bool:
         True if the category should be filtered out, False otherwise.
     """
     return bool(_IRRELEVANT_CATEGORY_RE.search(label))
+
+
+# Overly abstract Wikidata classes that add no useful inventory classification
+_ABSTRACT_WIKIDATA_CLASSES: set[str] = {
+    "Q35120",    # entity
+    "Q223557",   # physical object
+    "Q2424752",  # product
+    "Q28877",    # goods
+    "Q830077",   # subject
+    "Q488383",   # object
+    "Q4406616",  # concrete object
+    "Q16887380",  # group
+    "Q99527517",  # collection entity
+    "Q58778",    # system
+    "Q937228",   # property
+    "Q3249551",  # process
+    "Q9081",     # knowledge
+    "Q151885",   # concept
+    "Q246672",   # mathematical object
+    "Q16889133",  # class
+}
+
+
+def _is_abstract_wikidata_class(uri: str) -> bool:
+    """Check if a Wikidata URI refers to an overly abstract class.
+
+    Filters out top-level ontological classes like "entity", "physical object",
+    "product" that add no useful inventory classification.
+
+    Args:
+        uri: Wikidata entity URI (e.g., "http://www.wikidata.org/entity/Q35120").
+
+    Returns:
+        True if the class should be filtered out, False otherwise.
+    """
+    # Extract Q-number from URI
+    if "/entity/" in uri:
+        qid = uri.rsplit("/", 1)[-1]
+        return qid in _ABSTRACT_WIKIDATA_CLASSES
+    return False
 
 
 class OxigraphStore:
@@ -572,8 +612,8 @@ class SKOSClient:
         # Check positive cache (found concepts)
         cached = _load_from_cache(cache_path)
         if cached is not None:
-            # Re-fetch stale DBpedia entries that lack description
-            if (source == "dbpedia" and cached.get("uri")
+            # Re-fetch stale DBpedia/Wikidata entries that lack description
+            if (source in ("dbpedia", "wikidata") and cached.get("uri")
                     and "description" not in cached):
                 pass  # Fall through to re-query
             else:
@@ -588,6 +628,8 @@ class SKOSClient:
             concept, query_failed = self._lookup_agrovoc(label, lang)
         elif source == "dbpedia":
             concept, query_failed = self._lookup_dbpedia(label, lang)
+        elif source == "wikidata":
+            concept, query_failed = self._lookup_wikidata(label, lang)
         else:
             logger.warning("Unknown source: %s", source)
             return None
@@ -898,23 +940,25 @@ class SKOSClient:
         return labels_by_uri
 
     def _get_wikidata_labels_batch(
-        self, dbpedia_uris: list[str], languages: list[str]
+        self, uris: list[str], languages: list[str]
     ) -> dict[str, dict[str, str]]:
-        """Get labels for multiple concepts from Wikidata, keyed by DBpedia URI.
+        """Get labels for multiple concepts from Wikidata.
 
-        Converts DBpedia URIs to Wikipedia URLs, queries Wikidata via
-        schema:about, and maps results back to the original DBpedia URIs.
+        Handles two URI types:
+        - DBpedia URIs: Converted to Wikipedia URLs, queried via schema:about
+        - Native Wikidata URIs: Queried directly via rdfs:label
+
+        Results are keyed by the original input URIs.
 
         Args:
-            dbpedia_uris: List of DBpedia URIs
-                (e.g., "http://dbpedia.org/resource/Toilet_paper").
+            uris: List of DBpedia URIs or Wikidata entity URIs.
             languages: List of language codes to fetch.
 
         Returns:
-            Dictionary mapping original DBpedia URIs to label dictionaries.
+            Dictionary mapping original URIs to label dictionaries.
         """
         endpoint = self.endpoints.get("wikidata")
-        if not endpoint or not dbpedia_uris:
+        if not endpoint or not uris:
             return {}
 
         # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
@@ -923,67 +967,99 @@ class SKOSClient:
             if lang in LANGUAGE_FALLBACKS:
                 query_languages.add(LANGUAGE_FALLBACKS[lang])
 
-        # Convert DBpedia URIs to Wikipedia URLs and build mapping
+        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
+        chunk_size = 20
+
+        # Partition URIs by type
         dbpedia_prefix = "http://dbpedia.org/resource/"
-        wp_to_dbpedia: dict[str, str] = {}
-        for uri in dbpedia_uris:
+        wikidata_prefix = "http://www.wikidata.org/entity/"
+        wp_to_original: dict[str, str] = {}
+        native_wikidata_uris: list[str] = []
+
+        for uri in uris:
             if uri.startswith(dbpedia_prefix):
                 article = uri[len(dbpedia_prefix):]
                 wp_url = f"https://en.wikipedia.org/wiki/{article}"
-                wp_to_dbpedia[wp_url] = uri
+                wp_to_original[wp_url] = uri
+            elif uri.startswith(wikidata_prefix):
+                native_wikidata_uris.append(uri)
 
-        if not wp_to_dbpedia:
-            return {}
-
-        # Deduplicate
-        unique_wp_urls = list(dict.fromkeys(wp_to_dbpedia.keys()))
-        labels_by_dbpedia: dict[str, dict[str, str]] = {
-            uri: {} for uri in dict.fromkeys(dbpedia_uris)
+        labels_by_uri: dict[str, dict[str, str]] = {
+            uri: {} for uri in dict.fromkeys(uris)
         }
 
-        # Split into chunks (Wikidata has query limits)
-        chunk_size = 20
-        lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
+        # --- DBpedia URIs via Wikipedia sitelinks ---
+        if wp_to_original:
+            unique_wp_urls = list(dict.fromkeys(wp_to_original.keys()))
+            for i in range(0, len(unique_wp_urls), chunk_size):
+                chunk = unique_wp_urls[i:i + chunk_size]
+                wp_values = " ".join(f"<{url}>" for url in chunk)
 
-        for i in range(0, len(unique_wp_urls), chunk_size):
-            chunk = unique_wp_urls[i:i + chunk_size]
-            wp_values = " ".join(f"<{url}>" for url in chunk)
+                query = f"""
+                PREFIX schema: <http://schema.org/>
+                PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-            query = f"""
-            PREFIX schema: <http://schema.org/>
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+                SELECT ?wpPage ?lang ?label WHERE {{
+                    VALUES ?wpPage {{ {wp_values} }}
+                    ?wpPage schema:about ?item .
+                    ?item rdfs:label ?label .
+                    BIND(LANG(?label) AS ?lang)
+                    FILTER(?lang IN ({lang_filter}))
+                }}
+                """
 
-            SELECT ?wpPage ?lang ?label WHERE {{
-                VALUES ?wpPage {{ {wp_values} }}
-                ?wpPage schema:about ?item .
-                ?item rdfs:label ?label .
-                BIND(LANG(?label) AS ?lang)
-                FILTER(?lang IN ({lang_filter}))
-            }}
-            """
+                results = self._sparql_query(endpoint, query)
+                if results is None:
+                    continue
 
-            results = self._sparql_query(endpoint, query)
-            if results is None:
-                continue
+                for r in results:
+                    wp_url = r.get("wpPage", {}).get("value", "")
+                    lang = r.get("lang", {}).get("value", "")
+                    label = r.get("label", {}).get("value", "")
+                    if wp_url and lang and label:
+                        original_uri = wp_to_original.get(wp_url)
+                        if original_uri and original_uri in labels_by_uri:
+                            labels_by_uri[original_uri][lang] = label
 
-            for r in results:
-                wp_url = r.get("wpPage", {}).get("value", "")
-                lang = r.get("lang", {}).get("value", "")
-                label = r.get("label", {}).get("value", "")
-                if wp_url and lang and label:
-                    dbpedia_uri = wp_to_dbpedia.get(wp_url)
-                    if dbpedia_uri and dbpedia_uri in labels_by_dbpedia:
-                        labels_by_dbpedia[dbpedia_uri][lang] = label
+        # --- Native Wikidata entity URIs via rdfs:label ---
+        if native_wikidata_uris:
+            unique_wd_uris = list(dict.fromkeys(native_wikidata_uris))
+            for i in range(0, len(unique_wd_uris), chunk_size):
+                chunk = unique_wd_uris[i:i + chunk_size]
+                uri_values = " ".join(f"<{uri}>" for uri in chunk)
+
+                query = f"""
+                PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+                SELECT ?item ?lang ?label WHERE {{
+                    VALUES ?item {{ {uri_values} }}
+                    ?item rdfs:label ?label .
+                    BIND(LANG(?label) AS ?lang)
+                    FILTER(?lang IN ({lang_filter}))
+                }}
+                """
+
+                results = self._sparql_query(endpoint, query)
+                if results is None:
+                    continue
+
+                for r in results:
+                    item_uri = r.get("item", {}).get("value", "")
+                    lang = r.get("lang", {}).get("value", "")
+                    label = r.get("label", {}).get("value", "")
+                    if item_uri and lang and label:
+                        if item_uri in labels_by_uri:
+                            labels_by_uri[item_uri][lang] = label
 
         # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
-        for uri_labels in labels_by_dbpedia.values():
+        for uri_labels in labels_by_uri.values():
             for requested_lang in languages:
                 if requested_lang not in uri_labels:
                     fallback_lang = LANGUAGE_FALLBACKS.get(requested_lang)
                     if fallback_lang and fallback_lang in uri_labels:
                         uri_labels[requested_lang] = uri_labels[fallback_lang]
 
-        return labels_by_dbpedia
+        return labels_by_uri
 
     def _get_agrovoc_labels(self, uri: str, languages: list[str]) -> dict[str, str]:
         """Get labels from AGROVOC in multiple languages using SPARQL."""
@@ -1769,6 +1845,146 @@ class SKOSClient:
 
         # Sort to put hypernyms first (more useful for hierarchy)
         broader_list.sort(key=lambda x: 0 if x.get("relType") == "hypernym" else 1)
+
+        return broader_list
+
+    # ------------------------------------------------------------------
+    # Wikidata concept lookup
+    # ------------------------------------------------------------------
+
+    def _lookup_wikidata(self, label: str, lang: str) -> tuple[dict | None, bool]:
+        """Look up concept in Wikidata.
+
+        Goes straight to SPARQL (Wikidata has no REST Lookup API).
+
+        Returns:
+            Tuple of (concept_dict, query_failed). query_failed is True if
+            the query timed out or had a network error.
+        """
+        return self._lookup_wikidata_sparql(label, lang)
+
+    def _lookup_wikidata_sparql(self, label: str, lang: str) -> tuple[dict | None, bool]:
+        """Look up concept in Wikidata via SPARQL.
+
+        Queries by exact rdfs:label match, requires English Wikipedia sitelink
+        (quality gate), and excludes humans, fictional characters, and
+        disambiguation pages.
+
+        Returns:
+            Tuple of (concept_dict, query_failed). query_failed is True if
+            the query timed out or had a network error.
+        """
+        endpoint = self.endpoints.get("wikidata")
+        if not endpoint:
+            return None, False
+
+        # Try label as-is first, then .title() form
+        # (Wikidata uses lowercase for common nouns)
+        label_variants = [label]
+        titled = label.title()
+        if titled != label:
+            label_variants.append(titled)
+
+        for variant in label_variants:
+            query = f"""
+            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+            PREFIX schema: <http://schema.org/>
+            PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+            PREFIX wd: <http://www.wikidata.org/entity/>
+
+            SELECT DISTINCT ?item ?label ?description ?wpUrl WHERE {{
+                ?item rdfs:label "{variant}"@{lang} .
+                ?item rdfs:label ?label . FILTER(lang(?label) = "{lang}")
+                ?wpUrl schema:about ?item ;
+                       schema:isPartOf <https://en.wikipedia.org/> .
+                MINUS {{ ?item wdt:P31 wd:Q5 }}
+                MINUS {{ ?item wdt:P31 wd:Q15632617 }}
+                MINUS {{ ?item wdt:P31 wd:Q4167410 }}
+                OPTIONAL {{
+                    ?item schema:description ?description .
+                    FILTER(lang(?description) = "{lang}")
+                }}
+            }}
+            LIMIT 5
+            """
+
+            results = self._sparql_query(endpoint, query)
+            if results is None:
+                return None, True  # Query failed (timeout/error)
+            if not results:
+                continue  # Try next variant
+
+            item_uri = results[0]["item"]["value"]
+            pref_label = results[0].get("label", {}).get("value", label)
+            description = results[0].get("description", {}).get("value")
+            wikipedia_url = results[0].get("wpUrl", {}).get("value")
+
+            # Get broader concepts via P31/P279
+            broader = self._get_broader_wikidata(item_uri, lang)
+
+            return {
+                "uri": item_uri,
+                "prefLabel": pref_label,
+                "source": "wikidata",
+                "broader": broader,
+                "description": description,
+                "wikipediaUrl": wikipedia_url,
+            }, False
+
+        return None, False  # Not found (but query succeeded)
+
+    def _get_broader_wikidata(self, item_uri: str, lang: str) -> list[dict]:
+        """Get broader concepts from Wikidata using P31 (instance of) and P279 (subclass of).
+
+        P31 (instance of) is analogous to DBpedia gold:hypernym (is-a, highest priority).
+        P31/P279 (instance → subclass of) is analogous to dct:subject (broader category).
+        """
+        endpoint = self.endpoints.get("wikidata")
+        if not endpoint:
+            return []
+
+        query = f"""
+        PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+        SELECT DISTINCT ?broader ?label ?relType WHERE {{
+            {{
+                <{item_uri}> wdt:P31 ?broader .
+                BIND("instance_of" AS ?relType)
+            }}
+            UNION
+            {{
+                <{item_uri}> wdt:P31/wdt:P279 ?broader .
+                BIND("subclass_of" AS ?relType)
+            }}
+            ?broader rdfs:label ?label . FILTER(lang(?label) = "{lang}")
+        }}
+        LIMIT 15
+        """
+
+        results = self._sparql_query(endpoint, query)
+        if results is None:
+            return []  # Query failed, return empty
+
+        broader_list = []
+        seen_uris = set()
+
+        for r in results:
+            uri = r["broader"]["value"]
+            if uri in seen_uris:
+                continue
+            seen_uris.add(uri)
+            label = r["label"]["value"]
+            rel_type = r.get("relType", {}).get("value", "unknown")
+
+            # Skip overly abstract Wikidata classes
+            if _is_abstract_wikidata_class(uri):
+                continue
+
+            broader_list.append({"uri": uri, "label": label, "relType": rel_type})
+
+        # Sort to put instance_of first (more specific, like hypernyms)
+        broader_list.sort(key=lambda x: 0 if x.get("relType") == "instance_of" else 1)
 
         return broader_list
 

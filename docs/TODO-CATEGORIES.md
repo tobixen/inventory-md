@@ -79,8 +79,12 @@ Only concepts with AGROVOC/OFF/DBpedia URIs (or matches in `all_uri_maps`) get
 translations.
 
 **Recent improvements**:
-- Added Wikidata as a fourth translation source (after OFF, AGROVOC, DBpedia).
-  Wikidata has excellent Norwegian coverage where DBpedia is sparse.
+- Promoted Wikidata to a full, independent category source (not just translation).
+  Wikidata now has its own concept lookup, hierarchy building via P31/P279, and
+  `category_by_source/wikidata/` entries — following the same pattern as DBpedia.
+  Wikidata has cleaner ontological hierarchy than DBpedia (structured P279 subclass
+  chains vs. messy Wikipedia categories) and excellent multilingual label coverage.
+  Opt-in via `enabled_sources=["off", "agrovoc", "dbpedia", "wikidata"]`.
 - Added a final language fallback pass that applies `DEFAULT_LANGUAGE_FALLBACKS`
   to every concept's labels after all translation phases complete. This fills
   gaps like "nb" from "sv" (or "da", "nn") when no source has Norwegian.
