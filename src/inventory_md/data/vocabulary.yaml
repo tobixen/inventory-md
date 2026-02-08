@@ -154,7 +154,7 @@ concepts:
   # Electronics connector mappings
   electrical-connector:
     prefLabel: "Electrical connector"
-    altLabel: ["electrical_connector", "electrical-connectors", "electrical_connectors"]
+    altLabel: ["electrical_connector", "electrical-connectors", "electrical_connectors", "electronics_connector"]
     broader: electronics/connectors
 
   power-connector:
@@ -844,23 +844,6 @@ concepts:
   # ELECTRONICS SUBCATEGORIES
   # =============================================================================
 
-  electronics/connectors:
-    prefLabel: "Connectors"
-    broader: electronics
-
-  electronics/power:
-    prefLabel: "Power electronics"
-    broader: electronics
-
-  # Simple electronics mappings
-  power-connector:
-    prefLabel: "Power connector"
-    broader: electronics/connectors
-
-  electrical-connector:
-    prefLabel: "Electrical connector"
-    broader: electronics/connectors
-
   single-board-computer:
     prefLabel: "Single-board computer"
     altLabel: ["SBC", "raspberry pi"]
@@ -1263,11 +1246,6 @@ concepts:
     prefLabel: "Cigarette lighter plug"
     broader: automotive
 
-  # More DBpedia mappings - Electronics
-  electronics_connector:
-    prefLabel: "Electronics connector"
-    broader: electronics/connectors
-
   fuse_holder:
     prefLabel: "Fuse holder"
     broader: electronics
@@ -1481,10 +1459,6 @@ concepts:
   antenna-adapter:
     prefLabel: "Antenna adapter"
     broader: electronics
-
-  electrical-connectors:
-    prefLabel: "Electrical connectors"
-    broader: electronics/connectors
 
   # =============================================================================
   # NORWEGIAN CATEGORY MAPPINGS
