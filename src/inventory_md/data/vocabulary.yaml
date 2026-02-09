@@ -882,6 +882,12 @@ concepts:
     prefLabel: "Consumables"
     altLabel: ["supplies", "forbruksvarer"]
     broader: hardware
+    labels:
+      en: "Consumables"
+      nb: "Forbruksvarer"
+      nn: "Forbruksvarer"
+      sv: "Förbrukningsmaterial"
+      da: "Forbrugsvarer"
 
   hardware:
     prefLabel: "Hardware"
