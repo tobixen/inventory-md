@@ -546,6 +546,7 @@ concepts:
     prefLabel: "Mushrooms"
     altLabel: ["гъби"]
     broader: food/vegetables
+    uri: "http://dbpedia.org/resource/Mushroom"
 
   preserved-vegetables:
     prefLabel: "Preserved vegetables"
@@ -1058,6 +1059,7 @@ concepts:
     prefLabel: "Lumber"
     altLabel: ["wood", "timber"]
     broader: construction
+    uri: "http://dbpedia.org/resource/Lumber"
 
   construction/electrical:
     prefLabel: "Electrical"
@@ -1168,6 +1170,7 @@ concepts:
     prefLabel: "Medicine"
     altLabel: ["medication", "drugs"]
     broader: medical
+    uri: "http://dbpedia.org/resource/Medicine"
 
   # =============================================================================
   # DBpedia category mappings (underscore format)
@@ -1376,6 +1379,7 @@ concepts:
   marine_propulsion:
     prefLabel: "Marine propulsion"
     broader: boat-equipment/engine
+    uri: "http://dbpedia.org/resource/Marine_propulsion"
 
   maritime_book:
     prefLabel: "Maritime book"

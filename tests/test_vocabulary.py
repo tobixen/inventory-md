@@ -3013,3 +3013,114 @@ class TestRootCategoryMerges:
             assert "hobby" not in concept.broader, (
                 f"{cid} still references hobby as broader"
             )
+
+
+class TestAgrovocMismatchSuppression:
+    """Tests for AGROVOC mismatch warning suppression.
+
+    The vocabulary builder should skip AGROVOC lookup when the local concept
+    already has a non-AGROVOC URI, and tolerate singular/plural differences
+    in the mismatch check.
+    """
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_agrovoc_skipped_when_local_has_dbpedia_uri(self, mock_skos_paths):
+        """AGROVOC lookup should be skipped when local concept has a DBpedia URI."""
+        local_vocab = {
+            "tools": vocabulary.Concept(
+                id="tools",
+                prefLabel="Tools",
+                source="local",
+                broader=["hardware"],
+                uri="http://dbpedia.org/resource/Tool",
+            ),
+            "hardware": vocabulary.Concept(
+                id="hardware",
+                prefLabel="Hardware",
+                source="local",
+                broader=[],
+            ),
+        }
+
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Tools", "metadata": {"categories": ["tools"]}}],
+            }]
+        }
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                enabled_sources=["off", "agrovoc"],
+                local_vocab=local_vocab,
+            )
+
+        # AGROVOC should NOT have been called because tools has a DBpedia URI
+        mock_skos_paths.assert_not_called()
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_singular_plural_passes_mismatch_check(self, mock_skos_paths):
+        """Singular/plural variant (dairy/dairies) should not trigger mismatch."""
+        mock_skos_paths.return_value = (
+            ["food/dairies"],
+            True,
+            {"food/dairies": "http://aims.fao.org/aos/agrovoc/c_1234"},
+            ["products/dairies"],
+        )
+
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Dairy", "metadata": {"categories": ["dairy"]}}],
+            }]
+        }
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "agrovoc"]
+            )
+
+        # dairy should have been accepted (not rejected as mismatch)
+        assert "dairy" in mappings
+        assert any("dairies" in p for p in mappings["dairy"])
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_genuine_mismatch_still_triggers_warning(self, mock_skos_paths):
+        """A genuine mismatch (tool -> equipment) should still warn and skip."""
+        mock_skos_paths.return_value = (
+            ["food/equipment"],
+            True,
+            {"food/equipment": "http://aims.fao.org/aos/agrovoc/c_9999"},
+            ["products/equipment"],
+        )
+
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Tool", "metadata": {"categories": ["tool"]}}],
+            }]
+        }
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            with patch("inventory_md.vocabulary.logger") as mock_logger:
+                vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                    inventory, enabled_sources=["off", "agrovoc"]
+                )
+
+        # Warning should have been logged for genuine mismatch
+        mock_logger.warning.assert_called()
+        warning_args = mock_logger.warning.call_args[0]
+        assert "AGROVOC mismatch" in warning_args[0]
+        assert "tool" in warning_args[1]
+        assert "equipment" in warning_args[2]
+
+        # The mismatched AGROVOC result should NOT be in mappings
+        if "tool" in mappings:
+            assert not any("equipment" in p for p in mappings["tool"])

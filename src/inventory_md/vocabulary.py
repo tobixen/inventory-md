@@ -1806,7 +1806,12 @@ def build_vocabulary_with_skos_hierarchy(
                     logger.debug("OFF found '%s' -> %d paths", label, len(off_paths))
 
         # --- AGROVOC lookup ---
-        if client is not None and "agrovoc" in enabled_sources:
+        skip_agrovoc = (
+            local_concept is not None
+            and local_concept.uri
+            and "agrovoc" not in local_concept.uri.lower()
+        )
+        if client is not None and "agrovoc" in enabled_sources and not skip_agrovoc:
             agrovoc_paths, found_in_agrovoc, agrovoc_uri_map, agrovoc_raw = build_skos_hierarchy_paths(
                 label, client, lang
             )
@@ -1819,7 +1824,8 @@ def build_vocabulary_with_skos_hierarchy(
                     leaf = agrovoc_paths[0].split("/")[-1].replace("_", " ").lower()
                     search = label.lower()
                     # Mismatch if leaf doesn't contain search term and vice versa
-                    if search not in leaf and leaf not in search:
+                    if (search not in leaf and leaf not in search
+                            and not _is_singular_plural_variant(search, leaf)):
                         agrovoc_mismatch = True
                         logger.warning(
                             "AGROVOC mismatch for '%s': returned '%s'. "

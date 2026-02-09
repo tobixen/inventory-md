@@ -65,6 +65,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vocabulary slimmed to ~258 concepts (from 596) by removing pure-redirect leaves
 
 ### Fixed
+- **AGROVOC mismatch warnings eliminated** — 14 false-positive warnings during
+  vocabulary build are now suppressed:
+  - AGROVOC lookup skipped when local concept already has a non-AGROVOC URI (9 cases)
+  - Singular/plural variants accepted in mismatch check (e.g., dairy/dairies)
+  - DBpedia URIs added to mushrooms, lumber, marine_propulsion, medicine (4 cases)
 - Multi-source translation URI resolution: candidate URIs collected from both
   `all_uri_maps` and `concept.uri`, filtered by source type
 - Duplicate connector definitions removed from vocabulary.yaml

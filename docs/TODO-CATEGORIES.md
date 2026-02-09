@@ -2,6 +2,14 @@
 
 Known issues and improvement areas for the SKOS vocabulary and category hierarchy system.  We focus first on getting a good, working category system for ~/solveig-inventory, afterwards ~/furuset-inventory should be dealt with.
 
+## Wikidata source is not visible under "Category by Source"
+
+Recently WIkidata was added as an independent category source - but in solveig-inventory it's still not visible under the "category by source" root.
+
+## More/better information about a category
+
+Each category by now have a truncated description, one parent, multiple children (and the list gets truncated if there are too many of them), and one source.  I would like to be able to access an info box for a category showing all parents, all children, full description, and a list of sources.
+
 ## ~~Unwanted external root categories~~
 
 **Status**: Fixed (2026-02-06)
@@ -116,6 +124,16 @@ skips concepts that already have partial translations, allowing it to fill gaps.
 
 The `food` concept in `vocabulary.yaml` now has `uri: "http://dbpedia.org/resource/Food"`
 and explicit labels in 12 languages (en, nb, de, fr, es, it, nl, sv, pl, ru, uk, fi, bg).
+
+## ~~Look into warnings when generating the solveig-inventory vocabulary~~
+
+**Status**: Resolved (2026-02-09)
+
+Three fixes eliminated all 14 AGROVOC mismatch warnings:
+- Skip AGROVOC lookup entirely when local concept already has a non-AGROVOC URI
+  (covers 9 warnings: bedding, disc, gps, peanuts, snacks, tool, tools, tubing, washer)
+- Accept singular/plural variants in mismatch check (dairy/dairies)
+- Added DBpedia URIs to 4 concepts (mushrooms, lumber, marine_propulsion, medicine)
 
 ## ~~Source Hierarchy Preservation (category_by_source)~~
 
