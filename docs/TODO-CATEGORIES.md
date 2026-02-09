@@ -47,38 +47,31 @@ using the existing `_get_dbpedia_labels_batch` in `skos.py`.
 - Add DBpedia translation phase after AGROVOC phase (`vocabulary.py`)
 - Includes sanity check (same pattern as OFF/AGROVOC)
 
-## ~~Orphaned OFF/AGROVOC Intermediate Concepts~~ (likely stale)
+## ~~Orphaned OFF/AGROVOC Intermediate Concepts~~
 
-**Status**: Probably resolved / stale
+**Status**: Resolved (2026-02-09)
 **Original impact**: 173 junk hierarchy nodes clutter the vocabulary
 
 This was observed during earlier iterations of the vocabulary builder. The concern was
 that AGROVOC paths like `food/non_food_products/clothing/workwear` would create orphan
 intermediate nodes when `local_broader_path` later overrides them.
 
-However, tracing the current code flow shows this doesn't happen: when
-`local_broader_path` is set, `_add_paths_to_concepts` is only called with the local
-path (e.g., `clothing/workwear`). The AGROVOC paths in `all_paths` are only used for
-URI extraction, never for concept creation.
-
-The `food/non_food_products` path was itself a root mapping bug: AGROVOC's hierarchy is
-`products/non_food_products/clothing`, and `AGROVOC_ROOT_MAPPING` maps `"products"` →
-`"food"`. With `category_by_source`, the raw AGROVOC path is correctly preserved as
-`category_by_source/agrovoc/products/non_food_products/clothing/workwear`.
-
-**Action**: Verify with a real run whether any orphan concepts still exist. If so,
-investigate which code path creates them. If not, close this issue.
+Code analysis confirms this doesn't happen: when `local_broader_path` is set,
+`_add_paths_to_concepts` is only called with the local path (e.g.,
+`clothing/workwear`). The AGROVOC paths in `all_paths` are only used for URI
+extraction, never for concept creation. Raw source paths are correctly preserved
+under `category_by_source/agrovoc/`.
 
 ## Low Translation Coverage (18% overall)
 
-**Status**: Partially addressed (2026-02-08)
+**Status**: Largely addressed (2026-02-09)
 **Impact**: 663 non-food local concepts have no translations
 
 Most local concepts lack URIs, so the translation phase can't look them up.
 Only concepts with AGROVOC/OFF/DBpedia URIs (or matches in `all_uri_maps`) get
 translations.
 
-**Recent improvements**:
+**Improvements**:
 - Promoted Wikidata to a full, independent category source (not just translation).
   Wikidata now has its own concept lookup, hierarchy building via P31/P279, and
   `category_by_source/wikidata/` entries — following the same pattern as DBpedia.
@@ -88,11 +81,15 @@ translations.
 - Added a final language fallback pass that applies `DEFAULT_LANGUAGE_FALLBACKS`
   to every concept's labels after all translation phases complete. This fills
   gaps like "nb" from "sv" (or "da", "nn") when no source has Norwegian.
+- **Auto-resolve URIs** via `_resolve_missing_uris()`: after the hierarchy loop
+  and before translation phases, concepts without URIs are batch-queried against
+  DBpedia and Wikidata by prefLabel. This enables translations for previously
+  unreachable local vocab concepts.
 
 **Remaining approach**:
-- Add DBpedia URIs to more local vocabulary entries (like was done for `tools`,
-  `bedding`, `peanuts`, etc.)
-- Consider batch-querying DBpedia by prefLabel for concepts without URIs
+- Manually add URIs to `vocabulary.yaml` for concepts where auto-resolve
+  returns a wrong match (sanity check rejects mismatched prefLabels)
+- Enable Wikidata in `enabled_sources` for better coverage of non-food concepts
 
 ## ~~OFF Path-to-Translation Mismatch~~
 

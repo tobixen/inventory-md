@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Global vocabulary shipped with package** - Default vocabulary now bundled in `inventory_md/data/`
+- **Global vocabulary shipped with package** — default vocabulary bundled in `inventory_md/data/`
   - Multi-location vocabulary loading with merge precedence:
     1. Package default (lowest priority)
     2. `/etc/inventory-md/vocabulary.yaml`
@@ -24,8 +24,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Integrated into AGROVOC (`_get_all_labels`) and OFF (`get_labels`) lookups
   - When a translation is missing, tries related languages before English
   - New functions: `get_fallback_chain()`, `apply_language_fallbacks()`
-- **Config file naming** - `config.yaml`/`config.json` now supported in project directory
+- **Config file naming** — `config.yaml`/`config.json` now supported in project directory
   - `inventory-md.yaml`/`inventory-md.json` still supported for backward compatibility
+- **DBpedia descriptions, Wikipedia URLs, and source attribution**
+  - Concepts enriched with short descriptions from DBpedia/Wikipedia
+  - Wikipedia article links stored on concepts for UI linking
+  - Source attribution tracks which external source provided each concept
+- **Local vocab enrichment via DBpedia** — even concepts not in inventory get
+  DBpedia metadata (URI, description, wikipediaUrl) when they have a `broader` field
+- **`category_by_source` hierarchy preservation** — original source hierarchies
+  stored under `category_by_source/<source>/` (OFF, AGROVOC, DBpedia, Wikidata)
+  so the raw taxonomy paths survive root mapping
+- **Virtual root node** (`_root`) for explicit root control and display ordering
+- **Multi-source translation with URI resolution and gap filling**
+  - OFF → AGROVOC → DBpedia → Wikidata translation pipeline
+  - Each phase fills gaps without overwriting earlier sources
+  - Sanity checks reject mismatched labels from every source
+- **Wikidata as full independent category source**
+  - Concept lookup via Wikidata API
+  - Hierarchy building via P31 (instance of) and P279 (subclass of) relations
+  - `category_by_source/wikidata/` entries following the same pattern as DBpedia
+  - Opt-in via `enabled_sources=["off", "agrovoc", "dbpedia", "wikidata"]`
+- **Wikidata translation source and final language fallback pass**
+  - Wikidata labels fetched via sitelinks for multilingual coverage
+  - Final pass applies `DEFAULT_LANGUAGE_FALLBACKS` to every concept after all
+    translation phases, filling gaps like `nb` from `sv`/`da`/`nn`
+- **Auto-resolve URIs for local vocab concepts** — new `_resolve_missing_uris()`
+  helper batch-queries DBpedia/Wikidata by prefLabel for concepts without URIs,
+  enabling translations for previously unreachable concepts
+
+### Changed
+- Renamed `toilet_consumable_paper` → `toilet_paper` in package vocabulary
+- Vocabulary deduplication: flat concepts with `broader` are merged into their
+  path-prefixed form (e.g., `ac-cable` → `electronics/ac-cable`), removing 138
+  orphaned flat duplicates
+- Vocabulary slimmed to ~258 concepts (from 596) by removing pure-redirect leaves
+
+### Fixed
+- Multi-source translation URI resolution: candidate URIs collected from both
+  `all_uri_maps` and `concept.uri`, filtered by source type
+- Duplicate connector definitions removed from vocabulary.yaml
+- Full broader chain resolution (e.g., `sandpaper-sheet` → `consumables/sandpaper/sandpaper-sheet`)
+- OFF mapped roots excluded from URI map to prevent translation mismatches
 
 ## [v0.5.0] - 2026-02-04
 

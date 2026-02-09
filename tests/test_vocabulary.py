@@ -2607,3 +2607,286 @@ class TestWikidataFallbackPhase:
         for call in mock_client.lookup_concept.call_args_list:
             assert call.kwargs.get("source") != "wikidata"
             assert len(call.args) < 3 or call.args[2] != "wikidata"
+
+
+class TestResolveMissingUris:
+    """Tests for _resolve_missing_uris() helper."""
+
+    @staticmethod
+    def _make_client(**kwargs):
+        """Create a mock SKOS client."""
+        client = MagicMock()
+        client.lookup_concept.return_value = None
+        for k, v in kwargs.items():
+            setattr(client, k, v)
+        return client
+
+    def test_resolves_dbpedia_uri(self):
+        """Concept without URI gets URI, description, and wikipediaUrl from DBpedia."""
+        concepts = {
+            "tools/hammer": vocabulary.Concept(
+                id="tools/hammer", prefLabel="Hammer", source="local",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+        client.lookup_concept.side_effect = lambda label, lang, source: {
+            "uri": "http://dbpedia.org/resource/Hammer",
+            "prefLabel": "Hammer",
+            "description": "A tool with a heavy head",
+            "wikipediaUrl": "https://en.wikipedia.org/wiki/Hammer",
+        } if source == "dbpedia" and label == "Hammer" else None
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"]
+        )
+
+        assert count == 1
+        assert concepts["tools/hammer"].uri == "http://dbpedia.org/resource/Hammer"
+        assert concepts["tools/hammer"].description == "A tool with a heavy head"
+        assert concepts["tools/hammer"].wikipediaUrl == "https://en.wikipedia.org/wiki/Hammer"
+        assert all_uri_maps["tools/hammer"] == "http://dbpedia.org/resource/Hammer"
+
+    def test_skips_concepts_with_uri(self):
+        """Concepts that already have a URI are not looked up."""
+        concepts = {
+            "tools/wrench": vocabulary.Concept(
+                id="tools/wrench", prefLabel="Wrench", source="local",
+                uri="http://dbpedia.org/resource/Wrench",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia"]
+        )
+
+        assert count == 0
+        client.lookup_concept.assert_not_called()
+
+    def test_skips_concepts_in_uri_map(self):
+        """Concepts already in all_uri_maps are skipped."""
+        concepts = {
+            "tools/pliers": vocabulary.Concept(
+                id="tools/pliers", prefLabel="Pliers", source="local",
+            ),
+        }
+        all_uri_maps = {"tools/pliers": "http://dbpedia.org/resource/Pliers"}
+        client = self._make_client()
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia"]
+        )
+
+        assert count == 0
+        client.lookup_concept.assert_not_called()
+
+    def test_skips_meta_concepts(self):
+        """Internal concepts (_root, category_by_source/*) are skipped."""
+        concepts = {
+            "_root": vocabulary.Concept(
+                id="_root", prefLabel="Root", source="local",
+            ),
+            "category_by_source/dbpedia/foo": vocabulary.Concept(
+                id="category_by_source/dbpedia/foo", prefLabel="Foo", source="dbpedia",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia"]
+        )
+
+        assert count == 0
+        client.lookup_concept.assert_not_called()
+
+    def test_sanity_check_rejects_mismatch(self):
+        """Mismatched prefLabel from lookup is rejected."""
+        concepts = {
+            "tools/clamp": vocabulary.Concept(
+                id="tools/clamp", prefLabel="Clamp", source="local",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+        # Return something completely unrelated
+        client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Hydraulic_press",
+            "prefLabel": "Hydraulic press",
+        }
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia"]
+        )
+
+        assert count == 0
+        assert concepts["tools/clamp"].uri is None
+
+    def test_falls_back_to_wikidata(self):
+        """When DBpedia misses, Wikidata is tried next."""
+        concepts = {
+            "electronics/resistor": vocabulary.Concept(
+                id="electronics/resistor", prefLabel="Resistor", source="local",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+        client.lookup_concept.side_effect = lambda label, lang, source: {
+            "uri": "http://www.wikidata.org/entity/Q5321",
+            "prefLabel": "Resistor",
+            "description": "An electronic component",
+        } if source == "wikidata" else None
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"]
+        )
+
+        assert count == 1
+        assert concepts["electronics/resistor"].uri == "http://www.wikidata.org/entity/Q5321"
+        assert concepts["electronics/resistor"].description == "An electronic component"
+
+    def test_respects_enabled_sources(self):
+        """Only tries sources that are in enabled_sources."""
+        concepts = {
+            "tools/drill": vocabulary.Concept(
+                id="tools/drill", prefLabel="Drill", source="local",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+        # Would match on wikidata, but wikidata is not enabled
+        client.lookup_concept.side_effect = lambda label, lang, source: {
+            "uri": "http://www.wikidata.org/entity/Q1234",
+            "prefLabel": "Drill",
+        } if source == "wikidata" else None
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia"]  # no wikidata
+        )
+
+        assert count == 0
+        # Should only have tried dbpedia
+        for call in client.lookup_concept.call_args_list:
+            assert call.kwargs.get("source") == "dbpedia"
+
+    def test_does_not_overwrite_existing_description(self):
+        """Existing description and wikipediaUrl are preserved."""
+        concepts = {
+            "tools/chisel": vocabulary.Concept(
+                id="tools/chisel", prefLabel="Chisel", source="local",
+                description="A woodworking tool",
+                wikipediaUrl="https://en.wikipedia.org/wiki/Chisel",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+        client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Chisel",
+            "prefLabel": "Chisel",
+            "description": "DBpedia description",
+            "wikipediaUrl": "https://en.wikipedia.org/wiki/Chisel_DBpedia",
+        }
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia"]
+        )
+
+        assert count == 1
+        assert concepts["tools/chisel"].uri == "http://dbpedia.org/resource/Chisel"
+        # Original description and URL preserved
+        assert concepts["tools/chisel"].description == "A woodworking tool"
+        assert concepts["tools/chisel"].wikipediaUrl == "https://en.wikipedia.org/wiki/Chisel"
+
+    def test_returns_zero_when_no_sources_enabled(self):
+        """Returns 0 when neither dbpedia nor wikidata in enabled_sources."""
+        concepts = {
+            "tools/level": vocabulary.Concept(
+                id="tools/level", prefLabel="Level", source="local",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["off", "agrovoc"]
+        )
+
+        assert count == 0
+        client.lookup_concept.assert_not_called()
+
+    def test_uses_concept_id_leaf_when_no_preflabel(self):
+        """Falls back to concept_id leaf as lookup label when prefLabel is empty."""
+        concepts = {
+            "tools/tape_measure": vocabulary.Concept(
+                id="tools/tape_measure", prefLabel="", source="local",
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+        client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Tape_measure",
+            "prefLabel": "Tape measure",
+        }
+
+        count = vocabulary._resolve_missing_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia"]
+        )
+
+        assert count == 1
+        # Should have used "tape measure" (from concept_id leaf) as lookup label
+        call_label = client.lookup_concept.call_args_list[0][0][0]
+        assert call_label == "tape measure"
+
+    def test_integration_local_vocab_root_gets_uri(self):
+        """Integration: local vocab root concept gets URI before translation phase."""
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+            }]
+        }
+        local_vocab = {
+            "hardware": vocabulary.Concept(
+                id="hardware", prefLabel="Hardware", source="local",
+            ),
+            "widget": vocabulary.Concept(
+                id="widget", prefLabel="Widget", source="local",
+                broader=["hardware"],
+            ),
+        }
+
+        mock_client = MagicMock()
+        # Main loop: no external source finds "widget" or "hardware"
+        mock_client.lookup_concept.side_effect = lambda label, lang, source=None: {
+            "uri": "http://dbpedia.org/resource/Hardware",
+            "prefLabel": "Hardware",
+            "description": "Physical components",
+        } if label == "Hardware" and source == "dbpedia" else None
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = MagicMock()
+        mock_skos._is_irrelevant_dbpedia_category.return_value = False
+        mock_skos._is_abstract_wikidata_class.return_value = False
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                languages=["en", "nb"],
+                enabled_sources=["off", "dbpedia"],
+            )
+
+        # "hardware" had no URI initially; _resolve_missing_uris should have found it
+        hw = vocab.get("hardware")
+        assert hw is not None
+        assert hw.uri == "http://dbpedia.org/resource/Hardware"
+        assert hw.description == "Physical components"

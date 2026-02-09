@@ -1497,6 +1497,91 @@ def _merge_concept_data(
     return merged_paths, merged_uris
 
 
+def _resolve_missing_uris(
+    concepts: dict[str, Concept],
+    all_uri_maps: dict[str, str],
+    client: SKOSClient,
+    lang: str,
+    enabled_sources: list[str],
+) -> int:
+    """Auto-resolve URIs for concepts that lack them via DBpedia/Wikidata lookup.
+
+    Tries each concept's prefLabel against DBpedia and Wikidata (in that order,
+    filtered by enabled_sources) to find a matching URI. On match, sets the
+    concept's URI, updates all_uri_maps, and fills description/wikipediaUrl if
+    missing.
+
+    Args:
+        concepts: Vocabulary concepts to scan.
+        all_uri_maps: URI map to update (concept_id -> URI).
+        client: SKOS client for lookups.
+        lang: Primary language code for lookups.
+        enabled_sources: Enabled taxonomy sources (filters which lookups to try).
+
+    Returns:
+        Number of concepts that received a new URI.
+    """
+    # Determine which lookup sources to try
+    sources_to_try = [s for s in ["dbpedia", "wikidata"] if s in enabled_sources]
+    if not sources_to_try:
+        return 0
+
+    # Collect candidates: concepts without URI, not meta/internal concepts
+    candidates: list[tuple[str, Concept]] = []
+    for cid, concept in concepts.items():
+        if cid.startswith("_") or cid.startswith("category_by_source/"):
+            continue
+        if concept.uri is not None:
+            continue
+        if cid in all_uri_maps:
+            continue
+        candidates.append((cid, concept))
+
+    if not candidates:
+        return 0
+
+    logger.info("Resolving URIs for %d concepts without URIs...", len(candidates))
+    resolved_count = 0
+
+    for idx, (cid, concept) in enumerate(candidates, 1):
+        if idx % 10 == 0:
+            logger.info("  URI resolution progress: %d/%d", idx, len(candidates))
+
+        label = concept.prefLabel or cid.split("/")[-1].replace("_", " ")
+
+        for source in sources_to_try:
+            result = client.lookup_concept(label, lang, source=source)
+            if not result or not result.get("uri"):
+                continue
+
+            # Sanity check: returned prefLabel must substring-match concept's prefLabel
+            result_label = result.get("prefLabel", "")
+            concept_label = concept.prefLabel or ""
+            if result_label and concept_label:
+                result_lower = result_label.lower()
+                concept_lower = concept_label.lower()
+                if result_lower not in concept_lower and concept_lower not in result_lower:
+                    logger.debug(
+                        "URI sanity check failed for %s: concept='%s', %s='%s'",
+                        cid, concept_label, source, result_label,
+                    )
+                    continue
+
+            # Match found — set URI and fill missing metadata
+            concept.uri = result["uri"]
+            all_uri_maps[cid] = result["uri"]
+            if not concept.description and result.get("description"):
+                concept.description = result["description"]
+            if not concept.wikipediaUrl and result.get("wikipediaUrl"):
+                concept.wikipediaUrl = result["wikipediaUrl"]
+            resolved_count += 1
+            logger.debug("Resolved URI for %s via %s: %s", cid, source, result["uri"])
+            break  # Stop after first successful source
+
+    logger.info("Resolved URIs for %d/%d concepts", resolved_count, len(candidates))
+    return resolved_count
+
+
 def build_vocabulary_with_skos_hierarchy(
     inventory_data: dict[str, Any],
     local_vocab: dict[str, Concept] | None = None,
@@ -2047,6 +2132,10 @@ def build_vocabulary_with_skos_hierarchy(
             category_mappings[label] = [fallback_id, local_src_path]
             _add_paths_to_concepts([fallback_id], concepts, "inventory")
             _add_paths_to_concepts([local_src_path], concepts, "local")
+
+    # Auto-resolve URIs for concepts that lack them (before translation phases)
+    if client is not None and languages and len(languages) > 1:
+        _resolve_missing_uris(concepts, all_uri_maps, client, lang, enabled_sources)
 
     # Fetch translations for concepts with URIs
     if languages and len(languages) > 1:
