@@ -272,9 +272,13 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                 # Check if hierarchy mode is enabled (expand labels to full SKOS paths)
                 if hierarchy_mode:
                     print(f"   Using SKOS hierarchy mode ({lang_info})...")
+
+                    def _print_progress(phase: str, detail: str) -> None:
+                        print(f"   {detail}", flush=True)
+
                     vocab, category_mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
                         data, local_vocab=local_vocab, lang=skos_lang, languages=languages,
-                        enabled_sources=enabled_sources,
+                        enabled_sources=enabled_sources, progress=_print_progress,
                     )
                 else:
                     print(f"   Using SKOS lookups ({lang_info})...")

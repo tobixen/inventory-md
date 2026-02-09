@@ -35,6 +35,7 @@ from __future__ import annotations
 import importlib.resources
 import json
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -1731,12 +1732,21 @@ def _find_additional_translation_uris(
     return found_count
 
 
+def _progress(
+    callback: Callable[[str, str], None] | None, phase: str, detail: str = "",
+) -> None:
+    """Invoke progress callback if provided."""
+    if callback:
+        callback(phase, detail)
+
+
 def build_vocabulary_with_skos_hierarchy(
     inventory_data: dict[str, Any],
     local_vocab: dict[str, Concept] | None = None,
     lang: str = "en",
     languages: list[str] | None = None,
     enabled_sources: list[str] | None = None,
+    progress: Callable[[str, str], None] | None = None,
 ) -> tuple[dict[str, Concept], dict[str, list[str]]]:
     """Build vocabulary using SKOS hierarchy expansion.
 
@@ -1753,6 +1763,9 @@ def build_vocabulary_with_skos_hierarchy(
         languages: List of language codes to fetch labels for.
         enabled_sources: List of enabled sources in priority order.
                          Defaults to ["off", "agrovoc", "dbpedia", "wikidata"].
+        progress: Optional callback invoked with (phase, detail) for progress
+                  reporting.  Phases: "init", "expand", "warning", "resolve",
+                  "translate".
 
     Returns:
         Tuple of:
@@ -1780,6 +1793,11 @@ def build_vocabulary_with_skos_hierarchy(
             client = skos_module.SKOSClient(use_oxigraph=True)
         except ImportError:
             logger.info("SKOS module not available, skipping AGROVOC/DBpedia lookups")
+
+    # Eagerly load the Oxigraph store so the delay is visible to the user
+    if client is not None and "agrovoc" in enabled_sources:
+        _progress(progress, "init", "Loading AGROVOC database...")
+        client._get_oxigraph_store()  # Trigger lazy load
 
     if off_client is None and client is None:
         logger.warning("No taxonomy sources available")
@@ -1827,7 +1845,7 @@ def build_vocabulary_with_skos_hierarchy(
                 )
 
     logger.info("Expanding %d leaf labels to hierarchies...", len(leaf_labels))
-    print(f"   Expanding {len(leaf_labels)} categories to hierarchies...")
+    _progress(progress, "expand", f"Expanding {len(leaf_labels)} categories to hierarchies...")
 
     # Track all URIs for translation fetching
     all_uri_maps: dict[str, str] = {}
@@ -1882,7 +1900,7 @@ def build_vocabulary_with_skos_hierarchy(
     total = len(leaf_labels)
     for idx, label in enumerate(sorted(leaf_labels), 1):
         if idx % 4 == 0 or idx == 1:
-            print(f"   [{idx}/{total}] {label}", flush=True)
+            _progress(progress, "expand", f"[{idx}/{total}] {label}")
 
         # Check if label matches a local vocabulary entry
         # Local vocab provides hierarchy (broader), external sources provide metadata (URI, translations)
@@ -1990,7 +2008,7 @@ def build_vocabulary_with_skos_hierarchy(
                             "Consider adding to local-vocabulary.yaml with DBpedia URI.",
                             label, leaf
                         )
-                        print(f"   ⚠️  AGROVOC mismatch: '{label}' -> '{leaf}' (skipping)", flush=True)
+                        _progress(progress, "warning", f"AGROVOC mismatch: '{label}' -> '{leaf}' (skipping)")
 
                 if not agrovoc_mismatch:
                     if primary_source is None:
@@ -2308,6 +2326,7 @@ def build_vocabulary_with_skos_hierarchy(
 
     # Auto-resolve URIs for concepts that lack them (before translation phases)
     if client is not None and languages and len(languages) > 1:
+        _progress(progress, "resolve", "Resolving URIs for concepts without URIs...")
         _resolve_missing_uris(concepts, all_uri_maps, client, lang, enabled_sources)
 
     # Populate source_uris from all collected data
@@ -2315,6 +2334,7 @@ def build_vocabulary_with_skos_hierarchy(
 
     # Find supplementary DBpedia/Wikidata URIs for better translation coverage
     if client is not None and languages and len(languages) > 1:
+        _progress(progress, "resolve", "Finding additional translation URIs...")
         _find_additional_translation_uris(
             concepts, all_uri_maps, client, lang, enabled_sources
         )
@@ -2322,10 +2342,11 @@ def build_vocabulary_with_skos_hierarchy(
     # Fetch translations for concepts with URIs
     if languages and len(languages) > 1:
         logger.info("Fetching translations for %d languages...", len(languages))
-        print(f"   Fetching translations for {len(languages)} languages...")
+        _progress(progress, "translate", f"Fetching translations for {len(languages)} languages...")
 
         # OFF translations (fast - from local taxonomy data)
         if off_client is not None:
+            _progress(progress, "translate", f"Fetching OFF translations for {len(off_node_ids)} concepts...")
             for concept_id, node_id in off_node_ids.items():
                 if concept_id in concepts:
                     concept = concepts[concept_id]
@@ -2352,6 +2373,7 @@ def build_vocabulary_with_skos_hierarchy(
 
         # AGROVOC translations (from Oxigraph store)
         if client is not None:
+            _progress(progress, "translate", "Fetching AGROVOC translations...")
             store = client._get_oxigraph_store()
             if store is not None and store.is_loaded:
                 for concept_id, concept in concepts.items():
@@ -2398,6 +2420,7 @@ def build_vocabulary_with_skos_hierarchy(
                 dbpedia_concept_map[uri] = concept_id
 
             if dbpedia_uris:
+                _progress(progress, "translate", f"Fetching DBpedia translations for {len(dbpedia_uris)} concepts...")
                 logger.info("Fetching DBpedia translations for %d concepts...", len(dbpedia_uris))
                 dbpedia_translations = client.get_batch_labels(dbpedia_uris, languages)
                 for uri, labels in dbpedia_translations.items():
@@ -2438,6 +2461,7 @@ def build_vocabulary_with_skos_hierarchy(
                 wikidata_concept_map[uri] = concept_id
 
             if wikidata_uris:
+                _progress(progress, "translate", f"Fetching Wikidata translations for {len(wikidata_uris)} concepts...")
                 logger.info("Fetching Wikidata translations for %d concepts...", len(wikidata_uris))
                 wikidata_translations = client.get_batch_labels(wikidata_uris, languages)
                 for uri, labels in wikidata_translations.items():
@@ -2454,6 +2478,7 @@ def build_vocabulary_with_skos_hierarchy(
 
     # Apply language fallbacks to fill remaining gaps (e.g., nb from sv)
     if languages and len(languages) > 1:
+        _progress(progress, "translate", "Applying language fallbacks...")
         for concept in concepts.values():
             if concept.labels:
                 concept.labels = apply_language_fallbacks(

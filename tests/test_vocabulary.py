@@ -3583,3 +3583,141 @@ class TestFindAdditionalTranslationUris:
         # DBpedia should not have been tried
         for call in client.lookup_concept.call_args_list:
             assert call[1].get("source") != "dbpedia" and call[0][2] if len(call[0]) > 2 else True
+
+
+class TestProgressCallback:
+    """Tests for progress reporting callback in build_vocabulary_with_skos_hierarchy."""
+
+    @staticmethod
+    def _make_inventory(categories: list[str]) -> dict:
+        return {
+            "containers": [{
+                "id": "box1",
+                "items": [
+                    {"name": c.title(), "metadata": {"categories": [c]}}
+                    for c in categories
+                ],
+            }]
+        }
+
+    @staticmethod
+    def _make_mock_skos_module():
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        mock_module._is_abstract_wikidata_class.return_value = False
+        return mock_module
+
+    def _run_with_progress(self, categories=None, *, enabled_sources=None, languages=None):
+        """Run build_vocabulary_with_skos_hierarchy with a recording progress callback."""
+        if categories is None:
+            categories = ["potatoes"]
+        if enabled_sources is None:
+            enabled_sources = ["off", "agrovoc", "dbpedia"]
+        inventory = self._make_inventory(categories)
+
+        events: list[tuple[str, str]] = []
+
+        def recorder(phase: str, detail: str) -> None:
+            events.append((phase, detail))
+
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = None
+        mock_store = MagicMock()
+        mock_store.is_loaded = True
+        mock_client._get_oxigraph_store.return_value = mock_store
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off = mock_off_cls.return_value
+            mock_off.lookup_concept.return_value = None
+            mock_off.get_labels.return_value = {}
+            mock_off.build_paths_to_root.return_value = ([], {}, [])
+            vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=enabled_sources,
+                languages=languages, progress=recorder,
+            )
+        return events
+
+    def test_init_phase_for_oxigraph_loading(self):
+        """Callback receives 'init' phase when AGROVOC is enabled."""
+        events = self._run_with_progress(enabled_sources=["agrovoc", "dbpedia"])
+        init_events = [(p, d) for p, d in events if p == "init"]
+        assert len(init_events) == 1
+        assert "AGROVOC" in init_events[0][1]
+
+    def test_no_init_when_agrovoc_disabled(self):
+        """No 'init' phase when AGROVOC is not in enabled_sources."""
+        events = self._run_with_progress(enabled_sources=["dbpedia"])
+        init_events = [(p, d) for p, d in events if p == "init"]
+        assert len(init_events) == 0
+
+    def test_expand_phase_during_loop(self):
+        """Callback receives 'expand' phase during category expansion."""
+        events = self._run_with_progress(categories=["potatoes", "rice", "beans"])
+        expand_events = [(p, d) for p, d in events if p == "expand"]
+        # At least the header "Expanding N categories..." plus some per-item
+        assert len(expand_events) >= 2
+        assert any("Expanding" in d for _, d in expand_events)
+        assert any("[" in d and "]" in d for _, d in expand_events)
+
+    def test_translate_phases_with_languages(self):
+        """Callback receives 'translate' phases when multiple languages requested."""
+        events = self._run_with_progress(
+            languages=["en", "nb"],
+            enabled_sources=["off", "agrovoc", "dbpedia"],
+        )
+        translate_events = [(p, d) for p, d in events if p == "translate"]
+        # Should have: header + OFF + AGROVOC + fallback (DBpedia/Wikidata only if URIs found)
+        assert len(translate_events) >= 3
+        details = [d for _, d in translate_events]
+        assert any("OFF" in d for d in details)
+        assert any("AGROVOC" in d for d in details)
+        assert any("fallback" in d.lower() for d in details)
+
+    def test_no_translate_without_languages(self):
+        """No 'translate' events when only a single language."""
+        events = self._run_with_progress(languages=None)
+        translate_events = [(p, d) for p, d in events if p == "translate"]
+        assert len(translate_events) == 0
+
+    def test_resolve_phases_with_languages(self):
+        """Callback receives 'resolve' phases when translations requested."""
+        events = self._run_with_progress(
+            languages=["en", "nb"],
+            enabled_sources=["agrovoc", "dbpedia"],
+        )
+        resolve_events = [(p, d) for p, d in events if p == "resolve"]
+        assert len(resolve_events) == 2
+        details = [d for _, d in resolve_events]
+        assert any("Resolving" in d for d in details)
+        assert any("additional" in d.lower() for d in details)
+
+    def test_progress_none_works(self):
+        """progress=None (default) works without error."""
+        inventory = self._make_inventory(["potatoes"])
+        mock_client = MagicMock()
+        mock_client.lookup_concept.return_value = None
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
+             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
+             patch.object(inventory_md, "skos", mock_skos, create=True):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            # No progress callback (default) — should not raise
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "agrovoc", "dbpedia"],
+            )
+        assert isinstance(vocab, dict)
+        assert isinstance(mappings, dict)
