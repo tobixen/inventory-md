@@ -2890,3 +2890,126 @@ class TestResolveMissingUris:
         assert hw is not None
         assert hw.uri == "http://dbpedia.org/resource/Hardware"
         assert hw.description == "Physical components"
+
+
+class TestRootCategoryMerges:
+    """Tests for the root category merges in package vocabulary.yaml."""
+
+    @pytest.fixture
+    def pkg_vocab(self):
+        """Load the package vocabulary."""
+        from pathlib import Path
+        vocab_file = Path(__file__).resolve().parent.parent / (
+            "src/inventory_md/data/vocabulary.yaml"
+        )
+        return vocabulary.load_local_vocabulary(vocab_file)
+
+    def test_root_narrower_count(self, pkg_vocab):
+        """_root.narrower should have exactly 11 entries (10 roots + category_by_source)."""
+        root = pkg_vocab["_root"]
+        assert len(root.narrower) == 11
+
+    def test_root_narrower_contents(self, pkg_vocab):
+        """_root.narrower should list the 10 merged roots plus category_by_source."""
+        root = pkg_vocab["_root"]
+        expected = {
+            "food", "tools", "electronics", "household", "clothing",
+            "hardware", "recreation", "medical", "games", "misc",
+            "category_by_source",
+        }
+        assert set(root.narrower) == expected
+
+    def test_hobby_deleted(self, pkg_vocab):
+        """hobby concept should not exist after merge."""
+        assert "hobby" not in pkg_vocab
+
+    def test_recreation_root_exists(self, pkg_vocab):
+        """recreation should exist as a new root with correct children."""
+        rec = pkg_vocab["recreation"]
+        assert rec.prefLabel == "Recreation & Transport"
+        assert set(rec.narrower) == {"outdoor", "sports", "transport"}
+        assert rec.broader == []
+
+    def test_outdoor_demoted_to_recreation(self, pkg_vocab):
+        """outdoor should have broader: recreation."""
+        assert pkg_vocab["outdoor"].broader == ["recreation"]
+
+    def test_sports_demoted_to_recreation(self, pkg_vocab):
+        """sports should have broader: recreation."""
+        assert pkg_vocab["sports"].broader == ["recreation"]
+
+    def test_transport_demoted_to_recreation(self, pkg_vocab):
+        """transport should have broader: recreation."""
+        assert pkg_vocab["transport"].broader == ["recreation"]
+
+    def test_construction_demoted_to_hardware(self, pkg_vocab):
+        """construction should have broader: hardware."""
+        assert pkg_vocab["construction"].broader == ["hardware"]
+
+    def test_consumables_demoted_to_hardware(self, pkg_vocab):
+        """consumables should have broader: hardware."""
+        assert pkg_vocab["consumables"].broader == ["hardware"]
+
+    def test_hardware_has_children(self, pkg_vocab):
+        """hardware.narrower should include construction and consumables."""
+        hw = pkg_vocab["hardware"]
+        assert "construction" in hw.narrower
+        assert "consumables" in hw.narrower
+
+    def test_office_demoted_to_household(self, pkg_vocab):
+        """office should have broader: household."""
+        assert pkg_vocab["office"].broader == ["household"]
+
+    def test_books_demoted_to_household(self, pkg_vocab):
+        """books should have broader: household."""
+        assert pkg_vocab["books"].broader == ["household"]
+
+    def test_documents_demoted_to_household(self, pkg_vocab):
+        """documents should have broader: household."""
+        assert pkg_vocab["documents"].broader == ["household"]
+
+    def test_household_has_children(self, pkg_vocab):
+        """household.narrower should include office, books, documents."""
+        hh = pkg_vocab["household"]
+        assert "office" in hh.narrower
+        assert "books" in hh.narrower
+        assert "documents" in hh.narrower
+
+    def test_medical_renamed(self, pkg_vocab):
+        """medical should have prefLabel 'Health & Safety'."""
+        assert pkg_vocab["medical"].prefLabel == "Health & Safety"
+
+    def test_safety_equipment_under_medical(self, pkg_vocab):
+        """safety-equipment should have broader: medical."""
+        assert pkg_vocab["safety-equipment"].broader == ["medical"]
+        assert "safety-equipment" in pkg_vocab["medical"].narrower
+
+    def test_pool_consumables_moved_to_household(self, pkg_vocab):
+        """ph_test_strips and pool_chlorine should be under household."""
+        assert pkg_vocab["ph_test_strips"].broader == ["household"]
+        assert pkg_vocab["pool_chlorine"].broader == ["household"]
+
+    def test_broader_chain_sleeping_bag(self, pkg_vocab):
+        """sleeping-bag → outdoor → recreation (broader chain)."""
+        sb = pkg_vocab["sleeping-bag"]
+        assert sb.broader == ["outdoor"]
+        outdoor = pkg_vocab["outdoor"]
+        assert outdoor.broader == ["recreation"]
+        rec = pkg_vocab["recreation"]
+        assert rec.broader == []
+
+    def test_broader_chain_pen(self, pkg_vocab):
+        """pen → office/writing → office → household (broader chain)."""
+        pen = pkg_vocab["pen"]
+        assert pen.broader == ["office/writing"]
+        ow = pkg_vocab["office/writing"]
+        assert ow.broader == ["office"]
+        office = pkg_vocab["office"]
+        assert office.broader == ["household"]
+
+    def test_no_concept_has_broader_hobby(self, pkg_vocab):
+        """No concept should reference hobby as broader."""
+        for cid, concept in pkg_vocab.items():
+            assert "hobby" not in concept.broader, (
+                f"{cid} still references hobby as broader"
+            )

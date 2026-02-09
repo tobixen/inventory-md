@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enabling translations for previously unreachable concepts
 
 ### Changed
+- Merged 18 root categories down to 10: new `recreation` root (outdoor, sports,
+  transport); `hardware` absorbs construction and consumables; `household` absorbs
+  office, books, documents; `medical` renamed "Health & Safety" and absorbs
+  safety-equipment; `hobby` deleted (redundant with transport)
 - Renamed `toilet_consumable_paper` → `toilet_paper` in package vocabulary
 - Vocabulary deduplication: flat concepts with `broader` are merged into their
   path-prefixed form (e.g., `ac-cable` → `electronics/ac-cable`), removing 138

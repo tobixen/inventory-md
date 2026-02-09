@@ -13,13 +13,19 @@ concepts are top-level roots and their display order. External rootless concepts
 excluded (whitelist behavior). Falls back to the previous inferred-root behavior when
 `_root` is absent.
 
-## Consider merging some root categories
+## ~~Consider merging some root categories~~
 
-Hobby, transport, sports and outdoors could be one root. Construction and most of
-Consumables should go under Hardware. Documents, Office supplies and Domestic stuff
-could go into one root. The `_root.narrower` list controls which concepts appear as
-roots, so merging just requires adding `broader` to demoted roots and updating
-`_root.narrower`.
+**Status**: Resolved (2026-02-09)
+
+Merged 18 root categories down to 10 meaningful roots:
+- **recreation** (new) absorbs outdoor, sports, transport
+- **hardware** absorbs construction, consumables
+- **household** absorbs office, books, documents
+- **medical** renamed to "Health & Safety", absorbs safety-equipment
+- **hobby** deleted (redundant with transport)
+
+Remaining roots: food, tools, electronics, household, clothing, hardware,
+recreation, medical, games, misc (+ category_by_source).
 
 ## ~~Too many "local" categories~~
 
@@ -33,7 +39,7 @@ builder now transfers metadata from the flat concept to the path-prefixed concep
 removes the flat duplicate. The path-prefixed form is kept because the UI uses
 `category.startsWith(selected + '/')` for filtering.
 
-## DBpedia Concepts Have No Translations (200 concepts)
+## ~~DBpedia Concepts Have No Translations (200 concepts)~~
 
 **Status**: Fixed (2026-02-06)
 **Impact**: 200 DBpedia-sourced concepts have zero translations
@@ -111,7 +117,7 @@ skips concepts that already have partial translations, allowing it to fill gaps.
 The `food` concept in `vocabulary.yaml` now has `uri: "http://dbpedia.org/resource/Food"`
 and explicit labels in 12 languages (en, nb, de, fr, es, it, nl, sv, pl, ru, uk, fi, bg).
 
-## Source Hierarchy Preservation (category_by_source)
+## ~~Source Hierarchy Preservation (category_by_source)~~
 
 **Status**: Implemented (2026-02-06)
 **Impact**: OFF/AGROVOC/DBpedia original hierarchies are now preserved

@@ -23,19 +23,10 @@ concepts:
       - electronics
       - household
       - clothing
-      - construction
-      - outdoor
-      - sports
-      - medical
-      - safety-equipment
-      - consumables
       - hardware
-      - office
-      - books
-      - documents
+      - recreation
+      - medical
       - games
-      - transport
-      - hobby
       - misc
       - category_by_source
 
@@ -81,18 +72,19 @@ concepts:
     altLabel: ["equipment", "implements", "verktøy", "utstyr"]
     uri: "http://dbpedia.org/resource/Tool"
 
+  recreation:
+    prefLabel: "Recreation & Transport"
+    altLabel: ["leisure", "transportation", "fritid"]
+    narrower:
+      - outdoor
+      - sports
+      - transport
+
   transport:
     prefLabel: "Transport"
     labels:
       nb: "Transport"
-    narrower:
-      - automotive
-      - boat-equipment
-
-  hobby:
-    prefLabel: "Hobby"
-    labels:
-      nb: "Hobby"
+    broader: recreation
     narrower:
       - automotive
       - boat-equipment
@@ -194,6 +186,12 @@ concepts:
   household:
     prefLabel: "Household"
     altLabel: ["home", "domestic", "husholdning", "hjem"]
+    narrower:
+      - household/cleaning
+      - household/storage
+      - office
+      - books
+      - documents
 
   clothing:
     prefLabel: "Clothing"
@@ -202,10 +200,12 @@ concepts:
   books:
     prefLabel: "Books"
     altLabel: ["literature", "reading", "bøker", "bok", "litteratur"]
+    broader: household
 
   documents:
     prefLabel: "Documents"
     altLabel: ["papers", "paperwork", "dokumenter", "papirer"]
+    broader: household
 
   # =============================================================================
   # FOOD SUBCATEGORIES
@@ -880,10 +880,14 @@ concepts:
   consumables:
     prefLabel: "Consumables"
     altLabel: ["supplies", "forbruksvarer"]
+    broader: hardware
 
   hardware:
     prefLabel: "Hardware"
     altLabel: ["fasteners", "fixings", "jernvare", "beslag"]
+    narrower:
+      - construction
+      - consumables
 
   adhesive:
     prefLabel: "Adhesive"
@@ -924,7 +928,8 @@ concepts:
 
   safety-equipment:
     prefLabel: "Safety equipment"
-    altLabel: ["PPE", "protective equipment", "sikkerhetsutstyr", "verneutstyr"]
+    altLabel: ["sikkerhetsutstyr", "verneutstyr"]
+    broader: medical
 
   misc:
     prefLabel: "Miscellaneous"
@@ -983,7 +988,8 @@ concepts:
 
   outdoor:
     prefLabel: "Outdoor equipment"
-    altLabel: ["camping", "hiking", "recreation", "friluft", "friluftsliv", "ute"]
+    altLabel: ["camping", "hiking", "friluft", "friluftsliv", "ute"]
+    broader: recreation
     narrower:
       - camping
       - outdoor/hiking
@@ -1041,6 +1047,7 @@ concepts:
   construction:
     prefLabel: "Construction"
     altLabel: ["building", "building materials", "bygg", "byggematerialer"]
+    broader: hardware
     narrower:
       - fasteners
       - construction/lumber
@@ -1071,6 +1078,7 @@ concepts:
   office:
     prefLabel: "Office supplies"
     altLabel: ["stationery", "office equipment", "kontor", "kontorrekvisita"]
+    broader: household
     narrower:
       - office/writing
       - office/paper
@@ -1110,7 +1118,8 @@ concepts:
 
   sports:
     prefLabel: "Sports"
-    altLabel: ["athletics", "recreation", "sport", "idrett"]
+    altLabel: ["athletics", "sport", "idrett"]
+    broader: recreation
     narrower:
       - sports/cycling
       - sports/water-sports
@@ -1137,11 +1146,12 @@ concepts:
   # =============================================================================
 
   medical:
-    prefLabel: "Medical"
-    altLabel: ["health", "healthcare", "first aid", "medisin", "helse", "førstehjelp"]
+    prefLabel: "Health & Safety"
+    altLabel: ["health", "healthcare", "first aid", "medisin", "helse", "førstehjelp", "safety", "PPE", "protective equipment"]
     narrower:
       - first-aid
       - medicine
+      - safety-equipment
 
   # Medical mappings
   first-aid:
@@ -1421,11 +1431,11 @@ concepts:
 
   ph_test_strips:
     prefLabel: "pH test strips"
-    broader: consumables
+    broader: household
 
   pool_chlorine:
     prefLabel: "Pool chlorine"
-    broader: consumables
+    broader: household
 
   seal:
     prefLabel: "Seal"
@@ -1518,8 +1528,6 @@ concepts:
     labels:
       nb: "Dyr"
     broader: misc
-
-  # hobby entry is now a root category defined in top-level section above
 
   garage:
     prefLabel: "Garage"
