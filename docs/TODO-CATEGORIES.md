@@ -189,3 +189,20 @@ URIs for concepts that only matched via OFF/AGROVOC, so translation phases can q
 available sources. Books now gets Norwegian from Wikidata even when originally matched via
 DBpedia.
 
+## ~~Weird progress status in `inventory-md parse`~~
+
+**Status**: Resolved (2026-02-09)
+
+The AGROVOC Oxigraph loading (~30s) happened silently during the first lookup,
+making it look like `[1/475] Alcoholic beverages` was taking forever. After the
+expansion loop finished at `[472/475]`, multiple silent phases ran (URI resolution,
+source_uris population, additional URI lookup, and 4 translation phases) with no
+user feedback.
+
+**Resolution**: Added a `progress` callback parameter to
+`build_vocabulary_with_skos_hierarchy()`. The library no longer calls `print()`
+directly (fixing ruff T201 violations). Instead, the CLI passes a callback that
+prints progress messages. Phases reported: `init` (Oxigraph loading), `expand`
+(category loop), `warning` (AGROVOC mismatches), `resolve` (URI resolution),
+`translate` (per-source translation + language fallbacks). The Oxigraph store is
+now eagerly loaded with a visible status message before the expansion loop starts.
