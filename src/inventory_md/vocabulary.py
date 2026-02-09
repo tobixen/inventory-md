@@ -578,6 +578,7 @@ def build_category_tree(
         description=v.description,
         wikipediaUrl=v.wikipediaUrl,
         descriptions=v.descriptions.copy() if v.descriptions else {},
+        source_uris=v.source_uris.copy() if v.source_uris else {},
     ) for k, v in vocabulary.items()}
 
     if infer_hierarchy:

@@ -615,6 +615,98 @@
             background: #e0e0e0;
         }
 
+        /* Category Detail Modal */
+        .category-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .category-modal.active {
+            display: flex;
+        }
+
+        .category-modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            max-width: 650px;
+            width: 90%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .category-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .category-modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .category-modal-close {
+            font-size: 28px;
+            cursor: pointer;
+            color: #666;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .category-modal-close:hover {
+            color: #333;
+        }
+
+        .category-modal-section {
+            margin-bottom: 14px;
+        }
+
+        .category-modal-section-title {
+            font-weight: 600;
+            font-size: 13px;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .category-modal-description {
+            line-height: 1.5;
+            color: #444;
+            font-style: italic;
+        }
+
+        .category-modal-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .category-modal-links a {
+            color: #0066cc;
+            text-decoration: none;
+            padding: 2px 8px;
+            background: #f0f4f8;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .category-modal-links a:hover {
+            background: #dce6f0;
+        }
+
         .parent-link {
             color: #3498db;
             text-decoration: none;
@@ -1123,6 +1215,13 @@
                 padding: 12px 20px;
             }
 
+            /* Category modal mobile */
+            .category-modal-content {
+                margin: 20px;
+                max-width: calc(100% - 40px);
+                max-height: calc(100vh - 40px);
+            }
+
             /* No results message */
             .no-results {
                 padding: 30px 20px;
@@ -1288,6 +1387,17 @@
                 <button class="error-modal-btn error-modal-btn-copy" onclick="copyErrorMessage()">📋 Kopier</button>
                 <button class="error-modal-btn error-modal-btn-close" onclick="closeErrorModal()">Lukk</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Category Detail Modal -->
+    <div class="category-modal" id="categoryModal">
+        <div class="category-modal-content">
+            <div class="category-modal-header">
+                <div class="category-modal-title" id="categoryModalTitle"></div>
+                <span class="category-modal-close" onclick="closeCategoryModal()">&times;</span>
+            </div>
+            <div id="categoryModalBody"></div>
         </div>
     </div>
 
@@ -1663,7 +1773,7 @@
             const concept = vocabularyData.concepts[categoryId];
             const count = categoryCounts.get(categoryId) || 0;
 
-            let html = `<div style="margin-bottom: 8px;"><strong>${getConceptLabel(concept)}</strong></div>`;
+            let html = `<div style="margin-bottom: 8px;"><strong>${getConceptLabel(concept)}</strong> <span onclick="showCategoryModal('${categoryId}')" style="cursor: pointer; margin-left: 6px; font-size: 14px;" title="Show full details">\u2139\uFE0F</span></div>`;
             html += `<div style="color: #666; margin-bottom: 4px;">Path: <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">${categoryId}</code></div>`;
 
             // Source badges — show all sources from source_uris, or fall back to single source
@@ -1780,6 +1890,129 @@
             }
             // Fall back to prefLabel
             return concept.prefLabel || '';
+        }
+
+        // Category detail modal
+        function showCategoryModal(categoryId) {
+            if (!vocabularyData || !vocabularyData.concepts[categoryId]) return;
+            const concept = vocabularyData.concepts[categoryId];
+            const count = categoryCounts.get(categoryId) || 0;
+
+            document.getElementById('categoryModalTitle').textContent = getConceptLabel(concept);
+
+            let html = '';
+
+            // Path
+            html += `<div class="category-modal-section">
+                <div class="category-modal-section-title">Path</div>
+                <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">${categoryId}</code>
+            </div>`;
+
+            // Alt labels
+            if (concept.altLabels && concept.altLabels.length > 0) {
+                html += `<div class="category-modal-section">
+                    <div class="category-modal-section-title">Also known as</div>
+                    <div>${concept.altLabels.join(', ')}</div>
+                </div>`;
+            }
+
+            // Sources
+            let sourceHtml = '';
+            if (concept.source_uris && Object.keys(concept.source_uris).length > 0) {
+                for (const [src, uri] of Object.entries(concept.source_uris)) {
+                    let badge = `<span style="background: ${getSourceColor(src)}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px; display: inline-block;">${src}</span>`;
+                    if (uri && !uri.startsWith('off:')) {
+                        badge = `<a href="${uri}" target="_blank" style="text-decoration: none;">${badge}</a>`;
+                    }
+                    sourceHtml += badge + ' ';
+                }
+            } else {
+                let badge = `<span style="background: ${getSourceColor(concept.source)}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px; display: inline-block;">${concept.source}</span>`;
+                if (concept.uri) {
+                    badge = `<a href="${concept.uri}" target="_blank" style="text-decoration: none;">${badge}</a>`;
+                }
+                sourceHtml = badge;
+            }
+            html += `<div class="category-modal-section">
+                <div class="category-modal-section-title">Sources</div>
+                <div>${sourceHtml}</div>
+            </div>`;
+
+            // Item count
+            html += `<div class="category-modal-section">
+                <div class="category-modal-section-title">Items</div>
+                <div>${count}</div>
+            </div>`;
+
+            // Wikipedia link
+            if (concept.wikipediaUrl) {
+                let wikiUrl = concept.wikipediaUrl;
+                if (currentLanguage !== 'en' && concept.uri && concept.uri.includes('dbpedia.org')) {
+                    const articleName = concept.uri.split('/resource/').pop();
+                    wikiUrl = `https://${currentLanguage}.wikipedia.org/wiki/${articleName}`;
+                }
+                html += `<div class="category-modal-section">
+                    <div class="category-modal-section-title">Wikipedia</div>
+                    <div><a href="${wikiUrl}" target="_blank" style="color: #0066cc;">${wikiUrl}</a></div>
+                </div>`;
+            }
+
+            // Full description
+            let description = null;
+            if (concept.descriptions && concept.descriptions[currentLanguage]) {
+                description = concept.descriptions[currentLanguage];
+            } else if (concept.description) {
+                description = concept.description;
+            }
+            if (description) {
+                html += `<div class="category-modal-section">
+                    <div class="category-modal-section-title">Description</div>
+                    <div class="category-modal-description">${description}</div>
+                </div>`;
+            }
+
+            // Broader (all parents)
+            if (concept.broader && concept.broader.length > 0) {
+                const links = concept.broader.map(b => {
+                    const bc = vocabularyData.concepts[b];
+                    const label = bc ? getConceptLabel(bc) : b;
+                    if (bc) {
+                        return `<a href="#" onclick="closeCategoryModal(); selectCategory('${b}', event); return false;">${label}</a>`;
+                    } else if (b.startsWith('http')) {
+                        return `<a href="${b}" target="_blank">${label}</a>`;
+                    }
+                    return `<span>${label}</span>`;
+                });
+                html += `<div class="category-modal-section">
+                    <div class="category-modal-section-title">Broader</div>
+                    <div class="category-modal-links">${links.join('')}</div>
+                </div>`;
+            }
+
+            // Narrower (ALL children, sorted alphabetically)
+            if (concept.narrower && concept.narrower.length > 0) {
+                const sorted = [...concept.narrower].sort((a, b) => {
+                    const la = vocabularyData.concepts[a] ? getConceptLabel(vocabularyData.concepts[a]) : a;
+                    const lb = vocabularyData.concepts[b] ? getConceptLabel(vocabularyData.concepts[b]) : b;
+                    return la.localeCompare(lb);
+                });
+                const links = sorted.map(n => {
+                    const nc = vocabularyData.concepts[n];
+                    const label = nc ? getConceptLabel(nc) : n;
+                    return `<a href="#" onclick="closeCategoryModal(); selectCategory('${n}', event); return false;">${label}</a>`;
+                });
+                html += `<div class="category-modal-section">
+                    <div class="category-modal-section-title">Children (${concept.narrower.length})</div>
+                    <div class="category-modal-links">${links.join('')}</div>
+                </div>`;
+            }
+
+            document.getElementById('categoryModalBody').innerHTML = html;
+            document.getElementById('categoryModal').classList.add('active');
+        }
+
+        function closeCategoryModal() {
+            document.getElementById('categoryModal').classList.remove('active');
         }
 
         // Change display language
@@ -2968,10 +3201,18 @@
             }
         });
 
-        // Close error modal on Escape key
+        // Close category modal on background click
+        document.getElementById('categoryModal').addEventListener('click', (e) => {
+            if (e.target.id === 'categoryModal') {
+                closeCategoryModal();
+            }
+        });
+
+        // Close modals on Escape key
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 closeErrorModal();
+                closeCategoryModal();
             }
         });
 

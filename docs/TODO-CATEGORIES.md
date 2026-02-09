@@ -11,9 +11,15 @@ query load. Changed to enabled by default — the extra queries are worth the be
 ontological hierarchy and multilingual coverage. Vocabulary regeneration needed to
 populate `category_by_source/wikidata/` entries.
 
-## More/better information about a category
+## ~~More/better information about a category~~
 
-Each category by now have a truncated description, one parent, multiple children (and the list gets truncated if there are too many of them), and one source.  I would like to be able to access an info box for a category showing all parents, all children, full description, and a list of sources.
+**Status**: Resolved (2026-02-09)
+
+The inline info panel (compact, truncated) now has an "ℹ️" button that opens a
+full-detail modal dialog showing: all parents, ALL children (sorted, no limit),
+full description (no truncation), all source badges with clickable URIs, alt labels,
+and language-aware Wikipedia link. Also fixed `build_category_tree()` not copying
+`source_uris`, so they now appear in `vocabulary.json`.
 
 ## ~~Unwanted external root categories~~
 

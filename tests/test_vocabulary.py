@@ -392,6 +392,54 @@ class TestBuildCategoryTree:
         # Order matches _root.narrower, NOT alphabetical
         assert tree.roots == ["tools", "food", "electronics"]
 
+    def test_source_uris_preserved(self):
+        """build_category_tree must preserve source_uris on concepts."""
+        vocab = {
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes", prefLabel="Potatoes",
+                broader=["food"], source="dbpedia",
+                uri="http://dbpedia.org/resource/Potato",
+                source_uris={
+                    "off": "off:en:potatoes",
+                    "dbpedia": "http://dbpedia.org/resource/Potato",
+                    "wikidata": "http://www.wikidata.org/entity/Q16587531",
+                },
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+        potatoes = tree.concepts["food/potatoes"]
+        assert potatoes.source_uris == {
+            "off": "off:en:potatoes",
+            "dbpedia": "http://dbpedia.org/resource/Potato",
+            "wikidata": "http://www.wikidata.org/entity/Q16587531",
+        }
+
+    def test_source_uris_in_json_output(self, tmp_path):
+        """source_uris must appear in vocabulary.json via save_vocabulary_json."""
+        vocab = {
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
+            "tools/hammer": vocabulary.Concept(
+                id="tools/hammer", prefLabel="Hammer",
+                broader=["tools"], source="dbpedia",
+                source_uris={
+                    "dbpedia": "http://dbpedia.org/resource/Hammer",
+                    "wikidata": "http://www.wikidata.org/entity/Q169470",
+                },
+            ),
+        }
+        output_path = tmp_path / "vocabulary.json"
+        vocabulary.save_vocabulary_json(vocab, output_path)
+
+        with open(output_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        hammer = data["concepts"]["tools/hammer"]
+        assert hammer["source_uris"] == {
+            "dbpedia": "http://dbpedia.org/resource/Hammer",
+            "wikidata": "http://www.wikidata.org/entity/Q169470",
+        }
+
 
 class TestBuildVocabularyFromInventory:
     """Tests for build_vocabulary_from_inventory function."""
