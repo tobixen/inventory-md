@@ -182,3 +182,6 @@ through enrichment and dedup passes.
 ## Still some categories missing translations
 
 For categories that exists in the local vocabulary but has no matches in the other category sources (like root node "Health & Safety"), there must be translations locally in the package vocabulary.
+
+household/books seems to be missing Norwegian translation and have a Danish translation.  I find it difficult to believe this is missing a Norwegian translation.
+

@@ -2121,6 +2121,10 @@ def build_vocabulary_with_skos_hierarchy(
                     for alt in _flat.altLabels:
                         if alt not in existing_alts:
                             _target.altLabels.append(alt)
+                # Propagate package/local source from the authoritative flat
+                # concept, unless the target was enriched by an external source
+                if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
+                    _target.source = _flat.source
                 # Fill missing metadata (works for both cases)
                 if _flat.uri and not _target.uri:
                     _target.uri = _flat.uri
@@ -2321,6 +2325,10 @@ def build_vocabulary_with_skos_hierarchy(
             if resolved in concepts:
                 # Both exist: merge metadata into the path-prefixed target
                 _target = concepts[resolved]
+                # Propagate package/local source from the authoritative flat
+                # concept, unless the target was enriched by an external source
+                if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
+                    _target.source = _flat.source
                 if _flat.prefLabel and not _target.prefLabel:
                     _target.prefLabel = _flat.prefLabel
                 existing_alts = set(_target.altLabels)

@@ -3222,6 +3222,55 @@ concepts:
         assert merged["clothing"].prefLabel == "My Clothing"
         assert merged["clothing"].source == "local"
 
+    def test_package_source_preserved_for_intermediate_concepts(self, tmp_path):
+        """Package source propagates when flat concept merges into existing path node.
+
+        When a child concept (e.g. tape→hardware/consumables/tape) creates
+        hardware/consumables as an intermediate node, the subsequent merge of
+        the flat 'consumables' concept should propagate source='package'.
+        """
+        vocab_file = tmp_path / "vocabulary.yaml"
+        vocab_file.write_text("""
+concepts:
+  hardware:
+    prefLabel: "Hardware"
+    narrower:
+      - consumables
+  consumables:
+    prefLabel: "Consumables"
+    altLabel: ["supplies"]
+    broader: hardware
+  tape:
+    prefLabel: "Tape"
+    broader: consumables
+""")
+        local_vocab = vocabulary.load_local_vocabulary(
+            vocab_file, default_source="package"
+        )
+
+        inventory = {
+            "containers": [{
+                "id": "box1",
+                "items": [{"name": "Tape", "metadata": {"categories": ["tape"]}}],
+            }]
+        }
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            concepts, _ = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, local_vocab=local_vocab, enabled_sources=["off"]
+            )
+
+        hc = concepts.get("hardware/consumables")
+        assert hc is not None
+        assert hc.source == "package"
+        assert hc.prefLabel == "Consumables"
+
+        hw = concepts.get("hardware")
+        assert hw is not None
+        assert hw.source == "package"
+
     def test_package_source_round_trip(self):
         """Concept with source='package' survives to_dict/from_dict round-trip."""
         concept = vocabulary.Concept(
