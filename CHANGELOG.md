@@ -54,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enabling translations for previously unreachable concepts
 
 ### Changed
+- **Wikidata enabled by default** — `enabled_sources` now includes `"wikidata"` in
+  all defaults (vocabulary.py, config.py, cli.py); no longer opt-in
 - Merged 18 root categories down to 10: new `recreation` root (outdoor, sports,
   transport); `hardware` absorbs construction and consumables; `household` absorbs
   office, books, documents; `medical` renamed "Health & Safety" and absorbs

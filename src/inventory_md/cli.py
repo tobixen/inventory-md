@@ -956,7 +956,7 @@ Examples:
             lang = config.lang if use_skos else None
             languages = config.skos_languages if use_skos else None
 
-        enabled_sources = config.get("skos.enabled_sources", ["off", "agrovoc", "dbpedia"])
+        enabled_sources = config.get("skos.enabled_sources", ["off", "agrovoc", "dbpedia", "wikidata"])
         return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, hierarchy_mode, lang, languages, enabled_sources)
     elif args.command == 'update-template':
         return update_template(args.directory, args.force)

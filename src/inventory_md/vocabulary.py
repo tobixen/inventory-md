@@ -1603,7 +1603,7 @@ def build_vocabulary_with_skos_hierarchy(
         lang: Primary language code for lookups.
         languages: List of language codes to fetch labels for.
         enabled_sources: List of enabled sources in priority order.
-                         Defaults to ["off", "agrovoc", "dbpedia"].
+                         Defaults to ["off", "agrovoc", "dbpedia", "wikidata"].
 
     Returns:
         Tuple of:
@@ -1611,7 +1611,7 @@ def build_vocabulary_with_skos_hierarchy(
         - Dictionary mapping original category labels to expanded paths
     """
     if enabled_sources is None:
-        enabled_sources = ["off", "agrovoc", "dbpedia"]
+        enabled_sources = ["off", "agrovoc", "dbpedia", "wikidata"]
 
     # Initialize OFF client if enabled
     off_client = None

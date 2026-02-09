@@ -2,9 +2,14 @@
 
 Known issues and improvement areas for the SKOS vocabulary and category hierarchy system.  We focus first on getting a good, working category system for ~/solveig-inventory, afterwards ~/furuset-inventory should be dealt with.
 
-## Wikidata source is not visible under "Category by Source"
+## ~~Wikidata source is not visible under "Category by Source"~~
 
-Recently WIkidata was added as an independent category source - but in solveig-inventory it's still not visible under the "category by source" root.
+**Status**: Resolved (2026-02-09)
+
+Wikidata was opt-in (not in default `enabled_sources`) to avoid doubling SPARQL
+query load. Changed to enabled by default — the extra queries are worth the better
+ontological hierarchy and multilingual coverage. Vocabulary regeneration needed to
+populate `category_by_source/wikidata/` entries.
 
 ## More/better information about a category
 
