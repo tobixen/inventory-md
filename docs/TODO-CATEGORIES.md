@@ -81,7 +81,7 @@ Code analysis confirms this doesn't happen: when `local_broader_path` is set,
 extraction, never for concept creation. Raw source paths are correctly preserved
 under `category_by_source/agrovoc/`.
 
-## Low Translation Coverage (18% overall)
+## ~~Low Translation Coverage (18% overall)~~
 
 **Status**: Largely addressed (2026-02-09)
 **Impact**: 663 non-food local concepts have no translations
@@ -96,7 +96,7 @@ translations.
   `category_by_source/wikidata/` entries — following the same pattern as DBpedia.
   Wikidata has cleaner ontological hierarchy than DBpedia (structured P279 subclass
   chains vs. messy Wikipedia categories) and excellent multilingual label coverage.
-  Opt-in via `enabled_sources=["off", "agrovoc", "dbpedia", "wikidata"]`.
+  Now enabled by default in `enabled_sources`.
 - Added a final language fallback pass that applies `DEFAULT_LANGUAGE_FALLBACKS`
   to every concept's labels after all translation phases complete. This fills
   gaps like "nb" from "sv" (or "da", "nn") when no source has Norwegian.
@@ -105,10 +105,8 @@ translations.
   DBpedia and Wikidata by prefLabel. This enables translations for previously
   unreachable local vocab concepts.
 
-**Remaining approach**:
-- Manually add URIs to `vocabulary.yaml` for concepts where auto-resolve
-  returns a wrong match (sanity check rejects mismatched prefLabels)
-- Enable Wikidata in `enabled_sources` for better coverage of non-food concepts
+**Remaining**: Manually add URIs to `vocabulary.yaml` for concepts where
+auto-resolve returns a wrong match (sanity check rejects mismatched prefLabels).
 
 ## ~~OFF Path-to-Translation Mismatch~~
 
@@ -161,7 +159,7 @@ mapped to "food"), the original pre-mapping paths are now stored under
 
 ## Package Vocabulary Has No Distinct Source/Namespace
 
-**Status**: Open
+**Status**: Resolved
 **Impact**: Cannot distinguish package-provided concepts from user-defined local concepts
 
 The package vocabulary (`src/inventory_md/data/vocabulary.yaml`) loads with
@@ -173,9 +171,14 @@ This matters for:
 - Debugging (which file did this concept come from?)
 - Future tooling (e.g., "show me only my custom vocabulary")
 
-**Fix approach**:
-- Introduce a `source="package"` (or `"inventory-md"`) for concepts loaded from
-  the package data directory
-- User local vocabulary keeps `source="local"` and takes priority over package
-- Alternatively, use a namespace prefix like `pkg:` for concept IDs, though this
-  would be a bigger change
+**Resolution**: Added `default_source` parameter to `load_local_vocabulary()`.
+`load_global_vocabulary()` detects the package data directory and passes
+`default_source="package"`. Source checks in the vocabulary builder now treat
+`"package"` like `"local"` for hierarchy protection. Removed several places that
+force-reset `_target.source` to `"local"` — the original source is now preserved
+through enrichment and dedup passes.
+
+
+## Still some categories missing translations
+
+For categories that exists in the local vocabulary but has no matches in the other category sources (like root node "Health & Safety"), there must be translations locally in the package vocabulary.

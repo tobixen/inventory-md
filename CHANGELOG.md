@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enabling translations for previously unreachable concepts
 
 ### Changed
+- **Distinct `source="package"` for bundled vocabulary** — concepts loaded from the
+  package data directory now get `source="package"` instead of `source="local"`,
+  making it possible to distinguish package-provided concepts from user-defined ones
 - **Wikidata enabled by default** — `enabled_sources` now includes `"wikidata"` in
   all defaults (vocabulary.py, config.py, cli.py); no longer opt-in
 - Merged 18 root categories down to 10: new `recreation` root (outdoor, sports,

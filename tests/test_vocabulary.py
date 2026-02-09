@@ -3124,3 +3124,113 @@ class TestAgrovocMismatchSuppression:
         # The mismatched AGROVOC result should NOT be in mappings
         if "tool" in mappings:
             assert not any("equipment" in p for p in mappings["tool"])
+
+
+class TestPackageSourceAttribution:
+    """Tests for distinguishing package vocabulary from user-local vocabulary."""
+
+    def test_load_local_vocabulary_defaults_to_source_local(self, tmp_path):
+        """load_local_vocabulary() without default_source uses 'local'."""
+        vocab_file = tmp_path / "vocabulary.yaml"
+        vocab_file.write_text("""
+concepts:
+  clothing:
+    prefLabel: "Clothing"
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file)
+        assert vocab["clothing"].source == "local"
+
+    def test_load_local_vocabulary_with_package_source(self, tmp_path):
+        """load_local_vocabulary(default_source='package') sets source='package'."""
+        vocab_file = tmp_path / "vocabulary.yaml"
+        vocab_file.write_text("""
+concepts:
+  clothing:
+    prefLabel: "Clothing"
+  food:
+    prefLabel: "Food"
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file, default_source="package")
+        assert vocab["clothing"].source == "package"
+        assert vocab["food"].source == "package"
+
+    def test_explicit_source_overrides_default(self, tmp_path):
+        """Explicit source in YAML overrides default_source param."""
+        vocab_file = tmp_path / "vocabulary.yaml"
+        vocab_file.write_text("""
+concepts:
+  tools:
+    prefLabel: "Tools"
+    source: "custom"
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file, default_source="package")
+        assert vocab["tools"].source == "custom"
+
+    def test_load_global_vocabulary_package_detection(self, tmp_path):
+        """load_global_vocabulary() sets source='package' for package vocab."""
+        pkg_dir = tmp_path / "pkg_data"
+        pkg_dir.mkdir()
+        pkg_vocab = pkg_dir / "vocabulary.yaml"
+        pkg_vocab.write_text("""
+concepts:
+  clothing:
+    prefLabel: "Clothing"
+""")
+        user_dir = tmp_path / "user"
+        user_dir.mkdir()
+        user_vocab = user_dir / "vocabulary.yaml"
+        user_vocab.write_text("""
+concepts:
+  my_thing:
+    prefLabel: "My Thing"
+""")
+
+        with patch.object(vocabulary, "_get_package_data_dir", return_value=pkg_dir), \
+             patch.object(vocabulary, "find_vocabulary_files",
+                          return_value=[pkg_vocab, user_vocab]):
+            merged = vocabulary.load_global_vocabulary()
+
+        assert merged["clothing"].source == "package"
+        assert merged["my_thing"].source == "local"
+
+    def test_user_local_overrides_package_keeps_local_source(self, tmp_path):
+        """User vocab overriding a package concept should have source='local'."""
+        pkg_dir = tmp_path / "pkg_data"
+        pkg_dir.mkdir()
+        pkg_vocab = pkg_dir / "vocabulary.yaml"
+        pkg_vocab.write_text("""
+concepts:
+  clothing:
+    prefLabel: "Clothing"
+""")
+        user_dir = tmp_path / "user"
+        user_dir.mkdir()
+        user_vocab = user_dir / "vocabulary.yaml"
+        user_vocab.write_text("""
+concepts:
+  clothing:
+    prefLabel: "My Clothing"
+    altLabel: "apparel"
+""")
+
+        with patch.object(vocabulary, "_get_package_data_dir", return_value=pkg_dir), \
+             patch.object(vocabulary, "find_vocabulary_files",
+                          return_value=[pkg_vocab, user_vocab]):
+            merged = vocabulary.load_global_vocabulary()
+
+        # User definition wins (later overrides earlier)
+        assert merged["clothing"].prefLabel == "My Clothing"
+        assert merged["clothing"].source == "local"
+
+    def test_package_source_round_trip(self):
+        """Concept with source='package' survives to_dict/from_dict round-trip."""
+        concept = vocabulary.Concept(
+            id="clothing",
+            prefLabel="Clothing",
+            source="package",
+        )
+        data = concept.to_dict()
+        assert data["source"] == "package"
+
+        restored = vocabulary.Concept.from_dict(data)
+        assert restored.source == "package"

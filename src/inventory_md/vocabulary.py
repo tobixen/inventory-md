@@ -145,10 +145,15 @@ def load_global_vocabulary() -> dict[str, Concept]:
         Merged vocabulary dictionary mapping concept IDs to Concept objects.
     """
     merged: dict[str, Concept] = {}
+    pkg_data = _get_package_data_dir()
 
     for vocab_path in find_vocabulary_files():
         try:
-            vocab = load_local_vocabulary(vocab_path)
+            is_package = pkg_data is not None and vocab_path.parent == pkg_data
+            vocab = load_local_vocabulary(
+                vocab_path,
+                default_source="package" if is_package else "local",
+            )
             logger.info("Loaded %d concepts from %s", len(vocab), vocab_path)
             # Later files override earlier ones
             merged.update(vocab)
@@ -329,11 +334,15 @@ class CategoryTree:
         }
 
 
-def load_local_vocabulary(path: Path) -> dict[str, Concept]:
+def load_local_vocabulary(
+    path: Path, default_source: str = "local"
+) -> dict[str, Concept]:
     """Load local vocabulary from YAML or JSON file.
 
     Args:
         path: Path to local-vocabulary.yaml or local-vocabulary.json
+        default_source: Default source for concepts without an explicit source
+            field. Use "package" for the bundled package vocabulary.
 
     Returns:
         Dictionary mapping concept IDs to Concept objects.
@@ -385,11 +394,10 @@ def load_local_vocabulary(path: Path) -> dict[str, Concept]:
         # Handle labels dict for translations
         labels = concept_data.get("labels", {})
 
-        # Local vocabulary files always have source "local"
         # The URI is just metadata for enrichment (translations, descriptions)
         # not an indication of where the concept definition comes from
         uri = concept_data.get("uri")
-        source = concept_data.get("source", "local")
+        source = concept_data.get("source", default_source)
 
         concepts[concept_id] = Concept(
             id=concept_id,
@@ -1926,7 +1934,7 @@ def build_vocabulary_with_skos_hierarchy(
                         # (local vocab roots should remain roots, not get DBpedia broader)
                         if concept_id in concepts:
                             existing = concepts[concept_id]
-                            if existing.source not in ("local",) and not existing.broader:
+                            if existing.source not in ("local", "package") and not existing.broader:
                                 concepts[concept_id].broader = broader_ids[:3]
                         # Store raw source paths under category_by_source/dbpedia/
                         for sp in dbpedia_src_paths:
@@ -2027,7 +2035,7 @@ def build_vocabulary_with_skos_hierarchy(
                         # Only set broader if concept doesn't come from local vocab
                         if concept_id in concepts:
                             existing = concepts[concept_id]
-                            if existing.source not in ("local",) and not existing.broader:
+                            if existing.source not in ("local", "package") and not existing.broader:
                                 concepts[concept_id].broader = broader_ids[:3]
                         # Store raw source paths under category_by_source/wikidata/
                         for sp in wikidata_src_paths:
@@ -2124,9 +2132,6 @@ def build_vocabulary_with_skos_hierarchy(
                     merged = dict(_flat.descriptions)
                     merged.update(_target.descriptions)
                     _target.descriptions = merged
-                # Preserve external source when metadata came from an external lookup
-                if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
-                    _target.source = "local"
                 del concepts[local_concept_id]
 
             # Store raw source paths under category_by_source/<source>/
@@ -2332,12 +2337,9 @@ def build_vocabulary_with_skos_hierarchy(
                     merged = dict(_flat.descriptions)
                     merged.update(_target.descriptions)
                     _target.descriptions = merged
-                # Preserve external source when metadata came from an external lookup
-                if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
-                    _target.source = "local"
             else:
                 # Only flat exists: move it to the resolved path
-                _add_paths_to_concepts([resolved], concepts, "local")
+                _add_paths_to_concepts([resolved], concepts, _flat.source)
                 _target = concepts[resolved]
                 _target.prefLabel = _flat.prefLabel
                 _target.altLabels = _flat.altLabels.copy()
@@ -2346,8 +2348,7 @@ def build_vocabulary_with_skos_hierarchy(
                 _target.wikipediaUrl = _flat.wikipediaUrl
                 _target.labels = dict(_flat.labels)
                 _target.descriptions = dict(_flat.descriptions)
-                # Use the flat concept's source if it had external metadata
-                _target.source = _flat.source if _flat.source in ("dbpedia", "off", "agrovoc", "wikidata") else "local"
+                _target.source = _flat.source
             to_delete.append(concept_id)
         for cid in to_delete:
             del concepts[cid]
