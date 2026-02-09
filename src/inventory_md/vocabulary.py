@@ -2111,6 +2111,10 @@ def build_vocabulary_with_skos_hierarchy(
                     # Newly created by _add_paths_to_concepts: overwrite metadata
                     _target.prefLabel = _flat.prefLabel
                     _target.altLabels = _flat.altLabels.copy()
+                    # Preserve external source from enrichment; otherwise use
+                    # the flat concept's source (e.g. "package" or "local")
+                    if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
+                        _target.source = _flat.source
                 else:
                     # Existing concept (e.g., singular/plural merge): merge altLabels
                     existing_alts = set(_target.altLabels)
