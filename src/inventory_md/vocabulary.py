@@ -272,6 +272,7 @@ class Concept:
     description: str | None = None  # Short description (from Wikipedia/DBpedia)
     wikipediaUrl: str | None = None  # Link to Wikipedia article
     descriptions: dict[str, str] = field(default_factory=dict)  # lang -> description
+    source_uris: dict[str, str] = field(default_factory=dict)  # source name -> URI
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -293,6 +294,8 @@ class Concept:
             result["wikipediaUrl"] = self.wikipediaUrl
         if self.descriptions:
             result["descriptions"] = self.descriptions
+        if self.source_uris:
+            result["source_uris"] = self.source_uris
         return result
 
     def get_label(self, lang: str) -> str:
@@ -314,6 +317,7 @@ class Concept:
             description=data.get("description"),
             wikipediaUrl=data.get("wikipediaUrl"),
             descriptions=data.get("descriptions", {}),
+            source_uris=data.get("source_uris", {}),
         )
 
 
@@ -1505,6 +1509,53 @@ def _merge_concept_data(
     return merged_paths, merged_uris
 
 
+def _uri_to_source(uri: str) -> str | None:
+    """Determine the source name from a URI prefix."""
+    if uri.startswith("off:"):
+        return "off"
+    if uri.startswith("http://aims.fao.org/"):
+        return "agrovoc"
+    if uri.startswith("http://dbpedia.org/"):
+        return "dbpedia"
+    if uri.startswith("http://www.wikidata.org/"):
+        return "wikidata"
+    return None
+
+
+def _populate_source_uris(
+    concepts: dict[str, Concept],
+    off_node_ids: dict[str, str],
+    all_uri_maps: dict[str, str],
+) -> None:
+    """Populate source_uris on each concept from all available data.
+
+    Examines off_node_ids, all_uri_maps, and concept.uri to build a
+    complete map of source name -> URI for each concept.
+
+    Args:
+        concepts: Vocabulary concepts to update in-place.
+        off_node_ids: Map of concept_id -> OFF node_id.
+        all_uri_maps: Map of concept_id -> URI (from hierarchy building).
+    """
+    for cid, concept in concepts.items():
+        # OFF node IDs
+        if cid in off_node_ids:
+            concept.source_uris["off"] = "off:" + off_node_ids[cid]
+
+        # URIs from all_uri_maps
+        uri = all_uri_maps.get(cid)
+        if uri:
+            source = _uri_to_source(uri)
+            if source and source not in concept.source_uris:
+                concept.source_uris[source] = uri
+
+        # URIs from concept.uri
+        if concept.uri:
+            source = _uri_to_source(concept.uri)
+            if source and source not in concept.source_uris:
+                concept.source_uris[source] = concept.uri
+
+
 def _resolve_missing_uris(
     concepts: dict[str, Concept],
     all_uri_maps: dict[str, str],
@@ -1588,6 +1639,96 @@ def _resolve_missing_uris(
 
     logger.info("Resolved URIs for %d/%d concepts", resolved_count, len(candidates))
     return resolved_count
+
+
+def _find_additional_translation_uris(
+    concepts: dict[str, Concept],
+    all_uri_maps: dict[str, str],
+    client: SKOSClient,
+    lang: str,
+    enabled_sources: list[str],
+) -> int:
+    """Find supplementary DBpedia/Wikidata URIs for concepts that already have a URI.
+
+    Concepts matched via OFF or AGROVOC only have that source's URI. This function
+    looks up additional DBpedia/Wikidata URIs so translation phases can query more
+    sources, improving coverage (e.g., Norwegian from Wikidata).
+
+    Args:
+        concepts: Vocabulary concepts to scan.
+        all_uri_maps: URI map (concept_id -> URI).
+        client: SKOS client for lookups.
+        lang: Primary language code for lookups.
+        enabled_sources: Enabled taxonomy sources.
+
+    Returns:
+        Number of supplementary URIs found.
+    """
+    sources_to_try = [s for s in ["dbpedia", "wikidata"] if s in enabled_sources]
+    if not sources_to_try:
+        return 0
+
+    candidates: list[tuple[str, Concept]] = []
+    for cid, concept in concepts.items():
+        if cid.startswith("_") or cid.startswith("category_by_source/"):
+            continue
+        # Must already have at least one URI (otherwise _resolve_missing_uris handles it)
+        if not concept.uri and cid not in all_uri_maps:
+            continue
+        # Skip if already has all the sources we'd look up
+        has_dbpedia = "dbpedia" in concept.source_uris
+        has_wikidata = "wikidata" in concept.source_uris
+        if has_dbpedia and has_wikidata:
+            continue
+        # Only look up sources the concept is missing
+        needed = []
+        if "dbpedia" in sources_to_try and not has_dbpedia:
+            needed.append("dbpedia")
+        if "wikidata" in sources_to_try and not has_wikidata:
+            needed.append("wikidata")
+        if needed:
+            candidates.append((cid, concept))
+
+    if not candidates:
+        return 0
+
+    logger.info("Finding additional translation URIs for %d concepts...", len(candidates))
+    found_count = 0
+
+    for idx, (cid, concept) in enumerate(candidates, 1):
+        if idx % 10 == 0:
+            logger.info("  Additional URI progress: %d/%d", idx, len(candidates))
+
+        label = concept.prefLabel or cid.split("/")[-1].replace("_", " ")
+
+        for source in sources_to_try:
+            if source in concept.source_uris:
+                continue  # Already have this source
+
+            result = client.lookup_concept(label, lang, source=source)
+            if not result or not result.get("uri"):
+                continue
+
+            # Sanity check: prefLabel must substring-match
+            result_label = result.get("prefLabel", "")
+            concept_label = concept.prefLabel or ""
+            if result_label and concept_label:
+                result_lower = result_label.lower()
+                concept_lower = concept_label.lower()
+                if result_lower not in concept_lower and concept_lower not in result_lower:
+                    logger.debug(
+                        "Additional URI sanity check failed for %s: concept='%s', %s='%s'",
+                        cid, concept_label, source, result_label,
+                    )
+                    continue
+
+            concept.source_uris[source] = result["uri"]
+            found_count += 1
+            logger.debug("Found additional %s URI for %s: %s", source, cid, result["uri"])
+
+    logger.info("Found %d additional translation URIs for %d candidates",
+                found_count, len(candidates))
+    return found_count
 
 
 def build_vocabulary_with_skos_hierarchy(
@@ -2140,6 +2281,10 @@ def build_vocabulary_with_skos_hierarchy(
                     merged = dict(_flat.descriptions)
                     merged.update(_target.descriptions)
                     _target.descriptions = merged
+                if _flat.source_uris:
+                    merged_su = dict(_flat.source_uris)
+                    merged_su.update(_target.source_uris)
+                    _target.source_uris = merged_su
                 del concepts[local_concept_id]
 
             # Store raw source paths under category_by_source/<source>/
@@ -2165,6 +2310,15 @@ def build_vocabulary_with_skos_hierarchy(
     if client is not None and languages and len(languages) > 1:
         _resolve_missing_uris(concepts, all_uri_maps, client, lang, enabled_sources)
 
+    # Populate source_uris from all collected data
+    _populate_source_uris(concepts, off_node_ids, all_uri_maps)
+
+    # Find supplementary DBpedia/Wikidata URIs for better translation coverage
+    if client is not None and languages and len(languages) > 1:
+        _find_additional_translation_uris(
+            concepts, all_uri_maps, client, lang, enabled_sources
+        )
+
     # Fetch translations for concepts with URIs
     if languages and len(languages) > 1:
         logger.info("Fetching translations for %d languages...", len(languages))
@@ -2175,7 +2329,9 @@ def build_vocabulary_with_skos_hierarchy(
             for concept_id, node_id in off_node_ids.items():
                 if concept_id in concepts:
                     concept = concepts[concept_id]
-                    off_labels = off_client.get_labels(node_id, languages)
+                    off_labels = off_client.get_labels(
+                        node_id, languages, use_fallbacks=False
+                    )
                     if off_labels:
                         # Sanity check: skip if English label doesn't match concept
                         en_label = off_labels.get("en", "")
@@ -2208,7 +2364,9 @@ def build_vocabulary_with_skos_hierarchy(
                                 or uri.startswith("http://dbpedia.org/")
                                 or uri.startswith("http://www.wikidata.org/")):
                             continue
-                        agrovoc_labels = _get_all_labels(uri, store, languages)
+                        agrovoc_labels = _get_all_labels(
+                            uri, store, languages, use_fallbacks=False
+                        )
                         if agrovoc_labels:
                             # Sanity check: skip if English label doesn't match
                             en_label = agrovoc_labels.get("en", "")
@@ -2228,18 +2386,12 @@ def build_vocabulary_with_skos_hierarchy(
                             concept.labels = merged_labels
                             break
 
-        # DBpedia translations (via SPARQL)
+        # DBpedia translations (via SPARQL) — use source_uris for lookup
         if client is not None:
             dbpedia_uris: list[tuple[str, str]] = []
             dbpedia_concept_map: dict[str, str] = {}
             for concept_id, concept in concepts.items():
-                candidate_uris = list(dict.fromkeys(
-                    filter(None, [all_uri_maps.get(concept_id), concept.uri])
-                ))
-                uri = next(
-                    (u for u in candidate_uris if u.startswith("http://dbpedia.org/")),
-                    None,
-                )
+                uri = concept.source_uris.get("dbpedia")
                 if not uri:
                     continue
                 dbpedia_uris.append((uri, "dbpedia"))
@@ -2273,19 +2425,17 @@ def build_vocabulary_with_skos_hierarchy(
                     concept.labels = merged_labels
 
         # Wikidata translations (fills Norwegian/other gaps)
-        # Collect both DBpedia URIs (via Wikipedia sitelinks) and native Wikidata URIs
+        # Use Wikidata URI if available, fall back to DBpedia URI (via sitelinks)
         if client is not None:
             wikidata_uris: list[tuple[str, str]] = []
             wikidata_concept_map: dict[str, str] = {}
             for concept_id, concept in concepts.items():
-                candidate_uris = list(dict.fromkeys(
-                    filter(None, [all_uri_maps.get(concept_id), concept.uri])
-                ))
-                for uri in candidate_uris:
-                    if uri.startswith("http://dbpedia.org/") or uri.startswith("http://www.wikidata.org/"):
-                        wikidata_uris.append((uri, "wikidata"))
-                        wikidata_concept_map[uri] = concept_id
-                        break  # One URI per concept is enough
+                uri = (concept.source_uris.get("wikidata")
+                       or concept.source_uris.get("dbpedia"))
+                if not uri:
+                    continue
+                wikidata_uris.append((uri, "wikidata"))
+                wikidata_concept_map[uri] = concept_id
 
             if wikidata_uris:
                 logger.info("Fetching Wikidata translations for %d concepts...", len(wikidata_uris))
@@ -2349,6 +2499,10 @@ def build_vocabulary_with_skos_hierarchy(
                     merged = dict(_flat.descriptions)
                     merged.update(_target.descriptions)
                     _target.descriptions = merged
+                if _flat.source_uris:
+                    merged_su = dict(_flat.source_uris)
+                    merged_su.update(_target.source_uris)
+                    _target.source_uris = merged_su
             else:
                 # Only flat exists: move it to the resolved path
                 _add_paths_to_concepts([resolved], concepts, _flat.source)
@@ -2360,6 +2514,7 @@ def build_vocabulary_with_skos_hierarchy(
                 _target.wikipediaUrl = _flat.wikipediaUrl
                 _target.labels = dict(_flat.labels)
                 _target.descriptions = dict(_flat.descriptions)
+                _target.source_uris = dict(_flat.source_uris)
                 _target.source = _flat.source
             to_delete.append(concept_id)
         for cid in to_delete:

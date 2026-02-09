@@ -157,9 +157,9 @@ mapped to "food"), the original pre-mapping paths are now stored under
 - `vocabulary.py`: `_build_paths_to_root` and `build_skos_hierarchy_paths` return raw paths
 - `vocabulary.py`: Raw paths stored under `category_by_source/` during vocabulary building
 
-## Package Vocabulary Has No Distinct Source/Namespace
+## ~~Package Vocabulary Has No Distinct Source/Namespace~~
 
-**Status**: Resolved
+**Status**: Resolved (2026-02-09)
 **Impact**: Cannot distinguish package-provided concepts from user-defined local concepts
 
 The package vocabulary (`src/inventory_md/data/vocabulary.yaml`) loads with
@@ -181,7 +181,11 @@ through enrichment and dedup passes.
 
 ## Still some categories missing translations
 
-For categories that exists in the local vocabulary but has no matches in the other category sources (like root node "Health & Safety"), there must be translations locally in the package vocabulary.
+For categories that exist in the local vocabulary but have no matches in the other category sources (like root node "Health & Safety"), there must be translations locally in the package vocabulary.
 
-household/books seems to be missing Norwegian translation and have a Danish translation.  I find it difficult to believe this is missing a Norwegian translation.
+~~household/books seems to be missing Norwegian translation and have a Danish translation.~~
+**Fixed**: Multi-source tracking (`source_uris`) now finds supplementary DBpedia/Wikidata
+URIs for concepts that only matched via OFF/AGROVOC, so translation phases can query all
+available sources. Books now gets Norwegian from Wikidata even when originally matched via
+DBpedia.
 

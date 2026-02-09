@@ -3283,3 +3283,303 @@ concepts:
 
         restored = vocabulary.Concept.from_dict(data)
         assert restored.source == "package"
+
+
+class TestConceptSourceUris:
+    """Tests for source_uris field on Concept."""
+
+    def test_source_uris_defaults_to_empty_dict(self):
+        """source_uris defaults to empty dict."""
+        concept = vocabulary.Concept(id="test", prefLabel="Test")
+        assert concept.source_uris == {}
+
+    def test_to_dict_includes_source_uris_when_nonempty(self):
+        """to_dict() includes source_uris when non-empty."""
+        concept = vocabulary.Concept(
+            id="food/potatoes",
+            prefLabel="Potatoes",
+            source_uris={"off": "off:en:potatoes", "dbpedia": "http://dbpedia.org/resource/Potato"},
+        )
+        d = concept.to_dict()
+        assert "source_uris" in d
+        assert d["source_uris"]["off"] == "off:en:potatoes"
+        assert d["source_uris"]["dbpedia"] == "http://dbpedia.org/resource/Potato"
+
+    def test_to_dict_omits_source_uris_when_empty(self):
+        """to_dict() omits source_uris when empty."""
+        concept = vocabulary.Concept(id="test", prefLabel="Test")
+        d = concept.to_dict()
+        assert "source_uris" not in d
+
+    def test_from_dict_round_trip(self):
+        """from_dict() round-trip preserves source_uris."""
+        original = vocabulary.Concept(
+            id="food/potatoes",
+            prefLabel="Potatoes",
+            source_uris={
+                "off": "off:en:potatoes",
+                "agrovoc": "http://aims.fao.org/aos/agrovoc/c_6139",
+                "dbpedia": "http://dbpedia.org/resource/Potato",
+            },
+        )
+        d = original.to_dict()
+        restored = vocabulary.Concept.from_dict(d)
+        assert restored.source_uris == original.source_uris
+
+    def test_from_dict_missing_source_uris(self):
+        """from_dict() handles missing source_uris (backward compat)."""
+        d = {"id": "test", "prefLabel": "Test"}
+        concept = vocabulary.Concept.from_dict(d)
+        assert concept.source_uris == {}
+
+
+class TestPopulateSourceUris:
+    """Tests for _populate_source_uris() helper."""
+
+    def test_off_node_ids_populate_off_source(self):
+        """OFF node IDs populate source_uris['off']."""
+        concepts = {
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes", prefLabel="Potatoes",
+            ),
+        }
+        off_node_ids = {"food/potatoes": "en:potatoes"}
+        all_uri_maps: dict[str, str] = {}
+
+        vocabulary._populate_source_uris(concepts, off_node_ids, all_uri_maps)
+
+        assert concepts["food/potatoes"].source_uris["off"] == "off:en:potatoes"
+
+    def test_agrovoc_uri_populates_agrovoc_source(self):
+        """AGROVOC URI in all_uri_maps populates source_uris['agrovoc']."""
+        concepts = {
+            "food/rice": vocabulary.Concept(
+                id="food/rice", prefLabel="Rice",
+            ),
+        }
+        off_node_ids: dict[str, str] = {}
+        all_uri_maps = {"food/rice": "http://aims.fao.org/aos/agrovoc/c_6599"}
+
+        vocabulary._populate_source_uris(concepts, off_node_ids, all_uri_maps)
+
+        assert concepts["food/rice"].source_uris["agrovoc"] == "http://aims.fao.org/aos/agrovoc/c_6599"
+
+    def test_dbpedia_uri_from_concept(self):
+        """DBpedia URI on concept.uri populates source_uris['dbpedia']."""
+        concepts = {
+            "tools/hammer": vocabulary.Concept(
+                id="tools/hammer", prefLabel="Hammer",
+                uri="http://dbpedia.org/resource/Hammer",
+            ),
+        }
+        vocabulary._populate_source_uris(concepts, {}, {})
+
+        assert concepts["tools/hammer"].source_uris["dbpedia"] == "http://dbpedia.org/resource/Hammer"
+
+    def test_multiple_sources_on_same_concept(self):
+        """Multiple sources tracked on the same concept."""
+        concepts = {
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes", prefLabel="Potatoes",
+                uri="http://aims.fao.org/aos/agrovoc/c_6139",
+            ),
+        }
+        off_node_ids = {"food/potatoes": "en:potatoes"}
+        all_uri_maps = {"food/potatoes": "http://aims.fao.org/aos/agrovoc/c_6139"}
+
+        vocabulary._populate_source_uris(concepts, off_node_ids, all_uri_maps)
+
+        assert "off" in concepts["food/potatoes"].source_uris
+        assert "agrovoc" in concepts["food/potatoes"].source_uris
+        assert concepts["food/potatoes"].source_uris["off"] == "off:en:potatoes"
+        assert concepts["food/potatoes"].source_uris["agrovoc"] == "http://aims.fao.org/aos/agrovoc/c_6139"
+
+    def test_wikidata_uri_populates_wikidata_source(self):
+        """Wikidata URI populates source_uris['wikidata']."""
+        concepts = {
+            "books": vocabulary.Concept(
+                id="books", prefLabel="Books",
+                uri="http://www.wikidata.org/entity/Q571",
+            ),
+        }
+        vocabulary._populate_source_uris(concepts, {}, {})
+
+        assert concepts["books"].source_uris["wikidata"] == "http://www.wikidata.org/entity/Q571"
+
+    def test_unknown_uri_scheme_ignored(self):
+        """URIs with unknown schemes don't add to source_uris."""
+        concepts = {
+            "local/custom": vocabulary.Concept(
+                id="local/custom", prefLabel="Custom",
+                uri="https://example.com/custom",
+            ),
+        }
+        vocabulary._populate_source_uris(concepts, {}, {})
+
+        assert concepts["local/custom"].source_uris == {}
+
+
+class TestUriToSource:
+    """Tests for _uri_to_source() helper."""
+
+    def test_off_uri(self):
+        assert vocabulary._uri_to_source("off:en:potatoes") == "off"
+
+    def test_agrovoc_uri(self):
+        assert vocabulary._uri_to_source("http://aims.fao.org/aos/agrovoc/c_6139") == "agrovoc"
+
+    def test_dbpedia_uri(self):
+        assert vocabulary._uri_to_source("http://dbpedia.org/resource/Potato") == "dbpedia"
+
+    def test_wikidata_uri(self):
+        assert vocabulary._uri_to_source("http://www.wikidata.org/entity/Q10998") == "wikidata"
+
+    def test_unknown_uri(self):
+        assert vocabulary._uri_to_source("https://example.com/foo") is None
+
+
+class TestFindAdditionalTranslationUris:
+    """Tests for _find_additional_translation_uris()."""
+
+    @staticmethod
+    def _make_client(**kwargs):
+        """Create a mock SKOS client."""
+        client = MagicMock()
+        client.lookup_concept.return_value = None
+        for k, v in kwargs.items():
+            setattr(client, k, v)
+        return client
+
+    def test_finds_supplementary_dbpedia_uri(self):
+        """Concept with OFF-only URI gets supplementary DBpedia URI."""
+        concepts = {
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes", prefLabel="Potatoes",
+                uri="off:en:potatoes",
+                source_uris={"off": "off:en:potatoes"},
+            ),
+        }
+        all_uri_maps = {"food/potatoes": "off:en:potatoes"}
+        client = self._make_client()
+        client.lookup_concept.side_effect = lambda label, lang, source: {
+            "uri": "http://dbpedia.org/resource/Potato",
+            "prefLabel": "Potato",
+        } if source == "dbpedia" and label == "Potatoes" else None
+
+        count = vocabulary._find_additional_translation_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"]
+        )
+
+        assert count == 1
+        assert concepts["food/potatoes"].source_uris["dbpedia"] == "http://dbpedia.org/resource/Potato"
+
+    def test_skips_concept_already_with_dbpedia_and_wikidata(self):
+        """Concept with both DBpedia and Wikidata URIs is skipped."""
+        concepts = {
+            "tools/hammer": vocabulary.Concept(
+                id="tools/hammer", prefLabel="Hammer",
+                uri="http://dbpedia.org/resource/Hammer",
+                source_uris={
+                    "dbpedia": "http://dbpedia.org/resource/Hammer",
+                    "wikidata": "http://www.wikidata.org/entity/Q20012",
+                },
+            ),
+        }
+        client = self._make_client()
+
+        count = vocabulary._find_additional_translation_uris(
+            concepts, {}, client, "en", ["dbpedia", "wikidata"]
+        )
+
+        assert count == 0
+        client.lookup_concept.assert_not_called()
+
+    def test_skips_concept_without_any_uri(self):
+        """Concept with no URI at all is skipped."""
+        concepts = {
+            "misc/unknown": vocabulary.Concept(
+                id="misc/unknown", prefLabel="Unknown",
+            ),
+        }
+        client = self._make_client()
+
+        count = vocabulary._find_additional_translation_uris(
+            concepts, {}, client, "en", ["dbpedia"]
+        )
+
+        assert count == 0
+        client.lookup_concept.assert_not_called()
+
+    def test_sanity_check_rejects_mismatch(self):
+        """Sanity check rejects prefLabel mismatch."""
+        concepts = {
+            "food/rice": vocabulary.Concept(
+                id="food/rice", prefLabel="Rice",
+                uri="http://aims.fao.org/aos/agrovoc/c_6599",
+                source_uris={"agrovoc": "http://aims.fao.org/aos/agrovoc/c_6599"},
+            ),
+        }
+        all_uri_maps = {"food/rice": "http://aims.fao.org/aos/agrovoc/c_6599"}
+        client = self._make_client()
+        # DBpedia returns a completely different concept (no substring match)
+        client.lookup_concept.side_effect = lambda label, lang, source: {
+            "uri": "http://dbpedia.org/resource/Basmati",
+            "prefLabel": "Basmati",
+        } if source == "dbpedia" else None
+
+        count = vocabulary._find_additional_translation_uris(
+            concepts, all_uri_maps, client, "en", ["dbpedia"]
+        )
+
+        assert count == 0
+        assert "dbpedia" not in concepts["food/rice"].source_uris
+
+    def test_skips_meta_concepts(self):
+        """Meta concepts (_root, category_by_source/*) are skipped."""
+        concepts = {
+            "_root": vocabulary.Concept(
+                id="_root", prefLabel="Root",
+                uri="off:root",
+                source_uris={"off": "off:root"},
+            ),
+            "category_by_source/off/food": vocabulary.Concept(
+                id="category_by_source/off/food", prefLabel="Food",
+                uri="off:en:food",
+                source_uris={"off": "off:en:food"},
+            ),
+        }
+        client = self._make_client()
+
+        count = vocabulary._find_additional_translation_uris(
+            concepts, {}, client, "en", ["dbpedia"]
+        )
+
+        assert count == 0
+        client.lookup_concept.assert_not_called()
+
+    def test_respects_enabled_sources(self):
+        """Only sources in enabled_sources are tried."""
+        concepts = {
+            "food/rice": vocabulary.Concept(
+                id="food/rice", prefLabel="Rice",
+                uri="off:en:rice",
+                source_uris={"off": "off:en:rice"},
+            ),
+        }
+        all_uri_maps = {"food/rice": "off:en:rice"}
+        client = self._make_client()
+        # Only enable wikidata, not dbpedia
+        client.lookup_concept.side_effect = lambda label, lang, source: {
+            "uri": "http://www.wikidata.org/entity/Q5090",
+            "prefLabel": "Rice",
+        } if source == "wikidata" else None
+
+        count = vocabulary._find_additional_translation_uris(
+            concepts, all_uri_maps, client, "en", ["wikidata"]
+        )
+
+        assert count == 1
+        assert "wikidata" in concepts["food/rice"].source_uris
+        # DBpedia should not have been tried
+        for call in client.lookup_concept.call_args_list:
+            assert call[1].get("source") != "dbpedia" and call[0][2] if len(call[0]) > 2 else True

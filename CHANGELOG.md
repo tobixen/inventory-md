@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Multi-source tracking per concept** — new `source_uris` field on `Concept`
+  tracks all taxonomy sources (OFF, AGROVOC, DBpedia, Wikidata) that matched
+  each concept, with their URIs
+  - `_populate_source_uris()` fills `source_uris` from hierarchy-building data
+  - `_find_additional_translation_uris()` discovers supplementary DBpedia/Wikidata
+    URIs for concepts originally matched via OFF/AGROVOC only
+  - Translation phases use `source_uris` directly instead of filtering by URI prefix
+  - Search UI shows colored badges for all sources per concept
+  - `source_uris` persisted in vocabulary.json for downstream consumers
 - **Global vocabulary shipped with package** — default vocabulary bundled in `inventory_md/data/`
   - Multi-location vocabulary loading with merge precedence:
     1. Package default (lowest priority)

@@ -1666,10 +1666,22 @@
             let html = `<div style="margin-bottom: 8px;"><strong>${getConceptLabel(concept)}</strong></div>`;
             html += `<div style="color: #666; margin-bottom: 4px;">Path: <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">${categoryId}</code></div>`;
 
-            // Source with clickable link if URI available
-            let sourceHtml = `<span style="background: ${getSourceColor(concept.source)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">${concept.source}</span>`;
-            if (concept.uri) {
-                sourceHtml = `<a href="${concept.uri}" target="_blank" style="text-decoration: none;">${sourceHtml}</a>`;
+            // Source badges — show all sources from source_uris, or fall back to single source
+            let sourceHtml = '';
+            if (concept.source_uris && Object.keys(concept.source_uris).length > 0) {
+                for (const [src, uri] of Object.entries(concept.source_uris)) {
+                    let badge = `<span style="background: ${getSourceColor(src)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">${src}</span>`;
+                    if (uri && !uri.startsWith('off:')) {
+                        badge = `<a href="${uri}" target="_blank" style="text-decoration: none;">${badge}</a>`;
+                    }
+                    sourceHtml += badge + ' ';
+                }
+            } else {
+                let badge = `<span style="background: ${getSourceColor(concept.source)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">${concept.source}</span>`;
+                if (concept.uri) {
+                    badge = `<a href="${concept.uri}" target="_blank" style="text-decoration: none;">${badge}</a>`;
+                }
+                sourceHtml = badge;
             }
             html += `<div style="color: #666; margin-bottom: 4px;">Source: ${sourceHtml}</div>`;
             html += `<div style="color: #666; margin-bottom: 4px;">Items: ${count}</div>`;
@@ -1738,6 +1750,8 @@
             switch(source) {
                 case 'agrovoc': return '#4caf50';
                 case 'dbpedia': return '#2196f3';
+                case 'wikidata': return '#e91e63';
+                case 'off': return '#ff5722';
                 case 'local': return '#9c27b0';
                 case 'package': return '#795548';
                 case 'skos': return '#ff9800';

@@ -1156,6 +1156,22 @@ concepts:
   medical:
     prefLabel: "Health & Safety"
     altLabel: ["health", "healthcare", "first aid", "medisin", "helse", "førstehjelp", "safety", "PPE", "protective equipment"]
+    labels:
+      en: "Health & Safety"
+      nb: "Helse og sikkerhet"
+      nn: "Helse og tryggleik"
+      de: "Gesundheit & Sicherheit"
+      sv: "Hälsa och säkerhet"
+      da: "Sundhed og sikkerhed"
+      fr: "Santé et sécurité"
+      es: "Salud y seguridad"
+      nl: "Gezondheid en veiligheid"
+      it: "Salute e sicurezza"
+      pl: "Zdrowie i bezpieczeństwo"
+      fi: "Terveys ja turvallisuus"
+      ru: "Здоровье и безопасность"
+      uk: "Здоров'я та безпека"
+      bg: "Здраве и безопасност"
     narrower:
       - first-aid
       - medicine
