@@ -1699,6 +1699,15 @@ def build_vocabulary_with_skos_hierarchy(
             normalized_id = concept_id.lower().replace("-", " ").replace("_", " ")
             if normalized_id != concept_id.lower():
                 local_vocab_labels[normalized_id] = concept_id
+            # Index by prefLabel (e.g., "Lumber" for concept "construction/lumber")
+            if concept.prefLabel:
+                pref_lower = concept.prefLabel.lower()
+                if pref_lower not in local_vocab_labels:
+                    local_vocab_labels[pref_lower] = concept_id
+                # Also singular form of prefLabel
+                pref_singular = _normalize_to_singular(pref_lower)
+                if pref_singular != pref_lower and pref_singular not in local_vocab_labels:
+                    local_vocab_labels[pref_singular] = concept_id
             # Index all alt labels
             for alt in concept.altLabels:
                 local_vocab_labels[alt.lower()] = concept_id
