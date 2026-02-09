@@ -230,11 +230,16 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
             # Load global vocabulary from all standard locations (package, system, user)
             # Uses find_vocabulary_files() which includes the package default vocabulary
             global_vocab = {}
+            pkg_data = vocabulary._get_package_data_dir()
             for vocab_path in vocabulary.find_vocabulary_files():
                 # Skip cwd entries - local vocab is handled separately based on md_file.parent
                 if vocab_path.parent == Path.cwd():
                     continue
-                loaded = vocabulary.load_local_vocabulary(vocab_path)
+                is_package = pkg_data is not None and vocab_path.parent == pkg_data
+                loaded = vocabulary.load_local_vocabulary(
+                    vocab_path,
+                    default_source="package" if is_package else "local",
+                )
                 if loaded:
                     # Merge: later files override earlier (but keep concepts from both)
                     global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
@@ -1095,11 +1100,16 @@ def vocabulary_command(args, config: Config) -> int:
     # Load global vocabulary from all standard locations (package, system, user)
     # Uses find_vocabulary_files() which includes the package default vocabulary
     global_vocab = {}
+    pkg_data = vocabulary._get_package_data_dir()
     for vocab_path in vocabulary.find_vocabulary_files():
         # Skip cwd entries - local vocab is handled separately based on directory
         if vocab_path.parent == Path.cwd():
             continue
-        loaded = vocabulary.load_local_vocabulary(vocab_path)
+        is_package = pkg_data is not None and vocab_path.parent == pkg_data
+        loaded = vocabulary.load_local_vocabulary(
+            vocab_path,
+            default_source="package" if is_package else "local",
+        )
         if loaded:
             global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
 
