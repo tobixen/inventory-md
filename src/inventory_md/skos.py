@@ -42,6 +42,9 @@ DEFAULT_CACHE_DIR = Path.home() / ".cache" / "inventory-md" / "skos"
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
 DEFAULT_TIMEOUT = 300.0  # SPARQL endpoints can be slow
 
+# After this many consecutive failures to the same endpoint, skip remaining queries
+_CIRCUIT_BREAKER_THRESHOLD = 5
+
 # Language code fallbacks (e.g., Norwegian Bokmål 'nb' may be stored as 'no')
 LANGUAGE_FALLBACKS = {
     "nb": "no",  # Norwegian Bokmål -> Norwegian
@@ -457,6 +460,10 @@ class SKOSClient:
         self.use_oxigraph = use_oxigraph
         self.agrovoc_path = agrovoc_path
 
+        # Circuit breaker: track consecutive failures per endpoint
+        # After _CIRCUIT_BREAKER_THRESHOLD consecutive failures, skip queries
+        self._endpoint_failures: dict[str, int] = {}
+
         # Use provided store or lazy-load later
         # Don't load Oxigraph eagerly - it takes ~30s to load 7M triples
         if oxigraph_store is not None:
@@ -552,7 +559,11 @@ class SKOSClient:
         """Execute a SPARQL query and return results.
 
         Retries on transient errors (429 Too Many Requests, 503, 504) with
-        exponential backoff.
+        exponential backoff. Uses a circuit breaker: after
+        ``_CIRCUIT_BREAKER_THRESHOLD`` failures to the same endpoint,
+        subsequent queries are skipped immediately. The counter does not
+        reset on success (it resets when a new client is created) so that
+        alternating success/failure patterns still trip the breaker.
 
         Args:
             endpoint: SPARQL endpoint URL.
@@ -563,6 +574,19 @@ class SKOSClient:
             List of result bindings (dicts with variable names as keys),
             or None if query failed due to timeout/network error.
         """
+        # Circuit breaker: skip if endpoint has too many consecutive failures
+        failures = self._endpoint_failures.get(endpoint, 0)
+        if failures >= _CIRCUIT_BREAKER_THRESHOLD:
+            if failures == _CIRCUIT_BREAKER_THRESHOLD:
+                logger.warning(
+                    "Circuit breaker open for %s after %d consecutive failures, skipping",
+                    endpoint,
+                    failures,
+                )
+                # Increment so this warning is only logged once
+                self._endpoint_failures[endpoint] = failures + 1
+            return None
+
         try:
             import niquests as requests
         except ImportError as e:
@@ -604,6 +628,10 @@ class SKOSClient:
                     continue
                 response.raise_for_status()
                 data = response.json()
+                # Note: don't reset failure counter on success. An endpoint
+                # with alternating simple-succeed/complex-fail queries would
+                # otherwise never trip the breaker. Counter resets naturally
+                # when a fresh SKOSClient is created on the next parse run.
                 return data.get("results", {}).get("bindings", [])
             except requests.Timeout as e:
                 if attempt < max_retries:
@@ -618,6 +646,7 @@ class SKOSClient:
                     time.sleep(delay)
                     continue
                 logger.warning("SPARQL query timed out for %s: %s", endpoint, e)
+                self._endpoint_failures[endpoint] = self._endpoint_failures.get(endpoint, 0) + 1
                 return None  # None = error, don't cache
             except requests.RequestException as e:
                 if attempt < max_retries and _is_transient_error(e):
@@ -632,7 +661,10 @@ class SKOSClient:
                     time.sleep(delay)
                     continue
                 logger.warning("SPARQL query failed for %s: %s", endpoint, e)
+                self._endpoint_failures[endpoint] = self._endpoint_failures.get(endpoint, 0) + 1
                 return None  # None = error, don't cache
+        # All retries exhausted
+        self._endpoint_failures[endpoint] = self._endpoint_failures.get(endpoint, 0) + 1
         return None
 
     def lookup_concept(self, label: str, lang: str = "en", source: str = "agrovoc") -> dict | None:

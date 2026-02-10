@@ -1525,6 +1525,121 @@ class TestIsTransientError:
         assert not skos._is_transient_error(Exception("something went wrong"))
 
 
+class TestCircuitBreaker:
+    """Tests for SPARQL circuit breaker."""
+
+    @patch("time.sleep")
+    def test_circuit_breaker_opens_after_threshold(self, mock_sleep, tmp_path):
+        """After _CIRCUIT_BREAKER_THRESHOLD consecutive failures, queries are skipped."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        endpoint = "https://example.org/sparql"
+
+        import niquests
+
+        mock_504 = MagicMock()
+        mock_504.status_code = 504
+        mock_504.headers = {}
+        mock_504.raise_for_status.side_effect = niquests.HTTPError("504")
+
+        # Exhaust the circuit breaker (threshold=5, each query retries max_retries times)
+        with patch.object(niquests, "get", return_value=mock_504):
+            for _ in range(skos._CIRCUIT_BREAKER_THRESHOLD):
+                result = client._sparql_query(endpoint, "SELECT ?x WHERE {}", max_retries=0)
+                assert result is None
+
+        # Now the circuit breaker should be open - no HTTP call should be made
+        with patch.object(niquests, "get", return_value=mock_504) as mock_get:
+            result = client._sparql_query(endpoint, "SELECT ?x WHERE {}")
+            assert result is None
+            mock_get.assert_not_called()
+
+    @patch("time.sleep")
+    def test_circuit_breaker_does_not_reset_on_success(self, mock_sleep, tmp_path):
+        """A successful query does not reset the circuit breaker counter."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        endpoint = "https://example.org/sparql"
+
+        import niquests
+
+        mock_504 = MagicMock()
+        mock_504.status_code = 504
+        mock_504.headers = {}
+        mock_504.raise_for_status.side_effect = niquests.HTTPError("504")
+
+        mock_ok = MagicMock()
+        mock_ok.status_code = 200
+        mock_ok.raise_for_status = MagicMock()
+        mock_ok.json.return_value = {"results": {"bindings": []}}
+
+        # Build up failures just below threshold
+        with patch.object(niquests, "get", return_value=mock_504):
+            for _ in range(skos._CIRCUIT_BREAKER_THRESHOLD - 1):
+                client._sparql_query(endpoint, "SELECT ?x WHERE {}", max_retries=0)
+
+        assert client._endpoint_failures[endpoint] == skos._CIRCUIT_BREAKER_THRESHOLD - 1
+
+        # A success does not reduce the counter
+        with patch.object(niquests, "get", return_value=mock_ok):
+            result = client._sparql_query(endpoint, "SELECT ?x WHERE {}", max_retries=0)
+            assert result == []
+
+        assert client._endpoint_failures[endpoint] == skos._CIRCUIT_BREAKER_THRESHOLD - 1
+
+    @patch("time.sleep")
+    def test_circuit_breaker_trips_with_alternating_success_failure(self, mock_sleep, tmp_path):
+        """Circuit breaker trips even when successes alternate with failures."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        endpoint = "https://example.org/sparql"
+
+        import niquests
+
+        mock_504 = MagicMock()
+        mock_504.status_code = 504
+        mock_504.headers = {}
+        mock_504.raise_for_status.side_effect = niquests.HTTPError("504")
+
+        mock_ok = MagicMock()
+        mock_ok.status_code = 200
+        mock_ok.raise_for_status = MagicMock()
+        mock_ok.json.return_value = {"results": {"bindings": []}}
+
+        # Alternate: success (no change), failure (+1), success (no change), failure (+1)
+        # Each pair nets +1 to counter. Need threshold pairs to trip.
+        for _ in range(skos._CIRCUIT_BREAKER_THRESHOLD):
+            with patch.object(niquests, "get", return_value=mock_ok):
+                client._sparql_query(endpoint, "SELECT ?x WHERE {}", max_retries=0)
+            with patch.object(niquests, "get", return_value=mock_504):
+                client._sparql_query(endpoint, "SELECT ?x WHERE {}", max_retries=0)
+
+        # After threshold*2 rounds of success+failure, counter should be at threshold
+        assert client._endpoint_failures[endpoint] >= skos._CIRCUIT_BREAKER_THRESHOLD
+
+        # Next query should be skipped
+        with patch.object(niquests, "get", return_value=mock_504) as mock_get:
+            result = client._sparql_query(endpoint, "SELECT ?x WHERE {}")
+            assert result is None
+            mock_get.assert_not_called()
+
+    def test_circuit_breaker_per_endpoint(self, tmp_path):
+        """Different endpoints have independent circuit breakers."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        # Simulate failures on one endpoint
+        client._endpoint_failures["https://bad.example.org/sparql"] = skos._CIRCUIT_BREAKER_THRESHOLD + 1
+
+        import niquests
+
+        mock_ok = MagicMock()
+        mock_ok.status_code = 200
+        mock_ok.raise_for_status = MagicMock()
+        mock_ok.json.return_value = {"results": {"bindings": [{"x": {"value": "ok"}}]}}
+
+        # Good endpoint should still work
+        with patch.object(niquests, "get", return_value=mock_ok) as mock_get:
+            result = client._sparql_query("https://good.example.org/sparql", "SELECT ?x WHERE {}")
+            assert result == [{"x": {"value": "ok"}}]
+            mock_get.assert_called_once()
+
+
 class TestOxigraphStore:
     """Tests for Oxigraph local store functionality."""
 
