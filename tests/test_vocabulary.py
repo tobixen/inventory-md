@@ -1084,6 +1084,22 @@ class TestExternalSourceDoesNotOverwriteLocal:
         assert "tools/hand/hammer" in concepts
         assert concepts["tools/hand"].source == "dbpedia"
 
+    def test_add_paths_to_concepts_nb_labels_for_category_by_source(self):
+        """_add_paths_to_concepts adds Norwegian labels for category_by_source concepts."""
+        concepts: dict[str, vocabulary.Concept] = {}
+
+        vocabulary._add_paths_to_concepts(
+            ["category_by_source/off/dairy"], concepts, "off"
+        )
+
+        # category_by_source should have Norwegian label
+        assert "category_by_source" in concepts
+        assert concepts["category_by_source"].labels.get("nb") == "Kategori etter kilde"
+        # category_by_source/off should have Norwegian label
+        assert concepts["category_by_source/off"].labels.get("nb") == "OpenFoodFacts"
+        # Regular concept should NOT have Norwegian label override
+        assert concepts["category_by_source/off/dairy"].labels.get("nb") is None
+
     def test_local_broader_takes_precedence_over_external(self):
         """Local vocabulary broader relationships should override external ones."""
         local_vocab = {

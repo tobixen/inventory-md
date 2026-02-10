@@ -959,13 +959,14 @@ class TestWikidataLookup:
         """Concept found with broader, description, and wikipediaUrl."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
 
-        # First call: lookup query returns a result
+        # First call: lookup query returns a result (with disambiguation fields)
         lookup_results = [
             {
                 "item": {"value": "http://www.wikidata.org/entity/Q10998"},
                 "label": {"value": "toilet paper"},
                 "description": {"value": "tissue paper product for personal hygiene"},
                 "wpUrl": {"value": "https://en.wikipedia.org/wiki/Toilet_paper"},
+                "isClass": {"value": "true"},
             }
         ]
         # Second call: broader query returns instance_of and subclass_of
@@ -1034,6 +1035,7 @@ class TestWikidataLookup:
                 "item": {"value": "http://www.wikidata.org/entity/Q10998"},
                 "label": {"value": "Toilet paper"},
                 "wpUrl": {"value": "https://en.wikipedia.org/wiki/Toilet_paper"},
+                "isClass": {"value": "false"},
             }
         ]
         mock_query.side_effect = [[], lookup_results, []]  # empty, found, broader
@@ -1073,6 +1075,74 @@ class TestWikidataLookup:
 
         assert len(result) == 1
         assert result[0]["label"] == "paper product"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_lookup_wikidata_prefers_class_entity(self, mock_query, tmp_path):
+        """Disambiguation: class entity (P279) beats non-class entity."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        # Simulate results where a non-class entity (film/band) appears first
+        # but a class entity (general concept) has P279
+        lookup_results = [
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q125102922"},
+                "label": {"value": "Clothing"},
+                "description": {"value": "2019 Canadian film"},
+                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Clothing_(film)"},
+                "isClass": {"value": "false"},
+            },
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q11460"},
+                "label": {"value": "clothing"},
+                "description": {"value": "covering worn on the human body"},
+                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Clothing"},
+                "isClass": {"value": "true"},
+            },
+        ]
+        broader_results = [
+            {
+                "broader": {"value": "http://www.wikidata.org/entity/Q2424752"},
+                "label": {"value": "product"},
+                "relType": {"value": "subclass_of"},
+            },
+        ]
+        mock_query.side_effect = [lookup_results, broader_results]
+
+        result, failed = client._lookup_wikidata_sparql("Clothing", "en")
+
+        assert not failed
+        assert result is not None
+        # Should pick the class entity Q11460, not the film Q125102922
+        assert result["uri"] == "http://www.wikidata.org/entity/Q11460"
+        assert result["description"] == "covering worn on the human body"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_lookup_wikidata_falls_back_to_first_when_no_class(self, mock_query, tmp_path):
+        """When no entity has P279, falls back to first result."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        lookup_results = [
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q100"},
+                "label": {"value": "widget"},
+                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Widget"},
+                "isClass": {"value": "false"},
+            },
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q200"},
+                "label": {"value": "widget"},
+                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Widget_(other)"},
+                "isClass": {"value": "false"},
+            },
+        ]
+        mock_query.side_effect = [lookup_results, []]
+
+        result, failed = client._lookup_wikidata_sparql("widget", "en")
+
+        assert not failed
+        assert result is not None
+        # Should pick first result (highest sitelinks via ORDER BY)
+        assert result["uri"] == "http://www.wikidata.org/entity/Q100"
 
     @patch("inventory_md.skos.SKOSClient._lookup_wikidata_sparql")
     def test_lookup_wikidata_dispatches_to_sparql(self, mock_sparql, tmp_path):

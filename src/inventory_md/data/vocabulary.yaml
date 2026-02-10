@@ -71,10 +71,40 @@ concepts:
     prefLabel: "Tools"
     altLabel: ["equipment", "implements", "verktøy", "utstyr"]
     uri: "http://dbpedia.org/resource/Tool"
+    labels:
+      en: "Tools"
+      nb: "Verktøy"
+      de: "Werkzeuge"
+      sv: "Verktyg"
+      da: "Værktøj"
+      nl: "Gereedschap"
+      fi: "Työkalut"
+      fr: "Outils"
+      es: "Herramientas"
+      it: "Utensili"
+      pl: "Narzędzia"
+      ru: "Инструменты"
+      uk: "Інструменти"
+      bg: "Инструменти"
 
   recreation:
     prefLabel: "Recreation & Transport"
     altLabel: ["leisure", "transportation", "fritid"]
+    labels:
+      en: "Recreation & Transport"
+      nb: "Fritid og transport"
+      de: "Freizeit & Transport"
+      sv: "Fritid och transport"
+      da: "Fritid og transport"
+      nl: "Recreatie en vervoer"
+      fi: "Vapaa-aika ja liikenne"
+      fr: "Loisirs et transport"
+      es: "Ocio y transporte"
+      it: "Svago e trasporto"
+      pl: "Rekreacja i transport"
+      ru: "Отдых и транспорт"
+      uk: "Відпочинок і транспорт"
+      bg: "Отдих и транспорт"
     narrower:
       - outdoor
       - sports
@@ -892,6 +922,14 @@ concepts:
   hardware:
     prefLabel: "Hardware"
     altLabel: ["fasteners", "fixings", "jernvare", "beslag"]
+    labels:
+      en: "Hardware"
+      nb: "Jernvare"
+      de: "Eisenwaren"
+      sv: "Järnvaror"
+      da: "Isenkram"
+      nl: "IJzerwaren"
+      fi: "Rautakauppatavarat"
     narrower:
       - construction
       - consumables
@@ -941,6 +979,21 @@ concepts:
   misc:
     prefLabel: "Miscellaneous"
     altLabel: ["other", "various", "diverse", "annet"]
+    labels:
+      en: "Miscellaneous"
+      nb: "Diverse"
+      de: "Verschiedenes"
+      sv: "Diverse"
+      da: "Diverse"
+      nl: "Diversen"
+      fi: "Sekalaista"
+      fr: "Divers"
+      es: "Miscelánea"
+      it: "Varie"
+      pl: "Różne"
+      ru: "Разное"
+      uk: "Різне"
+      bg: "Разни"
 
   # Bike-related
   bike-part:
@@ -996,6 +1049,14 @@ concepts:
   outdoor:
     prefLabel: "Outdoor equipment"
     altLabel: ["camping", "hiking", "friluft", "friluftsliv", "ute"]
+    labels:
+      en: "Outdoor equipment"
+      nb: "Friluftsutstyr"
+      de: "Outdoor-Ausrüstung"
+      sv: "Friluftsutrustning"
+      da: "Friluftsudstyr"
+      nl: "Outdooruitrusting"
+      fi: "Retkeilyvarusteet"
     broader: recreation
     narrower:
       - camping
@@ -1086,6 +1147,14 @@ concepts:
   office:
     prefLabel: "Office supplies"
     altLabel: ["stationery", "office equipment", "kontor", "kontorrekvisita"]
+    labels:
+      en: "Office supplies"
+      nb: "Kontorrekvisita"
+      de: "Bürobedarf"
+      sv: "Kontorsmaterial"
+      da: "Kontorartikler"
+      nl: "Kantoorbenodigdheden"
+      fi: "Toimistotarvikkeet"
     broader: household
     narrower:
       - office/writing

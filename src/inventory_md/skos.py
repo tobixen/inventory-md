@@ -1892,7 +1892,7 @@ class SKOSClient:
             PREFIX wdt: <http://www.wikidata.org/prop/direct/>
             PREFIX wd: <http://www.wikidata.org/entity/>
 
-            SELECT DISTINCT ?item ?label ?description ?wpUrl WHERE {{
+            SELECT DISTINCT ?item ?label ?description ?wpUrl ?isClass WHERE {{
                 ?item rdfs:label "{variant}"@{lang} .
                 ?item rdfs:label ?label . FILTER(lang(?label) = "{lang}")
                 ?wpUrl schema:about ?item ;
@@ -1904,8 +1904,11 @@ class SKOSClient:
                     ?item schema:description ?description .
                     FILTER(lang(?description) = "{lang}")
                 }}
+                OPTIONAL {{ ?item wdt:P279 ?superclass }}
+                BIND(BOUND(?superclass) AS ?isClass)
             }}
-            LIMIT 5
+            ORDER BY DESC(?isClass)
+            LIMIT 25
             """
 
             results = self._sparql_query(endpoint, query)
@@ -1914,10 +1917,22 @@ class SKOSClient:
             if not results:
                 continue  # Try next variant
 
-            item_uri = results[0]["item"]["value"]
-            pref_label = results[0].get("label", {}).get("value", label)
-            description = results[0].get("description", {}).get("value")
-            wikipedia_url = results[0].get("wpUrl", {}).get("value")
+            # Multi-pass disambiguation (like DBpedia REST approach):
+            # Pass 1: prefer entities with P279 (subclass-of) — general concepts
+            # Pass 2: fall back to most popular entity by sitelink count
+            best = None
+            for r in results:
+                is_class = r.get("isClass", {}).get("value") == "true"
+                if is_class:
+                    best = r
+                    break
+            if best is None:
+                best = results[0]
+
+            item_uri = best["item"]["value"]
+            pref_label = best.get("label", {}).get("value", label)
+            description = best.get("description", {}).get("value")
+            wikipedia_url = best.get("wpUrl", {}).get("value")
 
             # Get broader concepts via P31/P279
             broader = self._get_broader_wikidata(item_uri, lang)

@@ -1451,6 +1451,16 @@ _CONCEPT_LABEL_OVERRIDES: dict[str, str] = {
     "category_by_source/local": "Local",
 }
 
+# Norwegian (nb) label overrides for synthetic concepts with no external source
+_CONCEPT_LABEL_OVERRIDES_NB: dict[str, str] = {
+    "category_by_source": "Kategori etter kilde",
+    "category_by_source/off": "OpenFoodFacts",
+    "category_by_source/agrovoc": "AGROVOC",
+    "category_by_source/dbpedia": "DBpedia",
+    "category_by_source/wikidata": "Wikidata",
+    "category_by_source/local": "Lokal",
+}
+
 
 def _add_paths_to_concepts(
     paths: list[str],
@@ -1472,8 +1482,13 @@ def _add_paths_to_concepts(
                 concept_label = _CONCEPT_LABEL_OVERRIDES.get(
                     concept_id, parts[i].replace("_", " ").title()
                 )
+                labels: dict[str, str] = {}
+                nb_label = _CONCEPT_LABEL_OVERRIDES_NB.get(concept_id)
+                if nb_label:
+                    labels["nb"] = nb_label
                 concepts[concept_id] = Concept(
                     id=concept_id, prefLabel=concept_label, source=source,
+                    labels=labels,
                 )
 
 
