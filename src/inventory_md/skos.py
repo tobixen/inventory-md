@@ -326,6 +326,13 @@ def get_oxigraph_store(
         return None
 
 
+def _is_transient_error(exc: Exception) -> bool:
+    """Check if a requests exception is likely transient (worth retrying)."""
+    # ConnectionError, DNS failures, etc.
+    exc_str = str(exc).lower()
+    return any(s in exc_str for s in ("connectionerror", "connection", "dns", "temporary", "reset", "broken pipe"))
+
+
 def _get_cache_path(cache_dir: Path, key: str) -> Path:
     """Get cache file path for a lookup key."""
     # Use hash to avoid filesystem issues with special characters
@@ -541,12 +548,16 @@ class SKOSClient:
             logger.warning("REST API data fetch failed for %s: %s", uri, e)
             return None
 
-    def _sparql_query(self, endpoint: str, query: str) -> list[dict] | None:
+    def _sparql_query(self, endpoint: str, query: str, *, max_retries: int = 3) -> list[dict] | None:
         """Execute a SPARQL query and return results.
+
+        Retries on transient errors (429 Too Many Requests, 503, 504) with
+        exponential backoff.
 
         Args:
             endpoint: SPARQL endpoint URL.
             query: SPARQL query string.
+            max_retries: Maximum number of retry attempts for transient errors.
 
         Returns:
             List of result bindings (dicts with variable names as keys),
@@ -567,18 +578,62 @@ class SKOSClient:
             "User-Agent": "inventory-md (SKOS vocabulary builder)",
         }
         params = {"query": query, "format": "json"}
+        retryable_codes = {429, 503, 504}
 
-        try:
-            response = requests.get(endpoint, params=params, headers=headers, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("results", {}).get("bindings", [])
-        except requests.Timeout as e:
-            logger.warning("SPARQL query timed out for %s: %s", endpoint, e)
-            return None  # None = error, don't cache
-        except requests.RequestException as e:
-            logger.warning("SPARQL query failed for %s: %s", endpoint, e)
-            return None  # None = error, don't cache
+        for attempt in range(max_retries + 1):
+            try:
+                response = requests.get(endpoint, params=params, headers=headers, timeout=self.timeout)
+                if response.status_code in retryable_codes and attempt < max_retries:
+                    retry_after = response.headers.get("Retry-After")
+                    if retry_after:
+                        try:
+                            delay = min(float(retry_after), 30.0)
+                        except ValueError:
+                            delay = 2.0**attempt
+                    else:
+                        delay = 2.0**attempt
+                    logger.info(
+                        "SPARQL %d from %s, retrying in %.1fs (%d/%d)",
+                        response.status_code,
+                        endpoint,
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(delay)
+                    continue
+                response.raise_for_status()
+                data = response.json()
+                return data.get("results", {}).get("bindings", [])
+            except requests.Timeout as e:
+                if attempt < max_retries:
+                    delay = 2.0**attempt
+                    logger.info(
+                        "SPARQL timeout for %s, retrying in %.1fs (%d/%d)",
+                        endpoint,
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(delay)
+                    continue
+                logger.warning("SPARQL query timed out for %s: %s", endpoint, e)
+                return None  # None = error, don't cache
+            except requests.RequestException as e:
+                if attempt < max_retries and _is_transient_error(e):
+                    delay = 2.0**attempt
+                    logger.info(
+                        "SPARQL transient error for %s, retrying in %.1fs (%d/%d)",
+                        endpoint,
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(delay)
+                    continue
+                logger.warning("SPARQL query failed for %s: %s", endpoint, e)
+                return None  # None = error, don't cache
+        return None
 
     def lookup_concept(self, label: str, lang: str = "en", source: str = "agrovoc") -> dict | None:
         """Look up a concept by label.
@@ -1503,17 +1558,59 @@ class SKOSClient:
 
         url = f"{rest_base}/search"
         params = {"query": label, "format": "JSON", "maxResults": 30}
+        retryable_codes = {429, 503, 504}
+        max_retries = 3
 
-        try:
-            response = requests.get(url, params=params, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
-        except requests.Timeout as e:
-            logger.warning("DBpedia REST API timed out for %s: %s", label, e)
-            return None  # Fall back to SPARQL
-        except requests.RequestException as e:
-            logger.warning("DBpedia REST API failed for %s: %s", label, e)
-            return None  # Fall back to SPARQL
+        data = None
+        for attempt in range(max_retries + 1):
+            try:
+                response = requests.get(url, params=params, timeout=self.timeout)
+                if response.status_code in retryable_codes and attempt < max_retries:
+                    retry_after = response.headers.get("Retry-After")
+                    delay = min(float(retry_after), 30.0) if retry_after else 2.0**attempt
+                    logger.info(
+                        "DBpedia REST %d for %s, retrying in %.1fs (%d/%d)",
+                        response.status_code,
+                        label,
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(delay)
+                    continue
+                response.raise_for_status()
+                data = response.json()
+                break
+            except requests.Timeout as e:
+                if attempt < max_retries:
+                    delay = 2.0**attempt
+                    logger.info(
+                        "DBpedia REST timeout for %s, retrying in %.1fs (%d/%d)",
+                        label,
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(delay)
+                    continue
+                logger.warning("DBpedia REST API timed out for %s: %s", label, e)
+                return None  # Fall back to SPARQL
+            except requests.RequestException as e:
+                if attempt < max_retries and _is_transient_error(e):
+                    delay = 2.0**attempt
+                    logger.info(
+                        "DBpedia REST transient error for %s, retrying in %.1fs (%d/%d)",
+                        label,
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
+                    time.sleep(delay)
+                    continue
+                logger.warning("DBpedia REST API failed for %s: %s", label, e)
+                return None  # Fall back to SPARQL
+        if data is None:
+            return None  # All retries exhausted
 
         docs = data.get("docs", [])
         if not docs:

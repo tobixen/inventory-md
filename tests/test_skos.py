@@ -1394,6 +1394,137 @@ class TestBatchLabelsCaching:
         assert cache_files == []
 
 
+class TestSparqlRetry:
+    """Tests for SPARQL query retry logic."""
+
+    @patch("time.sleep")
+    def test_retries_on_429(self, mock_sleep, tmp_path):
+        """SPARQL query retries on 429 Too Many Requests."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_response_429 = MagicMock()
+        mock_response_429.status_code = 429
+        mock_response_429.headers = {"Retry-After": "1"}
+
+        mock_response_ok = MagicMock()
+        mock_response_ok.status_code = 200
+        mock_response_ok.raise_for_status = MagicMock()
+        mock_response_ok.json.return_value = {"results": {"bindings": [{"x": {"value": "ok"}}]}}
+
+        import niquests
+
+        with patch.object(niquests, "get", side_effect=[mock_response_429, mock_response_ok]) as mock_get:
+            result = client._sparql_query("https://example.org/sparql", "SELECT ?x WHERE {}")
+
+        assert result == [{"x": {"value": "ok"}}]
+        assert mock_get.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    def test_retries_on_504(self, mock_sleep, tmp_path):
+        """SPARQL query retries on 504 Gateway Timeout."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_response_504 = MagicMock()
+        mock_response_504.status_code = 504
+        mock_response_504.headers = {}
+
+        mock_response_ok = MagicMock()
+        mock_response_ok.status_code = 200
+        mock_response_ok.raise_for_status = MagicMock()
+        mock_response_ok.json.return_value = {"results": {"bindings": []}}
+
+        import niquests
+
+        with patch.object(niquests, "get", side_effect=[mock_response_504, mock_response_ok]) as mock_get:
+            result = client._sparql_query("https://example.org/sparql", "SELECT ?x WHERE {}")
+
+        assert result == []
+        assert mock_get.call_count == 2
+
+    @patch("time.sleep")
+    def test_gives_up_after_max_retries(self, mock_sleep, tmp_path):
+        """SPARQL query gives up after max_retries attempts."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        mock_response_504 = MagicMock()
+        mock_response_504.status_code = 504
+        mock_response_504.headers = {}
+        # raise_for_status raises on 504
+        import niquests
+
+        mock_response_504.raise_for_status.side_effect = niquests.HTTPError("504 Server Error")
+
+        with patch.object(
+            niquests,
+            "get",
+            return_value=mock_response_504,
+        ) as mock_get:
+            result = client._sparql_query("https://example.org/sparql", "SELECT ?x WHERE {}", max_retries=2)
+
+        assert result is None
+        # 1 initial + 2 retries = 3 total
+        assert mock_get.call_count == 3
+        assert mock_sleep.call_count == 2
+
+    @patch("time.sleep")
+    def test_no_retry_on_400(self, mock_sleep, tmp_path):
+        """SPARQL query does not retry on non-transient 400 errors."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        import niquests
+
+        mock_response_400 = MagicMock()
+        mock_response_400.status_code = 400
+        mock_response_400.headers = {}
+        mock_response_400.raise_for_status.side_effect = niquests.HTTPError("400 Bad Request")
+
+        with patch.object(niquests, "get", return_value=mock_response_400) as mock_get:
+            result = client._sparql_query("https://example.org/sparql", "SELECT ?x WHERE {}")
+
+        assert result is None
+        assert mock_get.call_count == 1  # No retry
+        mock_sleep.assert_not_called()
+
+    @patch("time.sleep")
+    def test_retries_on_timeout_exception(self, mock_sleep, tmp_path):
+        """SPARQL query retries on Timeout exception."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+
+        import niquests
+
+        mock_response_ok = MagicMock()
+        mock_response_ok.status_code = 200
+        mock_response_ok.raise_for_status = MagicMock()
+        mock_response_ok.json.return_value = {"results": {"bindings": [{"x": {"value": "ok"}}]}}
+
+        with patch.object(
+            niquests,
+            "get",
+            side_effect=[niquests.Timeout("timed out"), mock_response_ok],
+        ) as mock_get:
+            result = client._sparql_query("https://example.org/sparql", "SELECT ?x WHERE {}")
+
+        assert result == [{"x": {"value": "ok"}}]
+        assert mock_get.call_count == 2
+
+
+class TestIsTransientError:
+    """Tests for _is_transient_error helper."""
+
+    def test_connection_error_is_transient(self):
+        assert skos._is_transient_error(ConnectionError("ConnectionError: DNS"))
+
+    def test_dns_error_is_transient(self):
+        assert skos._is_transient_error(Exception("DNS resolution failed"))
+
+    def test_value_error_is_not_transient(self):
+        assert not skos._is_transient_error(ValueError("bad value"))
+
+    def test_generic_error_is_not_transient(self):
+        assert not skos._is_transient_error(Exception("something went wrong"))
+
+
 class TestOxigraphStore:
     """Tests for Oxigraph local store functionality."""
 
