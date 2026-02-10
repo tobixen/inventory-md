@@ -1001,10 +1001,6 @@ concepts:
     altLabel: ["bicycle part"]
     broader: tools
 
-  bike-tool:
-    prefLabel: "Bike tool"
-    broader: tools
-
   bike-light:
     prefLabel: "Bike light"
     broader: electronics
