@@ -40,7 +40,7 @@ REST_ENDPOINTS = {
 # Cache settings
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "inventory-md" / "skos"
 CACHE_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
-DEFAULT_TIMEOUT = 300.0  # SPARQL endpoints can be slow
+DEFAULT_TIMEOUT = 30.0  # Per-request timeout; long-running batch queries pass explicit timeout
 
 # After this many consecutive failures to the same endpoint, skip remaining queries
 _CIRCUIT_BREAKER_THRESHOLD = 5
