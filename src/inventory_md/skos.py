@@ -10,6 +10,7 @@ Example:
     >>> client.expand_tag("potatoes")
     ['food/vegetables/potatoes', 'food/staples/potatoes']
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -94,10 +95,7 @@ _IRRELEVANT_CATEGORY_PATTERNS = [
 ]
 
 # Compiled regex for efficiency
-_IRRELEVANT_CATEGORY_RE = re.compile(
-    "|".join(_IRRELEVANT_CATEGORY_PATTERNS),
-    re.IGNORECASE
-)
+_IRRELEVANT_CATEGORY_RE = re.compile("|".join(_IRRELEVANT_CATEGORY_PATTERNS), re.IGNORECASE)
 
 
 def _is_irrelevant_dbpedia_category(label: str) -> bool:
@@ -119,21 +117,21 @@ def _is_irrelevant_dbpedia_category(label: str) -> bool:
 
 # Overly abstract Wikidata classes that add no useful inventory classification
 _ABSTRACT_WIKIDATA_CLASSES: set[str] = {
-    "Q35120",    # entity
-    "Q223557",   # physical object
+    "Q35120",  # entity
+    "Q223557",  # physical object
     "Q2424752",  # product
-    "Q28877",    # goods
-    "Q830077",   # subject
-    "Q488383",   # object
+    "Q28877",  # goods
+    "Q830077",  # subject
+    "Q488383",  # object
     "Q4406616",  # concrete object
     "Q16887380",  # group
     "Q99527517",  # collection entity
-    "Q58778",    # system
-    "Q937228",   # property
+    "Q58778",  # system
+    "Q937228",  # property
     "Q3249551",  # process
-    "Q9081",     # knowledge
-    "Q151885",   # concept
-    "Q246672",   # mathematical object
+    "Q9081",  # knowledge
+    "Q151885",  # concept
+    "Q246672",  # mathematical object
     "Q16889133",  # class
 }
 
@@ -179,10 +177,7 @@ class OxigraphStore:
         try:
             import pyoxigraph
         except ImportError as e:
-            raise ImportError(
-                "pyoxigraph required for local SKOS store. "
-                "Install with: pip install pyoxigraph"
-            ) from e
+            raise ImportError("pyoxigraph required for local SKOS store. Install with: pip install pyoxigraph") from e
 
         self._pyoxigraph = pyoxigraph
         if persistent_path:
@@ -475,9 +470,7 @@ class SKOSClient:
         self._oxigraph_loaded = True
         return self._oxigraph_store
 
-    def _rest_api_search(
-        self, base_url: str, query: str, lang: str = "en"
-    ) -> list[dict] | None:
+    def _rest_api_search(self, base_url: str, query: str, lang: str = "en") -> list[dict] | None:
         """Search for concepts via Skosmos REST API.
 
         Args:
@@ -495,8 +488,7 @@ class SKOSClient:
                 import requests
             except ImportError:
                 raise ImportError(
-                    "requests required for SKOS lookups. "
-                    "Install with: pip install inventory-md[skos]"
+                    "requests required for SKOS lookups. Install with: pip install inventory-md[skos]"
                 ) from e
 
         # Use exact match search (no wildcard for precision)
@@ -532,8 +524,7 @@ class SKOSClient:
                 import requests
             except ImportError:
                 raise ImportError(
-                    "requests required for SKOS lookups. "
-                    "Install with: pip install inventory-md[skos]"
+                    "requests required for SKOS lookups. Install with: pip install inventory-md[skos]"
                 ) from e
 
         url = f"{base_url}/data/"
@@ -565,11 +556,10 @@ class SKOSClient:
             import niquests as requests
         except ImportError as e:
             try:
-              import requests
+                import requests
             except ImportError:
                 raise ImportError(
-                    "requests required for SKOS lookups. "
-                    "Install with: pip install inventory-md[skos]"
+                    "requests required for SKOS lookups. Install with: pip install inventory-md[skos]"
                 ) from e
 
         headers = {
@@ -579,9 +569,7 @@ class SKOSClient:
         params = {"query": query, "format": "json"}
 
         try:
-            response = requests.get(
-                endpoint, params=params, headers=headers, timeout=self.timeout
-            )
+            response = requests.get(endpoint, params=params, headers=headers, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             return data.get("results", {}).get("bindings", [])
@@ -592,9 +580,7 @@ class SKOSClient:
             logger.warning("SPARQL query failed for %s: %s", endpoint, e)
             return None  # None = error, don't cache
 
-    def lookup_concept(
-        self, label: str, lang: str = "en", source: str = "agrovoc"
-    ) -> dict | None:
+    def lookup_concept(self, label: str, lang: str = "en", source: str = "agrovoc") -> dict | None:
         """Look up a concept by label.
 
         Args:
@@ -613,8 +599,7 @@ class SKOSClient:
         cached = _load_from_cache(cache_path)
         if cached is not None:
             # Re-fetch stale DBpedia/Wikidata entries that lack description
-            if (source in ("dbpedia", "wikidata") and cached.get("uri")
-                    and "description" not in cached):
+            if source in ("dbpedia", "wikidata") and cached.get("uri") and "description" not in cached:
                 pass  # Fall through to re-query
             else:
                 return cached if cached.get("uri") else None
@@ -645,9 +630,7 @@ class SKOSClient:
 
         return concept
 
-    def get_concept_labels(
-        self, uri: str, languages: list[str], source: str = "agrovoc"
-    ) -> dict[str, str]:
+    def get_concept_labels(self, uri: str, languages: list[str], source: str = "agrovoc") -> dict[str, str]:
         """Get labels for a concept in multiple languages.
 
         Fetches all requested languages in a single SPARQL query and caches
@@ -666,6 +649,7 @@ class SKOSClient:
 
         # Create cache key from URI (use hash for long URIs)
         import hashlib
+
         uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
         cache_key = f"labels:{source}:{uri_hash}"
         cache_path = _get_cache_path(self.cache_dir, cache_key)
@@ -691,9 +675,7 @@ class SKOSClient:
 
         return all_labels
 
-    def get_batch_labels(
-        self, uris: list[tuple[str, str]], languages: list[str]
-    ) -> dict[str, dict[str, str]]:
+    def get_batch_labels(self, uris: list[tuple[str, str]], languages: list[str]) -> dict[str, dict[str, str]]:
         """Get labels for multiple concepts in batch, using cache where available.
 
         Args:
@@ -733,39 +715,40 @@ class SKOSClient:
             batch_results = self._get_agrovoc_labels_batch(uncached_agrovoc, languages)
             for uri, labels in batch_results.items():
                 results[uri] = labels
-                # Cache each result
-                uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
-                cache_key = f"labels:agrovoc:{uri_hash}"
-                cache_path = _get_cache_path(self.cache_dir, cache_key)
-                _save_to_cache(cache_path, {"uri": uri, "source": "agrovoc", "labels": labels})
+                # Only cache non-empty results (empty likely means SPARQL failure)
+                if labels:
+                    uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+                    cache_key = f"labels:agrovoc:{uri_hash}"
+                    cache_path = _get_cache_path(self.cache_dir, cache_key)
+                    _save_to_cache(cache_path, {"uri": uri, "source": "agrovoc", "labels": labels})
 
         # Batch fetch uncached DBpedia labels
         if uncached_dbpedia:
             batch_results = self._get_dbpedia_labels_batch(uncached_dbpedia, languages)
             for uri, labels in batch_results.items():
                 results[uri] = labels
-                # Cache each result
-                uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
-                cache_key = f"labels:dbpedia:{uri_hash}"
-                cache_path = _get_cache_path(self.cache_dir, cache_key)
-                _save_to_cache(cache_path, {"uri": uri, "source": "dbpedia", "labels": labels})
+                # Only cache non-empty results (empty likely means SPARQL failure)
+                if labels:
+                    uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+                    cache_key = f"labels:dbpedia:{uri_hash}"
+                    cache_path = _get_cache_path(self.cache_dir, cache_key)
+                    _save_to_cache(cache_path, {"uri": uri, "source": "dbpedia", "labels": labels})
 
         # Batch fetch uncached Wikidata labels (uses DBpedia URIs internally)
         if uncached_wikidata:
             batch_results = self._get_wikidata_labels_batch(uncached_wikidata, languages)
             for uri, labels in batch_results.items():
                 results[uri] = labels
-                # Cache each result
-                uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
-                cache_key = f"labels:wikidata:{uri_hash}"
-                cache_path = _get_cache_path(self.cache_dir, cache_key)
-                _save_to_cache(cache_path, {"uri": uri, "source": "wikidata", "labels": labels})
+                # Only cache non-empty results (empty likely means SPARQL failure)
+                if labels:
+                    uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+                    cache_key = f"labels:wikidata:{uri_hash}"
+                    cache_path = _get_cache_path(self.cache_dir, cache_key)
+                    _save_to_cache(cache_path, {"uri": uri, "source": "wikidata", "labels": labels})
 
         return results
 
-    def _get_agrovoc_labels_batch(
-        self, uris: list[str], languages: list[str]
-    ) -> dict[str, dict[str, str]]:
+    def _get_agrovoc_labels_batch(self, uris: list[str], languages: list[str]) -> dict[str, dict[str, str]]:
         """Get labels for multiple AGROVOC URIs in SPARQL queries.
 
         Uses local Oxigraph store if available (better language coverage),
@@ -787,16 +770,12 @@ class SKOSClient:
         # Try local Oxigraph first (has better language coverage including Norwegian)
         oxigraph_store = self._get_oxigraph_store()
         if oxigraph_store is not None and oxigraph_store.is_loaded:
-            labels_by_uri = self._get_agrovoc_labels_batch_oxigraph(
-                oxigraph_store, unique_uris, query_languages
-            )
+            labels_by_uri = self._get_agrovoc_labels_batch_oxigraph(oxigraph_store, unique_uris, query_languages)
         else:
             # Fall back to remote SPARQL endpoint
             endpoint = self.endpoints.get("agrovoc")
             if endpoint:
-                labels_by_uri = self._get_agrovoc_labels_batch_sparql(
-                    endpoint, unique_uris, query_languages
-                )
+                labels_by_uri = self._get_agrovoc_labels_batch_sparql(endpoint, unique_uris, query_languages)
 
         # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
         for uri_labels in labels_by_uri.values():
@@ -849,7 +828,7 @@ class SKOSClient:
         lang_filter = ", ".join(f"'{lang}'" for lang in languages)
 
         for i in range(0, len(uris), chunk_size):
-            chunk = uris[i:i + chunk_size]
+            chunk = uris[i : i + chunk_size]
             uri_values = " ".join(f"<{uri}>" for uri in chunk)
 
             query = f"""
@@ -877,9 +856,7 @@ class SKOSClient:
 
         return labels_by_uri
 
-    def _get_dbpedia_labels_batch(
-        self, uris: list[str], languages: list[str]
-    ) -> dict[str, dict[str, str]]:
+    def _get_dbpedia_labels_batch(self, uris: list[str], languages: list[str]) -> dict[str, dict[str, str]]:
         """Get labels for multiple DBpedia URIs in SPARQL queries.
 
         Splits large batches into chunks to avoid URL length limits (414 errors).
@@ -902,7 +879,7 @@ class SKOSClient:
         labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in unique_uris}
 
         for i in range(0, len(unique_uris), chunk_size):
-            chunk = unique_uris[i:i + chunk_size]
+            chunk = unique_uris[i : i + chunk_size]
             uri_values = " ".join(f"<{uri}>" for uri in chunk)
             lang_filter = ", ".join(f"'{lang}'" for lang in query_languages)
 
@@ -939,9 +916,7 @@ class SKOSClient:
 
         return labels_by_uri
 
-    def _get_wikidata_labels_batch(
-        self, uris: list[str], languages: list[str]
-    ) -> dict[str, dict[str, str]]:
+    def _get_wikidata_labels_batch(self, uris: list[str], languages: list[str]) -> dict[str, dict[str, str]]:
         """Get labels for multiple concepts from Wikidata.
 
         Handles two URI types:
@@ -978,21 +953,19 @@ class SKOSClient:
 
         for uri in uris:
             if uri.startswith(dbpedia_prefix):
-                article = uri[len(dbpedia_prefix):]
+                article = uri[len(dbpedia_prefix) :]
                 wp_url = f"https://en.wikipedia.org/wiki/{article}"
                 wp_to_original[wp_url] = uri
             elif uri.startswith(wikidata_prefix):
                 native_wikidata_uris.append(uri)
 
-        labels_by_uri: dict[str, dict[str, str]] = {
-            uri: {} for uri in dict.fromkeys(uris)
-        }
+        labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in dict.fromkeys(uris)}
 
         # --- DBpedia URIs via Wikipedia sitelinks ---
         if wp_to_original:
             unique_wp_urls = list(dict.fromkeys(wp_to_original.keys()))
             for i in range(0, len(unique_wp_urls), chunk_size):
-                chunk = unique_wp_urls[i:i + chunk_size]
+                chunk = unique_wp_urls[i : i + chunk_size]
                 wp_values = " ".join(f"<{url}>" for url in chunk)
 
                 query = f"""
@@ -1025,7 +998,7 @@ class SKOSClient:
         if native_wikidata_uris:
             unique_wd_uris = list(dict.fromkeys(native_wikidata_uris))
             for i in range(0, len(unique_wd_uris), chunk_size):
-                chunk = unique_wd_uris[i:i + chunk_size]
+                chunk = unique_wd_uris[i : i + chunk_size]
                 uri_values = " ".join(f"<{uri}>" for uri in chunk)
 
                 query = f"""
@@ -1199,32 +1172,32 @@ class SKOSClient:
         variations = [base]
 
         # Add plural forms
-        if base.endswith('y') and len(base) > 2 and base[-2] not in 'aeiou':
-            variations.append(base[:-1] + 'ies')  # berry -> berries
-        elif base.endswith(('s', 'x', 'z', 'ch', 'sh', 'o')):
-            variations.append(base + 'es')  # brush -> brushes, potato -> potatoes
+        if base.endswith("y") and len(base) > 2 and base[-2] not in "aeiou":
+            variations.append(base[:-1] + "ies")  # berry -> berries
+        elif base.endswith(("s", "x", "z", "ch", "sh", "o")):
+            variations.append(base + "es")  # brush -> brushes, potato -> potatoes
         else:
-            variations.append(base + 's')  # tool -> tools
+            variations.append(base + "s")  # tool -> tools
 
         # Some -o words take just -s, so try both
-        if base.endswith('o'):
-            variations.append(base + 's')  # photo -> photos
+        if base.endswith("o"):
+            variations.append(base + "s")  # photo -> photos
 
         # Add singular forms (if input looks like plural)
-        if base.endswith('ies') and len(base) > 3:
-            variations.append(base[:-3] + 'y')  # berries -> berry
-        elif base.endswith('oes') and len(base) > 3:
+        if base.endswith("ies") and len(base) > 3:
+            variations.append(base[:-3] + "y")  # berries -> berry
+        elif base.endswith("oes") and len(base) > 3:
             variations.append(base[:-2])  # potatoes -> potato
-        elif base.endswith('es') and len(base) > 2:
+        elif base.endswith("es") and len(base) > 2:
             variations.append(base[:-2])  # brushes -> brush
-        elif base.endswith('s') and len(base) > 1:
+        elif base.endswith("s") and len(base) > 1:
             variations.append(base[:-1])  # tools -> tool
 
         # Add case variations for each
         label_variations = []
         for v in variations:
-            label_variations.append(v)           # carrots
-            label_variations.append(v.title())   # Carrots
+            label_variations.append(v)  # carrots
+            label_variations.append(v.title())  # Carrots
         # Deduplicate while preserving order
         label_variations = list(dict.fromkeys(label_variations))
 
@@ -1301,10 +1274,7 @@ class SKOSClient:
 
         try:
             results = self._oxigraph_store.query(query)
-            broader_list = [
-                {"uri": r["broader"]["value"], "label": r["label"]["value"]}
-                for r in results
-            ]
+            broader_list = [{"uri": r["broader"]["value"], "label": r["label"]["value"]} for r in results]
 
             # Follow one more level up for better hierarchy
             if broader_list:
@@ -1321,19 +1291,14 @@ class SKOSClient:
                 LIMIT 5
                 """
                 results2 = self._oxigraph_store.query(query2)
-                broader_list.extend([
-                    {"uri": r["broader"]["value"], "label": r["label"]["value"]}
-                    for r in results2
-                ])
+                broader_list.extend([{"uri": r["broader"]["value"], "label": r["label"]["value"]} for r in results2])
 
             return broader_list
         except Exception as e:
             logger.warning("Oxigraph broader query failed: %s", e)
             return []
 
-    def _lookup_agrovoc_rest(
-        self, label: str, lang: str, rest_base: str
-    ) -> tuple[dict | None, bool] | None:
+    def _lookup_agrovoc_rest(self, label: str, lang: str, rest_base: str) -> tuple[dict | None, bool] | None:
         """Look up concept in AGROVOC via REST API.
 
         Returns:
@@ -1352,9 +1317,9 @@ class SKOSClient:
         best_match = None
         for result in results:
             match_label = result.get("prefLabel", "").lower()
-            alt_labels = [a.lower() for a in result.get("altLabel", [])] if isinstance(
-                result.get("altLabel"), list
-            ) else []
+            alt_labels = (
+                [a.lower() for a in result.get("altLabel", [])] if isinstance(result.get("altLabel"), list) else []
+            )
 
             if match_label == label_lower or label_lower in alt_labels:
                 best_match = result
@@ -1383,9 +1348,7 @@ class SKOSClient:
             "broader": broader,
         }, False
 
-    def _get_broader_agrovoc_rest(
-        self, concept_uri: str, rest_base: str, lang: str
-    ) -> list[dict]:
+    def _get_broader_agrovoc_rest(self, concept_uri: str, rest_base: str, lang: str) -> list[dict]:
         """Get broader concepts via REST API."""
         concept_data = self._rest_api_get_concept(rest_base, concept_uri)
         if not concept_data:
@@ -1401,10 +1364,7 @@ class SKOSClient:
                 if isinstance(broader_uris, str):
                     broader_uris = [broader_uris]
                 elif isinstance(broader_uris, list):
-                    broader_uris = [
-                        b.get("uri") if isinstance(b, dict) else b
-                        for b in broader_uris
-                    ]
+                    broader_uris = [b.get("uri") if isinstance(b, dict) else b for b in broader_uris]
 
                 # Get labels for broader concepts
                 for broader_uri in broader_uris:
@@ -1420,10 +1380,7 @@ class SKOSClient:
                                     for pl in pref_labels:
                                         if isinstance(pl, dict):
                                             if pl.get("lang") == lang or not pl.get("lang"):
-                                                broader.append({
-                                                    "uri": broader_uri,
-                                                    "label": pl.get("value", "")
-                                                })
+                                                broader.append({"uri": broader_uri, "label": pl.get("value", "")})
                                                 break
                                         elif isinstance(pl, str):
                                             broader.append({"uri": broader_uri, "label": pl})
@@ -1503,10 +1460,7 @@ class SKOSClient:
         results = self._sparql_query(endpoint, query)
         if results is None:
             return []  # Query failed, return empty
-        return [
-            {"uri": r["broader"]["value"], "label": r["label"]["value"]}
-            for r in results
-        ]
+        return [{"uri": r["broader"]["value"], "label": r["label"]["value"]} for r in results]
 
     def _lookup_dbpedia(self, label: str, lang: str) -> tuple[dict | None, bool]:
         """Look up concept in DBpedia.
@@ -1529,9 +1483,7 @@ class SKOSClient:
 
         return self._lookup_dbpedia_sparql(label, lang)
 
-    def _lookup_dbpedia_rest(
-        self, label: str, lang: str, rest_base: str
-    ) -> tuple[dict | None, bool] | None:
+    def _lookup_dbpedia_rest(self, label: str, lang: str, rest_base: str) -> tuple[dict | None, bool] | None:
         """Look up concept in DBpedia via REST Lookup API.
 
         Returns:
@@ -1541,11 +1493,10 @@ class SKOSClient:
             import niquests as requests
         except ImportError as e:
             try:
-              import requests
+                import requests
             except ImportError:
                 raise ImportError(
-                    "requests required for SKOS lookups. "
-                    "Install with: pip install inventory-md[skos]"
+                    "requests required for SKOS lookups. Install with: pip install inventory-md[skos]"
                 ) from e
 
         import re
@@ -1570,12 +1521,34 @@ class SKOSClient:
 
         # Types to exclude - these are unlikely to be inventory items
         excluded_types = {
-            "Person", "Agent", "Band", "Group", "Organisation", "Organization",
-            "MusicalArtist", "Artist", "Athlete", "Politician", "Writer",
-            "Company", "SportsTeam", "PoliticalParty", "SoccerClub",
-            "Settlement", "City", "Country", "Place", "PopulatedPlace",
-            "Film", "TelevisionShow", "Album", "Single", "Song",
-            "Event", "MilitaryConflict", "Election",
+            "Person",
+            "Agent",
+            "Band",
+            "Group",
+            "Organisation",
+            "Organization",
+            "MusicalArtist",
+            "Artist",
+            "Athlete",
+            "Politician",
+            "Writer",
+            "Company",
+            "SportsTeam",
+            "PoliticalParty",
+            "SoccerClub",
+            "Settlement",
+            "City",
+            "Country",
+            "Place",
+            "PopulatedPlace",
+            "Film",
+            "TelevisionShow",
+            "Album",
+            "Single",
+            "Song",
+            "Event",
+            "MilitaryConflict",
+            "Election",
         }
 
         def is_excluded_type(doc: dict) -> bool:
@@ -1628,7 +1601,7 @@ class SKOSClient:
 
         def is_plural_match(doc_label: str) -> bool:
             """Check if label is a simple plural of search term."""
-            return doc_label.lower() == label_lower + 's'
+            return doc_label.lower() == label_lower + "s"
 
         # First pass: scan ALL results for exact match (DBpedia puts popular
         # results first, so "Tool" band appears before "Tool" article)
@@ -2122,10 +2095,7 @@ class SKOSClient:
 
         if self.cache_dir.exists():
             # Count individual concept files (excluding _not_found.json)
-            stats["found"] = len([
-                f for f in self.cache_dir.glob("*.json")
-                if f.name != "_not_found.json"
-            ])
+            stats["found"] = len([f for f in self.cache_dir.glob("*.json") if f.name != "_not_found.json"])
 
             # Count entries in not-found cache
             not_found_path = _get_not_found_cache_path(self.cache_dir)

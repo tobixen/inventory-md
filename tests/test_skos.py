@@ -395,9 +395,7 @@ class TestSPARQLQuery:
         client = skos.SKOSClient(cache_dir=tmp_path)
 
         mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "results": {"bindings": [{"x": {"value": "test"}}]}
-        }
+        mock_response.json.return_value = {"results": {"bindings": [{"x": {"value": "test"}}]}}
         mock_get.return_value = mock_response
 
         result = client._sparql_query("http://example.com", "SELECT ?x WHERE {}")
@@ -470,8 +468,7 @@ class TestRESTAPI:
         mock_get.return_value = mock_response
 
         result = client._rest_api_get_concept(
-            "https://agrovoc.fao.org/browse/rest/v1",
-            "http://aims.fao.org/aos/agrovoc/c_6219"
+            "https://agrovoc.fao.org/browse/rest/v1", "http://aims.fao.org/aos/agrovoc/c_6219"
         )
         assert result is not None
         assert "graph" in result
@@ -883,9 +880,7 @@ class TestLanguageFallback:
             {"lang": {"value": "no"}, "label": {"value": "potet"}},
         ]
 
-        result = client._get_agrovoc_labels(
-            "http://example.org/potato", languages=["en", "nb"]
-        )
+        result = client._get_agrovoc_labels("http://example.org/potato", languages=["en", "nb"])
 
         # Should have 'nb' from fallback
         assert "en" in result
@@ -904,9 +899,7 @@ class TestLanguageFallback:
             {"lang": {"value": "nb"}, "label": {"value": "potet (nb)"}},
         ]
 
-        result = client._get_agrovoc_labels(
-            "http://example.org/potato", languages=["en", "nb"]
-        )
+        result = client._get_agrovoc_labels("http://example.org/potato", languages=["en", "nb"])
 
         # Should use actual 'nb' value, not fallback
         assert result["nb"] == "potet (nb)"
@@ -921,9 +914,7 @@ class TestLanguageFallback:
             {"lang": {"value": "no"}, "label": {"value": "Potet"}},
         ]
 
-        result = client._get_dbpedia_labels(
-            "http://dbpedia.org/resource/Potato", languages=["en", "nb"]
-        )
+        result = client._get_dbpedia_labels("http://dbpedia.org/resource/Potato", languages=["en", "nb"])
 
         assert "nb" in result
         assert result["nb"] == "Potet"
@@ -941,8 +932,7 @@ class TestLanguageFallback:
         ]
 
         result = client._get_agrovoc_labels_batch(
-            ["http://example.org/a", "http://example.org/b"],
-            languages=["en", "nb"]
+            ["http://example.org/a", "http://example.org/b"], languages=["en", "nb"]
         )
 
         # URI 'a' should have nb from fallback
@@ -1287,9 +1277,7 @@ class TestWikidataLabels:
             languages=["nb"],
         )
 
-        mock_wikidata.assert_called_once_with(
-            ["http://dbpedia.org/resource/Potato"], ["nb"]
-        )
+        mock_wikidata.assert_called_once_with(["http://dbpedia.org/resource/Potato"], ["nb"])
         assert result["http://dbpedia.org/resource/Potato"]["nb"] == "potet"
 
     @patch("inventory_md.skos.SKOSClient._sparql_query")
@@ -1350,6 +1338,60 @@ class TestWikidataLabels:
 
         assert result["http://dbpedia.org/resource/Potato"]["nb"] == "potet"
         assert result["http://www.wikidata.org/entity/Q10998"]["nb"] == "toalettpapir"
+
+
+class TestBatchLabelsCaching:
+    """Tests that get_batch_labels does not cache empty/failed results."""
+
+    @patch("inventory_md.skos.SKOSClient._get_dbpedia_labels_batch")
+    def test_empty_dbpedia_labels_not_cached(self, mock_batch, tmp_path):
+        """Empty label dicts from failed SPARQL queries must not be cached."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        # Simulate a batch that returns empty labels (SPARQL failure)
+        mock_batch.return_value = {
+            "http://dbpedia.org/resource/Electronics": {},
+        }
+
+        client.get_batch_labels(
+            [("http://dbpedia.org/resource/Electronics", "dbpedia")],
+            languages=["nb"],
+        )
+
+        # No cache file should have been written for the empty result
+        cache_files = list(tmp_path.glob("labels_dbpedia_*.json"))
+        assert cache_files == [], f"Should not cache empty labels, found {cache_files}"
+
+    @patch("inventory_md.skos.SKOSClient._get_dbpedia_labels_batch")
+    def test_nonempty_dbpedia_labels_are_cached(self, mock_batch, tmp_path):
+        """Non-empty label dicts should be cached normally."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        mock_batch.return_value = {
+            "http://dbpedia.org/resource/Electronics": {"nb": "elektronikk"},
+        }
+
+        client.get_batch_labels(
+            [("http://dbpedia.org/resource/Electronics", "dbpedia")],
+            languages=["nb"],
+        )
+
+        cache_files = list(tmp_path.glob("labels_dbpedia_*.json"))
+        assert len(cache_files) == 1
+
+    @patch("inventory_md.skos.SKOSClient._get_wikidata_labels_batch")
+    def test_empty_wikidata_labels_not_cached(self, mock_batch, tmp_path):
+        """Empty Wikidata label dicts from timeouts must not be cached."""
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        mock_batch.return_value = {
+            "http://www.wikidata.org/entity/Q11650": {},
+        }
+
+        client.get_batch_labels(
+            [("http://www.wikidata.org/entity/Q11650", "wikidata")],
+            languages=["nb"],
+        )
+
+        cache_files = list(tmp_path.glob("labels_wikidata_*.json"))
+        assert cache_files == []
 
 
 class TestOxigraphStore:
