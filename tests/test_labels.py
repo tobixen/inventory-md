@@ -1,4 +1,5 @@
 """Tests for labels module."""
+
 import pytest
 
 from inventory_md import labels
@@ -354,10 +355,14 @@ class TestSheetFormats:
     def test_all_formats_have_required_keys(self):
         """Test that all formats have required keys."""
         required_keys = [
-            "cols", "rows",
-            "label_width_mm", "label_height_mm",
-            "page_width_mm", "page_height_mm",
-            "margin_top_mm", "margin_left_mm",
+            "cols",
+            "rows",
+            "label_width_mm",
+            "label_height_mm",
+            "page_width_mm",
+            "page_height_mm",
+            "margin_top_mm",
+            "margin_left_mm",
         ]
         for name, fmt in labels.SHEET_FORMATS.items():
             for key in required_keys:

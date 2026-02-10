@@ -1,4 +1,5 @@
 """Tests for photo_registry module."""
+
 from inventory_md import photo_registry
 
 

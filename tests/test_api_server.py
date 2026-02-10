@@ -1,4 +1,5 @@
 """Tests for api_server modifications functions."""
+
 import sys
 import tempfile
 from pathlib import Path
@@ -16,9 +17,9 @@ mock_multipart.__version__ = "0.0.20"
 mock_multipart_multipart = MagicMock()
 mock_multipart_multipart.parse_options_header = MagicMock()
 
-sys.modules['python_multipart'] = mock_multipart
-sys.modules['multipart'] = mock_multipart
-sys.modules['multipart.multipart'] = mock_multipart_multipart
+sys.modules["python_multipart"] = mock_multipart
+sys.modules["multipart"] = mock_multipart
+sys.modules["multipart.multipart"] = mock_multipart_multipart
 
 
 @pytest.fixture
@@ -67,8 +68,8 @@ class TestRemoveItemFromContainer:
             ]
         }
 
-        with patch.object(api_server, 'git_commit') as mock_git:
-            with patch.object(api_server, 'reload_inventory'):
+        with patch.object(api_server, "git_commit") as mock_git:
+            with patch.object(api_server, "reload_inventory"):
                 result = api_server.remove_item_from_container("A1", "Screwdriver")
 
         assert result.get("success") is True
@@ -87,8 +88,8 @@ class TestRemoveItemFromContainer:
             ]
         }
 
-        with patch.object(api_server, 'git_commit'):
-            with patch.object(api_server, 'reload_inventory'):
+        with patch.object(api_server, "git_commit"):
+            with patch.object(api_server, "reload_inventory"):
                 result = api_server.remove_item_from_container("A1", "Ham")
 
         assert result.get("success") is True
@@ -104,7 +105,7 @@ class TestAddTodo:
 
         api_server.inventory_path = temp_inventory / "inventory.json"
 
-        with patch.object(api_server, 'git_commit') as mock_git:
+        with patch.object(api_server, "git_commit") as mock_git:
             result = api_server.add_todo("Test task description", "high")
 
         assert result.get("success") is True
@@ -121,7 +122,7 @@ class TestAddTodo:
 
         long_description = "A" * 100  # 100 characters
 
-        with patch.object(api_server, 'git_commit') as mock_git:
+        with patch.object(api_server, "git_commit") as mock_git:
             api_server.add_todo(long_description, "medium")
 
         call_args = mock_git.call_args[0][0]
@@ -135,7 +136,7 @@ class TestAddTodo:
 
         api_server.inventory_path = temp_inventory / "inventory.json"
 
-        with patch.object(api_server, 'git_commit'):
+        with patch.object(api_server, "git_commit"):
             api_server.add_todo("My test task", "low")
 
         todo_path = temp_inventory / "TODO.md"
@@ -160,8 +161,8 @@ class TestMoveItem:
             ]
         }
 
-        with patch.object(api_server, 'git_commit'):
-            with patch.object(api_server, 'reload_inventory'):
+        with patch.object(api_server, "git_commit"):
+            with patch.object(api_server, "reload_inventory"):
                 result = api_server.move_item("A1", "B2", "Hammer")
 
         assert result.get("success") is True
@@ -193,8 +194,8 @@ class TestMoveItem:
             ]
         }
 
-        with patch.object(api_server, 'git_commit'):
-            with patch.object(api_server, 'reload_inventory'):
+        with patch.object(api_server, "git_commit"):
+            with patch.object(api_server, "reload_inventory"):
                 result = api_server.move_item("A1", "B2", "NonexistentItem")
 
         assert "error" in result
@@ -215,13 +216,12 @@ class TestExecuteTool:
             ]
         }
 
-        with patch.object(api_server, 'git_commit'):
-            with patch.object(api_server, 'reload_inventory'):
-                result = api_server.execute_tool("move_item", {
-                    "source_container_id": "A1",
-                    "destination_container_id": "B2",
-                    "item_description": "Hammer"
-                })
+        with patch.object(api_server, "git_commit"):
+            with patch.object(api_server, "reload_inventory"):
+                result = api_server.execute_tool(
+                    "move_item",
+                    {"source_container_id": "A1", "destination_container_id": "B2", "item_description": "Hammer"},
+                )
 
         assert result.get("success") is True
 

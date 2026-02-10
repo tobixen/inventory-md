@@ -10,6 +10,7 @@ All found config files are merged, with later files overriding earlier ones.
 YAML is checked before JSON at each location. Environment variables
 (INVENTORY_MD_*) have the highest priority.
 """
+
 from __future__ import annotations
 
 import json
@@ -153,8 +154,7 @@ def _load_config_file(path: Path) -> dict[str, Any]:
             import yaml
         except ImportError as e:
             raise ImportError(
-                "PyYAML required for .yaml config files. "
-                "Install with: pip install inventory-md[yaml]"
+                "PyYAML required for .yaml config files. Install with: pip install inventory-md[yaml]"
             ) from e
         with open(path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}

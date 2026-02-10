@@ -5,6 +5,7 @@ Parses photo-registry.md files to extract photo-to-item mappings.
 The registry maps individual photos to specific item IDs, enabling
 filtered photo viewing when searching for specific items.
 """
+
 from __future__ import annotations
 
 import re
@@ -133,9 +134,7 @@ def parse_photo_registry(file_path: Path | str) -> dict[str, Any]:
 def _is_photo_filename(text: str) -> bool:
     """Check if text looks like a photo filename."""
     text_lower = text.lower()
-    return any(
-        text_lower.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".gif", ".heic", ".webp")
-    )
+    return any(text_lower.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".gif", ".heic", ".webp"))
 
 
 def _parse_items_cell(cell: str) -> tuple[list[str], str | None]:
@@ -196,12 +195,14 @@ def get_photos_for_items(
                 if photo_filename not in seen:
                     seen.add(photo_filename)
                     photo_data = registry["photos"].get(photo_filename, {})
-                    result.append({
-                        "filename": photo_filename,
-                        "container": photo_data.get("container"),
-                        "items": photo_data.get("items", []),
-                        "notes": photo_data.get("notes"),
-                    })
+                    result.append(
+                        {
+                            "filename": photo_filename,
+                            "container": photo_data.get("container"),
+                            "items": photo_data.get("items", []),
+                            "notes": photo_data.get("notes"),
+                        }
+                    )
 
     return result
 

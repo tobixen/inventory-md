@@ -1,4 +1,5 @@
 """Tests for vocabulary module."""
+
 from __future__ import annotations
 
 import json
@@ -96,14 +97,18 @@ concepts:
     def test_load_json_vocabulary(self, tmp_path):
         """Test loading vocabulary from JSON file."""
         vocab_file = tmp_path / "local-vocabulary.json"
-        vocab_file.write_text(json.dumps({
-            "concepts": {
-                "boat-equipment": {
-                    "prefLabel": "Boat equipment",
-                    "narrower": ["boat-equipment/safety"],
+        vocab_file.write_text(
+            json.dumps(
+                {
+                    "concepts": {
+                        "boat-equipment": {
+                            "prefLabel": "Boat equipment",
+                            "narrower": ["boat-equipment/safety"],
+                        }
+                    }
                 }
-            }
-        }))
+            )
+        )
         vocab = vocabulary.load_local_vocabulary(vocab_file)
 
         assert "boat-equipment" in vocab
@@ -222,8 +227,10 @@ class TestBuildCategoryTree:
         vocab = {
             "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
             "tools/hammer": vocabulary.Concept(
-                id="tools/hammer", prefLabel="Hammer",
-                broader=["tools"], source="local",
+                id="tools/hammer",
+                prefLabel="Hammer",
+                broader=["tools"],
+                source="local",
                 uri="http://dbpedia.org/resource/Hammer",
                 description="A tool for driving nails.",
                 wikipediaUrl="https://en.wikipedia.org/wiki/Hammer",
@@ -239,9 +246,7 @@ class TestBuildCategoryTree:
         vocab = {
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
             "food/vegetables": vocabulary.Concept(id="food/vegetables", prefLabel="Vegetables"),
-            "food/vegetables/potatoes": vocabulary.Concept(
-                id="food/vegetables/potatoes", prefLabel="Potatoes"
-            ),
+            "food/vegetables/potatoes": vocabulary.Concept(id="food/vegetables/potatoes", prefLabel="Potatoes"),
         }
         tree = vocabulary.build_category_tree(vocab, infer_hierarchy=True)
 
@@ -289,14 +294,10 @@ class TestBuildCategoryTree:
     def test_virtual_root_defines_roots(self):
         """Test that _root.narrower controls which concepts are roots."""
         vocab = {
-            "_root": vocabulary.Concept(
-                id="_root", prefLabel="Root", narrower=["food", "tools"]
-            ),
+            "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food", "tools"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
             "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
-            "environmental_design": vocabulary.Concept(
-                id="environmental_design", prefLabel="Environmental design"
-            ),
+            "environmental_design": vocabulary.Concept(id="environmental_design", prefLabel="Environmental design"),
         }
         tree = vocabulary.build_category_tree(vocab)
 
@@ -305,9 +306,7 @@ class TestBuildCategoryTree:
     def test_virtual_root_excluded_from_tree(self):
         """Test that _root is removed from concepts after root detection."""
         vocab = {
-            "_root": vocabulary.Concept(
-                id="_root", prefLabel="Root", narrower=["food"]
-            ),
+            "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
         }
         tree = vocabulary.build_category_tree(vocab)
@@ -318,9 +317,7 @@ class TestBuildCategoryTree:
     def test_virtual_root_excluded_from_label_index(self):
         """Test that _root does not appear in the label index."""
         vocab = {
-            "_root": vocabulary.Concept(
-                id="_root", prefLabel="Root", narrower=["food"]
-            ),
+            "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
         }
         tree = vocabulary.build_category_tree(vocab)
@@ -343,7 +340,8 @@ class TestBuildCategoryTree:
         """Test that nonexistent narrower entries are ignored."""
         vocab = {
             "_root": vocabulary.Concept(
-                id="_root", prefLabel="Root",
+                id="_root",
+                prefLabel="Root",
                 narrower=["food", "nonexistent", "tools"],
             ),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
@@ -356,16 +354,10 @@ class TestBuildCategoryTree:
     def test_virtual_root_blocks_external_rootless_concepts(self):
         """Test that external rootless concepts are excluded from roots."""
         vocab = {
-            "_root": vocabulary.Concept(
-                id="_root", prefLabel="Root", narrower=["food"]
-            ),
+            "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
-            "environmental_design": vocabulary.Concept(
-                id="environmental_design", prefLabel="Environmental design"
-            ),
-            "goods_(economics)": vocabulary.Concept(
-                id="goods_(economics)", prefLabel="Goods (economics)"
-            ),
+            "environmental_design": vocabulary.Concept(id="environmental_design", prefLabel="Environmental design"),
+            "goods_(economics)": vocabulary.Concept(id="goods_(economics)", prefLabel="Goods (economics)"),
         }
         tree = vocabulary.build_category_tree(vocab)
 
@@ -378,14 +370,13 @@ class TestBuildCategoryTree:
         """Test that roots appear in _root.narrower order, not alphabetical."""
         vocab = {
             "_root": vocabulary.Concept(
-                id="_root", prefLabel="Root",
+                id="_root",
+                prefLabel="Root",
                 narrower=["tools", "food", "electronics"],
             ),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
             "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
-            "electronics": vocabulary.Concept(
-                id="electronics", prefLabel="Electronics"
-            ),
+            "electronics": vocabulary.Concept(id="electronics", prefLabel="Electronics"),
         }
         tree = vocabulary.build_category_tree(vocab)
 
@@ -397,8 +388,10 @@ class TestBuildCategoryTree:
         vocab = {
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
             "food/potatoes": vocabulary.Concept(
-                id="food/potatoes", prefLabel="Potatoes",
-                broader=["food"], source="dbpedia",
+                id="food/potatoes",
+                prefLabel="Potatoes",
+                broader=["food"],
+                source="dbpedia",
                 uri="http://dbpedia.org/resource/Potato",
                 source_uris={
                     "off": "off:en:potatoes",
@@ -420,8 +413,10 @@ class TestBuildCategoryTree:
         vocab = {
             "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
             "tools/hammer": vocabulary.Concept(
-                id="tools/hammer", prefLabel="Hammer",
-                broader=["tools"], source="dbpedia",
+                id="tools/hammer",
+                prefLabel="Hammer",
+                broader=["tools"],
+                source="dbpedia",
                 source_uris={
                     "dbpedia": "http://dbpedia.org/resource/Hammer",
                     "wikidata": "http://www.wikidata.org/entity/Q169470",
@@ -588,8 +583,7 @@ class TestEnrichWithSkos:
         # Simulate the check that determines whether to skip SKOS lookup
         label = "electronics"
         existing_with_skos = any(
-            c.prefLabel.lower() == label.lower() and c.source != "inventory"
-            for c in concepts.values()
+            c.prefLabel.lower() == label.lower() and c.source != "inventory" for c in concepts.values()
         )
 
         # Should NOT skip because existing concept has source="inventory"
@@ -627,8 +621,7 @@ class TestEnrichWithSkos:
 
         label = "my category"
         existing_with_skos = any(
-            c.prefLabel.lower() == label.lower() and c.source != "inventory"
-            for c in concepts.values()
+            c.prefLabel.lower() == label.lower() and c.source != "inventory" for c in concepts.values()
         )
 
         # Should skip because existing concept has source="local" (not "inventory")
@@ -792,9 +785,11 @@ class TestOFFIntegration:
         }
         client.build_paths_to_root.return_value = (
             ["food/vegetables/potatoes"],
-            {"food": "off:en:plant-based-foods-and-beverages",
-             "food/vegetables": "off:en:vegetables",
-             "food/vegetables/potatoes": "off:en:potatoes"},
+            {
+                "food": "off:en:plant-based-foods-and-beverages",
+                "food/vegetables": "off:en:vegetables",
+                "food/vegetables/potatoes": "off:en:potatoes",
+            },
             ["plant_based_foods_and_beverages/vegetables/potatoes"],
         )
         client.get_labels.return_value = {"en": "Potatoes", "de": "Kartoffeln"}
@@ -804,19 +799,19 @@ class TestOFFIntegration:
     def test_off_priority_over_agrovoc(self, mock_skos_paths):
         """Test that OFF is tried before AGROVOC for food categories."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+                }
+            ]
         }
 
         mock_off_client = self._make_mock_off_client()
 
         with patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client):
             # Only enable OFF (no AGROVOC/DBpedia) to verify OFF is used
-            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, enabled_sources=["off"]
-            )
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(inventory, enabled_sources=["off"])
 
         # OFF should have been used
         mock_off_client.lookup_concept.assert_called()
@@ -830,10 +825,12 @@ class TestOFFIntegration:
     def test_off_fallback_to_agrovoc(self, mock_skos_paths):
         """Test that AGROVOC is used when OFF doesn't find a concept."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Lentils", "metadata": {"categories": ["lentils"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Lentils", "metadata": {"categories": ["lentils"]}}],
+                }
+            ]
         }
 
         # OFF returns nothing for this term
@@ -864,10 +861,12 @@ class TestOFFIntegration:
     def test_off_not_enabled(self):
         """Test that OFF is skipped when not in enabled_sources."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+                }
+            ]
         }
 
         with patch("inventory_md.off.OFFTaxonomyClient") as mock_cls:
@@ -881,10 +880,12 @@ class TestOFFIntegration:
     def test_multi_source_enrichment(self, mock_skos_paths):
         """Test that multiple sources contribute paths for the same concept."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+                }
+            ]
         }
 
         # OFF provides one set of paths
@@ -1072,9 +1073,7 @@ class TestExternalSourceDoesNotOverwriteLocal:
         }
 
         # Try to add a path that includes "tools"
-        vocabulary._add_paths_to_concepts(
-            ["tools/hand/hammer"], concepts, "dbpedia"
-        )
+        vocabulary._add_paths_to_concepts(["tools/hand/hammer"], concepts, "dbpedia")
 
         # Original "tools" concept should be unchanged
         assert concepts["tools"].source == "local"
@@ -1088,9 +1087,7 @@ class TestExternalSourceDoesNotOverwriteLocal:
         """_add_paths_to_concepts adds Norwegian labels for category_by_source concepts."""
         concepts: dict[str, vocabulary.Concept] = {}
 
-        vocabulary._add_paths_to_concepts(
-            ["category_by_source/off/dairy"], concepts, "off"
-        )
+        vocabulary._add_paths_to_concepts(["category_by_source/off/dairy"], concepts, "off")
 
         # category_by_source should have Norwegian label
         assert "category_by_source" in concepts
@@ -1443,10 +1440,12 @@ class TestDBpediaURIPersistence:
     def test_dbpedia_uri_persisted_on_leaf(self):
         """Verify leaf concept gets URI when DBpedia paths are found."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -1455,8 +1454,7 @@ class TestDBpediaURIPersistence:
             "prefLabel": "Widget",
             "source": "dbpedia",
             "broader": [
-                {"uri": "http://dbpedia.org/resource/Inventions",
-                 "label": "Inventions", "relType": "hypernym"},
+                {"uri": "http://dbpedia.org/resource/Inventions", "label": "Inventions", "relType": "hypernym"},
             ],
         }
         mock_client._get_oxigraph_store.return_value = None
@@ -1466,9 +1464,12 @@ class TestDBpediaURIPersistence:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -1499,10 +1500,12 @@ class TestDBpediaTranslationPhase:
     def test_dbpedia_translations_fetched(self):
         """Verify DBpedia translations are fetched for concepts with DBpedia URIs."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -1511,8 +1514,7 @@ class TestDBpediaTranslationPhase:
             "prefLabel": "Widget",
             "source": "dbpedia",
             "broader": [
-                {"uri": "http://dbpedia.org/resource/Inventions",
-                 "label": "Inventions", "relType": "hypernym"},
+                {"uri": "http://dbpedia.org/resource/Inventions", "label": "Inventions", "relType": "hypernym"},
             ],
         }
         mock_client._get_oxigraph_store.return_value = None
@@ -1528,9 +1530,12 @@ class TestDBpediaTranslationPhase:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -1553,10 +1558,12 @@ class TestDBpediaTranslationPhase:
     def test_dbpedia_translations_sanity_check_passes_substring(self):
         """Verify sanity check allows labels where prefLabel is a substring."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Seal", "metadata": {"categories": ["seal"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Seal", "metadata": {"categories": ["seal"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -1579,9 +1586,12 @@ class TestDBpediaTranslationPhase:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, _ = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -1607,10 +1617,12 @@ class TestCategoryBySource:
     def test_category_by_source_off(self, mock_skos_paths):
         """Verify category_by_source/off/ concepts are created with raw OFF paths."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+                }
+            ]
         }
 
         mock_off_client = MagicMock()
@@ -1632,9 +1644,7 @@ class TestCategoryBySource:
         mock_skos_paths.return_value = (["potatoes"], False, {}, [])
 
         with patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client):
-            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, enabled_sources=["off"]
-            )
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(inventory, enabled_sources=["off"])
 
         # category_by_source/off/ path should exist
         assert "category_by_source" in vocab
@@ -1655,10 +1665,12 @@ class TestCategoryBySource:
     def test_category_by_source_dbpedia(self):
         """Verify category_by_source/dbpedia/ concepts are created."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -1667,8 +1679,7 @@ class TestCategoryBySource:
             "prefLabel": "Widget",
             "source": "dbpedia",
             "broader": [
-                {"uri": "http://dbpedia.org/resource/Inventions",
-                 "label": "Inventions", "relType": "hypernym"},
+                {"uri": "http://dbpedia.org/resource/Inventions", "label": "Inventions", "relType": "hypernym"},
             ],
         }
         mock_client._get_oxigraph_store.return_value = None
@@ -1679,9 +1690,12 @@ class TestCategoryBySource:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -1706,10 +1720,12 @@ class TestCategoryBySource:
     def test_category_by_source_local_fallback(self):
         """Verify category_by_source/local/ concepts created for fallback (no source found)."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Gizmo", "metadata": {"categories": ["gizmo"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Gizmo", "metadata": {"categories": ["gizmo"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -1721,9 +1737,12 @@ class TestCategoryBySource:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -1740,10 +1759,12 @@ class TestCategoryBySource:
     def test_category_by_source_local_path_category(self, mock_skos_paths):
         """Verify category_by_source/local/ concepts for path-based categories."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Wrench", "metadata": {"categories": ["tools/hand_tools"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Wrench", "metadata": {"categories": ["tools/hand_tools"]}}],
+                }
+            ]
         }
 
         # No AGROVOC results
@@ -1752,9 +1773,7 @@ class TestCategoryBySource:
         with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
-            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, enabled_sources=["off"]
-            )
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(inventory, enabled_sources=["off"])
 
         # category_by_source/local/ mirror should exist
         assert "category_by_source/local/tools/hand_tools" in vocab
@@ -1781,18 +1800,24 @@ class TestDBpediaEnrichesLocalConcepts:
         """Local concept with broader gets uri, description, wikipediaUrl from DBpedia."""
         local_vocab = {
             "tools": vocabulary.Concept(
-                id="tools", prefLabel="Tools", source="local",
+                id="tools",
+                prefLabel="Tools",
+                source="local",
             ),
             "hammer": vocabulary.Concept(
-                id="hammer", prefLabel="Hammer", broader=["tools"],
+                id="hammer",
+                prefLabel="Hammer",
+                broader=["tools"],
                 source="local",
             ),
         }
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Hammer", "metadata": {"categories": ["hammer"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Hammer", "metadata": {"categories": ["hammer"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -1811,13 +1836,17 @@ class TestDBpediaEnrichesLocalConcepts:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, local_vocab=local_vocab,
+                inventory,
+                local_vocab=local_vocab,
                 enabled_sources=["off", "dbpedia"],
             )
 
@@ -1841,10 +1870,14 @@ class TestDBpediaEnrichesLocalConcepts:
         """DBpedia metadata should not overwrite existing local values."""
         local_vocab = {
             "tools": vocabulary.Concept(
-                id="tools", prefLabel="Tools", source="local",
+                id="tools",
+                prefLabel="Tools",
+                source="local",
             ),
             "wrench": vocabulary.Concept(
-                id="wrench", prefLabel="Wrench", broader=["tools"],
+                id="wrench",
+                prefLabel="Wrench",
+                broader=["tools"],
                 source="local",
                 uri="http://dbpedia.org/resource/Wrench",
                 description="A hand tool for turning nuts.",
@@ -1852,10 +1885,12 @@ class TestDBpediaEnrichesLocalConcepts:
             ),
         }
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Wrench", "metadata": {"categories": ["wrench"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Wrench", "metadata": {"categories": ["wrench"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -1874,13 +1909,17 @@ class TestDBpediaEnrichesLocalConcepts:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, local_vocab=local_vocab,
+                inventory,
+                local_vocab=local_vocab,
                 enabled_sources=["off", "dbpedia"],
             )
 
@@ -1898,14 +1937,20 @@ class TestDBpediaEnrichesLocalConcepts:
         """Local vocab concepts get DBpedia metadata even when inventory has no categories."""
         local_vocab = {
             "tools": vocabulary.Concept(
-                id="tools", prefLabel="Tools", source="local",
+                id="tools",
+                prefLabel="Tools",
+                source="local",
             ),
             "hammer": vocabulary.Concept(
-                id="hammer", prefLabel="Hammer", broader=["tools"],
+                id="hammer",
+                prefLabel="Hammer",
+                broader=["tools"],
                 source="local",
             ),
             "screwdriver": vocabulary.Concept(
-                id="screwdriver", prefLabel="Screwdriver", broader=["tools"],
+                id="screwdriver",
+                prefLabel="Screwdriver",
+                broader=["tools"],
                 source="local",
                 uri="http://dbpedia.org/resource/Screwdriver",
                 description="A tool for driving screws.",
@@ -1931,13 +1976,17 @@ class TestDBpediaEnrichesLocalConcepts:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, local_vocab=local_vocab,
+                inventory,
+                local_vocab=local_vocab,
                 enabled_sources=["off", "dbpedia"],
             )
 
@@ -1951,10 +2000,7 @@ class TestDBpediaEnrichesLocalConcepts:
 
         # Screwdriver already had metadata — should NOT be added to leaf_labels
         # (it's already complete), so lookup_concept should only be called for Hammer
-        call_labels = [
-            call.args[0].lower()
-            for call in mock_client.lookup_concept.call_args_list
-        ]
+        call_labels = [call.args[0].lower() for call in mock_client.lookup_concept.call_args_list]
         assert "hammer" in call_labels
         assert "screwdriver" not in call_labels
 
@@ -1974,10 +2020,12 @@ class TestConceptDeduplication:
         if enabled_sources is None:
             enabled_sources = ["off", "dbpedia"]
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": items,
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": items,
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -1989,13 +2037,17 @@ class TestConceptDeduplication:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, local_vocab=local_vocab,
+                inventory,
+                local_vocab=local_vocab,
                 enabled_sources=enabled_sources,
             )
         return vocab, mappings
@@ -2004,10 +2056,14 @@ class TestConceptDeduplication:
         """ac-cable with broader:electronics only produces electronics/ac-cable, not both."""
         local_vocab = {
             "electronics": vocabulary.Concept(
-                id="electronics", prefLabel="Electronics", source="local",
+                id="electronics",
+                prefLabel="Electronics",
+                source="local",
             ),
             "ac-cable": vocabulary.Concept(
-                id="ac-cable", prefLabel="AC Cable", broader=["electronics"],
+                id="ac-cable",
+                prefLabel="AC Cable",
+                broader=["electronics"],
                 source="local",
             ),
         }
@@ -2024,12 +2080,16 @@ class TestConceptDeduplication:
         """prefLabel, altLabels, URI etc. are on the path-prefixed concept."""
         local_vocab = {
             "electronics": vocabulary.Concept(
-                id="electronics", prefLabel="Electronics", source="local",
+                id="electronics",
+                prefLabel="Electronics",
+                source="local",
             ),
             "ac-cable": vocabulary.Concept(
-                id="ac-cable", prefLabel="AC Cable",
+                id="ac-cable",
+                prefLabel="AC Cable",
                 altLabels=["power cord", "mains cable"],
-                broader=["electronics"], source="local",
+                broader=["electronics"],
+                source="local",
                 uri="http://example.com/ac-cable",
                 description="A cable for AC power.",
             ),
@@ -2051,11 +2111,15 @@ class TestConceptDeduplication:
         """electronics/ac-cable with broader:electronics doesn't get deleted."""
         local_vocab = {
             "electronics": vocabulary.Concept(
-                id="electronics", prefLabel="Electronics", source="local",
+                id="electronics",
+                prefLabel="Electronics",
+                source="local",
             ),
             "electronics/ac-cable": vocabulary.Concept(
-                id="electronics/ac-cable", prefLabel="AC Cable",
-                broader=["electronics"], source="local",
+                id="electronics/ac-cable",
+                prefLabel="AC Cable",
+                broader=["electronics"],
+                source="local",
             ),
         }
         items = [{"name": "AC Cable", "metadata": {"categories": ["electronics/ac-cable"]}}]
@@ -2069,14 +2133,17 @@ class TestConceptDeduplication:
         """When book merges into books (singular/plural), altLabels are combined."""
         local_vocab = {
             "books": vocabulary.Concept(
-                id="books", prefLabel="Books",
+                id="books",
+                prefLabel="Books",
                 altLabels=["reading material"],
                 source="local",
             ),
             "book": vocabulary.Concept(
-                id="book", prefLabel="Book",
+                id="book",
+                prefLabel="Book",
                 altLabels=["paperback", "hardcover"],
-                broader=["books"], source="local",
+                broader=["books"],
+                source="local",
             ),
         }
         items = [{"name": "Book", "metadata": {"categories": ["book"]}}]
@@ -2097,15 +2164,21 @@ class TestConceptDeduplication:
         """sandpaper-sheet (broader: sandpaper, broader: consumables) -> consumables/sandpaper/sandpaper-sheet."""
         local_vocab = {
             "consumables": vocabulary.Concept(
-                id="consumables", prefLabel="Consumables", source="local",
+                id="consumables",
+                prefLabel="Consumables",
+                source="local",
             ),
             "sandpaper": vocabulary.Concept(
-                id="sandpaper", prefLabel="Sandpaper",
-                broader=["consumables"], source="local",
+                id="sandpaper",
+                prefLabel="Sandpaper",
+                broader=["consumables"],
+                source="local",
             ),
             "sandpaper-sheet": vocabulary.Concept(
-                id="sandpaper-sheet", prefLabel="Sandpaper sheet",
-                broader=["sandpaper"], source="local",
+                id="sandpaper-sheet",
+                prefLabel="Sandpaper sheet",
+                broader=["sandpaper"],
+                source="local",
             ),
         }
         items = [
@@ -2122,24 +2195,27 @@ class TestConceptDeduplication:
         assert vocab.get("sandpaper") is None
         assert vocab.get("sandpaper-sheet") is None
         # Mapping key uses normalized label (hyphens -> spaces)
-        assert any(
-            "consumables/sandpaper/sandpaper-sheet" in p
-            for p in mappings.get("sandpaper sheet", [])
-        )
+        assert any("consumables/sandpaper/sandpaper-sheet" in p for p in mappings.get("sandpaper sheet", []))
 
     def test_path_prefixed_child_gets_resolved_parent(self):
         """automotive/accessories (broader: automotive, broader: transport) -> transport/automotive/accessories."""
         local_vocab = {
             "transport": vocabulary.Concept(
-                id="transport", prefLabel="Transport", source="local",
+                id="transport",
+                prefLabel="Transport",
+                source="local",
             ),
             "automotive": vocabulary.Concept(
-                id="automotive", prefLabel="Automotive",
-                broader=["transport"], source="local",
+                id="automotive",
+                prefLabel="Automotive",
+                broader=["transport"],
+                source="local",
             ),
             "automotive/accessories": vocabulary.Concept(
-                id="automotive/accessories", prefLabel="Automotive accessories",
-                broader=["automotive"], source="local",
+                id="automotive/accessories",
+                prefLabel="Automotive accessories",
+                broader=["automotive"],
+                source="local",
             ),
         }
         items = [
@@ -2171,11 +2247,15 @@ class TestResolveBroaderChain:
         """Single broader hop."""
         local_vocab = {
             "electronics": vocabulary.Concept(
-                id="electronics", prefLabel="Electronics", source="local",
+                id="electronics",
+                prefLabel="Electronics",
+                source="local",
             ),
             "ac-cable": vocabulary.Concept(
-                id="ac-cable", prefLabel="AC Cable",
-                broader=["electronics"], source="local",
+                id="ac-cable",
+                prefLabel="AC Cable",
+                broader=["electronics"],
+                source="local",
             ),
         }
         assert vocabulary._resolve_broader_chain("ac-cable", local_vocab) == "electronics/ac-cable"
@@ -2184,29 +2264,41 @@ class TestResolveBroaderChain:
         """Two broader hops: sandpaper -> consumables, sandpaper-sheet -> sandpaper."""
         local_vocab = {
             "consumables": vocabulary.Concept(
-                id="consumables", prefLabel="Consumables", source="local",
+                id="consumables",
+                prefLabel="Consumables",
+                source="local",
             ),
             "sandpaper": vocabulary.Concept(
-                id="sandpaper", prefLabel="Sandpaper",
-                broader=["consumables"], source="local",
+                id="sandpaper",
+                prefLabel="Sandpaper",
+                broader=["consumables"],
+                source="local",
             ),
             "sandpaper-sheet": vocabulary.Concept(
-                id="sandpaper-sheet", prefLabel="Sandpaper sheet",
-                broader=["sandpaper"], source="local",
+                id="sandpaper-sheet",
+                prefLabel="Sandpaper sheet",
+                broader=["sandpaper"],
+                source="local",
             ),
         }
         assert vocabulary._resolve_broader_chain("sandpaper", local_vocab) == "consumables/sandpaper"
-        assert vocabulary._resolve_broader_chain("sandpaper-sheet", local_vocab) == "consumables/sandpaper/sandpaper-sheet"
+        assert (
+            vocabulary._resolve_broader_chain("sandpaper-sheet", local_vocab) == "consumables/sandpaper/sandpaper-sheet"
+        )
 
     def test_already_path_prefixed(self):
         """Concept ID already embeds its parent path."""
         local_vocab = {
             "food": vocabulary.Concept(
-                id="food", prefLabel="Food", source="local",
+                id="food",
+                prefLabel="Food",
+                source="local",
             ),
             "food/vegetables": vocabulary.Concept(
-                id="food/vegetables", prefLabel="Vegetables",
-                broader=["food"], source="local",
+                id="food/vegetables",
+                prefLabel="Vegetables",
+                broader=["food"],
+                source="local",
             ),
         }
         assert vocabulary._resolve_broader_chain("food/vegetables", local_vocab) == "food/vegetables"
@@ -2229,11 +2321,15 @@ class TestResolveBroaderChain:
         """Singular/plural variant collapses into parent."""
         local_vocab = {
             "books": vocabulary.Concept(
-                id="books", prefLabel="Books", source="local",
+                id="books",
+                prefLabel="Books",
+                source="local",
             ),
             "book": vocabulary.Concept(
-                id="book", prefLabel="Book",
-                broader=["books"], source="local",
+                id="book",
+                prefLabel="Book",
+                broader=["books"],
+                source="local",
             ),
         }
         assert vocabulary._resolve_broader_chain("book", local_vocab) == "books"
@@ -2266,13 +2362,13 @@ class TestTranslationMerging:
         # _get_broader_concepts: potatoes -> products, products -> [] (root)
         def fake_broader(uri, store):
             return {
-                "http://aims.fao.org/aos/agrovoc/c_potatoes": [
-                    "http://aims.fao.org/aos/agrovoc/c_products"
-                ],
+                "http://aims.fao.org/aos/agrovoc/c_potatoes": ["http://aims.fao.org/aos/agrovoc/c_products"],
             }.get(uri, [])
 
-        with patch("inventory_md.vocabulary._get_agrovoc_label", side_effect=fake_label), \
-             patch("inventory_md.vocabulary._get_broader_concepts", side_effect=fake_broader):
+        with (
+            patch("inventory_md.vocabulary._get_agrovoc_label", side_effect=fake_label),
+            patch("inventory_md.vocabulary._get_broader_concepts", side_effect=fake_broader),
+        ):
             paths, uri_map, raw_paths = vocabulary._build_paths_to_root(
                 "http://aims.fao.org/aos/agrovoc/c_potatoes", mock_store
             )
@@ -2307,9 +2403,9 @@ class TestTranslationMerging:
         }
 
         # Build candidate URIs the same way the fixed code does
-        candidate_uris = list(dict.fromkeys(
-            filter(None, [all_uri_maps.get("food/potatoes"), concepts["food/potatoes"].uri])
-        ))
+        candidate_uris = list(
+            dict.fromkeys(filter(None, [all_uri_maps.get("food/potatoes"), concepts["food/potatoes"].uri]))
+        )
 
         # Should have both URIs, DBpedia first, then AGROVOC
         assert candidate_uris == [
@@ -2319,8 +2415,7 @@ class TestTranslationMerging:
 
         # Filter: skip OFF and DBpedia URIs for AGROVOC lookups
         agrovoc_candidates = [
-            u for u in candidate_uris
-            if not u.startswith("off:") and not u.startswith("http://dbpedia.org/")
+            u for u in candidate_uris if not u.startswith("off:") and not u.startswith("http://dbpedia.org/")
         ]
         assert agrovoc_candidates == ["http://aims.fao.org/aos/agrovoc/c_potatoes"]
 
@@ -2346,9 +2441,9 @@ class TestTranslationMerging:
         }
 
         # Build candidate URIs the same way the fixed code does
-        candidate_uris = list(dict.fromkeys(
-            filter(None, [all_uri_maps.get("food/potatoes"), concepts["food/potatoes"].uri])
-        ))
+        candidate_uris = list(
+            dict.fromkeys(filter(None, [all_uri_maps.get("food/potatoes"), concepts["food/potatoes"].uri]))
+        )
 
         # Find the DBpedia URI
         dbpedia_uri = next(
@@ -2379,7 +2474,7 @@ class TestTranslationMerging:
         merged.update(concept.labels)  # existing labels take priority
 
         assert merged["en"] == "Potatoes"  # existing preserved
-        assert merged["nb"] == "Poteter"   # existing preserved
+        assert merged["nb"] == "Poteter"  # existing preserved
         assert merged["de"] == "Kartoffel"  # gap filled by DBpedia
         assert merged["fr"] == "Pomme de terre"  # gap filled by DBpedia
 
@@ -2443,10 +2538,12 @@ class TestWikidataFallbackPhase:
     def test_wikidata_fallback_creates_hierarchy_paths(self):
         """Paths created when OFF/AGROVOC/DBpedia all miss but Wikidata finds it."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -2459,8 +2556,7 @@ class TestWikidataFallbackPhase:
                 "description": "A small mechanical device",
                 "wikipediaUrl": "https://en.wikipedia.org/wiki/Gadget",
                 "broader": [
-                    {"uri": "http://www.wikidata.org/entity/Q39546",
-                     "label": "Tool", "relType": "instance_of"},
+                    {"uri": "http://www.wikidata.org/entity/Q39546", "label": "Tool", "relType": "instance_of"},
                 ],
             },
         }.get(source)
@@ -2471,9 +2567,12 @@ class TestWikidataFallbackPhase:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -2489,10 +2588,12 @@ class TestWikidataFallbackPhase:
     def test_category_by_source_wikidata(self):
         """category_by_source/wikidata/ entries exist when Wikidata is the source."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -2502,8 +2603,7 @@ class TestWikidataFallbackPhase:
                 "prefLabel": "Gadget",
                 "source": "wikidata",
                 "broader": [
-                    {"uri": "http://www.wikidata.org/entity/Q39546",
-                     "label": "Tool", "relType": "instance_of"},
+                    {"uri": "http://www.wikidata.org/entity/Q39546", "label": "Tool", "relType": "instance_of"},
                 ],
             },
         }.get(source)
@@ -2514,9 +2614,12 @@ class TestWikidataFallbackPhase:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -2540,10 +2643,12 @@ class TestWikidataFallbackPhase:
     def test_wikidata_uri_persisted_on_leaf(self):
         """Leaf concept gets Wikidata entity URI."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -2553,8 +2658,7 @@ class TestWikidataFallbackPhase:
                 "prefLabel": "Gadget",
                 "source": "wikidata",
                 "broader": [
-                    {"uri": "http://www.wikidata.org/entity/Q39546",
-                     "label": "Tool", "relType": "instance_of"},
+                    {"uri": "http://www.wikidata.org/entity/Q39546", "label": "Tool", "relType": "instance_of"},
                 ],
             },
         }.get(source)
@@ -2565,9 +2669,12 @@ class TestWikidataFallbackPhase:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -2586,18 +2693,24 @@ class TestWikidataFallbackPhase:
         """Local concept with broader gets enriched by Wikidata metadata."""
         local_vocab = {
             "tools": vocabulary.Concept(
-                id="tools", prefLabel="Tools", source="local",
+                id="tools",
+                prefLabel="Tools",
+                source="local",
             ),
             "gadget": vocabulary.Concept(
-                id="gadget", prefLabel="Gadget", broader=["tools"],
+                id="gadget",
+                prefLabel="Gadget",
+                broader=["tools"],
                 source="local",
             ),
         }
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Gadget", "metadata": {"categories": ["gadget"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -2619,13 +2732,17 @@ class TestWikidataFallbackPhase:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, local_vocab=local_vocab,
+                inventory,
+                local_vocab=local_vocab,
                 enabled_sources=["off", "dbpedia", "wikidata"],
             )
 
@@ -2643,10 +2760,12 @@ class TestWikidataFallbackPhase:
     def test_wikidata_not_used_when_not_in_enabled_sources(self):
         """Wikidata fallback skipped when not in enabled_sources."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Gizmo", "metadata": {"categories": ["gizmo"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Gizmo", "metadata": {"categories": ["gizmo"]}}],
+                }
+            ]
         }
 
         mock_client = MagicMock()
@@ -2658,13 +2777,17 @@ class TestWikidataFallbackPhase:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, enabled_sources=["off", "dbpedia"]  # no wikidata
+                inventory,
+                enabled_sources=["off", "dbpedia"],  # no wikidata
             )
 
         # Should NOT have called lookup_concept with source="wikidata"
@@ -2689,21 +2812,25 @@ class TestResolveMissingUris:
         """Concept without URI gets URI, description, and wikipediaUrl from DBpedia."""
         concepts = {
             "tools/hammer": vocabulary.Concept(
-                id="tools/hammer", prefLabel="Hammer", source="local",
+                id="tools/hammer",
+                prefLabel="Hammer",
+                source="local",
             ),
         }
         all_uri_maps: dict[str, str] = {}
         client = self._make_client()
-        client.lookup_concept.side_effect = lambda label, lang, source: {
-            "uri": "http://dbpedia.org/resource/Hammer",
-            "prefLabel": "Hammer",
-            "description": "A tool with a heavy head",
-            "wikipediaUrl": "https://en.wikipedia.org/wiki/Hammer",
-        } if source == "dbpedia" and label == "Hammer" else None
-
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"]
+        client.lookup_concept.side_effect = lambda label, lang, source: (
+            {
+                "uri": "http://dbpedia.org/resource/Hammer",
+                "prefLabel": "Hammer",
+                "description": "A tool with a heavy head",
+                "wikipediaUrl": "https://en.wikipedia.org/wiki/Hammer",
+            }
+            if source == "dbpedia" and label == "Hammer"
+            else None
         )
+
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"])
 
         assert count == 1
         assert concepts["tools/hammer"].uri == "http://dbpedia.org/resource/Hammer"
@@ -2715,16 +2842,16 @@ class TestResolveMissingUris:
         """Concepts that already have a URI are not looked up."""
         concepts = {
             "tools/wrench": vocabulary.Concept(
-                id="tools/wrench", prefLabel="Wrench", source="local",
+                id="tools/wrench",
+                prefLabel="Wrench",
+                source="local",
                 uri="http://dbpedia.org/resource/Wrench",
             ),
         }
         all_uri_maps: dict[str, str] = {}
         client = self._make_client()
 
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia"]
-        )
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia"])
 
         assert count == 0
         client.lookup_concept.assert_not_called()
@@ -2733,15 +2860,15 @@ class TestResolveMissingUris:
         """Concepts already in all_uri_maps are skipped."""
         concepts = {
             "tools/pliers": vocabulary.Concept(
-                id="tools/pliers", prefLabel="Pliers", source="local",
+                id="tools/pliers",
+                prefLabel="Pliers",
+                source="local",
             ),
         }
         all_uri_maps = {"tools/pliers": "http://dbpedia.org/resource/Pliers"}
         client = self._make_client()
 
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia"]
-        )
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia"])
 
         assert count == 0
         client.lookup_concept.assert_not_called()
@@ -2750,18 +2877,20 @@ class TestResolveMissingUris:
         """Internal concepts (_root, category_by_source/*) are skipped."""
         concepts = {
             "_root": vocabulary.Concept(
-                id="_root", prefLabel="Root", source="local",
+                id="_root",
+                prefLabel="Root",
+                source="local",
             ),
             "category_by_source/dbpedia/foo": vocabulary.Concept(
-                id="category_by_source/dbpedia/foo", prefLabel="Foo", source="dbpedia",
+                id="category_by_source/dbpedia/foo",
+                prefLabel="Foo",
+                source="dbpedia",
             ),
         }
         all_uri_maps: dict[str, str] = {}
         client = self._make_client()
 
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia"]
-        )
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia"])
 
         assert count == 0
         client.lookup_concept.assert_not_called()
@@ -2770,7 +2899,9 @@ class TestResolveMissingUris:
         """Mismatched prefLabel from lookup is rejected."""
         concepts = {
             "tools/clamp": vocabulary.Concept(
-                id="tools/clamp", prefLabel="Clamp", source="local",
+                id="tools/clamp",
+                prefLabel="Clamp",
+                source="local",
             ),
         }
         all_uri_maps: dict[str, str] = {}
@@ -2781,9 +2912,7 @@ class TestResolveMissingUris:
             "prefLabel": "Hydraulic press",
         }
 
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia"]
-        )
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia"])
 
         assert count == 0
         assert concepts["tools/clamp"].uri is None
@@ -2792,20 +2921,24 @@ class TestResolveMissingUris:
         """When DBpedia misses, Wikidata is tried next."""
         concepts = {
             "electronics/resistor": vocabulary.Concept(
-                id="electronics/resistor", prefLabel="Resistor", source="local",
+                id="electronics/resistor",
+                prefLabel="Resistor",
+                source="local",
             ),
         }
         all_uri_maps: dict[str, str] = {}
         client = self._make_client()
-        client.lookup_concept.side_effect = lambda label, lang, source: {
-            "uri": "http://www.wikidata.org/entity/Q5321",
-            "prefLabel": "Resistor",
-            "description": "An electronic component",
-        } if source == "wikidata" else None
-
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"]
+        client.lookup_concept.side_effect = lambda label, lang, source: (
+            {
+                "uri": "http://www.wikidata.org/entity/Q5321",
+                "prefLabel": "Resistor",
+                "description": "An electronic component",
+            }
+            if source == "wikidata"
+            else None
         )
+
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"])
 
         assert count == 1
         assert concepts["electronics/resistor"].uri == "http://www.wikidata.org/entity/Q5321"
@@ -2815,19 +2948,29 @@ class TestResolveMissingUris:
         """Only tries sources that are in enabled_sources."""
         concepts = {
             "tools/drill": vocabulary.Concept(
-                id="tools/drill", prefLabel="Drill", source="local",
+                id="tools/drill",
+                prefLabel="Drill",
+                source="local",
             ),
         }
         all_uri_maps: dict[str, str] = {}
         client = self._make_client()
         # Would match on wikidata, but wikidata is not enabled
-        client.lookup_concept.side_effect = lambda label, lang, source: {
-            "uri": "http://www.wikidata.org/entity/Q1234",
-            "prefLabel": "Drill",
-        } if source == "wikidata" else None
+        client.lookup_concept.side_effect = lambda label, lang, source: (
+            {
+                "uri": "http://www.wikidata.org/entity/Q1234",
+                "prefLabel": "Drill",
+            }
+            if source == "wikidata"
+            else None
+        )
 
         count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia"]  # no wikidata
+            concepts,
+            all_uri_maps,
+            client,
+            "en",
+            ["dbpedia"],  # no wikidata
         )
 
         assert count == 0
@@ -2839,7 +2982,9 @@ class TestResolveMissingUris:
         """Existing description and wikipediaUrl are preserved."""
         concepts = {
             "tools/chisel": vocabulary.Concept(
-                id="tools/chisel", prefLabel="Chisel", source="local",
+                id="tools/chisel",
+                prefLabel="Chisel",
+                source="local",
                 description="A woodworking tool",
                 wikipediaUrl="https://en.wikipedia.org/wiki/Chisel",
             ),
@@ -2853,9 +2998,7 @@ class TestResolveMissingUris:
             "wikipediaUrl": "https://en.wikipedia.org/wiki/Chisel_DBpedia",
         }
 
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia"]
-        )
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia"])
 
         assert count == 1
         assert concepts["tools/chisel"].uri == "http://dbpedia.org/resource/Chisel"
@@ -2867,15 +3010,15 @@ class TestResolveMissingUris:
         """Returns 0 when neither dbpedia nor wikidata in enabled_sources."""
         concepts = {
             "tools/level": vocabulary.Concept(
-                id="tools/level", prefLabel="Level", source="local",
+                id="tools/level",
+                prefLabel="Level",
+                source="local",
             ),
         }
         all_uri_maps: dict[str, str] = {}
         client = self._make_client()
 
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["off", "agrovoc"]
-        )
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["off", "agrovoc"])
 
         assert count == 0
         client.lookup_concept.assert_not_called()
@@ -2884,7 +3027,9 @@ class TestResolveMissingUris:
         """Falls back to concept_id leaf as lookup label when prefLabel is empty."""
         concepts = {
             "tools/tape_measure": vocabulary.Concept(
-                id="tools/tape_measure", prefLabel="", source="local",
+                id="tools/tape_measure",
+                prefLabel="",
+                source="local",
             ),
         }
         all_uri_maps: dict[str, str] = {}
@@ -2894,9 +3039,7 @@ class TestResolveMissingUris:
             "prefLabel": "Tape measure",
         }
 
-        count = vocabulary._resolve_missing_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia"]
-        )
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia"])
 
         assert count == 1
         # Should have used "tape measure" (from concept_id leaf) as lookup label
@@ -2906,28 +3049,38 @@ class TestResolveMissingUris:
     def test_integration_local_vocab_root_gets_uri(self):
         """Integration: local vocab root concept gets URI before translation phase."""
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+                }
+            ]
         }
         local_vocab = {
             "hardware": vocabulary.Concept(
-                id="hardware", prefLabel="Hardware", source="local",
+                id="hardware",
+                prefLabel="Hardware",
+                source="local",
             ),
             "widget": vocabulary.Concept(
-                id="widget", prefLabel="Widget", source="local",
+                id="widget",
+                prefLabel="Widget",
+                source="local",
                 broader=["hardware"],
             ),
         }
 
         mock_client = MagicMock()
         # Main loop: no external source finds "widget" or "hardware"
-        mock_client.lookup_concept.side_effect = lambda label, lang, source=None: {
-            "uri": "http://dbpedia.org/resource/Hardware",
-            "prefLabel": "Hardware",
-            "description": "Physical components",
-        } if label == "Hardware" and source == "dbpedia" else None
+        mock_client.lookup_concept.side_effect = lambda label, lang, source=None: (
+            {
+                "uri": "http://dbpedia.org/resource/Hardware",
+                "prefLabel": "Hardware",
+                "description": "Physical components",
+            }
+            if label == "Hardware" and source == "dbpedia"
+            else None
+        )
         mock_client._get_oxigraph_store.return_value = None
         mock_client.get_batch_labels.return_value = {}
 
@@ -2937,9 +3090,12 @@ class TestResolveMissingUris:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
@@ -2963,9 +3119,8 @@ class TestRootCategoryMerges:
     def pkg_vocab(self):
         """Load the package vocabulary."""
         from pathlib import Path
-        vocab_file = Path(__file__).resolve().parent.parent / (
-            "src/inventory_md/data/vocabulary.yaml"
-        )
+
+        vocab_file = Path(__file__).resolve().parent.parent / ("src/inventory_md/data/vocabulary.yaml")
         return vocabulary.load_local_vocabulary(vocab_file)
 
     def test_root_narrower_count(self, pkg_vocab):
@@ -2977,8 +3132,16 @@ class TestRootCategoryMerges:
         """_root.narrower should list the 10 merged roots plus category_by_source."""
         root = pkg_vocab["_root"]
         expected = {
-            "food", "tools", "electronics", "household", "clothing",
-            "hardware", "recreation", "medical", "games", "misc",
+            "food",
+            "tools",
+            "electronics",
+            "household",
+            "clothing",
+            "hardware",
+            "recreation",
+            "medical",
+            "games",
+            "misc",
             "category_by_source",
         }
         assert set(root.narrower) == expected
@@ -3074,9 +3237,7 @@ class TestRootCategoryMerges:
     def test_no_concept_has_broader_hobby(self, pkg_vocab):
         """No concept should reference hobby as broader."""
         for cid, concept in pkg_vocab.items():
-            assert "hobby" not in concept.broader, (
-                f"{cid} still references hobby as broader"
-            )
+            assert "hobby" not in concept.broader, f"{cid} still references hobby as broader"
 
 
 class TestAgrovocMismatchSuppression:
@@ -3107,10 +3268,12 @@ class TestAgrovocMismatchSuppression:
         }
 
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Tools", "metadata": {"categories": ["tools"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Tools", "metadata": {"categories": ["tools"]}}],
+                }
+            ]
         }
 
         with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
@@ -3136,10 +3299,12 @@ class TestAgrovocMismatchSuppression:
         )
 
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Dairy", "metadata": {"categories": ["dairy"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Dairy", "metadata": {"categories": ["dairy"]}}],
+                }
+            ]
         }
 
         with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
@@ -3164,10 +3329,12 @@ class TestAgrovocMismatchSuppression:
         )
 
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Tool", "metadata": {"categories": ["tool"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Tool", "metadata": {"categories": ["tool"]}}],
+                }
+            ]
         }
 
         with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
@@ -3249,9 +3416,10 @@ concepts:
     prefLabel: "My Thing"
 """)
 
-        with patch.object(vocabulary, "_get_package_data_dir", return_value=pkg_dir), \
-             patch.object(vocabulary, "find_vocabulary_files",
-                          return_value=[pkg_vocab, user_vocab]):
+        with (
+            patch.object(vocabulary, "_get_package_data_dir", return_value=pkg_dir),
+            patch.object(vocabulary, "find_vocabulary_files", return_value=[pkg_vocab, user_vocab]),
+        ):
             merged = vocabulary.load_global_vocabulary()
 
         assert merged["clothing"].source == "package"
@@ -3277,9 +3445,10 @@ concepts:
     altLabel: "apparel"
 """)
 
-        with patch.object(vocabulary, "_get_package_data_dir", return_value=pkg_dir), \
-             patch.object(vocabulary, "find_vocabulary_files",
-                          return_value=[pkg_vocab, user_vocab]):
+        with (
+            patch.object(vocabulary, "_get_package_data_dir", return_value=pkg_dir),
+            patch.object(vocabulary, "find_vocabulary_files", return_value=[pkg_vocab, user_vocab]),
+        ):
             merged = vocabulary.load_global_vocabulary()
 
         # User definition wins (later overrides earlier)
@@ -3308,15 +3477,15 @@ concepts:
     prefLabel: "Tape"
     broader: consumables
 """)
-        local_vocab = vocabulary.load_local_vocabulary(
-            vocab_file, default_source="package"
-        )
+        local_vocab = vocabulary.load_local_vocabulary(vocab_file, default_source="package")
 
         inventory = {
-            "containers": [{
-                "id": "box1",
-                "items": [{"name": "Tape", "metadata": {"categories": ["tape"]}}],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Tape", "metadata": {"categories": ["tape"]}}],
+                }
+            ]
         }
 
         with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
@@ -3404,7 +3573,8 @@ class TestPopulateSourceUris:
         """OFF node IDs populate source_uris['off']."""
         concepts = {
             "food/potatoes": vocabulary.Concept(
-                id="food/potatoes", prefLabel="Potatoes",
+                id="food/potatoes",
+                prefLabel="Potatoes",
             ),
         }
         off_node_ids = {"food/potatoes": "en:potatoes"}
@@ -3418,7 +3588,8 @@ class TestPopulateSourceUris:
         """AGROVOC URI in all_uri_maps populates source_uris['agrovoc']."""
         concepts = {
             "food/rice": vocabulary.Concept(
-                id="food/rice", prefLabel="Rice",
+                id="food/rice",
+                prefLabel="Rice",
             ),
         }
         off_node_ids: dict[str, str] = {}
@@ -3432,7 +3603,8 @@ class TestPopulateSourceUris:
         """DBpedia URI on concept.uri populates source_uris['dbpedia']."""
         concepts = {
             "tools/hammer": vocabulary.Concept(
-                id="tools/hammer", prefLabel="Hammer",
+                id="tools/hammer",
+                prefLabel="Hammer",
                 uri="http://dbpedia.org/resource/Hammer",
             ),
         }
@@ -3444,7 +3616,8 @@ class TestPopulateSourceUris:
         """Multiple sources tracked on the same concept."""
         concepts = {
             "food/potatoes": vocabulary.Concept(
-                id="food/potatoes", prefLabel="Potatoes",
+                id="food/potatoes",
+                prefLabel="Potatoes",
                 uri="http://aims.fao.org/aos/agrovoc/c_6139",
             ),
         }
@@ -3462,7 +3635,8 @@ class TestPopulateSourceUris:
         """Wikidata URI populates source_uris['wikidata']."""
         concepts = {
             "books": vocabulary.Concept(
-                id="books", prefLabel="Books",
+                id="books",
+                prefLabel="Books",
                 uri="http://www.wikidata.org/entity/Q571",
             ),
         }
@@ -3474,7 +3648,8 @@ class TestPopulateSourceUris:
         """URIs with unknown schemes don't add to source_uris."""
         concepts = {
             "local/custom": vocabulary.Concept(
-                id="local/custom", prefLabel="Custom",
+                id="local/custom",
+                prefLabel="Custom",
                 uri="https://example.com/custom",
             ),
         }
@@ -3518,17 +3693,22 @@ class TestFindAdditionalTranslationUris:
         """Concept with OFF-only URI gets supplementary DBpedia URI."""
         concepts = {
             "food/potatoes": vocabulary.Concept(
-                id="food/potatoes", prefLabel="Potatoes",
+                id="food/potatoes",
+                prefLabel="Potatoes",
                 uri="off:en:potatoes",
                 source_uris={"off": "off:en:potatoes"},
             ),
         }
         all_uri_maps = {"food/potatoes": "off:en:potatoes"}
         client = self._make_client()
-        client.lookup_concept.side_effect = lambda label, lang, source: {
-            "uri": "http://dbpedia.org/resource/Potato",
-            "prefLabel": "Potato",
-        } if source == "dbpedia" and label == "Potatoes" else None
+        client.lookup_concept.side_effect = lambda label, lang, source: (
+            {
+                "uri": "http://dbpedia.org/resource/Potato",
+                "prefLabel": "Potato",
+            }
+            if source == "dbpedia" and label == "Potatoes"
+            else None
+        )
 
         count = vocabulary._find_additional_translation_uris(
             concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"]
@@ -3541,7 +3721,8 @@ class TestFindAdditionalTranslationUris:
         """Concept with both DBpedia and Wikidata URIs is skipped."""
         concepts = {
             "tools/hammer": vocabulary.Concept(
-                id="tools/hammer", prefLabel="Hammer",
+                id="tools/hammer",
+                prefLabel="Hammer",
                 uri="http://dbpedia.org/resource/Hammer",
                 source_uris={
                     "dbpedia": "http://dbpedia.org/resource/Hammer",
@@ -3551,9 +3732,7 @@ class TestFindAdditionalTranslationUris:
         }
         client = self._make_client()
 
-        count = vocabulary._find_additional_translation_uris(
-            concepts, {}, client, "en", ["dbpedia", "wikidata"]
-        )
+        count = vocabulary._find_additional_translation_uris(concepts, {}, client, "en", ["dbpedia", "wikidata"])
 
         assert count == 0
         client.lookup_concept.assert_not_called()
@@ -3562,14 +3741,13 @@ class TestFindAdditionalTranslationUris:
         """Concept with no URI at all is skipped."""
         concepts = {
             "misc/unknown": vocabulary.Concept(
-                id="misc/unknown", prefLabel="Unknown",
+                id="misc/unknown",
+                prefLabel="Unknown",
             ),
         }
         client = self._make_client()
 
-        count = vocabulary._find_additional_translation_uris(
-            concepts, {}, client, "en", ["dbpedia"]
-        )
+        count = vocabulary._find_additional_translation_uris(concepts, {}, client, "en", ["dbpedia"])
 
         assert count == 0
         client.lookup_concept.assert_not_called()
@@ -3578,7 +3756,8 @@ class TestFindAdditionalTranslationUris:
         """Sanity check rejects prefLabel mismatch."""
         concepts = {
             "food/rice": vocabulary.Concept(
-                id="food/rice", prefLabel="Rice",
+                id="food/rice",
+                prefLabel="Rice",
                 uri="http://aims.fao.org/aos/agrovoc/c_6599",
                 source_uris={"agrovoc": "http://aims.fao.org/aos/agrovoc/c_6599"},
             ),
@@ -3586,14 +3765,16 @@ class TestFindAdditionalTranslationUris:
         all_uri_maps = {"food/rice": "http://aims.fao.org/aos/agrovoc/c_6599"}
         client = self._make_client()
         # DBpedia returns a completely different concept (no substring match)
-        client.lookup_concept.side_effect = lambda label, lang, source: {
-            "uri": "http://dbpedia.org/resource/Basmati",
-            "prefLabel": "Basmati",
-        } if source == "dbpedia" else None
-
-        count = vocabulary._find_additional_translation_uris(
-            concepts, all_uri_maps, client, "en", ["dbpedia"]
+        client.lookup_concept.side_effect = lambda label, lang, source: (
+            {
+                "uri": "http://dbpedia.org/resource/Basmati",
+                "prefLabel": "Basmati",
+            }
+            if source == "dbpedia"
+            else None
         )
+
+        count = vocabulary._find_additional_translation_uris(concepts, all_uri_maps, client, "en", ["dbpedia"])
 
         assert count == 0
         assert "dbpedia" not in concepts["food/rice"].source_uris
@@ -3602,21 +3783,21 @@ class TestFindAdditionalTranslationUris:
         """Meta concepts (_root, category_by_source/*) are skipped."""
         concepts = {
             "_root": vocabulary.Concept(
-                id="_root", prefLabel="Root",
+                id="_root",
+                prefLabel="Root",
                 uri="off:root",
                 source_uris={"off": "off:root"},
             ),
             "category_by_source/off/food": vocabulary.Concept(
-                id="category_by_source/off/food", prefLabel="Food",
+                id="category_by_source/off/food",
+                prefLabel="Food",
                 uri="off:en:food",
                 source_uris={"off": "off:en:food"},
             ),
         }
         client = self._make_client()
 
-        count = vocabulary._find_additional_translation_uris(
-            concepts, {}, client, "en", ["dbpedia"]
-        )
+        count = vocabulary._find_additional_translation_uris(concepts, {}, client, "en", ["dbpedia"])
 
         assert count == 0
         client.lookup_concept.assert_not_called()
@@ -3625,7 +3806,8 @@ class TestFindAdditionalTranslationUris:
         """Only sources in enabled_sources are tried."""
         concepts = {
             "food/rice": vocabulary.Concept(
-                id="food/rice", prefLabel="Rice",
+                id="food/rice",
+                prefLabel="Rice",
                 uri="off:en:rice",
                 source_uris={"off": "off:en:rice"},
             ),
@@ -3633,14 +3815,16 @@ class TestFindAdditionalTranslationUris:
         all_uri_maps = {"food/rice": "off:en:rice"}
         client = self._make_client()
         # Only enable wikidata, not dbpedia
-        client.lookup_concept.side_effect = lambda label, lang, source: {
-            "uri": "http://www.wikidata.org/entity/Q5090",
-            "prefLabel": "Rice",
-        } if source == "wikidata" else None
-
-        count = vocabulary._find_additional_translation_uris(
-            concepts, all_uri_maps, client, "en", ["wikidata"]
+        client.lookup_concept.side_effect = lambda label, lang, source: (
+            {
+                "uri": "http://www.wikidata.org/entity/Q5090",
+                "prefLabel": "Rice",
+            }
+            if source == "wikidata"
+            else None
         )
+
+        count = vocabulary._find_additional_translation_uris(concepts, all_uri_maps, client, "en", ["wikidata"])
 
         assert count == 1
         assert "wikidata" in concepts["food/rice"].source_uris
@@ -3655,13 +3839,12 @@ class TestProgressCallback:
     @staticmethod
     def _make_inventory(categories: list[str]) -> dict:
         return {
-            "containers": [{
-                "id": "box1",
-                "items": [
-                    {"name": c.title(), "metadata": {"categories": [c]}}
-                    for c in categories
-                ],
-            }]
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": c.title(), "metadata": {"categories": [c]}} for c in categories],
+                }
+            ]
         }
 
     @staticmethod
@@ -3695,16 +3878,21 @@ class TestProgressCallback:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off = mock_off_cls.return_value
             mock_off.lookup_concept.return_value = None
             mock_off.get_labels.return_value = {}
             mock_off.build_paths_to_root.return_value = ([], {}, [])
             vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, enabled_sources=enabled_sources,
-                languages=languages, progress=recorder,
+                inventory,
+                enabled_sources=enabled_sources,
+                languages=languages,
+                progress=recorder,
             )
         return events
 
@@ -3774,14 +3962,18 @@ class TestProgressCallback:
         mock_skos.SKOSClient.return_value = mock_client
 
         import inventory_md
-        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls, \
-             patch.dict("sys.modules", {"inventory_md.skos": mock_skos}), \
-             patch.object(inventory_md, "skos", mock_skos, create=True):
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
             mock_off_cls.return_value.lookup_concept.return_value = None
             mock_off_cls.return_value.get_labels.return_value = {}
             # No progress callback (default) — should not raise
             vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                inventory, enabled_sources=["off", "agrovoc", "dbpedia"],
+                inventory,
+                enabled_sources=["off", "agrovoc", "dbpedia"],
             )
         assert isinstance(vocab, dict)
         assert isinstance(mappings, dict)

@@ -6,6 +6,7 @@ Uses the openfoodfacts PyPI package to access the OFF category taxonomy
 No SPARQL or custom parser needed - the package handles download, caching,
 and navigation.
 """
+
 from __future__ import annotations
 
 import logging
@@ -149,10 +150,7 @@ class OFFTaxonomyClient:
         try:
             from openfoodfacts.taxonomy import get_taxonomy
         except ImportError:
-            logger.warning(
-                "openfoodfacts package not installed. "
-                "Install with: pip install inventory-md[off]"
-            )
+            logger.warning("openfoodfacts package not installed. Install with: pip install inventory-md[off]")
             return None
 
         logger.info("Loading Open Food Facts category taxonomy...")
@@ -251,10 +249,12 @@ class OFFTaxonomyClient:
                 en_name = parent.names.get("en")
                 if en_name:
                     parent_label = en_name
-            broader.append({
-                "uri": f"off:{parent.id}",
-                "label": parent_label,
-            })
+            broader.append(
+                {
+                    "uri": f"off:{parent.id}",
+                    "label": parent_label,
+                }
+            )
 
         return {
             "uri": f"off:{node_id}",
@@ -337,9 +337,7 @@ class OFFTaxonomyClient:
                     labels[lang] = name
             return labels
 
-    def build_paths_to_root(
-        self, node_id: str, lang: str = "en"
-    ) -> tuple[list[str], dict[str, str], list[str]]:
+    def build_paths_to_root(self, node_id: str, lang: str = "en") -> tuple[list[str], dict[str, str], list[str]]:
         """Build all hierarchy paths from root to a node.
 
         Returns paths matching the AGROVOC interface format.
@@ -456,9 +454,7 @@ class OFFTaxonomyClient:
             return
 
         for parent in node.parents:
-            self._collect_paths(
-                parent, lang, new_path, new_ids, all_paths, uri_map, visited, raw_paths
-            )
+            self._collect_paths(parent, lang, new_path, new_ids, all_paths, uri_map, visited, raw_paths)
 
     def _node_label(self, node, lang: str) -> str:
         """Get a human-readable label for a node.

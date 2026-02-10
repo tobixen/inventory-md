@@ -5,6 +5,7 @@ Provides structured access to markdown content with proper handling of mixed con
 (text + lists). Unlike markdown-to-json, this adapter preserves the distinction
 between paragraphs and list items.
 """
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -24,12 +25,13 @@ class MarkdownSection:
         subsections: Nested sections under this heading
         parent: Parent section (None for top-level)
     """
+
     heading: str
     level: int
     paragraphs: list[str] = field(default_factory=list)
     list_items: list[dict[str, Any]] = field(default_factory=list)
-    subsections: list['MarkdownSection'] = field(default_factory=list)
-    parent: 'MarkdownSection | None' = None
+    subsections: list["MarkdownSection"] = field(default_factory=list)
+    parent: "MarkdownSection | None" = None
 
 
 def parse_markdown_file(filepath: str) -> list[MarkdownSection]:
@@ -42,7 +44,7 @@ def parse_markdown_file(filepath: str) -> list[MarkdownSection]:
     Returns:
         List of top-level MarkdownSection objects
     """
-    with open(filepath, encoding='utf-8') as f:
+    with open(filepath, encoding="utf-8") as f:
         content = f.read()
     return parse_markdown_string(content)
 
@@ -67,11 +69,11 @@ def parse_markdown_string(content: str) -> list[MarkdownSection]:
     while i < len(tokens):
         token = tokens[i]
 
-        if token.type == 'heading_open':
+        if token.type == "heading_open":
             level = int(token.tag[1])  # h1 -> 1, h2 -> 2, etc.
             # Next token should be inline with heading text
-            heading_text = ''
-            if i + 1 < len(tokens) and tokens[i + 1].type == 'inline':
+            heading_text = ""
+            if i + 1 < len(tokens) and tokens[i + 1].type == "inline":
                 heading_text = tokens[i + 1].content
                 i += 1
 
@@ -89,15 +91,15 @@ def parse_markdown_string(content: str) -> list[MarkdownSection]:
 
             section_stack.append(new_section)
 
-        elif token.type == 'paragraph_open':
+        elif token.type == "paragraph_open":
             # Collect paragraph content
-            if i + 1 < len(tokens) and tokens[i + 1].type == 'inline':
+            if i + 1 < len(tokens) and tokens[i + 1].type == "inline":
                 para_text = tokens[i + 1].content
                 if section_stack:
                     section_stack[-1].paragraphs.append(para_text)
                 i += 1
 
-        elif token.type == 'bullet_list_open':
+        elif token.type == "bullet_list_open":
             # Parse the entire list
             list_items, end_i = _parse_list(tokens, i)
             if section_stack:
@@ -119,23 +121,23 @@ def _parse_list(tokens: list, start_i: int) -> tuple[list[dict[str, Any]], int]:
     items = []
     i = start_i + 1  # Skip bullet_list_open
 
-    while i < len(tokens) and tokens[i].type != 'bullet_list_close':
+    while i < len(tokens) and tokens[i].type != "bullet_list_close":
         token = tokens[i]
 
-        if token.type == 'list_item_open':
-            item = {'text': '', 'nested': []}
+        if token.type == "list_item_open":
+            item = {"text": "", "nested": []}
             i += 1
 
             # Collect item content
-            while i < len(tokens) and tokens[i].type != 'list_item_close':
-                if tokens[i].type == 'paragraph_open':
-                    if i + 1 < len(tokens) and tokens[i + 1].type == 'inline':
-                        item['text'] = tokens[i + 1].content
+            while i < len(tokens) and tokens[i].type != "list_item_close":
+                if tokens[i].type == "paragraph_open":
+                    if i + 1 < len(tokens) and tokens[i + 1].type == "inline":
+                        item["text"] = tokens[i + 1].content
                         i += 1
-                elif tokens[i].type == 'bullet_list_open':
+                elif tokens[i].type == "bullet_list_open":
                     # Nested list
                     nested_items, end_i = _parse_list(tokens, i)
-                    item['nested'] = nested_items
+                    item["nested"] = nested_items
                     i = end_i
                 i += 1
 
@@ -164,11 +166,11 @@ def sections_to_dict(sections: list[MarkdownSection]) -> dict[str, Any]:
     result = {}
     for section in sections:
         section_data = {
-            'paragraphs': section.paragraphs,
-            'list_items': section.list_items,
+            "paragraphs": section.paragraphs,
+            "list_items": section.list_items,
         }
         if section.subsections:
-            section_data['subsections'] = sections_to_dict(section.subsections)
+            section_data["subsections"] = sections_to_dict(section.subsections)
         result[section.heading] = section_data
     return result
 
@@ -221,8 +223,8 @@ def get_all_list_items(section: MarkdownSection, include_nested: bool = True) ->
     """
     items = []
     for item in section.list_items:
-        items.append(item['text'])
-        if include_nested and item.get('nested'):
-            for nested in item['nested']:
-                items.append(nested['text'])
+        items.append(item["text"])
+        if include_nested and item.get("nested"):
+            for nested in item["nested"]:
+                items.append(nested["text"])
     return items

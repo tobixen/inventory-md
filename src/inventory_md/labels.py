@@ -4,6 +4,7 @@ QR label generation for inventory items.
 Generates QR code labels for printing on standard A4 label sheets.
 Label sheet formats are user-configurable using metric dimensions (mm).
 """
+
 from __future__ import annotations
 
 import io
@@ -321,9 +322,7 @@ def generate_label(
 
     elif style in ("duplicate", "multi-qr"):
         # Auto-calculate optimal QR code count based on label dimensions
-        qr_count, qr_size, text_width = _calculate_optimal_qr_layout(
-            width_px, height_px, margin
-        )
+        qr_count, qr_size, text_width = _calculate_optimal_qr_layout(width_px, height_px, margin)
 
         qr_box_size = max(1, qr_size // 25)
         qr_img = generate_qr(url, box_size=qr_box_size, border=1)

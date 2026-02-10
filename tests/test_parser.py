@@ -18,12 +18,12 @@ Description of the box
 """)
         result = parser.parse_inventory(md_file)
 
-        assert len(result['containers']) == 1
-        container = result['containers'][0]
-        assert container['id'] == 'box1'
-        assert container['heading'] == 'Storage Box'
-        assert 'Description of the box' in container['description']
-        assert len(container['items']) == 2
+        assert len(result["containers"]) == 1
+        container = result["containers"][0]
+        assert container["id"] == "box1"
+        assert container["heading"] == "Storage Box"
+        assert "Description of the box" in container["description"]
+        assert len(container["items"]) == 2
 
     def test_parse_nested_hierarchy(self, tmp_path):
         """Test parsing nested container hierarchy."""
@@ -40,19 +40,19 @@ Description of the box
 """)
         result = parser.parse_inventory(md_file)
 
-        assert len(result['containers']) == 3
+        assert len(result["containers"]) == 3
 
         # Find containers by ID
-        containers = {c['id']: c for c in result['containers']}
+        containers = {c["id"]: c for c in result["containers"]}
 
-        assert 'garage' in containers
-        assert 'shelf1' in containers
-        assert 'box1' in containers
+        assert "garage" in containers
+        assert "shelf1" in containers
+        assert "box1" in containers
 
         # Check parent relationships
-        assert containers['garage']['parent'] is None
-        assert containers['shelf1']['parent'] == 'garage'
-        assert containers['box1']['parent'] == 'shelf1'
+        assert containers["garage"]["parent"] is None
+        assert containers["shelf1"]["parent"] == "garage"
+        assert containers["box1"]["parent"] == "shelf1"
 
     def test_parse_item_metadata(self, tmp_path):
         """Test parsing items with metadata tags."""
@@ -64,16 +64,16 @@ Description of the box
 """)
         result = parser.parse_inventory(md_file)
 
-        container = result['containers'][0]
-        assert len(container['items']) == 2
+        container = result["containers"][0]
+        assert len(container["items"]) == 2
 
         # First item has tags
-        assert container['items'][0]['metadata'].get('tags') == ['tools', 'hardware']
-        assert container['items'][0]['name'] == 'Screwdriver set'
+        assert container["items"][0]["metadata"].get("tags") == ["tools", "hardware"]
+        assert container["items"][0]["name"] == "Screwdriver set"
 
         # Second item has ID
-        assert container['items'][1]['metadata'].get('id') == 'wrench'
-        assert container['items'][1]['name'] == 'My wrench'
+        assert container["items"][1]["metadata"].get("id") == "wrench"
+        assert container["items"][1]["name"] == "My wrench"
 
     def test_parse_intro_section(self, tmp_path):
         """Test that Intro section is extracted."""
@@ -88,8 +88,8 @@ This is the introduction.
 """)
         result = parser.parse_inventory(md_file)
 
-        assert result['intro'] == 'This is the introduction.'
-        assert len(result['containers']) == 1
+        assert result["intro"] == "This is the introduction."
+        assert len(result["containers"]) == 1
 
     def test_parse_indented_items(self, tmp_path):
         """Test parsing indented (nested) items."""
@@ -102,11 +102,11 @@ This is the introduction.
 """)
         result = parser.parse_inventory(md_file)
 
-        container = result['containers'][0]
-        assert len(container['items']) == 3
-        assert container['items'][0]['indented'] is False
-        assert container['items'][1]['indented'] is True
-        assert container['items'][2]['indented'] is True
+        container = result["containers"][0]
+        assert len(container["items"]) == 3
+        assert container["items"][0]["indented"] is False
+        assert container["items"][1]["indented"] is True
+        assert container["items"][2]["indented"] is True
 
     def test_parse_item_categories(self, tmp_path):
         """Test parsing items with category metadata."""
@@ -118,15 +118,15 @@ This is the introduction.
 """)
         result = parser.parse_inventory(md_file)
 
-        container = result['containers'][0]
-        assert len(container['items']) == 2
+        container = result["containers"][0]
+        assert len(container["items"]) == 2
 
         # Categories are stored as-is (no normalization)
-        assert container['items'][0]['metadata'].get('categories') == ['food/vegetables/potatoes']
-        assert container['items'][0]['name'] == 'Potatoes from garden'
+        assert container["items"][0]["metadata"].get("categories") == ["food/vegetables/potatoes"]
+        assert container["items"][0]["name"] == "Potatoes from garden"
 
-        assert container['items'][1]['metadata'].get('categories') == ['tools/hand-tools']
-        assert container['items'][1]['name'] == 'Hammer'
+        assert container["items"][1]["metadata"].get("categories") == ["tools/hand-tools"]
+        assert container["items"][1]["name"] == "Hammer"
 
     def test_parse_item_multiple_categories(self, tmp_path):
         """Test parsing items with multiple categories."""
@@ -137,9 +137,9 @@ This is the introduction.
 """)
         result = parser.parse_inventory(md_file)
 
-        container = result['containers'][0]
+        container = result["containers"][0]
         # Categories are stored as-is (no normalization)
-        assert container['items'][0]['metadata'].get('categories') == ['food/vegetables', 'food/staples']
+        assert container["items"][0]["metadata"].get("categories") == ["food/vegetables", "food/staples"]
 
     def test_parse_item_with_category_and_tag(self, tmp_path):
         """Test parsing items with both category and tag metadata."""
@@ -150,13 +150,13 @@ This is the introduction.
 """)
         result = parser.parse_inventory(md_file)
 
-        container = result['containers'][0]
-        item = container['items'][0]
+        container = result["containers"][0]
+        item = container["items"][0]
 
         # Categories are stored as-is (no normalization)
-        assert item['metadata'].get('categories') == ['food/vegetables']
-        assert item['metadata'].get('tags') == ['condition:new', 'packaging:glass']
-        assert item['name'] == 'Organic potatoes'
+        assert item["metadata"].get("categories") == ["food/vegetables"]
+        assert item["metadata"].get("tags") == ["condition:new", "packaging:glass"]
+        assert item["name"] == "Organic potatoes"
 
 
 class TestExtractMetadata:
@@ -166,35 +166,35 @@ class TestExtractMetadata:
         """Test extracting a simple category."""
         result = parser.extract_metadata("category:food/vegetables Potatoes")
         # Categories are stored as-is (no normalization)
-        assert result['metadata'].get('categories') == ['food/vegetables']
-        assert result['name'] == 'Potatoes'
+        assert result["metadata"].get("categories") == ["food/vegetables"]
+        assert result["name"] == "Potatoes"
 
     def test_extract_multiple_categories(self):
         """Test extracting multiple categories."""
         result = parser.extract_metadata("category:food/vegetables,food/staples Potatoes")
         # Categories are stored as-is (no normalization)
-        assert result['metadata'].get('categories') == ['food/vegetables', 'food/staples']
-        assert result['name'] == 'Potatoes'
+        assert result["metadata"].get("categories") == ["food/vegetables", "food/staples"]
+        assert result["name"] == "Potatoes"
 
     def test_extract_category_and_tag(self):
         """Test extracting both category and tag."""
         result = parser.extract_metadata("category:tools/hand-tools tag:condition:new Hammer")
         # Categories are stored as-is (no normalization)
-        assert result['metadata'].get('categories') == ['tools/hand-tools']
-        assert result['metadata'].get('tags') == ['condition:new']
-        assert result['name'] == 'Hammer'
+        assert result["metadata"].get("categories") == ["tools/hand-tools"]
+        assert result["metadata"].get("tags") == ["condition:new"]
+        assert result["name"] == "Hammer"
 
     def test_extract_category_with_id(self):
         """Test extracting category with ID."""
         result = parser.extract_metadata("ID:item1 category:food/vegetables Potatoes")
-        assert result['metadata'].get('id') == 'item1'
+        assert result["metadata"].get("id") == "item1"
         # Categories are stored as-is (no normalization)
-        assert result['metadata'].get('categories') == ['food/vegetables']
-        assert result['name'] == 'Potatoes'
+        assert result["metadata"].get("categories") == ["food/vegetables"]
+        assert result["name"] == "Potatoes"
 
     def test_extract_no_category(self):
         """Test extracting without category."""
         result = parser.extract_metadata("tag:tools Hammer")
-        assert result['metadata'].get('categories') is None
-        assert result['metadata'].get('tags') == ['tools']
-        assert result['name'] == 'Hammer'
+        assert result["metadata"].get("categories") is None
+        assert result["metadata"].get("tags") == ["tools"]
+        assert result["name"] == "Hammer"

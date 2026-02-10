@@ -4,6 +4,7 @@ FastAPI server for inventory chatbot with Claude integration.
 
 Provides conversational interface for querying inventory.
 """
+
 import json
 import os
 import re
@@ -22,6 +23,7 @@ aliases: dict | None = None
 
 
 # --- Security helpers ---
+
 
 def sanitize_path_component(name: str, max_length: int = 100) -> str:
     """
@@ -44,13 +46,13 @@ def sanitize_path_component(name: str, max_length: int = 100) -> str:
         raise ValueError("Path component cannot be empty")
 
     # Remove path separators and null bytes
-    sanitized = re.sub(r'[/\\:\x00]', '', name)
+    sanitized = re.sub(r"[/\\:\x00]", "", name)
 
     # Remove parent directory references
-    sanitized = sanitized.replace('..', '')
+    sanitized = sanitized.replace("..", "")
 
     # Remove leading/trailing dots and spaces
-    sanitized = sanitized.strip('. ')
+    sanitized = sanitized.strip(". ")
 
     # Limit length
     sanitized = sanitized[:max_length]
@@ -59,8 +61,8 @@ def sanitize_path_component(name: str, max_length: int = 100) -> str:
         raise ValueError("Path component cannot be empty after sanitization")
 
     # Additional check: ensure it doesn't start with a dot (hidden file)
-    if sanitized.startswith('.'):
-        sanitized = sanitized.lstrip('.')
+    if sanitized.startswith("."):
+        sanitized = sanitized.lstrip(".")
 
     if not sanitized:
         raise ValueError("Invalid path component")
@@ -87,7 +89,7 @@ def validate_container_id(container_id: str) -> str:
         raise ValueError("Container ID cannot be empty")
 
     # Allow alphanumeric, hyphens, underscores
-    if not re.match(r'^[A-Za-z0-9_-]+$', container_id):
+    if not re.match(r"^[A-Za-z0-9_-]+$", container_id):
         raise ValueError(f"Invalid container ID: {container_id}")
 
     if len(container_id) > 50:
@@ -107,14 +109,14 @@ async def lifespan(app: FastAPI):
         print(f"⚠️  Warning: inventory.json not found at {inventory_path}")
         print("   Server will start but chatbot won't work until inventory.json is available")
     else:
-        with open(inventory_path, encoding='utf-8') as f:
+        with open(inventory_path, encoding="utf-8") as f:
             inventory_data = json.load(f)
         print(f"✅ Loaded inventory: {len(inventory_data.get('containers', []))} containers")
 
     # Load aliases
     aliases_path = Path.cwd() / "aliases.json"
     if aliases_path.exists():
-        with open(aliases_path, encoding='utf-8') as f:
+        with open(aliases_path, encoding="utf-8") as f:
             aliases = json.load(f)
         print(f"✅ Loaded {len(aliases)} search aliases")
     else:
@@ -150,6 +152,7 @@ app.add_middleware(
 
 class ChatMessage(BaseModel):
     """Chat message from user."""
+
     message: str
     conversation_id: str | None = None
     model: str = "claude-3-haiku-20240307"  # Default to cheapest model
@@ -157,6 +160,7 @@ class ChatMessage(BaseModel):
 
 class ChatResponse(BaseModel):
     """Chat response from Claude."""
+
     response: str
     conversation_id: str
 
@@ -171,11 +175,11 @@ INVENTORY_TOOLS = [
             "properties": {
                 "query": {
                     "type": "string",
-                    "description": "Search query - can be item name, container ID, tag, or description text"
+                    "description": "Search query - can be item name, container ID, tag, or description text",
                 }
             },
-            "required": ["query"]
-        }
+            "required": ["query"],
+        },
     },
     {
         "name": "get_container",
@@ -183,13 +187,10 @@ INVENTORY_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "container_id": {
-                    "type": "string",
-                    "description": "The container ID (e.g., 'A23', 'H11', 'Box5')"
-                }
+                "container_id": {"type": "string", "description": "The container ID (e.g., 'A23', 'H11', 'Box5')"}
             },
-            "required": ["container_id"]
-        }
+            "required": ["container_id"],
+        },
     },
     {
         "name": "list_containers",
@@ -197,21 +198,15 @@ INVENTORY_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "parent": {
-                    "type": "string",
-                    "description": "Filter by parent location (e.g., 'Garasje', 'Loft')"
-                },
+                "parent": {"type": "string", "description": "Filter by parent location (e.g., 'Garasje', 'Loft')"},
                 "tags": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Filter by tags (e.g., ['winter', 'sport'])"
+                    "description": "Filter by tags (e.g., ['winter', 'sport'])",
                 },
-                "prefix": {
-                    "type": "string",
-                    "description": "Filter by container ID prefix (e.g., 'A', 'H', 'C')"
-                }
-            }
-        }
+                "prefix": {"type": "string", "description": "Filter by container ID prefix (e.g., 'A', 'H', 'C')"},
+            },
+        },
     },
     {
         "name": "add_item",
@@ -221,19 +216,13 @@ INVENTORY_TOOLS = [
             "properties": {
                 "container_id": {
                     "type": "string",
-                    "description": "The container ID to add the item to (e.g., 'A23', 'H11')"
+                    "description": "The container ID to add the item to (e.g., 'A23', 'H11')",
                 },
-                "item_description": {
-                    "type": "string",
-                    "description": "Description of the item to add"
-                },
-                "tags": {
-                    "type": "string",
-                    "description": "Optional comma-separated tags (e.g., 'elektronikk,hjem')"
-                }
+                "item_description": {"type": "string", "description": "Description of the item to add"},
+                "tags": {"type": "string", "description": "Optional comma-separated tags (e.g., 'elektronikk,hjem')"},
             },
-            "required": ["container_id", "item_description"]
-        }
+            "required": ["container_id", "item_description"],
+        },
     },
     {
         "name": "remove_item",
@@ -241,17 +230,14 @@ INVENTORY_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "container_id": {
-                    "type": "string",
-                    "description": "The container ID to remove the item from"
-                },
+                "container_id": {"type": "string", "description": "The container ID to remove the item from"},
                 "item_description": {
                     "type": "string",
-                    "description": "Description of the item to remove (or part of it)"
-                }
+                    "description": "Description of the item to remove (or part of it)",
+                },
             },
-            "required": ["container_id", "item_description"]
-        }
+            "required": ["container_id", "item_description"],
+        },
     },
     {
         "name": "move_item",
@@ -261,23 +247,23 @@ INVENTORY_TOOLS = [
             "properties": {
                 "source_container_id": {
                     "type": "string",
-                    "description": "The container ID to move the item from (e.g., 'A23', 'H11')"
+                    "description": "The container ID to move the item from (e.g., 'A23', 'H11')",
                 },
                 "destination_container_id": {
                     "type": "string",
-                    "description": "The container ID to move the item to (e.g., 'B05', 'C12')"
+                    "description": "The container ID to move the item to (e.g., 'B05', 'C12')",
                 },
                 "item_description": {
                     "type": "string",
-                    "description": "Description of the item to move (or part of it)"
+                    "description": "Description of the item to move (or part of it)",
                 },
                 "tags": {
                     "type": "string",
-                    "description": "Optional comma-separated tags for the item in the new location"
-                }
+                    "description": "Optional comma-separated tags for the item in the new location",
+                },
             },
-            "required": ["source_container_id", "destination_container_id", "item_description"]
-        }
+            "required": ["source_container_id", "destination_container_id", "item_description"],
+        },
     },
     {
         "name": "add_todo",
@@ -287,17 +273,17 @@ INVENTORY_TOOLS = [
             "properties": {
                 "task_description": {
                     "type": "string",
-                    "description": "Detailed description of the task or change request"
+                    "description": "Detailed description of the task or change request",
                 },
                 "priority": {
                     "type": "string",
                     "description": "Priority level: low, medium, or high",
-                    "enum": ["low", "medium", "high"]
-                }
+                    "enum": ["low", "medium", "high"],
+                },
             },
-            "required": ["task_description"]
-        }
-    }
+            "required": ["task_description"],
+        },
+    },
 ]
 
 
@@ -324,25 +310,24 @@ def search_inventory(query: str) -> dict:
     # Expand query with aliases
     search_terms = expand_query_with_aliases(query)
 
-    results = {
-        "matching_containers": [],
-        "matching_items": []
-    }
+    results = {"matching_containers": [], "matching_items": []}
 
-    for container in inventory_data.get('containers', []):
+    for container in inventory_data.get("containers", []):
         container_match = False
 
         # Check container ID, heading, description with all search terms
         for term in search_terms:
-            if (term in container.get('id', '').lower() or
-                term in container.get('heading', '').lower() or
-                term in container.get('description', '').lower()):
+            if (
+                term in container.get("id", "").lower()
+                or term in container.get("heading", "").lower()
+                or term in container.get("description", "").lower()
+            ):
                 container_match = True
                 break
 
         # Check tags
-        if not container_match and container.get('metadata', {}).get('tags'):
-            for tag in container['metadata']['tags']:
+        if not container_match and container.get("metadata", {}).get("tags"):
+            for tag in container["metadata"]["tags"]:
                 for term in search_terms:
                     if term in tag.lower():
                         container_match = True
@@ -352,8 +337,8 @@ def search_inventory(query: str) -> dict:
 
         # Check items
         matching_items_in_container = []
-        for item in container.get('items', []):
-            item_text = item.get('name', '') or item.get('raw_text', '')
+        for item in container.get("items", []):
+            item_text = item.get("name", "") or item.get("raw_text", "")
             for term in search_terms:
                 if term in item_text.lower():
                     matching_items_in_container.append(item_text)
@@ -361,16 +346,18 @@ def search_inventory(query: str) -> dict:
                     break  # Don't add same item multiple times
 
         if container_match:
-            results['matching_containers'].append({
-                'id': container.get('id'),
-                'heading': container.get('heading'),
-                'parent': container.get('parent'),
-                'description': container.get('description'),
-                'tags': container.get('metadata', {}).get('tags', []),
-                'item_count': len(container.get('items', [])),
-                'image_count': len(container.get('images', [])),
-                'matching_items': matching_items_in_container[:5]  # Limit to 5
-            })
+            results["matching_containers"].append(
+                {
+                    "id": container.get("id"),
+                    "heading": container.get("heading"),
+                    "parent": container.get("parent"),
+                    "description": container.get("description"),
+                    "tags": container.get("metadata", {}).get("tags", []),
+                    "item_count": len(container.get("items", [])),
+                    "image_count": len(container.get("images", [])),
+                    "matching_items": matching_items_in_container[:5],  # Limit to 5
+                }
+            )
 
     return results
 
@@ -380,18 +367,18 @@ def get_container(container_id: str) -> dict:
     if not inventory_data:
         return {"error": "Inventory not loaded"}
 
-    for container in inventory_data.get('containers', []):
-        if container.get('id', '').lower() == container_id.lower():
+    for container in inventory_data.get("containers", []):
+        if container.get("id", "").lower() == container_id.lower():
             # Return full container info
             return {
-                'id': container.get('id'),
-                'heading': container.get('heading'),
-                'parent': container.get('parent'),
-                'description': container.get('description'),
-                'metadata': container.get('metadata', {}),
-                'items': [item.get('name') or item.get('raw_text') for item in container.get('items', [])],
-                'image_count': len(container.get('images', [])),
-                'images': container.get('images', [])[:3]  # First 3 images
+                "id": container.get("id"),
+                "heading": container.get("heading"),
+                "parent": container.get("parent"),
+                "description": container.get("description"),
+                "metadata": container.get("metadata", {}),
+                "items": [item.get("name") or item.get("raw_text") for item in container.get("items", [])],
+                "image_count": len(container.get("images", [])),
+                "images": container.get("images", [])[:3],  # First 3 images
             }
 
     return {"error": f"Container '{container_id}' not found"}
@@ -404,33 +391,35 @@ def list_containers(parent: str | None = None, tags: list | None = None, prefix:
 
     containers = []
 
-    for container in inventory_data.get('containers', []):
+    for container in inventory_data.get("containers", []):
         # Apply filters
         if parent:
-            container_parent = container.get('parent') or ''
+            container_parent = container.get("parent") or ""
             if container_parent.lower() != parent.lower():
                 continue
 
-        if prefix and not (container.get('id') or '').startswith(prefix):
+        if prefix and not (container.get("id") or "").startswith(prefix):
             continue
 
         if tags:
-            container_tags = container.get('metadata', {}).get('tags', [])
+            container_tags = container.get("metadata", {}).get("tags", [])
             if not any(tag.lower() in [t.lower() for t in container_tags] for tag in tags):
                 continue
 
-        containers.append({
-            'id': container.get('id'),
-            'heading': container.get('heading'),
-            'parent': container.get('parent'),
-            'tags': container.get('metadata', {}).get('tags', []),
-            'item_count': len(container.get('items', [])),
-            'image_count': len(container.get('images', []))
-        })
+        containers.append(
+            {
+                "id": container.get("id"),
+                "heading": container.get("heading"),
+                "parent": container.get("parent"),
+                "tags": container.get("metadata", {}).get("tags", []),
+                "item_count": len(container.get("items", [])),
+                "image_count": len(container.get("images", [])),
+            }
+        )
 
     return {
-        'count': len(containers),
-        'containers': containers[:50]  # Limit to 50
+        "count": len(containers),
+        "containers": containers[:50],  # Limit to 50
     }
 
 
@@ -442,7 +431,7 @@ def reload_inventory() -> bool:
         return False
 
     try:
-        with open(inventory_path, encoding='utf-8') as f:
+        with open(inventory_path, encoding="utf-8") as f:
             inventory_data = json.load(f)
         return True
     except Exception as e:
@@ -463,36 +452,28 @@ def git_pull() -> bool:
 
     try:
         inventory_dir = inventory_path.parent
-        safe_dir_option = ['-c', f'safe.directory={inventory_dir}']
+        safe_dir_option = ["-c", f"safe.directory={inventory_dir}"]
 
         # Check if there's a remote configured
-        result = subprocess.run(
-            ['git', *safe_dir_option, 'remote'],
-            cwd=inventory_dir,
-            capture_output=True
-        )
+        result = subprocess.run(["git", *safe_dir_option, "remote"], cwd=inventory_dir, capture_output=True)
 
         if not result.stdout.decode().strip():
             # No remote configured, nothing to pull
             return True
 
         # Pull latest changes
-        result = subprocess.run(
-            ['git', *safe_dir_option, 'pull', '--ff-only'],
-            cwd=inventory_dir,
-            capture_output=True
-        )
+        result = subprocess.run(["git", *safe_dir_option, "pull", "--ff-only"], cwd=inventory_dir, capture_output=True)
 
         if result.returncode == 0:
             stdout = result.stdout.decode().strip()
-            if 'Already up to date' not in stdout:
+            if "Already up to date" not in stdout:
                 print(f"✅ Git pull: {stdout}")
                 # Reload inventory after pull in case files changed
                 reload_inventory()
             return True
         else:
-            stderr = result.stderr.decode() if result.stderr else ''
-            if 'Not possible to fast-forward' in stderr or 'diverged' in stderr:
+            stderr = result.stderr.decode() if result.stderr else ""
+            if "Not possible to fast-forward" in stderr or "diverged" in stderr:
                 print("⚠️  Git pull failed: branches have diverged. Manual merge needed.")
             else:
                 print(f"⚠️  Git pull failed: {stderr.strip()}")
@@ -515,42 +496,36 @@ def git_commit(message: str) -> bool:
 
         # Build git command with safe.directory set inline (avoids modifying global config)
         # This allows the service user to operate on directories owned by other users
-        safe_dir_option = ['-c', f'safe.directory={inventory_dir}']
+        safe_dir_option = ["-c", f"safe.directory={inventory_dir}"]
 
         # Add changes (inventory.md, inventory.json, photo-listings/, resized/)
         # Note: photos/ is typically in .gitignore and should not be added
         subprocess.run(
-            ['git', *safe_dir_option, 'add', 'inventory.md', 'inventory.json', 'photo-listings/', 'resized/'],
+            ["git", *safe_dir_option, "add", "inventory.md", "inventory.json", "photo-listings/", "resized/"],
             cwd=inventory_dir,
             check=False,  # Don't fail if some files don't exist
-            capture_output=True
+            capture_output=True,
         )
 
         # Commit with message
         result = subprocess.run(
-            ['git', *safe_dir_option, 'commit', '-m', message],
-            cwd=inventory_dir,
-            capture_output=True
+            ["git", *safe_dir_option, "commit", "-m", message], cwd=inventory_dir, capture_output=True
         )
 
         if result.returncode == 0:
             print(f"✅ Git commit: {message}")
 
             # Try to push to remote
-            push_result = subprocess.run(
-                ['git', *safe_dir_option, 'push'],
-                cwd=inventory_dir,
-                capture_output=True
-            )
+            push_result = subprocess.run(["git", *safe_dir_option, "push"], cwd=inventory_dir, capture_output=True)
 
             if push_result.returncode == 0:
                 print("✅ Git push successful")
             else:
                 # Push failed - log but don't fail the operation
-                stderr = push_result.stderr.decode() if push_result.stderr else ''
-                if 'rejected' in stderr or 'non-fast-forward' in stderr:
+                stderr = push_result.stderr.decode() if push_result.stderr else ""
+                if "rejected" in stderr or "non-fast-forward" in stderr:
                     print("⚠️  Git push rejected - pull needed. Resolve conflicts on laptop.")
-                elif 'No configured push destination' in stderr or 'no upstream' in stderr:
+                elif "No configured push destination" in stderr or "no upstream" in stderr:
                     print("ℹ️  No git remote configured - commits are local only")
                 else:
                     print(f"ℹ️  Git push failed: {stderr.strip()}")
@@ -558,10 +533,10 @@ def git_commit(message: str) -> bool:
             return True
         else:
             # Check if it's just "nothing to commit"
-            stderr = result.stderr.decode() if result.stderr else ''
-            stdout = result.stdout.decode() if result.stdout else ''
+            stderr = result.stderr.decode() if result.stderr else ""
+            stdout = result.stdout.decode() if result.stdout else ""
             output = stderr + stdout
-            if 'nothing to commit' in output or 'no changes added' in output:
+            if "nothing to commit" in output or "no changes added" in output:
                 print("ℹ️  Git commit skipped: no changes")
                 return True  # Not an error
             else:
@@ -570,7 +545,7 @@ def git_commit(message: str) -> bool:
 
     except subprocess.CalledProcessError as e:
         # Should not happen since we use check=False, but keep for safety
-        stderr = e.stderr.decode() if e.stderr else 'unknown error'
+        stderr = e.stderr.decode() if e.stderr else "unknown error"
         print(f"ℹ️  Git commit skipped: {stderr}")
         return False
     except Exception as e:
@@ -592,16 +567,16 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
 
     try:
         # Read markdown file
-        with open(markdown_path, encoding='utf-8') as f:
+        with open(markdown_path, encoding="utf-8") as f:
             lines = f.readlines()
 
         # Find the parent container
         container_line_idx = None
         container_level = None
         for i, line in enumerate(lines):
-            if (line.startswith('# ') or line.startswith('## ')) and f'ID:{container_id}' in line:
+            if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
                 container_line_idx = i
-                container_level = '#' if line.startswith('# ') else '##'
+                container_level = "#" if line.startswith("# ") else "##"
                 break
 
         if container_line_idx is None:
@@ -614,17 +589,17 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
         # Look for parent as a heading first
         for i in range(container_line_idx + 1, len(lines)):
             # Stop at next heading of same or higher level
-            if container_level == '#' and lines[i].startswith('# '):
+            if container_level == "#" and lines[i].startswith("# "):
                 break
-            elif container_level == '##' and (lines[i].startswith('# ') or lines[i].startswith('## ')):
+            elif container_level == "##" and (lines[i].startswith("# ") or lines[i].startswith("## ")):
                 break
 
             # Check if this heading matches the parent item
-            if lines[i].startswith('## ') and parent_item.lower() in lines[i].lower():
+            if lines[i].startswith("## ") and parent_item.lower() in lines[i].lower():
                 parent_container_idx = i
                 # Extract ID from heading
-                if 'ID:' in lines[i]:
-                    parent_id = lines[i].split('ID:')[1].split()[0]
+                if "ID:" in lines[i]:
+                    parent_id = lines[i].split("ID:")[1].split()[0]
                 break
 
         # If parent not found as heading, look for it as a bullet item
@@ -632,12 +607,12 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
         if parent_container_idx is None:
             for i in range(container_line_idx + 1, len(lines)):
                 # Stop at next heading
-                if container_level == '#' and lines[i].startswith('# '):
+                if container_level == "#" and lines[i].startswith("# "):
                     break
-                elif container_level == '##' and (lines[i].startswith('# ') or lines[i].startswith('## ')):
+                elif container_level == "##" and (lines[i].startswith("# ") or lines[i].startswith("## ")):
                     break
 
-                if lines[i].startswith('* ') and parent_item.lower() in lines[i].lower():
+                if lines[i].startswith("* ") and parent_item.lower() in lines[i].lower():
                     parent_bullet_idx = i
                     break
 
@@ -647,11 +622,7 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
             result = add_item_to_container(parent_id, child_description, None)
             if "error" in result:
                 return result
-            return {
-                "success": True,
-                "message": f"Added child '{child_description}' to {parent_id}",
-                "promoted": False
-            }
+            return {"success": True, "message": f"Added child '{child_description}' to {parent_id}", "promoted": False}
 
         # Case 2: Parent is a bullet item - need to promote it
         if parent_bullet_idx is not None:
@@ -659,21 +630,22 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
             parent_text = lines[parent_bullet_idx].strip()[2:]  # Remove "* "
 
             # Try to extract ID from the item text (e.g., "ID:D01 - description")
-            if 'ID:' in parent_text or 'id:' in parent_text.lower():
+            if "ID:" in parent_text or "id:" in parent_text.lower():
                 # Extract ID
                 import re
-                match = re.search(r'[Ii][Dd]:(\S+)', parent_text)
+
+                match = re.search(r"[Ii][Dd]:(\S+)", parent_text)
                 if match:
                     parent_id = match.group(1)
                     # Remove ID: prefix from description
-                    parent_desc = re.sub(r'[Ii][Dd]:\S+\s*-?\s*', '', parent_text).strip()
+                    parent_desc = re.sub(r"[Ii][Dd]:\S+\s*-?\s*", "", parent_text).strip()
                 else:
                     # Generate ID from first word
-                    parent_id = parent_text.split()[0] if parent_text else 'Item'
+                    parent_id = parent_text.split()[0] if parent_text else "Item"
                     parent_desc = parent_text
             else:
                 # Generate ID from first word or first few characters
-                parent_id = parent_text.split()[0][:10] if parent_text else 'Item'
+                parent_id = parent_text.split()[0][:10] if parent_text else "Item"
                 parent_desc = parent_text
 
             # Create new heading for promoted parent
@@ -687,11 +659,12 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
             lines.insert(parent_bullet_idx + 3, "\n")
 
             # Write back
-            with open(markdown_path, 'w', encoding='utf-8') as f:
+            with open(markdown_path, "w", encoding="utf-8") as f:
                 f.writelines(lines)
 
             # Regenerate JSON and photo listings
             from inventory_md import parser
+
             data = parser.parse_inventory(markdown_path)
             parser.save_json(data, inventory_path)
             parser.generate_photo_listings(markdown_path.parent)
@@ -706,7 +679,7 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
                 "success": True,
                 "message": f"Promoted '{parent_item}' to container {parent_id} and added child",
                 "promoted": True,
-                "container_id": parent_id
+                "container_id": parent_id,
             }
 
         return {"error": f"Parent item '{parent_item}' not found in container {container_id}"}
@@ -729,13 +702,13 @@ def add_item_to_container(container_id: str, item_description: str, tags: str | 
 
     try:
         # Read markdown file
-        with open(markdown_path, encoding='utf-8') as f:
+        with open(markdown_path, encoding="utf-8") as f:
             lines = f.readlines()
 
         # Find the container (can be # or ## heading)
         container_line_idx = None
         for i, line in enumerate(lines):
-            if (line.startswith('# ') or line.startswith('## ')) and f'ID:{container_id}' in line:
+            if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
                 container_line_idx = i
                 break
 
@@ -746,8 +719,9 @@ def add_item_to_container(container_id: str, item_description: str, tags: str | 
         insert_idx = container_line_idx + 1
 
         # Skip blank lines and description
-        while insert_idx < len(lines) and (lines[insert_idx].strip() == '' or
-                                           not lines[insert_idx].startswith(('*', '#'))):
+        while insert_idx < len(lines) and (
+            lines[insert_idx].strip() == "" or not lines[insert_idx].startswith(("*", "#"))
+        ):
             insert_idx += 1
 
         # Create the item line
@@ -760,11 +734,12 @@ def add_item_to_container(container_id: str, item_description: str, tags: str | 
         lines.insert(insert_idx, item_line)
 
         # Write back to file
-        with open(markdown_path, 'w', encoding='utf-8') as f:
+        with open(markdown_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
 
         # Regenerate JSON and photo listings
         from inventory_md import parser
+
         data = parser.parse_inventory(markdown_path)
         parser.save_json(data, inventory_path)
         parser.generate_photo_listings(markdown_path.parent)
@@ -779,7 +754,7 @@ def add_item_to_container(container_id: str, item_description: str, tags: str | 
             "success": True,
             "message": f"Added '{item_description}' to container {container_id}",
             "container_id": container_id,
-            "item": item_description
+            "item": item_description,
         }
 
     except Exception as e:
@@ -800,16 +775,16 @@ def remove_container(container_id: str) -> dict:
 
     try:
         # Read markdown file
-        with open(markdown_path, encoding='utf-8') as f:
+        with open(markdown_path, encoding="utf-8") as f:
             lines = f.readlines()
 
         # Find the container section (can be # or ## heading)
         container_start_idx = None
         container_level = None
         for i, line in enumerate(lines):
-            if (line.startswith('# ') or line.startswith('## ')) and f'ID:{container_id}' in line:
+            if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
                 container_start_idx = i
-                container_level = '#' if line.startswith('# ') else '##'
+                container_level = "#" if line.startswith("# ") else "##"
                 break
 
         if container_start_idx is None:
@@ -818,10 +793,10 @@ def remove_container(container_id: str) -> dict:
         # Find the end of this container (next heading of same or higher level, or end of file)
         container_end_idx = len(lines)
         for i in range(container_start_idx + 1, len(lines)):
-            if container_level == '#' and lines[i].startswith('# '):
+            if container_level == "#" and lines[i].startswith("# "):
                 container_end_idx = i
                 break
-            elif container_level == '##' and (lines[i].startswith('# ') or lines[i].startswith('## ')):
+            elif container_level == "##" and (lines[i].startswith("# ") or lines[i].startswith("## ")):
                 container_end_idx = i
                 break
 
@@ -829,11 +804,12 @@ def remove_container(container_id: str) -> dict:
         del lines[container_start_idx:container_end_idx]
 
         # Write back
-        with open(markdown_path, 'w', encoding='utf-8') as f:
+        with open(markdown_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
 
         # Regenerate JSON and photo listings
         from inventory_md import parser
+
         data = parser.parse_inventory(markdown_path)
         parser.save_json(data, inventory_path)
         parser.generate_photo_listings(markdown_path.parent)
@@ -844,11 +820,7 @@ def remove_container(container_id: str) -> dict:
         # Git commit
         git_commit(f"Remove container {container_id}")
 
-        return {
-            "success": True,
-            "message": f"Removed container {container_id}",
-            "container_id": container_id
-        }
+        return {"success": True, "message": f"Removed container {container_id}", "container_id": container_id}
 
     except Exception as e:
         return {"error": f"Failed to remove container: {str(e)}"}
@@ -868,16 +840,16 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
 
     try:
         # Read markdown file
-        with open(markdown_path, encoding='utf-8') as f:
+        with open(markdown_path, encoding="utf-8") as f:
             lines = f.readlines()
 
         # Find the container section (can be # or ## heading)
         container_line_idx = None
         container_level = None
         for i, line in enumerate(lines):
-            if (line.startswith('# ') or line.startswith('## ')) and f'ID:{container_id}' in line:
+            if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
                 container_line_idx = i
-                container_level = '#' if line.startswith('# ') else '##'
+                container_level = "#" if line.startswith("# ") else "##"
                 break
 
         if container_line_idx is None:
@@ -888,12 +860,12 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
         i = container_line_idx + 1
         while i < len(lines):
             # Stop at next heading of same or higher level
-            if container_level == '#' and lines[i].startswith('# '):
+            if container_level == "#" and lines[i].startswith("# "):
                 break
-            elif container_level == '##' and (lines[i].startswith('# ') or lines[i].startswith('## ')):
+            elif container_level == "##" and (lines[i].startswith("# ") or lines[i].startswith("## ")):
                 break
 
-            if lines[i].startswith('* ') and item_description.lower() in lines[i].lower():
+            if lines[i].startswith("* ") and item_description.lower() in lines[i].lower():
                 # Save the actual item text (strip the "* " prefix and newline)
                 removed_item_text = lines[i][2:].strip()
                 del lines[i]
@@ -904,11 +876,12 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
             return {"error": f"Item '{item_description}' not found in container {container_id}"}
 
         # Write back
-        with open(markdown_path, 'w', encoding='utf-8') as f:
+        with open(markdown_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
 
         # Regenerate JSON and photo listings
         from inventory_md import parser
+
         data = parser.parse_inventory(markdown_path)
         parser.save_json(data, inventory_path)
         parser.generate_photo_listings(markdown_path.parent)
@@ -923,7 +896,7 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
             "success": True,
             "message": f"Removed '{removed_item_text}' from container {container_id}",
             "container_id": container_id,
-            "removed_item": removed_item_text
+            "removed_item": removed_item_text,
         }
 
     except Exception as e:
@@ -943,28 +916,25 @@ def add_todo(task_description: str, priority: str = "medium") -> dict:
     try:
         # Read existing TODO.md or create new one
         if todo_path.exists():
-            with open(todo_path, encoding='utf-8') as f:
+            with open(todo_path, encoding="utf-8") as f:
                 content = f.read()
         else:
             content = "# TODO\n\nInventory change requests and tasks.\n\n"
 
         # Add timestamp
         from datetime import datetime
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
         # Format priority marker
-        priority_marker = {
-            "high": "🔴",
-            "medium": "🟡",
-            "low": "🟢"
-        }.get(priority, "🟡")
+        priority_marker = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(priority, "🟡")
 
         # Append new task
         new_task = f"\n## {priority_marker} {timestamp}\n\n{task_description}\n"
         content += new_task
 
         # Write back
-        with open(todo_path, 'w', encoding='utf-8') as f:
+        with open(todo_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         # Commit to git
@@ -973,14 +943,16 @@ def add_todo(task_description: str, priority: str = "medium") -> dict:
         return {
             "success": True,
             "message": f"Added task to TODO.md with priority: {priority} (committed to git)",
-            "task": task_description
+            "task": task_description,
         }
 
     except Exception as e:
         return {"error": f"Failed to add TODO: {str(e)}"}
 
 
-def move_item(source_container_id: str, destination_container_id: str, item_description: str, tags: str | None = None) -> dict:
+def move_item(
+    source_container_id: str, destination_container_id: str, item_description: str, tags: str | None = None
+) -> dict:
     """Move an item from one container to another."""
     # First, remove from source
     remove_result = remove_item_from_container(source_container_id, item_description)
@@ -996,53 +968,51 @@ def move_item(source_container_id: str, destination_container_id: str, item_desc
         # Try to restore the item to the source container
         restore_result = add_item_to_container(source_container_id, removed_item, None)
         if "error" in restore_result:
-            return {"error": f"Failed to add item to {destination_container_id} and could not restore: {add_result['error']}"}
-        return {"error": f"Failed to add item to {destination_container_id}, restored to {source_container_id}: {add_result['error']}"}
+            return {
+                "error": f"Failed to add item to {destination_container_id} and could not restore: {add_result['error']}"
+            }
+        return {
+            "error": f"Failed to add item to {destination_container_id}, restored to {source_container_id}: {add_result['error']}"
+        }
 
     return {
         "success": True,
         "message": f"Moved '{removed_item}' from {source_container_id} to {destination_container_id}",
         "source": source_container_id,
         "destination": destination_container_id,
-        "item": removed_item
+        "item": removed_item,
     }
 
 
 def execute_tool(tool_name: str, tool_input: dict) -> dict:
     """Execute a tool and return results."""
     if tool_name == "search_inventory":
-        return search_inventory(tool_input['query'])
+        return search_inventory(tool_input["query"])
     elif tool_name == "get_container":
-        return get_container(tool_input['container_id'])
+        return get_container(tool_input["container_id"])
     elif tool_name == "list_containers":
         return list_containers(
-            parent=tool_input.get('parent'),
-            tags=tool_input.get('tags'),
-            prefix=tool_input.get('prefix')
+            parent=tool_input.get("parent"), tags=tool_input.get("tags"), prefix=tool_input.get("prefix")
         )
     elif tool_name == "add_item":
         return add_item_to_container(
-            container_id=tool_input['container_id'],
-            item_description=tool_input['item_description'],
-            tags=tool_input.get('tags')
+            container_id=tool_input["container_id"],
+            item_description=tool_input["item_description"],
+            tags=tool_input.get("tags"),
         )
     elif tool_name == "remove_item":
         return remove_item_from_container(
-            container_id=tool_input['container_id'],
-            item_description=tool_input['item_description']
+            container_id=tool_input["container_id"], item_description=tool_input["item_description"]
         )
     elif tool_name == "move_item":
         return move_item(
-            source_container_id=tool_input['source_container_id'],
-            destination_container_id=tool_input['destination_container_id'],
-            item_description=tool_input['item_description'],
-            tags=tool_input.get('tags')
+            source_container_id=tool_input["source_container_id"],
+            destination_container_id=tool_input["destination_container_id"],
+            item_description=tool_input["item_description"],
+            tags=tool_input.get("tags"),
         )
     elif tool_name == "add_todo":
-        return add_todo(
-            task_description=tool_input['task_description'],
-            priority=tool_input.get('priority', 'medium')
-        )
+        return add_todo(task_description=tool_input["task_description"], priority=tool_input.get("priority", "medium"))
     else:
         return {"error": f"Unknown tool: {tool_name}"}
 
@@ -1054,15 +1024,11 @@ async def chat(message: ChatMessage) -> ChatResponse:
     # Check for API key
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise HTTPException(
-            status_code=500,
-            detail="ANTHROPIC_API_KEY environment variable not set"
-        )
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY environment variable not set")
 
     if not inventory_data:
         raise HTTPException(
-            status_code=500,
-            detail="Inventory data not loaded. Ensure inventory.json exists in the current directory."
+            status_code=500, detail="Inventory data not loaded. Ensure inventory.json exists in the current directory."
         )
 
     # Initialize Claude client (lazy import)
@@ -1070,15 +1036,14 @@ async def chat(message: ChatMessage) -> ChatResponse:
         import anthropic
     except ImportError:
         raise HTTPException(
-            status_code=500,
-            detail="anthropic package not installed. Install with: pip install inventory-md[chat]"
+            status_code=500, detail="anthropic package not installed. Install with: pip install inventory-md[chat]"
         ) from None
     client = anthropic.Anthropic(api_key=api_key)
 
     # System prompt with inventory context
     system_prompt = f"""You are a helpful assistant for managing a personal inventory system.
 
-The inventory contains {len(inventory_data.get('containers', []))} containers with various items stored in them.
+The inventory contains {len(inventory_data.get("containers", []))} containers with various items stored in them.
 
 You have access to tools to:
 - Search and query the inventory
@@ -1127,11 +1092,7 @@ Important notes:
 
     # Initial API call (use model from request)
     response = client.messages.create(
-        model=message.model,
-        max_tokens=4096,
-        tools=INVENTORY_TOOLS,
-        system=system_prompt,
-        messages=messages
+        model=message.model, max_tokens=4096, tools=INVENTORY_TOOLS, system=system_prompt, messages=messages
     )
 
     # Handle tool use loop
@@ -1142,11 +1103,9 @@ Important notes:
         for block in response.content:
             if block.type == "tool_use":
                 tool_result = execute_tool(block.name, block.input)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": json.dumps(tool_result)
-                })
+                tool_results.append(
+                    {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(tool_result)}
+                )
 
         # Add assistant response and tool results to messages
         messages.append({"role": "assistant", "content": response.content})
@@ -1154,11 +1113,7 @@ Important notes:
 
         # Continue conversation
         response = client.messages.create(
-            model=message.model,
-            max_tokens=4096,
-            tools=INVENTORY_TOOLS,
-            system=system_prompt,
-            messages=messages
+            model=message.model, max_tokens=4096, tools=INVENTORY_TOOLS, system=system_prompt, messages=messages
         )
 
     # Extract final text response
@@ -1167,10 +1122,7 @@ Important notes:
         if hasattr(block, "text"):
             final_response += block.text
 
-    return ChatResponse(
-        response=final_response,
-        conversation_id=message.conversation_id or "default"
-    )
+    return ChatResponse(response=final_response, conversation_id=message.conversation_id or "default")
 
 
 @app.get("/api/containers")
@@ -1179,13 +1131,12 @@ async def list_containers_api() -> dict:
     if not inventory_data:
         raise HTTPException(status_code=500, detail="Inventory not loaded")
 
-    containers = [{
-        'id': c['id'],
-        'heading': c.get('heading', ''),
-        'parent': c.get('parent', '')
-    } for c in inventory_data.get('containers', [])]
+    containers = [
+        {"id": c["id"], "heading": c.get("heading", ""), "parent": c.get("parent", "")}
+        for c in inventory_data.get("containers", [])
+    ]
 
-    return {"containers": sorted(containers, key=lambda x: x['id'])}
+    return {"containers": sorted(containers, key=lambda x: x["id"])}
 
 
 @app.post("/api/items")
@@ -1212,7 +1163,9 @@ async def add_item_api(container_id: str = Form(...), item_description: str = Fo
 
 
 @app.post("/api/items/add-child")
-async def add_child_item_api(container_id: str = Form(...), parent_item: str = Form(...), child_description: str = Form(...)) -> dict:
+async def add_child_item_api(
+    container_id: str = Form(...), parent_item: str = Form(...), child_description: str = Form(...)
+) -> dict:
     """Add a child item to a parent item (promotes parent to container if needed)."""
     # Validate container_id
     try:
@@ -1293,7 +1246,7 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
         raise HTTPException(status_code=400, detail=f"Invalid filename: {e}") from None
 
     # Validate file type
-    allowed_extensions = {'.jpg', '.jpeg', '.png', '.gif'}
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".gif"}
     file_ext = Path(safe_filename).suffix.lower()
     if file_ext not in allowed_extensions:
         raise HTTPException(status_code=400, detail="Invalid file type. Only images allowed.")
@@ -1305,7 +1258,7 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
     # Save photo with sanitized filename
     photo_path = photos_dir / safe_filename
     try:
-        with open(photo_path, 'wb') as f:
+        with open(photo_path, "wb") as f:
             shutil.copyfileobj(photo.file, f)
     except PermissionError:
         raise HTTPException(status_code=500, detail="Permission denied writing photo") from None
@@ -1314,6 +1267,7 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
 
     # Regenerate inventory to discover new photo
     from inventory_md import parser
+
     markdown_path = inventory_path.parent / "inventory.md"
     data = parser.parse_inventory(markdown_path)
     parser.save_json(data, inventory_path)
@@ -1328,7 +1282,7 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
     return {
         "success": True,
         "message": f"Photo {safe_filename} uploaded to {safe_container_id}",
-        "photo_path": f"photos/{safe_container_id}/{safe_filename}"
+        "photo_path": f"photos/{safe_container_id}/{safe_filename}",
     }
 
 
@@ -1338,8 +1292,8 @@ async def health() -> dict:
     return {
         "status": "ok",
         "inventory_loaded": inventory_data is not None,
-        "container_count": len(inventory_data.get('containers', [])) if inventory_data else 0,
-        "chat_available": bool(os.environ.get("ANTHROPIC_API_KEY"))
+        "container_count": len(inventory_data.get("containers", [])) if inventory_data else 0,
+        "chat_available": bool(os.environ.get("ANTHROPIC_API_KEY")),
     }
 
 

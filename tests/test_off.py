@@ -1,4 +1,5 @@
 """Tests for Open Food Facts taxonomy client."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -291,9 +292,7 @@ class TestRootMapping:
         paths, uri_map, _raw = off_client.build_paths_to_root("en:condiments", lang="en")
         assert paths, "Should have paths for condiments"
         # "food" should NOT be in uri_map (it's a synthetic mapped root)
-        assert "food" not in uri_map, (
-            f"Mapped root 'food' should not have OFF URI, got: {uri_map.get('food')}"
-        )
+        assert "food" not in uri_map, f"Mapped root 'food' should not have OFF URI, got: {uri_map.get('food')}"
 
 
 class TestGenerateVariations:

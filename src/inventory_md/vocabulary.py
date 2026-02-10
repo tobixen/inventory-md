@@ -30,6 +30,7 @@ Local vocabulary format (local-vocabulary.yaml):
         uri: "http://dbpedia.org/resource/Hermetic_seal"
         # source is always "local" unless explicitly overridden
 """
+
 from __future__ import annotations
 
 import importlib.resources
@@ -42,6 +43,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from . import skos
+
     SKOSClient = skos.SKOSClient
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,7 @@ VIRTUAL_ROOT_ID = "_root"
 # =============================================================================
 # VOCABULARY FILE DISCOVERY
 # =============================================================================
+
 
 def _get_package_data_dir() -> Path | None:
     """Get the package data directory containing the default vocabulary.
@@ -91,8 +94,7 @@ def find_vocabulary_files() -> list[Path]:
     """
     found_files: list[Path] = []
     vocab_filenames = ["vocabulary.yaml", "vocabulary.yml", "vocabulary.json"]
-    local_vocab_filenames = ["local-vocabulary.yaml", "local-vocabulary.yml",
-                             "local-vocabulary.json", *vocab_filenames]
+    local_vocab_filenames = ["local-vocabulary.yaml", "local-vocabulary.yml", "local-vocabulary.json", *vocab_filenames]
 
     # 1. Package default vocabulary (lowest priority)
     pkg_data = _get_package_data_dir()
@@ -161,8 +163,7 @@ def load_global_vocabulary() -> dict[str, Concept]:
         except Exception as e:
             logger.warning("Failed to load vocabulary from %s: %s", vocab_path, e)
 
-    logger.info("Total vocabulary: %d concepts from %d files",
-                len(merged), len(find_vocabulary_files()))
+    logger.info("Total vocabulary: %d concepts from %d files", len(merged), len(find_vocabulary_files()))
     return merged
 
 
@@ -339,9 +340,7 @@ class CategoryTree:
         }
 
 
-def load_local_vocabulary(
-    path: Path, default_source: str = "local"
-) -> dict[str, Concept]:
+def load_local_vocabulary(path: Path, default_source: str = "local") -> dict[str, Concept]:
     """Load local vocabulary from YAML or JSON file.
 
     Args:
@@ -362,8 +361,7 @@ def load_local_vocabulary(
                 import yaml
             except ImportError as e:
                 raise ImportError(
-                    "PyYAML required for .yaml vocabulary files. "
-                    "Install with: pip install inventory-md[yaml]"
+                    "PyYAML required for .yaml vocabulary files. Install with: pip install inventory-md[yaml]"
                 ) from e
             with open(path, encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
@@ -419,9 +417,7 @@ def load_local_vocabulary(
     return concepts
 
 
-def merge_vocabularies(
-    local: dict[str, Concept], skos_concepts: dict[str, Concept]
-) -> dict[str, Concept]:
+def merge_vocabularies(local: dict[str, Concept], skos_concepts: dict[str, Concept]) -> dict[str, Concept]:
     """Merge local vocabulary with SKOS concepts.
 
     Local vocabulary takes precedence over SKOS concepts.
@@ -553,9 +549,7 @@ def _infer_hierarchy(concepts: dict[str, Concept]) -> None:
                     parent.narrower.append(concept_id)
 
 
-def build_category_tree(
-    vocabulary: dict[str, Concept], infer_hierarchy: bool = True
-) -> CategoryTree:
+def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = True) -> CategoryTree:
     """Build a category tree structure for the UI.
 
     Args:
@@ -566,20 +560,23 @@ def build_category_tree(
         CategoryTree with roots and label index.
     """
     # Make a copy to avoid modifying the original
-    concepts = {k: Concept(
-        id=v.id,
-        prefLabel=v.prefLabel,
-        altLabels=v.altLabels.copy(),
-        broader=v.broader.copy(),
-        narrower=v.narrower.copy(),
-        source=v.source,
-        uri=v.uri,
-        labels=v.labels.copy() if v.labels else {},
-        description=v.description,
-        wikipediaUrl=v.wikipediaUrl,
-        descriptions=v.descriptions.copy() if v.descriptions else {},
-        source_uris=v.source_uris.copy() if v.source_uris else {},
-    ) for k, v in vocabulary.items()}
+    concepts = {
+        k: Concept(
+            id=v.id,
+            prefLabel=v.prefLabel,
+            altLabels=v.altLabels.copy(),
+            broader=v.broader.copy(),
+            narrower=v.narrower.copy(),
+            source=v.source,
+            uri=v.uri,
+            labels=v.labels.copy() if v.labels else {},
+            description=v.description,
+            wikipediaUrl=v.wikipediaUrl,
+            descriptions=v.descriptions.copy() if v.descriptions else {},
+            source_uris=v.source_uris.copy() if v.source_uris else {},
+        )
+        for k, v in vocabulary.items()
+    }
 
     if infer_hierarchy:
         _infer_hierarchy(concepts)
@@ -592,8 +589,7 @@ def build_category_tree(
         del concepts[VIRTUAL_ROOT_ID]
     else:
         # Fallback: infer roots from concepts with no broader and no "/"
-        roots = [cid for cid, c in concepts.items()
-                 if "/" not in cid and not c.broader]
+        roots = [cid for cid, c in concepts.items() if "/" not in cid and not c.broader]
         roots.sort(key=lambda x: concepts[x].prefLabel.lower())
 
     # Build label index
@@ -656,20 +652,106 @@ def build_vocabulary_from_inventory(
 
 # Terms that are clearly food/agriculture related - use AGROVOC for these
 _FOOD_TERMS = {
-    "food", "vegetable", "vegetables", "fruit", "fruits", "meat", "fish",
-    "grain", "grains", "cereal", "cereals", "dairy", "spice", "spices",
-    "herb", "herbs", "potato", "potatoes", "carrot", "carrots", "onion",
-    "onions", "tomato", "tomatoes", "apple", "apples", "banana", "bananas",
-    "rice", "wheat", "corn", "maize", "bean", "beans", "pea", "peas",
-    "lentil", "lentils", "nut", "nuts", "seed", "seeds", "oil", "oils",
-    "sugar", "salt", "pepper", "garlic", "ginger", "cinnamon", "flour",
-    "bread", "pasta", "noodle", "noodles", "cheese", "milk", "butter",
-    "egg", "eggs", "chicken", "beef", "pork", "lamb", "salmon", "tuna",
-    "shrimp", "crab", "lobster", "oyster", "mussel", "clam", "squid",
-    "wine", "beer", "coffee", "tea", "juice", "water", "soda", "alcohol",
-    "honey", "jam", "jelly", "syrup", "sauce", "vinegar", "mustard",
-    "ketchup", "mayonnaise", "olive", "olives", "pickle", "pickles",
-    "canned", "frozen", "dried", "fresh", "organic", "preserves",
+    "food",
+    "vegetable",
+    "vegetables",
+    "fruit",
+    "fruits",
+    "meat",
+    "fish",
+    "grain",
+    "grains",
+    "cereal",
+    "cereals",
+    "dairy",
+    "spice",
+    "spices",
+    "herb",
+    "herbs",
+    "potato",
+    "potatoes",
+    "carrot",
+    "carrots",
+    "onion",
+    "onions",
+    "tomato",
+    "tomatoes",
+    "apple",
+    "apples",
+    "banana",
+    "bananas",
+    "rice",
+    "wheat",
+    "corn",
+    "maize",
+    "bean",
+    "beans",
+    "pea",
+    "peas",
+    "lentil",
+    "lentils",
+    "nut",
+    "nuts",
+    "seed",
+    "seeds",
+    "oil",
+    "oils",
+    "sugar",
+    "salt",
+    "pepper",
+    "garlic",
+    "ginger",
+    "cinnamon",
+    "flour",
+    "bread",
+    "pasta",
+    "noodle",
+    "noodles",
+    "cheese",
+    "milk",
+    "butter",
+    "egg",
+    "eggs",
+    "chicken",
+    "beef",
+    "pork",
+    "lamb",
+    "salmon",
+    "tuna",
+    "shrimp",
+    "crab",
+    "lobster",
+    "oyster",
+    "mussel",
+    "clam",
+    "squid",
+    "wine",
+    "beer",
+    "coffee",
+    "tea",
+    "juice",
+    "water",
+    "soda",
+    "alcohol",
+    "honey",
+    "jam",
+    "jelly",
+    "syrup",
+    "sauce",
+    "vinegar",
+    "mustard",
+    "ketchup",
+    "mayonnaise",
+    "olive",
+    "olives",
+    "pickle",
+    "pickles",
+    "canned",
+    "frozen",
+    "dried",
+    "fresh",
+    "organic",
+    "preserves",
 }
 
 
@@ -694,27 +776,43 @@ def _normalize_to_singular(word: str) -> str:
         return word
 
     # Exceptions - words that shouldn't be modified
-    exceptions = {'series', 'species', 'shoes', 'canoes', 'tiptoes', 'glasses',
-                  'clothes', 'scissors', 'trousers', 'pants', 'shorts', 'news',
-                  'mathematics', 'physics', 'economics', 'politics', 'athletics'}
+    exceptions = {
+        "series",
+        "species",
+        "shoes",
+        "canoes",
+        "tiptoes",
+        "glasses",
+        "clothes",
+        "scissors",
+        "trousers",
+        "pants",
+        "shorts",
+        "news",
+        "mathematics",
+        "physics",
+        "economics",
+        "politics",
+        "athletics",
+    }
     if w in exceptions:
         return word
 
     # Words ending in 'ies' -> 'y' (berries -> berry)
-    if w.endswith('ies') and len(w) > 4:
-        return word[:-3] + 'y'
+    if w.endswith("ies") and len(w) > 4:
+        return word[:-3] + "y"
 
     # Words ending in 'es' after s/x/z/ch/sh -> remove 'es'
-    if w.endswith('es') and len(w) > 3:
+    if w.endswith("es") and len(w) > 3:
         stem = w[:-2]
-        if stem.endswith(('s', 'x', 'z', 'ch', 'sh')):
+        if stem.endswith(("s", "x", "z", "ch", "sh")):
             return word[:-2]
         # Words ending in 'oes' -> 'o' (potatoes -> potato)
-        if w.endswith('oes') and len(w) > 4:
+        if w.endswith("oes") and len(w) > 4:
             return word[:-2]
 
     # Regular plurals ending in 's' (but not 'ss', 'us', 'is')
-    if w.endswith('s') and not w.endswith(('ss', 'us', 'is', 'ous', 'ness', 'ics')):
+    if w.endswith("s") and not w.endswith(("ss", "us", "is", "ous", "ness", "ics")):
         return word[:-1]
 
     return word
@@ -755,7 +853,7 @@ def _resolve_broader_chain(
     if concept_id.startswith(parent_ref + "/"):
         resolved_parent = _resolve_broader_chain(parent_ref, local_vocab, _visited)
         if resolved_parent != parent_ref:
-            suffix = concept_id[len(parent_ref):]
+            suffix = concept_id[len(parent_ref) :]
             return resolved_parent + suffix
         return concept_id
 
@@ -839,8 +937,7 @@ def _enrich_with_skos(
         # Skip if already in vocabulary with a SKOS source (not "inventory")
         # We still want to look up labels that only exist from path expansion
         existing_with_skos = any(
-            c.prefLabel.lower() == label.lower() and c.source != "inventory"
-            for c in concepts.values()
+            c.prefLabel.lower() == label.lower() and c.source != "inventory" for c in concepts.values()
         )
         if existing_with_skos:
             continue
@@ -859,8 +956,9 @@ def _enrich_with_skos(
             pref = concept_data.get("prefLabel", "").lower()
             # If AGROVOC's prefLabel is very different from search term, try DBpedia
             if pref and label.lower() not in pref and pref not in label.lower():
-                logger.debug("AGROVOC mismatch: searched '%s', got '%s' - trying DBpedia",
-                            label, concept_data.get("prefLabel"))
+                logger.debug(
+                    "AGROVOC mismatch: searched '%s', got '%s' - trying DBpedia", label, concept_data.get("prefLabel")
+                )
                 alt_data = client.lookup_concept(label, lang=lang, source="dbpedia")
                 if alt_data and alt_data.get("uri"):
                     # Check if DBpedia's label is closer match
@@ -938,8 +1036,9 @@ def _enrich_with_skos(
                     uris_to_fetch.append((concept.uri, concept.source))
 
             if uris_to_fetch:
-                logger.info("Fetching translations for %d concepts in %d languages...",
-                           len(uris_to_fetch), len(other_langs))
+                logger.info(
+                    "Fetching translations for %d concepts in %d languages...", len(uris_to_fetch), len(other_langs)
+                )
 
                 # Batch fetch all translations
                 all_translations = client.get_batch_labels(uris_to_fetch, other_langs)
@@ -1005,9 +1104,7 @@ def save_vocabulary_json(
         json.dump(output_data, f, ensure_ascii=False, indent=2)
 
 
-def count_items_per_category(
-    inventory_data: dict[str, Any]
-) -> dict[str, int]:
+def count_items_per_category(inventory_data: dict[str, Any]) -> dict[str, int]:
     """Count items in each category (including items in child categories).
 
     Args:
@@ -1110,24 +1207,24 @@ def _find_agrovoc_uri(label: str, store) -> str | None:
     variations = [base]
 
     # Add plural variation
-    if not base.endswith('s'):
-        if base.endswith('y') and len(base) > 2 and base[-2] not in 'aeiou':
-            variations.append(base[:-1] + 'ies')  # berry -> berries
-        elif base.endswith(('s', 'x', 'z', 'ch', 'sh', 'o')):
-            variations.append(base + 'es')  # box -> boxes
+    if not base.endswith("s"):
+        if base.endswith("y") and len(base) > 2 and base[-2] not in "aeiou":
+            variations.append(base[:-1] + "ies")  # berry -> berries
+        elif base.endswith(("s", "x", "z", "ch", "sh", "o")):
+            variations.append(base + "es")  # box -> boxes
         else:
-            variations.append(base + 's')  # book -> books
+            variations.append(base + "s")  # book -> books
 
     # Add singular variation
-    if base.endswith('ies') and len(base) > 4:
-        variations.append(base[:-3] + 'y')  # berries -> berry
-    elif base.endswith('es') and len(base) > 3:
+    if base.endswith("ies") and len(base) > 4:
+        variations.append(base[:-3] + "y")  # berries -> berry
+    elif base.endswith("es") and len(base) > 3:
         stem = base[:-2]
-        if stem.endswith(('s', 'x', 'z', 'ch', 'sh')):
+        if stem.endswith(("s", "x", "z", "ch", "sh")):
             variations.append(stem)  # boxes -> box
-        elif base.endswith('oes'):
+        elif base.endswith("oes"):
             variations.append(base[:-2])  # potatoes -> potato
-    elif base.endswith('s') and not base.endswith(('ss', 'us', 'is')):
+    elif base.endswith("s") and not base.endswith(("ss", "us", "is")):
         variations.append(base[:-1])  # books -> book
 
     # Build all case variations to try (lowercase, Capitalized, UPPERCASE)
@@ -1146,7 +1243,7 @@ def _find_agrovoc_uri(label: str, store) -> str | None:
         '''
         results = list(store.query(query))
         if results:
-            return results[0]['concept']['value']
+            return results[0]["concept"]["value"]
 
     # Try altLabel exact match
     for var in all_variations:
@@ -1158,7 +1255,7 @@ def _find_agrovoc_uri(label: str, store) -> str | None:
         '''
         results = list(store.query(query))
         if results:
-            return results[0]['concept']['value']
+            return results[0]["concept"]["value"]
 
     return None
 
@@ -1185,25 +1282,25 @@ def _get_agrovoc_label(uri: str, store, lang: str = "en") -> str:
 
     results = list(store.query(query))
     if results:
-        return results[0]['labelText']['value']
+        return results[0]["labelText"]["value"]
 
     # Fall back to English
     if lang != "en":
-        query = f'''
+        query = f"""
         PREFIX skosxl: <http://www.w3.org/2008/05/skos-xl#>
         SELECT ?labelText WHERE {{
             <{uri}> skosxl:prefLabel ?labelRes .
             ?labelRes skosxl:literalForm ?labelText .
             FILTER(LANG(?labelText) = "en")
         }} LIMIT 1
-        '''
+        """
 
         results = list(store.query(query))
         if results:
-            return results[0]['labelText']['value']
+            return results[0]["labelText"]["value"]
 
     # Fall back to URI fragment
-    return uri.split('/')[-1]
+    return uri.split("/")[-1]
 
 
 def _get_all_labels(
@@ -1245,7 +1342,7 @@ def _get_all_labels(
         '''
         results = list(store.query(query))
         if results:
-            all_labels[lang] = results[0]['labelText']['value']
+            all_labels[lang] = results[0]["labelText"]["value"]
 
     # Apply fallbacks if enabled
     if use_fallbacks:
@@ -1265,15 +1362,15 @@ def _get_broader_concepts(uri: str, store) -> list[str]:
     Returns:
         List of broader concept URIs.
     """
-    query = f'''
+    query = f"""
     PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
     SELECT ?broader WHERE {{
         <{uri}> skos:broader ?broader .
     }}
-    '''
+    """
 
     results = list(store.query(query))
-    return [r['broader']['value'] for r in results]
+    return [r["broader"]["value"] for r in results]
 
 
 def _build_paths_to_root(
@@ -1353,8 +1450,7 @@ def _build_paths_to_root(
     all_paths = []
     for broader_uri in broader_uris:
         paths, uri_map, raw_paths = _build_paths_to_root(
-            broader_uri, store, lang, visited.copy(), new_path, new_path_uris, uri_map,
-            raw_paths
+            broader_uri, store, lang, visited.copy(), new_path, new_path_uris, uri_map, raw_paths
         )
         all_paths.extend(paths)
 
@@ -1479,15 +1575,15 @@ def _add_paths_to_concepts(
         for i in range(len(parts)):
             concept_id = "/".join(parts[: i + 1])
             if concept_id not in concepts:
-                concept_label = _CONCEPT_LABEL_OVERRIDES.get(
-                    concept_id, parts[i].replace("_", " ").title()
-                )
+                concept_label = _CONCEPT_LABEL_OVERRIDES.get(concept_id, parts[i].replace("_", " ").title())
                 labels: dict[str, str] = {}
                 nb_label = _CONCEPT_LABEL_OVERRIDES_NB.get(concept_id)
                 if nb_label:
                     labels["nb"] = nb_label
                 concepts[concept_id] = Concept(
-                    id=concept_id, prefLabel=concept_label, source=source,
+                    id=concept_id,
+                    prefLabel=concept_label,
+                    source=source,
                     labels=labels,
                 )
 
@@ -1639,7 +1735,10 @@ def _resolve_missing_uris(
                 if result_lower not in concept_lower and concept_lower not in result_lower:
                     logger.debug(
                         "URI sanity check failed for %s: concept='%s', %s='%s'",
-                        cid, concept_label, source, result_label,
+                        cid,
+                        concept_label,
+                        source,
+                        result_label,
                     )
                     continue
 
@@ -1735,7 +1834,10 @@ def _find_additional_translation_uris(
                 if result_lower not in concept_lower and concept_lower not in result_lower:
                     logger.debug(
                         "Additional URI sanity check failed for %s: concept='%s', %s='%s'",
-                        cid, concept_label, source, result_label,
+                        cid,
+                        concept_label,
+                        source,
+                        result_label,
                     )
                     continue
 
@@ -1743,13 +1845,14 @@ def _find_additional_translation_uris(
             found_count += 1
             logger.debug("Found additional %s URI for %s: %s", source, cid, result["uri"])
 
-    logger.info("Found %d additional translation URIs for %d candidates",
-                found_count, len(candidates))
+    logger.info("Found %d additional translation URIs for %d candidates", found_count, len(candidates))
     return found_count
 
 
 def _progress(
-    callback: Callable[[str, str], None] | None, phase: str, detail: str = "",
+    callback: Callable[[str, str], None] | None,
+    phase: str,
+    detail: str = "",
 ) -> None:
     """Invoke progress callback if provided."""
     if callback:
@@ -1796,6 +1899,7 @@ def build_vocabulary_with_skos_hierarchy(
     if "off" in enabled_sources:
         try:
             from .off import OFFTaxonomyClient
+
             off_client = OFFTaxonomyClient(languages=languages or [lang])
         except ImportError:
             logger.info("OFF module not available, skipping Open Food Facts lookups")
@@ -1806,6 +1910,7 @@ def build_vocabulary_with_skos_hierarchy(
     if "agrovoc" in enabled_sources or "dbpedia" in enabled_sources or "wikidata" in enabled_sources:
         try:
             from . import skos as skos_module
+
             client = skos_module.SKOSClient(use_oxigraph=True)
         except ImportError:
             logger.info("SKOS module not available, skipping AGROVOC/DBpedia lookups")
@@ -1933,9 +2038,7 @@ def build_vocabulary_with_skos_hierarchy(
             if local_concept.uri and "agrovoc" in local_concept.uri.lower() and client:
                 store = client._get_oxigraph_store()
                 if store is not None and store.is_loaded:
-                    paths, uri_map, agrovoc_raw = _build_paths_to_root(
-                        local_concept.uri, store, lang
-                    )
+                    paths, uri_map, agrovoc_raw = _build_paths_to_root(local_concept.uri, store, lang)
                     if paths:
                         category_mappings[label] = paths
                         for k, v in uri_map.items():
@@ -1968,7 +2071,7 @@ def build_vocabulary_with_skos_hierarchy(
                 elif local_concept_id.startswith(original_broader + "/"):
                     # ID already embeds the original parent (e.g. "automotive/accessories"
                     # with broader "automotive") — replace prefix with resolved path
-                    suffix = local_concept_id[len(original_broader):]
+                    suffix = local_concept_id[len(original_broader) :]
                     local_broader_path = broader_path + suffix
                 else:
                     local_broader_path = f"{broader_path}/{local_concept_id}"
@@ -1998,11 +2101,7 @@ def build_vocabulary_with_skos_hierarchy(
                     logger.debug("OFF found '%s' -> %d paths", label, len(off_paths))
 
         # --- AGROVOC lookup ---
-        skip_agrovoc = (
-            local_concept is not None
-            and local_concept.uri
-            and "agrovoc" not in local_concept.uri.lower()
-        )
+        skip_agrovoc = local_concept is not None and local_concept.uri and "agrovoc" not in local_concept.uri.lower()
         if client is not None and "agrovoc" in enabled_sources and not skip_agrovoc:
             agrovoc_paths, found_in_agrovoc, agrovoc_uri_map, agrovoc_raw = build_skos_hierarchy_paths(
                 label, client, lang
@@ -2016,13 +2115,13 @@ def build_vocabulary_with_skos_hierarchy(
                     leaf = agrovoc_paths[0].split("/")[-1].replace("_", " ").lower()
                     search = label.lower()
                     # Mismatch if leaf doesn't contain search term and vice versa
-                    if (search not in leaf and leaf not in search
-                            and not _is_singular_plural_variant(search, leaf)):
+                    if search not in leaf and leaf not in search and not _is_singular_plural_variant(search, leaf):
                         agrovoc_mismatch = True
                         logger.warning(
                             "AGROVOC mismatch for '%s': returned '%s'. "
                             "Consider adding to local-vocabulary.yaml with DBpedia URI.",
-                            label, leaf
+                            label,
+                            leaf,
                         )
                         _progress(progress, "warning", f"AGROVOC mismatch: '{label}' -> '{leaf}' (skipping)")
 
@@ -2032,9 +2131,7 @@ def build_vocabulary_with_skos_hierarchy(
                         primary_source = "agrovoc"
                     else:
                         # Merge additional paths from AGROVOC
-                        all_paths, all_uris = _merge_concept_data(
-                            all_paths, all_uris, agrovoc_paths, agrovoc_uri_map
-                        )
+                        all_paths, all_uris = _merge_concept_data(all_paths, all_uris, agrovoc_paths, agrovoc_uri_map)
                     all_raw_paths.extend(agrovoc_raw)
                     sources_found.append("agrovoc")
                     logger.debug("AGROVOC found '%s' -> %d paths", label, len(agrovoc_paths))
@@ -2087,9 +2184,7 @@ def build_vocabulary_with_skos_hierarchy(
 
                     if dbpedia_paths:
                         # Build category_by_source paths before assigning to mappings
-                        dbpedia_src_paths = [
-                            f"category_by_source/dbpedia/{dp}" for dp in dbpedia_paths
-                        ]
+                        dbpedia_src_paths = [f"category_by_source/dbpedia/{dp}" for dp in dbpedia_paths]
                         category_mappings[label] = dbpedia_paths + dbpedia_src_paths
                         _add_paths_to_concepts(dbpedia_paths, concepts, "dbpedia")
                         # Store DBpedia URI on leaf concept and in all_uri_maps
@@ -2190,9 +2285,7 @@ def build_vocabulary_with_skos_hierarchy(
 
                     if wikidata_paths:
                         # Build category_by_source paths before assigning to mappings
-                        wikidata_src_paths = [
-                            f"category_by_source/wikidata/{wp}" for wp in wikidata_paths
-                        ]
+                        wikidata_src_paths = [f"category_by_source/wikidata/{wp}" for wp in wikidata_paths]
                         category_mappings[label] = wikidata_paths + wikidata_src_paths
                         _add_paths_to_concepts(wikidata_paths, concepts, "wikidata")
                         # Store Wikidata URI on leaf concept and in all_uri_maps
@@ -2276,10 +2369,13 @@ def build_vocabulary_with_skos_hierarchy(
 
             # Transfer metadata from flat local concept to path-prefixed concept
             # and remove the orphaned flat concept to eliminate duplication
-            if (local_broader_path and local_concept_id
-                    and local_concept_id != local_broader_path
-                    and local_concept_id in concepts
-                    and local_broader_path in concepts):
+            if (
+                local_broader_path
+                and local_concept_id
+                and local_concept_id != local_broader_path
+                and local_concept_id in concepts
+                and local_broader_path in concepts
+            ):
                 _flat = concepts[local_concept_id]
                 _target = concepts[local_broader_path]
                 if not _target_existed:
@@ -2351,9 +2447,7 @@ def build_vocabulary_with_skos_hierarchy(
     # Find supplementary DBpedia/Wikidata URIs for better translation coverage
     if client is not None and languages and len(languages) > 1:
         _progress(progress, "resolve", "Finding additional translation URIs...")
-        _find_additional_translation_uris(
-            concepts, all_uri_maps, client, lang, enabled_sources
-        )
+        _find_additional_translation_uris(concepts, all_uri_maps, client, lang, enabled_sources)
 
     # Fetch translations for concepts with URIs
     if languages and len(languages) > 1:
@@ -2366,9 +2460,7 @@ def build_vocabulary_with_skos_hierarchy(
             for concept_id, node_id in off_node_ids.items():
                 if concept_id in concepts:
                     concept = concepts[concept_id]
-                    off_labels = off_client.get_labels(
-                        node_id, languages, use_fallbacks=False
-                    )
+                    off_labels = off_client.get_labels(node_id, languages, use_fallbacks=False)
                     if off_labels:
                         # Sanity check: skip if English label doesn't match concept
                         en_label = off_labels.get("en", "")
@@ -2377,9 +2469,10 @@ def build_vocabulary_with_skos_hierarchy(
                             pref_lower = concept.prefLabel.lower()
                             if en_lower not in pref_lower and pref_lower not in en_lower:
                                 logger.debug(
-                                    "Skipping mismatched OFF labels for %s: "
-                                    "prefLabel='%s', OFF en='%s'",
-                                    concept_id, concept.prefLabel, en_label
+                                    "Skipping mismatched OFF labels for %s: prefLabel='%s', OFF en='%s'",
+                                    concept_id,
+                                    concept.prefLabel,
+                                    en_label,
                                 )
                                 continue
                         # Merge: OFF labels as base, don't overwrite existing
@@ -2393,18 +2486,16 @@ def build_vocabulary_with_skos_hierarchy(
             store = client._get_oxigraph_store()
             if store is not None and store.is_loaded:
                 for concept_id, concept in concepts.items():
-                    candidate_uris = list(dict.fromkeys(
-                        filter(None, [all_uri_maps.get(concept_id), concept.uri])
-                    ))
+                    candidate_uris = list(dict.fromkeys(filter(None, [all_uri_maps.get(concept_id), concept.uri])))
                     for uri in candidate_uris:
                         # Skip OFF, DBpedia, and Wikidata URIs for AGROVOC store lookups
-                        if (uri.startswith("off:")
-                                or uri.startswith("http://dbpedia.org/")
-                                or uri.startswith("http://www.wikidata.org/")):
+                        if (
+                            uri.startswith("off:")
+                            or uri.startswith("http://dbpedia.org/")
+                            or uri.startswith("http://www.wikidata.org/")
+                        ):
                             continue
-                        agrovoc_labels = _get_all_labels(
-                            uri, store, languages, use_fallbacks=False
-                        )
+                        agrovoc_labels = _get_all_labels(uri, store, languages, use_fallbacks=False)
                         if agrovoc_labels:
                             # Sanity check: skip if English label doesn't match
                             en_label = agrovoc_labels.get("en", "")
@@ -2413,9 +2504,10 @@ def build_vocabulary_with_skos_hierarchy(
                                 pref_lower = concept.prefLabel.lower()
                                 if en_lower not in pref_lower and pref_lower not in en_lower:
                                     logger.debug(
-                                        "Skipping mismatched AGROVOC labels for %s: "
-                                        "prefLabel='%s', AGROVOC en='%s'",
-                                        concept_id, concept.prefLabel, en_label
+                                        "Skipping mismatched AGROVOC labels for %s: prefLabel='%s', AGROVOC en='%s'",
+                                        concept_id,
+                                        concept.prefLabel,
+                                        en_label,
                                     )
                                     continue
                             # Merge: AGROVOC fills gaps, doesn't overwrite OFF
@@ -2453,9 +2545,10 @@ def build_vocabulary_with_skos_hierarchy(
                         pref_lower = concept.prefLabel.lower()
                         if en_lower not in pref_lower and pref_lower not in en_lower:
                             logger.debug(
-                                "Skipping mismatched DBpedia labels for %s: "
-                                "prefLabel='%s', DBpedia en='%s'",
-                                cid, concept.prefLabel, en_label
+                                "Skipping mismatched DBpedia labels for %s: prefLabel='%s', DBpedia en='%s'",
+                                cid,
+                                concept.prefLabel,
+                                en_label,
                             )
                             continue
                     # Merge: DBpedia fills gaps, doesn't overwrite OFF/AGROVOC
@@ -2469,8 +2562,7 @@ def build_vocabulary_with_skos_hierarchy(
             wikidata_uris: list[tuple[str, str]] = []
             wikidata_concept_map: dict[str, str] = {}
             for concept_id, concept in concepts.items():
-                uri = (concept.source_uris.get("wikidata")
-                       or concept.source_uris.get("dbpedia"))
+                uri = concept.source_uris.get("wikidata") or concept.source_uris.get("dbpedia")
                 if not uri:
                     continue
                 wikidata_uris.append((uri, "wikidata"))
@@ -2497,9 +2589,7 @@ def build_vocabulary_with_skos_hierarchy(
         _progress(progress, "translate", "Applying language fallbacks...")
         for concept in concepts.values():
             if concept.labels:
-                concept.labels = apply_language_fallbacks(
-                    concept.labels, languages
-                )
+                concept.labels = apply_language_fallbacks(concept.labels, languages)
 
     # Final dedup pass: move local concepts to their resolved path-prefixed form.
     # Flat versions can be (re-)created as intermediate nodes by _add_paths_to_concepts
@@ -2563,7 +2653,11 @@ def build_vocabulary_with_skos_hierarchy(
         if to_delete:
             logger.debug("Final dedup removed %d flat concepts: %s", len(to_delete), to_delete)
 
-    logger.info("Built vocabulary with %d concepts (%d leaf labels, %d path categories)",
-                len(concepts), len(leaf_labels), len(path_categories))
+    logger.info(
+        "Built vocabulary with %d concepts (%d leaf labels, %d path categories)",
+        len(concepts),
+        len(leaf_labels),
+        len(path_categories),
+    )
 
     return concepts, category_mappings

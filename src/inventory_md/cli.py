@@ -3,6 +3,7 @@
 """
 Command-line interface for Inventory System
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,34 +29,34 @@ def init_inventory(directory: Path, name: str = "My Inventory") -> int:
     elif any(directory.iterdir()):
         print(f"⚠️  Directory {directory} is not empty")
         response = input("Continue anyway? [y/N] ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Aborted.")
             return 1
 
     # Copy template files
-    templates_dir = Path(__file__).parent / 'templates'
+    templates_dir = Path(__file__).parent / "templates"
 
     # Copy search.html
-    search_html = templates_dir / 'search.html'
+    search_html = templates_dir / "search.html"
     if search_html.exists():
-        shutil.copy(search_html, directory / 'search.html')
+        shutil.copy(search_html, directory / "search.html")
         print("✅ Created search.html")
 
     # Copy aliases.json template (if it exists)
-    aliases_template = templates_dir / 'aliases.json.template'
+    aliases_template = templates_dir / "aliases.json.template"
     if aliases_template.exists():
-        shutil.copy(aliases_template, directory / 'aliases.json')
+        shutil.copy(aliases_template, directory / "aliases.json")
         print("✅ Created aliases.json")
 
     # Create inventory.md from template or create basic one
-    inventory_md = directory / 'inventory.md'
+    inventory_md = directory / "inventory.md"
     if not inventory_md.exists():
-        inventory_template = templates_dir / 'inventory.md.template'
+        inventory_template = templates_dir / "inventory.md.template"
         if inventory_template.exists():
             shutil.copy(inventory_template, inventory_md)
         else:
             # Create basic inventory.md
-            with open(inventory_md, 'w', encoding='utf-8') as f:
+            with open(inventory_md, "w", encoding="utf-8") as f:
                 f.write(f"""# Intro
 
 {name}
@@ -87,8 +88,8 @@ Beskrivelse av container...
         print("✅ Created inventory.md")
 
     # Create directories for images
-    (directory / 'photos').mkdir(exist_ok=True)
-    (directory / 'resized').mkdir(exist_ok=True)
+    (directory / "photos").mkdir(exist_ok=True)
+    (directory / "resized").mkdir(exist_ok=True)
     print("✅ Created image directories (photos/, resized/)")
 
     print(f"\n🎉 Inventory initialized in {directory}")
@@ -115,9 +116,9 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     else:
         directory = Path(directory).resolve()
 
-    templates_dir = Path(__file__).parent / 'templates'
-    source = templates_dir / 'search.html'
-    target = directory / 'search.html'
+    templates_dir = Path(__file__).parent / "templates"
+    source = templates_dir / "search.html"
+    target = directory / "search.html"
 
     if not source.exists():
         print(f"❌ Template not found: {source}")
@@ -131,7 +132,7 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     if target.exists() and not force:
         print(f"⚠️  {target} already exists")
         response = input("Overwrite? [y/N] ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Aborted.")
             return 1
 
@@ -140,7 +141,18 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     return 0
 
 
-def parse_command(md_file: Path, output: Path = None, validate_only: bool = False, wanted_items: Path = None, include_dated: bool = True, use_skos: bool = False, hierarchy_mode: bool = False, lang: str = None, languages: list[str] = None, enabled_sources: list[str] = None) -> int:
+def parse_command(
+    md_file: Path,
+    output: Path = None,
+    validate_only: bool = False,
+    wanted_items: Path = None,
+    include_dated: bool = True,
+    use_skos: bool = False,
+    hierarchy_mode: bool = False,
+    lang: str = None,
+    languages: list[str] = None,
+    enabled_sources: list[str] = None,
+) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
 
@@ -149,7 +161,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
         return 1
 
     if output is None:
-        output = md_file.parent / 'inventory.json'
+        output = md_file.parent / "inventory.json"
 
     try:
         # Add ID: prefixes to container headers if not validating
@@ -173,10 +185,12 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
         print(f"✅ Found {len(data['containers'])} containers")
 
         # Count total images and items
-        total_images = sum(len(container['images']) for container in data['containers'])
-        total_items = sum(len(container['items']) for container in data['containers'])
-        items_with_id = sum(1 for container in data['containers'] for item in container['items'] if item.get('id'))
-        items_with_parent = sum(1 for container in data['containers'] for item in container['items'] if item.get('parent'))
+        total_images = sum(len(container["images"]) for container in data["containers"])
+        total_items = sum(len(container["items"]) for container in data["containers"])
+        items_with_id = sum(1 for container in data["containers"] for item in container["items"] if item.get("id"))
+        items_with_parent = sum(
+            1 for container in data["containers"] for item in container["items"] if item.get("parent")
+        )
 
         print(f"✅ Found {total_images} images and {total_items} items")
         print(f"   - {items_with_id} items with explicit IDs")
@@ -214,6 +228,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                 import json as json_module
 
                 from . import photo_registry
+
                 print("\n📷 Parsing photo registry...")
                 registry_data = photo_registry.parse_photo_registry(photo_registry_md)
                 registry_output = md_file.parent / "photo-registry.json"
@@ -277,19 +292,21 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                         print(f"   {detail}", flush=True)
 
                     vocab, category_mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                        data, local_vocab=local_vocab, lang=skos_lang, languages=languages,
-                        enabled_sources=enabled_sources, progress=_print_progress,
+                        data,
+                        local_vocab=local_vocab,
+                        lang=skos_lang,
+                        languages=languages,
+                        enabled_sources=enabled_sources,
+                        progress=_print_progress,
                     )
                 else:
                     print(f"   Using SKOS lookups ({lang_info})...")
                     vocab = vocabulary.build_vocabulary_from_inventory(
-                        data, local_vocab=local_vocab, use_skos=use_skos, lang=skos_lang,
-                        languages=languages
+                        data, local_vocab=local_vocab, use_skos=use_skos, lang=skos_lang, languages=languages
                     )
             else:
                 vocab = vocabulary.build_vocabulary_from_inventory(
-                    data, local_vocab=local_vocab, use_skos=False, lang=skos_lang,
-                    languages=languages
+                    data, local_vocab=local_vocab, use_skos=False, lang=skos_lang, languages=languages
                 )
             category_counts = vocabulary.count_items_per_category(data)
 
@@ -323,7 +340,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
                     dated_note = " (including dated files)" if include_dated else ""
                     print(f"\n🛒 Generated {output_shopping}{dated_note}")
 
-            search_html = md_file.parent / 'search.html'
+            search_html = md_file.parent / "search.html"
             print("\n📱 To view the searchable inventory, open search.html in your browser:")
             print(f"   xdg-open {search_html}")
 
@@ -331,6 +348,7 @@ def parse_command(md_file: Path, output: Path = None, validate_only: bool = Fals
 
     except Exception as e:
         import traceback
+
         print(f"\n❌ Error parsing inventory: {e}")
         traceback.print_exc()
         return 1
@@ -351,7 +369,7 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
         print(f"❌ Directory {directory} does not exist")
         return 1
 
-    search_html = directory / 'search.html'
+    search_html = directory / "search.html"
     if not search_html.exists():
         print(f"❌ search.html not found in {directory}")
         print(f"Run 'inventory-system init {directory}' first")
@@ -386,7 +404,7 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
             backend_url = f"http://{api_proxy}{self.path}"
 
             # Read request body for POST/PUT
-            content_length = int(self.headers.get('Content-Length', 0))
+            content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length) if content_length > 0 else None
 
             # Create the proxy request
@@ -394,7 +412,7 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
 
             # Copy relevant headers
             for header, value in self.headers.items():
-                if header.lower() not in ('host', 'content-length'):
+                if header.lower() not in ("host", "content-length"):
                     req.add_header(header, value)
 
             try:
@@ -404,7 +422,7 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
 
                     # Copy response headers
                     for header, value in response.headers.items():
-                        if header.lower() not in ('transfer-encoding', 'connection'):
+                        if header.lower() not in ("transfer-encoding", "connection"):
                             self.send_header(header, value)
                     self.end_headers()
 
@@ -414,7 +432,7 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
             except urllib.error.HTTPError as e:
                 self.send_response(e.code)
                 for header, value in e.headers.items():
-                    if header.lower() not in ('transfer-encoding', 'connection'):
+                    if header.lower() not in ("transfer-encoding", "connection"):
                         self.send_header(header, value)
                 self.end_headers()
                 self.wfile.write(e.read())
@@ -426,44 +444,42 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
         def should_proxy(self) -> bool:
             """Check if this request should be proxied."""
             return api_proxy and (
-                self.path.startswith('/api/') or
-                self.path.startswith('/chat') or
-                self.path.startswith('/health')
+                self.path.startswith("/api/") or self.path.startswith("/chat") or self.path.startswith("/health")
             )
 
         def do_GET(self):
             if self.should_proxy():
-                self.do_proxy('GET')
+                self.do_proxy("GET")
             else:
                 super().do_GET()
 
         def do_POST(self):
             if self.should_proxy():
-                self.do_proxy('POST')
+                self.do_proxy("POST")
             else:
                 self.send_error(405, "Method Not Allowed")
 
         def do_PUT(self):
             if self.should_proxy():
-                self.do_proxy('PUT')
+                self.do_proxy("PUT")
             else:
                 self.send_error(405, "Method Not Allowed")
 
         def do_DELETE(self):
             if self.should_proxy():
-                self.do_proxy('DELETE')
+                self.do_proxy("DELETE")
             else:
                 self.send_error(405, "Method Not Allowed")
 
         def do_OPTIONS(self):
             if self.should_proxy():
-                self.do_proxy('OPTIONS')
+                self.do_proxy("OPTIONS")
             else:
                 # Handle CORS preflight for non-proxied requests
                 self.send_response(200)
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-                self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
                 self.end_headers()
 
     Handler = ProxyHTTPRequestHandler
@@ -476,6 +492,7 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
                 return 0
     except Exception as e:
         import traceback
+
         print(f"\n❌ Server failed to start: {e}")
         print("\nFull traceback:")
         traceback.print_exc()
@@ -503,7 +520,7 @@ def api_command(directory: Path = None, port: int = 8765, host: str = "127.0.0.1
         print(f"❌ Directory {directory} does not exist")
         return 1
 
-    inventory_json = directory / 'inventory.json'
+    inventory_json = directory / "inventory.json"
     if not inventory_json.exists():
         print(f"❌ inventory.json not found in {directory}")
         print("Run 'inventory-system parse inventory.md' first")
@@ -540,6 +557,7 @@ def api_command(directory: Path = None, port: int = 8765, host: str = "127.0.0.1
         return 0
     except Exception as e:
         import traceback
+
         print(f"\n❌ Server failed to start: {e}")
         print("\nFull traceback:")
         traceback.print_exc()
@@ -637,6 +655,7 @@ def labels_generate(
         return 0
     except Exception as e:
         import traceback
+
         print(f"Error generating labels: {e}")
         traceback.print_exc()
         return 1
@@ -735,74 +754,97 @@ Examples:
 
   # Show current configuration
   inventory-md config --show
-        """
+        """,
     )
-    parser_cli.add_argument(
-        '--version', '-V',
-        action='version',
-        version=f'%(prog)s {__version__}'
-    )
+    parser_cli.add_argument("--version", "-V", action="version", version=f"%(prog)s {__version__}")
 
-    subparsers = parser_cli.add_subparsers(dest='command', help='Command to run')
+    subparsers = parser_cli.add_subparsers(dest="command", help="Command to run")
 
     # Config command
-    config_parser = subparsers.add_parser('config', help='Show configuration')
-    config_parser.add_argument('--show', action='store_true', help='Show merged configuration')
-    config_parser.add_argument('--path', action='store_true', help='Show config file path')
+    config_parser = subparsers.add_parser("config", help="Show configuration")
+    config_parser.add_argument("--show", action="store_true", help="Show merged configuration")
+    config_parser.add_argument("--path", action="store_true", help="Show config file path")
 
     # Init command
-    init_parser = subparsers.add_parser('init', help='Initialize a new inventory')
-    init_parser.add_argument('directory', type=Path, help='Directory to initialize')
-    init_parser.add_argument('--name', type=str, default='My Inventory', help='Name of the inventory')
+    init_parser = subparsers.add_parser("init", help="Initialize a new inventory")
+    init_parser.add_argument("directory", type=Path, help="Directory to initialize")
+    init_parser.add_argument("--name", type=str, default="My Inventory", help="Name of the inventory")
 
     # Parse command
-    parse_parser = subparsers.add_parser('parse', help='Parse inventory markdown file')
-    parse_parser.add_argument('file', type=Path, nargs='?', help='Inventory markdown file to parse (default: from config or inventory.md with --auto)')
-    parse_parser.add_argument('--output', '-o', type=Path, help='Output JSON file (default: inventory.json)')
-    parse_parser.add_argument('--validate', action='store_true', help='Validate only, do not generate JSON')
-    parse_parser.add_argument('--wanted-items', '-w', type=Path, help='Wanted items file to generate shopping list')
-    parse_parser.add_argument('--no-dated', action='store_true', help='Exclude dated wanted-items files (wanted-items-YYYY-MM-DD.md)')
-    parse_parser.add_argument('--auto', '-a', action='store_true',
-                              help='Auto-detect files: inventory.md and wanted-items.md in current directory')
-    parse_parser.add_argument('--skos', action='store_true',
-                              help='Enrich categories with SKOS vocabulary lookups (AGROVOC/DBpedia)')
-    parse_parser.add_argument('--hierarchy', action='store_true',
-                              help='Expand category labels to full SKOS hierarchy paths (implies --skos)')
+    parse_parser = subparsers.add_parser("parse", help="Parse inventory markdown file")
+    parse_parser.add_argument(
+        "file",
+        type=Path,
+        nargs="?",
+        help="Inventory markdown file to parse (default: from config or inventory.md with --auto)",
+    )
+    parse_parser.add_argument("--output", "-o", type=Path, help="Output JSON file (default: inventory.json)")
+    parse_parser.add_argument("--validate", action="store_true", help="Validate only, do not generate JSON")
+    parse_parser.add_argument("--wanted-items", "-w", type=Path, help="Wanted items file to generate shopping list")
+    parse_parser.add_argument(
+        "--no-dated", action="store_true", help="Exclude dated wanted-items files (wanted-items-YYYY-MM-DD.md)"
+    )
+    parse_parser.add_argument(
+        "--auto",
+        "-a",
+        action="store_true",
+        help="Auto-detect files: inventory.md and wanted-items.md in current directory",
+    )
+    parse_parser.add_argument(
+        "--skos", action="store_true", help="Enrich categories with SKOS vocabulary lookups (AGROVOC/DBpedia)"
+    )
+    parse_parser.add_argument(
+        "--hierarchy", action="store_true", help="Expand category labels to full SKOS hierarchy paths (implies --skos)"
+    )
 
     # Update-template command
-    update_parser = subparsers.add_parser('update-template', help='Update search.html to latest version')
-    update_parser.add_argument('directory', type=Path, nargs='?', help='Target directory (default: current directory)')
-    update_parser.add_argument('--force', '-f', action='store_true', help='Overwrite without prompting')
+    update_parser = subparsers.add_parser("update-template", help="Update search.html to latest version")
+    update_parser.add_argument("directory", type=Path, nargs="?", help="Target directory (default: current directory)")
+    update_parser.add_argument("--force", "-f", action="store_true", help="Overwrite without prompting")
 
     # Serve command
-    serve_parser = subparsers.add_parser('serve', help='Start local web server')
-    serve_parser.add_argument('directory', type=Path, nargs='?', help='Directory to serve (default: current directory)')
-    serve_parser.add_argument('--port', '-p', type=int, default=None, help=f'Port number (default: {config.serve_port})')
-    serve_parser.add_argument('--host', type=str, default=None,
-                              help=f'Host to bind to (default: {config.serve_host}, use 0.0.0.0 for all interfaces)')
-    serve_parser.add_argument('--api-proxy', type=str, metavar='HOST:PORT',
-                              help='Proxy /api/* and /chat requests to backend (e.g., localhost:8765)')
+    serve_parser = subparsers.add_parser("serve", help="Start local web server")
+    serve_parser.add_argument("directory", type=Path, nargs="?", help="Directory to serve (default: current directory)")
+    serve_parser.add_argument(
+        "--port", "-p", type=int, default=None, help=f"Port number (default: {config.serve_port})"
+    )
+    serve_parser.add_argument(
+        "--host",
+        type=str,
+        default=None,
+        help=f"Host to bind to (default: {config.serve_host}, use 0.0.0.0 for all interfaces)",
+    )
+    serve_parser.add_argument(
+        "--api-proxy",
+        type=str,
+        metavar="HOST:PORT",
+        help="Proxy /api/* and /chat requests to backend (e.g., localhost:8765)",
+    )
 
     # API command
-    api_parser = subparsers.add_parser('api', help='Start API server (chat, photos, item management)')
-    api_parser.add_argument('directory', type=Path, nargs='?', help='Directory with inventory.json (default: current directory)')
-    api_parser.add_argument('--port', '-p', type=int, default=None, help=f'Port number (default: {config.api_port})')
-    api_parser.add_argument('--host', type=str, default=None, help=f'Host to bind to (default: {config.api_host})')
+    api_parser = subparsers.add_parser("api", help="Start API server (chat, photos, item management)")
+    api_parser.add_argument(
+        "directory", type=Path, nargs="?", help="Directory with inventory.json (default: current directory)"
+    )
+    api_parser.add_argument("--port", "-p", type=int, default=None, help=f"Port number (default: {config.api_port})")
+    api_parser.add_argument("--host", type=str, default=None, help=f"Host to bind to (default: {config.api_host})")
 
     # Chat command (backwards compatibility alias for 'api')
-    chat_parser = subparsers.add_parser('chat', help='[Deprecated] Use "api" instead')
-    chat_parser.add_argument('directory', type=Path, nargs='?', help='Directory with inventory.json (default: current directory)')
-    chat_parser.add_argument('--port', '-p', type=int, default=None, help=f'Port number (default: {config.api_port})')
-    chat_parser.add_argument('--host', type=str, default=None, help=f'Host to bind to (default: {config.api_host})')
+    chat_parser = subparsers.add_parser("chat", help='[Deprecated] Use "api" instead')
+    chat_parser.add_argument(
+        "directory", type=Path, nargs="?", help="Directory with inventory.json (default: current directory)"
+    )
+    chat_parser.add_argument("--port", "-p", type=int, default=None, help=f"Port number (default: {config.api_port})")
+    chat_parser.add_argument("--host", type=str, default=None, help=f"Host to bind to (default: {config.api_host})")
 
     # Labels command with subcommands
-    labels_parser = subparsers.add_parser('labels', help='Generate QR code labels for printing')
-    labels_subparsers = labels_parser.add_subparsers(dest='labels_command', help='Labels subcommand')
+    labels_parser = subparsers.add_parser("labels", help="Generate QR code labels for printing")
+    labels_subparsers = labels_parser.add_subparsers(dest="labels_command", help="Labels subcommand")
 
     # labels generate
     labels_gen = labels_subparsers.add_parser(
-        'generate',
-        help='Generate label sheet or PNG images',
+        "generate",
+        help="Generate label sheet or PNG images",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Label styles:
@@ -816,40 +858,52 @@ Examples:
   inventory-md labels generate --ids AA0,AB0,AC0 --dupes 3
         """,
     )
-    labels_gen.add_argument('--series', '-s', type=str, help='Series letter (A-Z), starts at {series}A0')
-    labels_gen.add_argument('--start', type=str, help='Starting ID (e.g., AB5)')
-    labels_gen.add_argument('--ids', type=str, help='Comma-separated list of specific IDs')
-    labels_gen.add_argument('--count', '-n', type=int, default=30, help='Number of unique IDs to generate (default: 30)')
-    labels_gen.add_argument('--dupes', '-d', type=int, default=None,
-                            help='Duplicates per label (default: 5 for standard, 1 for compact/duplicate)')
-    labels_gen.add_argument('--style', type=str, choices=['standard', 'compact', 'duplicate'],
-                            default=None, help='Label style (default: from config or standard)')
-    labels_gen.add_argument('--sheet-format', type=str, default=None,
-                            help='Sheet format (default: from config or 48x25-40)')
-    labels_gen.add_argument('--output', '-o', type=Path,
-                            help='Output file (default: labels/labels-{start}-{end}.pdf)')
-    labels_gen.add_argument('--format', '-f', type=str, choices=['pdf', 'png'], default='pdf',
-                            help='Output format (default: pdf)')
-    labels_gen.add_argument('--base-url', type=str, default=None,
-                            help='Base URL for QR codes (default: from config)')
+    labels_gen.add_argument("--series", "-s", type=str, help="Series letter (A-Z), starts at {series}A0")
+    labels_gen.add_argument("--start", type=str, help="Starting ID (e.g., AB5)")
+    labels_gen.add_argument("--ids", type=str, help="Comma-separated list of specific IDs")
+    labels_gen.add_argument(
+        "--count", "-n", type=int, default=30, help="Number of unique IDs to generate (default: 30)"
+    )
+    labels_gen.add_argument(
+        "--dupes",
+        "-d",
+        type=int,
+        default=None,
+        help="Duplicates per label (default: 5 for standard, 1 for compact/duplicate)",
+    )
+    labels_gen.add_argument(
+        "--style",
+        type=str,
+        choices=["standard", "compact", "duplicate"],
+        default=None,
+        help="Label style (default: from config or standard)",
+    )
+    labels_gen.add_argument(
+        "--sheet-format", type=str, default=None, help="Sheet format (default: from config or 48x25-40)"
+    )
+    labels_gen.add_argument("--output", "-o", type=Path, help="Output file (default: labels/labels-{start}-{end}.pdf)")
+    labels_gen.add_argument(
+        "--format", "-f", type=str, choices=["pdf", "png"], default="pdf", help="Output format (default: pdf)"
+    )
+    labels_gen.add_argument("--base-url", type=str, default=None, help="Base URL for QR codes (default: from config)")
 
     # labels formats
-    labels_subparsers.add_parser('formats', help='List available sheet formats')
+    labels_subparsers.add_parser("formats", help="List available sheet formats")
 
     # labels preview
-    labels_prev = labels_subparsers.add_parser('preview', help='Preview label IDs without generating')
-    labels_prev.add_argument('--series', '-s', type=str, help='Series letter (A-Z)')
-    labels_prev.add_argument('--start', type=str, help='Starting ID (e.g., AB5)')
-    labels_prev.add_argument('--count', '-n', type=int, default=10, help='Number of IDs to show (default: 10)')
+    labels_prev = labels_subparsers.add_parser("preview", help="Preview label IDs without generating")
+    labels_prev.add_argument("--series", "-s", type=str, help="Series letter (A-Z)")
+    labels_prev.add_argument("--start", type=str, help="Starting ID (e.g., AB5)")
+    labels_prev.add_argument("--count", "-n", type=int, default=10, help="Number of IDs to show (default: 10)")
 
     # SKOS command with subcommands
-    skos_parser = subparsers.add_parser('skos', help='SKOS vocabulary lookups for tag hierarchies')
-    skos_subparsers = skos_parser.add_subparsers(dest='skos_command', help='SKOS subcommand')
+    skos_parser = subparsers.add_parser("skos", help="SKOS vocabulary lookups for tag hierarchies")
+    skos_subparsers = skos_parser.add_subparsers(dest="skos_command", help="SKOS subcommand")
 
     # skos expand
     skos_expand = skos_subparsers.add_parser(
-        'expand',
-        help='Expand tags to hierarchical paths using SKOS vocabularies',
+        "expand",
+        help="Expand tags to hierarchical paths using SKOS vocabularies",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Queries AGROVOC and DBpedia SPARQL endpoints to find hierarchical paths
@@ -861,32 +915,35 @@ Examples:
   inventory-md skos expand screwdriver hammer wrench
         """,
     )
-    skos_expand.add_argument('tags', nargs='+', help='Tags to expand')
-    skos_expand.add_argument('--lang', '-l', type=str, default='en', help='Language code (default: en)')
-    skos_expand.add_argument('--sources', type=str, default='agrovoc,dbpedia',
-                             help='Comma-separated sources to query (default: agrovoc,dbpedia)')
-    skos_expand.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+    skos_expand.add_argument("tags", nargs="+", help="Tags to expand")
+    skos_expand.add_argument("--lang", "-l", type=str, default="en", help="Language code (default: en)")
+    skos_expand.add_argument(
+        "--sources",
+        type=str,
+        default="agrovoc,dbpedia",
+        help="Comma-separated sources to query (default: agrovoc,dbpedia)",
+    )
+    skos_expand.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
     # skos lookup
-    skos_lookup = skos_subparsers.add_parser('lookup', help='Look up a single concept with full details')
-    skos_lookup.add_argument('label', help='Label to look up')
-    skos_lookup.add_argument('--lang', '-l', type=str, default='en', help='Language code (default: en)')
-    skos_lookup.add_argument('--source', '-s', type=str, default='agrovoc',
-                             help='Source to query (default: agrovoc)')
+    skos_lookup = skos_subparsers.add_parser("lookup", help="Look up a single concept with full details")
+    skos_lookup.add_argument("label", help="Label to look up")
+    skos_lookup.add_argument("--lang", "-l", type=str, default="en", help="Language code (default: en)")
+    skos_lookup.add_argument("--source", "-s", type=str, default="agrovoc", help="Source to query (default: agrovoc)")
 
     # skos cache
-    skos_cache = skos_subparsers.add_parser('cache', help='Manage SKOS lookup cache')
-    skos_cache.add_argument('--clear', action='store_true', help='Clear all cached lookups')
-    skos_cache.add_argument('--path', action='store_true', help='Show cache directory path')
+    skos_cache = skos_subparsers.add_parser("cache", help="Manage SKOS lookup cache")
+    skos_cache.add_argument("--clear", action="store_true", help="Clear all cached lookups")
+    skos_cache.add_argument("--path", action="store_true", help="Show cache directory path")
 
     # Vocabulary command with subcommands
-    vocab_parser = subparsers.add_parser('vocabulary', help='Manage local category vocabulary')
-    vocab_subparsers = vocab_parser.add_subparsers(dest='vocab_command', help='Vocabulary subcommand')
+    vocab_parser = subparsers.add_parser("vocabulary", help="Manage local category vocabulary")
+    vocab_subparsers = vocab_parser.add_subparsers(dest="vocab_command", help="Vocabulary subcommand")
 
     # vocabulary list
     vocab_list = vocab_subparsers.add_parser(
-        'list',
-        help='List all concepts in vocabulary',
+        "list",
+        help="List all concepts in vocabulary",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Lists all concepts from the local vocabulary and inventory categories.
@@ -896,44 +953,41 @@ Examples:
   inventory-md vocabulary list --directory ~/my-inventory
         """,
     )
-    vocab_list.add_argument('--directory', '-d', type=Path, help='Inventory directory (default: current)')
-    vocab_list.add_argument('--json', '-j', action='store_true', help='Output as JSON')
+    vocab_list.add_argument("--directory", "-d", type=Path, help="Inventory directory (default: current)")
+    vocab_list.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
     # vocabulary lookup
-    vocab_lookup = vocab_subparsers.add_parser('lookup', help='Look up a concept by label')
-    vocab_lookup.add_argument('label', help='Label to look up (prefLabel or altLabel)')
-    vocab_lookup.add_argument('--directory', '-d', type=Path, help='Inventory directory (default: current)')
+    vocab_lookup = vocab_subparsers.add_parser("lookup", help="Look up a concept by label")
+    vocab_lookup.add_argument("label", help="Label to look up (prefLabel or altLabel)")
+    vocab_lookup.add_argument("--directory", "-d", type=Path, help="Inventory directory (default: current)")
 
     # vocabulary tree
-    vocab_tree = vocab_subparsers.add_parser('tree', help='Show category hierarchy as tree')
-    vocab_tree.add_argument('--directory', '-d', type=Path, help='Inventory directory (default: current)')
+    vocab_tree = vocab_subparsers.add_parser("tree", help="Show category hierarchy as tree")
+    vocab_tree.add_argument("--directory", "-d", type=Path, help="Inventory directory (default: current)")
 
     # Enable shell tab completion
     argcomplete.autocomplete(parser_cli)
 
     args = parser_cli.parse_args()
 
-    if args.command == 'config':
-        return config_command(
-            show=getattr(args, 'show', False),
-            show_path=getattr(args, 'path', False)
-        )
-    elif args.command == 'init':
+    if args.command == "config":
+        return config_command(show=getattr(args, "show", False), show_path=getattr(args, "path", False))
+    elif args.command == "init":
         return init_inventory(args.directory, args.name)
-    elif args.command == 'parse':
-        include_dated = not getattr(args, 'no_dated', False)
-        auto_mode = getattr(args, 'auto', False)
-        skos_flag_provided = '--skos' in sys.argv
-        hierarchy_flag_provided = '--hierarchy' in sys.argv
+    elif args.command == "parse":
+        include_dated = not getattr(args, "no_dated", False)
+        auto_mode = getattr(args, "auto", False)
+        skos_flag_provided = "--skos" in sys.argv
+        hierarchy_flag_provided = "--hierarchy" in sys.argv
 
         # Handle --auto mode
         if auto_mode:
             cwd = Path.cwd()
-            md_file = args.file or cwd / 'inventory.md'
-            wanted_items = getattr(args, 'wanted_items', None)
+            md_file = args.file or cwd / "inventory.md"
+            wanted_items = getattr(args, "wanted_items", None)
             if wanted_items is None:
                 # Auto-detect wanted-items.md
-                wanted_path = cwd / 'wanted-items.md'
+                wanted_path = cwd / "wanted-items.md"
                 if wanted_path.exists():
                     wanted_items = wanted_path
             # In auto mode, use config for SKOS settings if flags not explicitly provided
@@ -941,7 +995,7 @@ Examples:
                 hierarchy_mode = True
                 use_skos = True  # --hierarchy implies --skos
             elif skos_flag_provided:
-                use_skos = getattr(args, 'skos', False)
+                use_skos = getattr(args, "skos", False)
                 hierarchy_mode = config.skos_hierarchy_mode
             else:
                 use_skos = config.skos_enabled
@@ -953,32 +1007,45 @@ Examples:
             md_file = args.file
             if md_file is None:
                 md_file = config.inventory_file
-            wanted_items = getattr(args, 'wanted_items', None)
+            wanted_items = getattr(args, "wanted_items", None)
             if wanted_items is None:
                 wanted_items = config.wanted_file
             if md_file is None:
-                print("Error: inventory file required (or use --auto, or set inventory_file in config)", file=sys.stderr)
+                print(
+                    "Error: inventory file required (or use --auto, or set inventory_file in config)", file=sys.stderr
+                )
                 return 1
             # --hierarchy implies --skos, config can also enable these
-            hierarchy_mode = getattr(args, 'hierarchy', False) or config.skos_hierarchy_mode
-            use_skos = getattr(args, 'skos', False) or hierarchy_mode or config.skos_enabled
+            hierarchy_mode = getattr(args, "hierarchy", False) or config.skos_hierarchy_mode
+            use_skos = getattr(args, "skos", False) or hierarchy_mode or config.skos_enabled
             lang = config.lang if use_skos else None
             languages = config.skos_languages if use_skos else None
 
         enabled_sources = config.get("skos.enabled_sources", ["off", "agrovoc", "dbpedia", "wikidata"])
-        return parse_command(md_file, args.output, args.validate, wanted_items, include_dated, use_skos, hierarchy_mode, lang, languages, enabled_sources)
-    elif args.command == 'update-template':
+        return parse_command(
+            md_file,
+            args.output,
+            args.validate,
+            wanted_items,
+            include_dated,
+            use_skos,
+            hierarchy_mode,
+            lang,
+            languages,
+            enabled_sources,
+        )
+    elif args.command == "update-template":
         return update_template(args.directory, args.force)
-    elif args.command == 'serve':
+    elif args.command == "serve":
         port = args.port if args.port is not None else config.serve_port
         host = args.host if args.host is not None else config.serve_host
-        return serve_command(args.directory, port, host, getattr(args, 'api_proxy', None))
-    elif args.command == 'api' or args.command == 'chat':
+        return serve_command(args.directory, port, host, getattr(args, "api_proxy", None))
+    elif args.command == "api" or args.command == "chat":
         port = args.port if args.port is not None else config.api_port
         host = args.host if args.host is not None else config.api_host
         return api_command(args.directory, port, host)
-    elif args.command == 'labels':
-        if args.labels_command == 'generate':
+    elif args.command == "labels":
+        if args.labels_command == "generate":
             style = args.style if args.style else config.labels_style
             sheet_format = args.sheet_format if args.sheet_format else config.labels_sheet_format
             base_url = args.base_url if args.base_url else config.labels_base_url
@@ -996,9 +1063,9 @@ Examples:
                 custom_formats=config.labels_custom_formats,
                 dupes=args.dupes,
             )
-        elif args.labels_command == 'formats':
+        elif args.labels_command == "formats":
             return labels_formats(custom_formats=config.labels_custom_formats)
-        elif args.labels_command == 'preview':
+        elif args.labels_command == "preview":
             return labels_preview(
                 series=args.series,
                 start=args.start,
@@ -1007,9 +1074,9 @@ Examples:
         else:
             labels_parser.print_help()
             return 1
-    elif args.command == 'skos':
+    elif args.command == "skos":
         return skos_command(args, config)
-    elif args.command == 'vocabulary':
+    elif args.command == "vocabulary":
         return vocabulary_command(args, config)
     else:
         parser_cli.print_help()
@@ -1029,10 +1096,10 @@ def skos_command(args, config: Config) -> int:
     skos_config = config.get("skos", {})
     default_lang = skos_config.get("default_lang", "en")
 
-    if args.skos_command == 'expand':
-        lang = getattr(args, 'lang', default_lang)
-        sources = getattr(args, 'sources', 'agrovoc,dbpedia').split(',')
-        output_json = getattr(args, 'json', False)
+    if args.skos_command == "expand":
+        lang = getattr(args, "lang", default_lang)
+        sources = getattr(args, "sources", "agrovoc,dbpedia").split(",")
+        output_json = getattr(args, "json", False)
 
         client = skos.SKOSClient(enabled_sources=sources)
         result = client.expand_tags(args.tags, lang=lang)
@@ -1047,14 +1114,14 @@ def skos_command(args, config: Config) -> int:
 
         return 0
 
-    elif args.skos_command == 'lookup':
-        lang = getattr(args, 'lang', default_lang)
-        source = getattr(args, 'source', 'agrovoc')
+    elif args.skos_command == "lookup":
+        lang = getattr(args, "lang", default_lang)
+        source = getattr(args, "source", "agrovoc")
 
         client = skos.SKOSClient(enabled_sources=[source])
         concept = client.lookup_concept(args.label, lang=lang, source=source)
 
-        if concept and concept.get('uri'):
+        if concept and concept.get("uri"):
             print(json.dumps(concept, indent=2, ensure_ascii=False))
         else:
             print(f"No concept found for '{args.label}' in {source}")
@@ -1062,13 +1129,13 @@ def skos_command(args, config: Config) -> int:
 
         return 0
 
-    elif args.skos_command == 'cache':
-        if getattr(args, 'clear', False):
+    elif args.skos_command == "cache":
+        if getattr(args, "clear", False):
             client = skos.SKOSClient()
             count = client.clear_cache()
             print(f"Cleared {count} cached lookups")
             return 0
-        elif getattr(args, 'path', False):
+        elif getattr(args, "path", False):
             print(skos.DEFAULT_CACHE_DIR)
             return 0
         else:
@@ -1095,7 +1162,7 @@ def skos_command(args, config: Config) -> int:
 
 def vocabulary_command(args, config: Config) -> int:
     """Handle vocabulary subcommands."""
-    directory = getattr(args, 'directory', None)
+    directory = getattr(args, "directory", None)
     if directory is None:
         directory = Path.cwd()
     else:
@@ -1139,8 +1206,8 @@ def vocabulary_command(args, config: Config) -> int:
     else:
         vocab = local_vocab
 
-    if args.vocab_command == 'list':
-        output_json = getattr(args, 'json', False)
+    if args.vocab_command == "list":
+        output_json = getattr(args, "json", False)
 
         if not vocab:
             print("No vocabulary found. Create local-vocabulary.yaml or run 'inventory-md parse' first.")
@@ -1159,7 +1226,7 @@ def vocabulary_command(args, config: Config) -> int:
 
         return 0
 
-    elif args.vocab_command == 'lookup':
+    elif args.vocab_command == "lookup":
         label = args.label
 
         if not vocab:
@@ -1184,7 +1251,7 @@ def vocabulary_command(args, config: Config) -> int:
 
         return 0
 
-    elif args.vocab_command == 'tree':
+    elif args.vocab_command == "tree":
         if not vocab:
             print("No vocabulary found. Create local-vocabulary.yaml or run 'inventory-md parse' first.")
             return 1
@@ -1216,5 +1283,5 @@ def vocabulary_command(args, config: Config) -> int:
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

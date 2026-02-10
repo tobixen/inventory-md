@@ -21,10 +21,10 @@ More content.
         sections = md_adapter.parse_markdown_string(content)
 
         assert len(sections) == 1
-        assert sections[0].heading == 'Main'
+        assert sections[0].heading == "Main"
         assert len(sections[0].subsections) == 2
-        assert sections[0].subsections[0].heading == 'Sub1'
-        assert sections[0].subsections[1].heading == 'Sub2'
+        assert sections[0].subsections[0].heading == "Sub1"
+        assert sections[0].subsections[1].heading == "Sub2"
 
     def test_paragraphs(self):
         """Test paragraph extraction."""
@@ -36,7 +36,7 @@ Second paragraph.
 """
         sections = md_adapter.parse_markdown_string(content)
 
-        assert sections[0].paragraphs == ['First paragraph.', 'Second paragraph.']
+        assert sections[0].paragraphs == ["First paragraph.", "Second paragraph."]
 
     def test_list_items(self):
         """Test list item extraction."""
@@ -49,9 +49,9 @@ Second paragraph.
         sections = md_adapter.parse_markdown_string(content)
 
         assert len(sections[0].list_items) == 3
-        assert sections[0].list_items[0]['text'] == 'Item 1'
-        assert sections[0].list_items[1]['text'] == 'Item 2'
-        assert sections[0].list_items[2]['text'] == 'Item 3'
+        assert sections[0].list_items[0]["text"] == "Item 1"
+        assert sections[0].list_items[1]["text"] == "Item 2"
+        assert sections[0].list_items[2]["text"] == "Item 3"
 
     def test_nested_lists(self):
         """Test nested list item extraction."""
@@ -65,10 +65,10 @@ Second paragraph.
         sections = md_adapter.parse_markdown_string(content)
 
         assert len(sections[0].list_items) == 2
-        assert sections[0].list_items[0]['text'] == 'Main item'
-        assert len(sections[0].list_items[0]['nested']) == 2
-        assert sections[0].list_items[0]['nested'][0]['text'] == 'Nested item 1'
-        assert sections[0].list_items[0]['nested'][1]['text'] == 'Nested item 2'
+        assert sections[0].list_items[0]["text"] == "Main item"
+        assert len(sections[0].list_items[0]["nested"]) == 2
+        assert sections[0].list_items[0]["nested"][0]["text"] == "Nested item 1"
+        assert sections[0].list_items[0]["nested"][1]["text"] == "Nested item 2"
 
     def test_mixed_content(self):
         """Test mixed paragraphs and lists."""
@@ -87,8 +87,8 @@ Second paragraph.
         sections = md_adapter.parse_markdown_string(content)
 
         assert len(sections[0].paragraphs) == 2
-        assert sections[0].paragraphs[0] == 'First paragraph.'
-        assert sections[0].paragraphs[1] == 'Second paragraph.'
+        assert sections[0].paragraphs[0] == "First paragraph."
+        assert sections[0].paragraphs[1] == "Second paragraph."
         assert len(sections[0].list_items) == 4
 
     def test_heading_hierarchy(self):
@@ -138,7 +138,7 @@ class TestIterAllSections:
         all_sections = md_adapter.iter_all_sections(sections)
 
         headings = [s.heading for s in all_sections]
-        assert headings == ['A', 'B', 'C', 'D']
+        assert headings == ["A", "B", "C", "D"]
 
 
 class TestFindSection:
@@ -153,10 +153,10 @@ class TestFindSection:
 Content
 """
         sections = md_adapter.parse_markdown_string(content)
-        found = md_adapter.find_section(sections, 'box1')
+        found = md_adapter.find_section(sections, "box1")
 
         assert found is not None
-        assert 'box1' in found.heading
+        assert "box1" in found.heading
 
     def test_case_insensitive(self):
         """Test case-insensitive search."""
@@ -165,10 +165,10 @@ Content
 Content
 """
         sections = md_adapter.parse_markdown_string(content)
-        found = md_adapter.find_section(sections, 'mysection')
+        found = md_adapter.find_section(sections, "mysection")
 
         assert found is not None
-        assert found.heading == 'MySection'
+        assert found.heading == "MySection"
 
     def test_returns_none_if_not_found(self):
         """Test returns None when section not found."""
@@ -177,7 +177,7 @@ Content
 Content
 """
         sections = md_adapter.parse_markdown_string(content)
-        found = md_adapter.find_section(sections, 'nonexistent')
+        found = md_adapter.find_section(sections, "nonexistent")
 
         assert found is None
 
@@ -197,7 +197,7 @@ class TestGetAllListItems:
         sections = md_adapter.parse_markdown_string(content)
         items = md_adapter.get_all_list_items(sections[0])
 
-        assert items == ['Item 1', 'Nested 1', 'Nested 2', 'Item 2']
+        assert items == ["Item 1", "Nested 1", "Nested 2", "Item 2"]
 
     def test_exclude_nested(self):
         """Test getting only top-level items."""
@@ -210,4 +210,4 @@ class TestGetAllListItems:
         sections = md_adapter.parse_markdown_string(content)
         items = md_adapter.get_all_list_items(sections[0], include_nested=False)
 
-        assert items == ['Item 1', 'Item 2']
+        assert items == ["Item 1", "Item 2"]

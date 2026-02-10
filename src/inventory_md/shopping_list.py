@@ -21,7 +21,7 @@ def parse_amount(value: str | None) -> tuple[float | None, str | None]:
         return None, None
 
     value = value.lower().strip()
-    match = re.match(r'^([\d.]+)\s*([a-z]*)', value)
+    match = re.match(r"^([\d.]+)\s*([a-z]*)", value)
     if not match:
         return None, None
 
@@ -44,9 +44,9 @@ def parse_amount(value: str | None) -> tuple[float | None, str | None]:
 def format_amount(amount: float, unit: str | None) -> str:
     """Format amount with appropriate unit (kg/l for large amounts)."""
     if unit == "g" and amount >= 1000:
-        return f"{amount/1000:.1f}kg"
+        return f"{amount / 1000:.1f}kg"
     elif unit == "ml" and amount >= 1000:
-        return f"{amount/1000:.1f}l"
+        return f"{amount / 1000:.1f}l"
     elif unit:
         return f"{amount:.0f}{unit}"
     else:
@@ -56,6 +56,7 @@ def format_amount(amount: float, unit: str | None) -> str:
 @dataclass
 class DesiredItem:
     """An item from wanted-items.md with target quantities."""
+
     tag: str
     description: str
     section: str = ""
@@ -67,6 +68,7 @@ class DesiredItem:
 @dataclass
 class InventoryItem:
     """An item from inventory.md."""
+
     tag: str
     item_id: str
     description: str
@@ -80,6 +82,7 @@ class InventoryItem:
 @dataclass
 class Section:
     """A section from the wanted-items file."""
+
     name: str
     items: list[DesiredItem] = field(default_factory=list)
 
@@ -91,7 +94,7 @@ def parse_wanted_items(content: str) -> list[Section]:
 
     for line in content.split("\n"):
         # Check for section header (## heading)
-        header_match = re.match(r'^##\s+(.+)$', line)
+        header_match = re.match(r"^##\s+(.+)$", line)
         if header_match:
             if current_section.items:
                 sections.append(current_section)
@@ -103,13 +106,13 @@ def parse_wanted_items(content: str) -> list[Section]:
             continue
 
         # Extract tag
-        tag_match = re.search(r'tag:(\S+)', line)
+        tag_match = re.search(r"tag:(\S+)", line)
         if not tag_match:
             continue
         tag = tag_match.group(1)
 
         # Extract description or use tag as fallback
-        desc_match = re.search(r' - (.+?)(?:\s+target:|$)', line)
+        desc_match = re.search(r" - (.+?)(?:\s+target:|$)", line)
         if desc_match:
             description = desc_match.group(1).strip()
         else:
@@ -121,7 +124,7 @@ def parse_wanted_items(content: str) -> list[Section]:
         target_mass_g = None
         target_volume_ml = None
 
-        qty_match = re.search(r'target:qty:(\S+)', line)
+        qty_match = re.search(r"target:qty:(\S+)", line)
         if qty_match:
             qty_str = qty_match.group(1)
             amount, unit = parse_amount(qty_str)
@@ -132,26 +135,28 @@ def parse_wanted_items(content: str) -> list[Section]:
             elif amount is not None:
                 target_qty = int(amount)
 
-        mass_match = re.search(r'mass:(\S+)', line)
+        mass_match = re.search(r"mass:(\S+)", line)
         if mass_match:
             amount, unit = parse_amount(mass_match.group(1))
             if amount is not None and target_mass_g is None:
                 target_mass_g = amount
 
-        volume_match = re.search(r'volume:(\S+)', line)
+        volume_match = re.search(r"volume:(\S+)", line)
         if volume_match:
             amount, unit = parse_amount(volume_match.group(1))
             if amount is not None and target_volume_ml is None:
                 target_volume_ml = amount
 
-        current_section.items.append(DesiredItem(
-            tag=tag,
-            description=description,
-            section=current_section.name,
-            target_qty=target_qty,
-            target_mass_g=target_mass_g,
-            target_volume_ml=target_volume_ml,
-        ))
+        current_section.items.append(
+            DesiredItem(
+                tag=tag,
+                description=description,
+                section=current_section.name,
+                target_qty=target_qty,
+                target_mass_g=target_mass_g,
+                target_volume_ml=target_volume_ml,
+            )
+        )
 
     if current_section.items:
         sections.append(current_section)
@@ -169,59 +174,61 @@ def parse_inventory_for_shopping(content: str) -> list[InventoryItem]:
         if not line.strip().startswith("*"):
             continue
 
-        tag_match = re.search(r'tag:(\S+)', line)
+        tag_match = re.search(r"tag:(\S+)", line)
         if not tag_match:
             continue
         tag = tag_match.group(1).lower()
 
-        id_match = re.search(r'ID:(\S+)', line)
+        id_match = re.search(r"ID:(\S+)", line)
         item_id = id_match.group(1) if id_match else ""
 
         qty = 1
-        qty_match = re.search(r'qty:(\d+)', line)
+        qty_match = re.search(r"qty:(\d+)", line)
         if qty_match:
             qty = int(qty_match.group(1))
 
         mass_g = None
-        mass_match = re.search(r'mass:(\S+)', line)
+        mass_match = re.search(r"mass:(\S+)", line)
         if mass_match:
             amount, unit = parse_amount(mass_match.group(1))
             if amount is not None:
                 mass_g = amount
 
         volume_ml = None
-        volume_match = re.search(r'volume:(\S+)', line)
+        volume_match = re.search(r"volume:(\S+)", line)
         if volume_match:
             amount, unit = parse_amount(volume_match.group(1))
             if amount is not None:
                 volume_ml = amount
 
-        bb_match = re.search(r'bb:(\S+)', line)
+        bb_match = re.search(r"bb:(\S+)", line)
         bb = bb_match.group(1) if bb_match else None
 
         expired = "expired" in line.lower()
 
-        desc = re.sub(r'\*\s*', '', line)
-        desc = re.sub(r'tag:\S+\s*', '', desc)
-        desc = re.sub(r'ID:\S+\s*', '', desc)
-        desc = re.sub(r'qty:\d+\s*', '', desc)
-        desc = re.sub(r'mass:\S+\s*', '', desc)
-        desc = re.sub(r'volume:\S+\s*', '', desc)
-        desc = re.sub(r'bb:\S+\s*', '', desc)
-        desc = re.sub(r'EAN:\S+\s*', '', desc)
-        desc = re.sub(r'price:\S+\s*', '', desc)
+        desc = re.sub(r"\*\s*", "", line)
+        desc = re.sub(r"tag:\S+\s*", "", desc)
+        desc = re.sub(r"ID:\S+\s*", "", desc)
+        desc = re.sub(r"qty:\d+\s*", "", desc)
+        desc = re.sub(r"mass:\S+\s*", "", desc)
+        desc = re.sub(r"volume:\S+\s*", "", desc)
+        desc = re.sub(r"bb:\S+\s*", "", desc)
+        desc = re.sub(r"EAN:\S+\s*", "", desc)
+        desc = re.sub(r"price:\S+\s*", "", desc)
         desc = desc.strip()
 
-        items.append(InventoryItem(
-            tag=tag,
-            item_id=item_id,
-            description=desc,
-            qty=qty,
-            mass_g=mass_g,
-            volume_ml=volume_ml,
-            bb=bb,
-            expired=expired,
-        ))
+        items.append(
+            InventoryItem(
+                tag=tag,
+                item_id=item_id,
+                description=desc,
+                qty=qty,
+                mass_g=mass_g,
+                volume_ml=volume_ml,
+                bb=bb,
+                expired=expired,
+            )
+        )
 
     return items
 
@@ -304,7 +311,7 @@ def find_dated_wanted_files(base_path: Path) -> list[Path]:
     dated_files = []
     for filepath in glob.glob(str(pattern)):
         path = Path(filepath)
-        if re.match(r'wanted-items-\d{4}-\d{2}-\d{2}\.md$', path.name):
+        if re.match(r"wanted-items-\d{4}-\d{2}-\d{2}\.md$", path.name):
             dated_files.append(path)
 
     return sorted(dated_files)
@@ -319,10 +326,7 @@ def merge_sections(all_sections: list[list[Section]]) -> list[Section]:
             if section.name in merged:
                 merged[section.name].items.extend(section.items)
             else:
-                merged[section.name] = Section(
-                    name=section.name,
-                    items=list(section.items)
-                )
+                merged[section.name] = Section(name=section.name, items=list(section.items))
 
     return list(merged.values())
 

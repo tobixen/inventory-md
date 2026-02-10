@@ -1,4 +1,5 @@
 """Tests for CLI module."""
+
 import argparse
 import subprocess
 import sys
@@ -40,9 +41,10 @@ class TestServeCommand:
         """Test that serve_command accepts api_proxy parameter."""
         # Just verify the function signature accepts the parameter
         import inspect
+
         sig = inspect.signature(cli.serve_command)
         params = list(sig.parameters.keys())
-        assert 'api_proxy' in params
+        assert "api_proxy" in params
 
     def test_serve_command_directory_not_exists(self, tmp_path):
         """Test serve_command fails if directory doesn't exist."""
@@ -62,19 +64,19 @@ class TestCliArgumentParser:
     def test_serve_has_api_proxy_option(self):
         """Test that serve subcommand has --api-proxy option."""
         parser = argparse.ArgumentParser()
-        subparsers = parser.add_subparsers(dest='command')
+        subparsers = parser.add_subparsers(dest="command")
 
-        serve_parser = subparsers.add_parser('serve')
-        serve_parser.add_argument('directory', type=Path, nargs='?')
-        serve_parser.add_argument('--port', '-p', type=int, default=8000)
-        serve_parser.add_argument('--api-proxy', type=str, metavar='HOST:PORT')
+        serve_parser = subparsers.add_parser("serve")
+        serve_parser.add_argument("directory", type=Path, nargs="?")
+        serve_parser.add_argument("--port", "-p", type=int, default=8000)
+        serve_parser.add_argument("--api-proxy", type=str, metavar="HOST:PORT")
 
         # Parse with --api-proxy
-        args = parser.parse_args(['serve', '--api-proxy', 'localhost:8765'])
-        assert args.api_proxy == 'localhost:8765'
+        args = parser.parse_args(["serve", "--api-proxy", "localhost:8765"])
+        assert args.api_proxy == "localhost:8765"
 
         # Parse without --api-proxy
-        args = parser.parse_args(['serve'])
+        args = parser.parse_args(["serve"])
         assert args.api_proxy is None
 
 
@@ -87,35 +89,27 @@ class TestProxyHTTPHandler:
         api_proxy = "localhost:8765"
 
         def should_proxy(path):
-            return api_proxy and (
-                path.startswith('/api/') or
-                path.startswith('/chat') or
-                path.startswith('/health')
-            )
+            return api_proxy and (path.startswith("/api/") or path.startswith("/chat") or path.startswith("/health"))
 
-        assert should_proxy('/api/items')
-        assert should_proxy('/api/photos')
-        assert should_proxy('/chat')
-        assert should_proxy('/chat/stream')
-        assert should_proxy('/health')
-        assert not should_proxy('/search.html')
-        assert not should_proxy('/inventory.json')
-        assert not should_proxy('/resized/photo.jpg')
+        assert should_proxy("/api/items")
+        assert should_proxy("/api/photos")
+        assert should_proxy("/chat")
+        assert should_proxy("/chat/stream")
+        assert should_proxy("/health")
+        assert not should_proxy("/search.html")
+        assert not should_proxy("/inventory.json")
+        assert not should_proxy("/resized/photo.jpg")
 
     def test_should_not_proxy_without_api_proxy(self):
         """Test that nothing is proxied when api_proxy is None."""
         api_proxy = None
 
         def should_proxy(path):
-            return api_proxy and (
-                path.startswith('/api/') or
-                path.startswith('/chat') or
-                path.startswith('/health')
-            )
+            return api_proxy and (path.startswith("/api/") or path.startswith("/chat") or path.startswith("/health"))
 
-        assert not should_proxy('/api/items')
-        assert not should_proxy('/chat')
-        assert not should_proxy('/health')
+        assert not should_proxy("/api/items")
+        assert not should_proxy("/chat")
+        assert not should_proxy("/health")
 
 
 class TestInitCommand:
@@ -125,7 +119,7 @@ class TestInitCommand:
         """Test that init creates the directory structure."""
         inventory_dir = tmp_path / "new_inventory"
 
-        with patch('builtins.input', return_value='n'):
+        with patch("builtins.input", return_value="n"):
             result = cli.init_inventory(inventory_dir, "Test Inventory")
 
         assert result == 0
@@ -163,14 +157,14 @@ class TestUpdateTemplate:
         existing.write_text("old content")
 
         # User says no
-        with patch('builtins.input', return_value='n'):
+        with patch("builtins.input", return_value="n"):
             result = cli.update_template(tmp_path, force=False)
 
         assert result == 1
         assert existing.read_text() == "old content"  # Not overwritten
 
         # User says yes
-        with patch('builtins.input', return_value='y'):
+        with patch("builtins.input", return_value="y"):
             result = cli.update_template(tmp_path, force=False)
 
         assert result == 0
