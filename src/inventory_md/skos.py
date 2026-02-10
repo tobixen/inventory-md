@@ -1906,6 +1906,14 @@ class SKOSClient:
                 MINUS {{ ?item wdt:P31 wd:Q5 }}
                 MINUS {{ ?item wdt:P31 wd:Q15632617 }}
                 MINUS {{ ?item wdt:P31 wd:Q4167410 }}
+                MINUS {{ ?item wdt:P31 wd:Q11424 }}
+                MINUS {{ ?item wdt:P31 wd:Q482994 }}
+                MINUS {{ ?item wdt:P31 wd:Q215380 }}
+                MINUS {{ ?item wdt:P31 wd:Q5398426 }}
+                MINUS {{ ?item wdt:P31 wd:Q1002697 }}
+                MINUS {{ ?item wdt:P31 wd:Q134556 }}
+                MINUS {{ ?item wdt:P31 wd:Q7366 }}
+                MINUS {{ ?item wdt:P31 wd:Q4830453 }}
                 OPTIONAL {{
                     ?item schema:description ?description .
                     FILTER(lang(?description) = "{lang}")
