@@ -1077,20 +1077,13 @@ class TestWikidataLookup:
         assert result[0]["label"] == "paper product"
 
     @patch("inventory_md.skos.SKOSClient._sparql_query")
-    def test_lookup_wikidata_prefers_class_entity(self, mock_query, tmp_path):
-        """Disambiguation: class entity (P279) beats non-class entity."""
+    def test_lookup_wikidata_prefers_class_entity_across_variants(self, mock_query, tmp_path):
+        """Disambiguation: lowercase variant finds generic concept (P279 class)."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
 
-        # Simulate results where a non-class entity (film/band) appears first
-        # but a class entity (general concept) has P279
-        lookup_results = [
-            {
-                "item": {"value": "http://www.wikidata.org/entity/Q125102922"},
-                "label": {"value": "Clothing"},
-                "description": {"value": "2019 Canadian film"},
-                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Clothing_(film)"},
-                "isClass": {"value": "false"},
-            },
+        # "Clothing" → variants: ["clothing", "Clothing"]
+        # Lowercase "clothing" finds generic concept Q11460 with P279
+        lowercase_results = [
             {
                 "item": {"value": "http://www.wikidata.org/entity/Q11460"},
                 "label": {"value": "clothing"},
@@ -1106,22 +1099,57 @@ class TestWikidataLookup:
                 "relType": {"value": "subclass_of"},
             },
         ]
-        mock_query.side_effect = [lookup_results, broader_results]
+        # lowercase finds class → stops, then broader query
+        mock_query.side_effect = [lowercase_results, broader_results]
 
         result, failed = client._lookup_wikidata_sparql("Clothing", "en")
 
         assert not failed
         assert result is not None
-        # Should pick the class entity Q11460, not the film Q125102922
+        # Should pick the class entity Q11460, not try capitalized variant
         assert result["uri"] == "http://www.wikidata.org/entity/Q11460"
         assert result["description"] == "covering worn on the human body"
 
     @patch("inventory_md.skos.SKOSClient._sparql_query")
-    def test_lookup_wikidata_falls_back_to_first_when_no_class(self, mock_query, tmp_path):
-        """When no entity has P279, falls back to first result."""
+    def test_lookup_wikidata_class_in_later_variant(self, mock_query, tmp_path):
+        """Class entity found in later variant beats non-class from earlier variant."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
 
-        lookup_results = [
+        # "Hardware" → variants: ["hardware", "Hardware"]
+        # Lowercase finds no results; title-case finds both a film and a class
+        titlecase_results = [
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q9999"},
+                "label": {"value": "Hardware"},
+                "description": {"value": "1990 film"},
+                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Hardware_(film)"},
+                "isClass": {"value": "false"},
+            },
+            {
+                "item": {"value": "http://www.wikidata.org/entity/Q3966"},
+                "label": {"value": "Hardware"},
+                "description": {"value": "physical components of a computer"},
+                "wpUrl": {"value": "https://en.wikipedia.org/wiki/Hardware"},
+                "isClass": {"value": "true"},
+            },
+        ]
+        broader_results = []
+        # lowercase → empty, titlecase → has results with class, then broader
+        mock_query.side_effect = [[], titlecase_results, broader_results]
+
+        result, failed = client._lookup_wikidata_sparql("Hardware", "en")
+
+        assert not failed
+        assert result is not None
+        assert result["uri"] == "http://www.wikidata.org/entity/Q3966"
+        assert result["description"] == "physical components of a computer"
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_lookup_wikidata_falls_back_to_first_when_no_class(self, mock_query, tmp_path):
+        """When no entity has P279 across all variants, falls back to first result."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False, use_oxigraph=False)
+
+        lowercase_results = [
             {
                 "item": {"value": "http://www.wikidata.org/entity/Q100"},
                 "label": {"value": "widget"},
@@ -1135,13 +1163,14 @@ class TestWikidataLookup:
                 "isClass": {"value": "false"},
             },
         ]
-        mock_query.side_effect = [lookup_results, []]
+        # "widget" → variants: ["widget", "Widget"]
+        # lowercase → no class, titlecase → empty, fall back to first
+        mock_query.side_effect = [lowercase_results, [], []]
 
         result, failed = client._lookup_wikidata_sparql("widget", "en")
 
         assert not failed
         assert result is not None
-        # Should pick first result (highest sitelinks via ORDER BY)
         assert result["uri"] == "http://www.wikidata.org/entity/Q100"
 
     @patch("inventory_md.skos.SKOSClient._lookup_wikidata_sparql")

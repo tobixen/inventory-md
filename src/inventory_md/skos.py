@@ -1878,12 +1878,18 @@ class SKOSClient:
         if not endpoint:
             return None, False
 
-        # Try label as-is first, then .title() form
-        # (Wikidata uses lowercase for common nouns)
-        label_variants = [label]
-        titled = label.title()
-        if titled != label:
-            label_variants.append(titled)
+        # Build label variants: lowercase first (generic concepts in Wikidata
+        # use lowercase), then as-given, then title-case.
+        seen: set[str] = set()
+        label_variants: list[str] = []
+        for v in [label.lower(), label, label.title()]:
+            if v not in seen:
+                seen.add(v)
+                label_variants.append(v)
+
+        # Collect candidates across ALL variants; prefer P279 (class) entities.
+        best_class = None  # First entity with P279 (general concept)
+        first_fallback = None  # First entity from first variant with results
 
         for variant in label_variants:
             query = f"""
@@ -1917,36 +1923,41 @@ class SKOSClient:
             if not results:
                 continue  # Try next variant
 
-            # Multi-pass disambiguation (like DBpedia REST approach):
-            # Pass 1: prefer entities with P279 (subclass-of) — general concepts
-            # Pass 2: fall back to most popular entity by sitelink count
-            best = None
-            for r in results:
-                is_class = r.get("isClass", {}).get("value") == "true"
-                if is_class:
-                    best = r
-                    break
-            if best is None:
-                best = results[0]
+            # Track first fallback from earliest variant with results
+            if first_fallback is None:
+                first_fallback = results[0]
 
-            item_uri = best["item"]["value"]
-            pref_label = best.get("label", {}).get("value", label)
-            description = best.get("description", {}).get("value")
-            wikipedia_url = best.get("wpUrl", {}).get("value")
+            # Look for a P279 class entity (general concept, not a film/band)
+            if best_class is None:
+                for r in results:
+                    if r.get("isClass", {}).get("value") == "true":
+                        best_class = r
+                        break
 
-            # Get broader concepts via P31/P279
-            broader = self._get_broader_wikidata(item_uri, lang)
+            # If we found a class entity, no need to try more variants
+            if best_class is not None:
+                break
 
-            return {
-                "uri": item_uri,
-                "prefLabel": pref_label,
-                "source": "wikidata",
-                "broader": broader,
-                "description": description,
-                "wikipediaUrl": wikipedia_url,
-            }, False
+        best = best_class or first_fallback
+        if best is None:
+            return None, False  # Not found (but queries succeeded)
 
-        return None, False  # Not found (but query succeeded)
+        item_uri = best["item"]["value"]
+        pref_label = best.get("label", {}).get("value", label)
+        description = best.get("description", {}).get("value")
+        wikipedia_url = best.get("wpUrl", {}).get("value")
+
+        # Get broader concepts via P31/P279
+        broader = self._get_broader_wikidata(item_uri, lang)
+
+        return {
+            "uri": item_uri,
+            "prefLabel": pref_label,
+            "source": "wikidata",
+            "broader": broader,
+            "description": description,
+            "wikipediaUrl": wikipedia_url,
+        }, False
 
     def _get_broader_wikidata(self, item_uri: str, lang: str) -> list[dict]:
         """Get broader concepts from Wikidata using P31 (instance of) and P279 (subclass of).
