@@ -2,6 +2,19 @@
 
 Known issues and improvement areas for the SKOS vocabulary and category hierarchy system.  We focus first on getting a good, working category system for ~/solveig-inventory, afterwards ~/furuset-inventory should be dealt with.
 
+## Multiple-sources
+
+Let me be clear on this:
+
+If a category exists in multiple sources (say, dbpedia, wikidata, off), then ...
+
+* The category should be stored in the vocabulary with all the sources present
+* It should be displayed not with one source in the UI, but with the full list of sources
+* It should be accessible through several paths starting from "Category by Source", and most likely also other paths starting with our defined root nodes.
+* All translations should be made available.  The fallback logic (use nn or da or no if no nb is found, etc) should only apply if NONE of the sources have nb language.  no should be used it it exists in any of the sources, if not continue with da etc.
+* All descriptions should be shown in the info-box.
+* Sometimes a category is completely wrong (like the animal seal vs a rubber seal), in such cases the local or package-wide vocabulary could contain data telling that another concept is NOT the same.
+
 ## ~~Wikidata source is not visible under "Category by Source"~~
 
 **Status**: Resolved (2026-02-09)
