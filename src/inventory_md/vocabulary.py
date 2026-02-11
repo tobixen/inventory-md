@@ -2566,14 +2566,15 @@ def build_vocabulary_with_skos_hierarchy(
                 logger.info("DBpedia translations applied to %d/%d concepts", applied, len(dbpedia_translations))
 
         # Wikidata translations (fills Norwegian/other gaps)
-        # Use Wikidata URI if available, fall back to DBpedia URI (via sitelinks)
+        # Prefer DBpedia URI (sitelink-based queries are cached under it and more
+        # reliable); fall back to native Wikidata entity URI when no DBpedia URI.
         # Multiple concepts can share the same URI, so map URI -> list[concept_id].
         if client is not None:
             wikidata_uri_set: set[str] = set()
             wikidata_uris: list[tuple[str, str]] = []
             wikidata_concept_map: dict[str, list[str]] = {}
             for concept_id, concept in concepts.items():
-                uri = concept.source_uris.get("wikidata") or concept.source_uris.get("dbpedia")
+                uri = concept.source_uris.get("dbpedia") or concept.source_uris.get("wikidata")
                 if not uri:
                     continue
                 if uri not in wikidata_uri_set:
