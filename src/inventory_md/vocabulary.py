@@ -2517,72 +2517,86 @@ def build_vocabulary_with_skos_hierarchy(
                             break
 
         # DBpedia translations (via SPARQL) — use source_uris for lookup
+        # Multiple concepts can share the same DBpedia URI (e.g. root "electronics"
+        # and AGROVOC path "subjects/.../electronics"), so map URI -> list[concept_id].
         if client is not None:
+            dbpedia_uri_set: set[str] = set()
             dbpedia_uris: list[tuple[str, str]] = []
-            dbpedia_concept_map: dict[str, str] = {}
+            dbpedia_concept_map: dict[str, list[str]] = {}
             for concept_id, concept in concepts.items():
                 uri = concept.source_uris.get("dbpedia")
                 if not uri:
                     continue
-                dbpedia_uris.append((uri, "dbpedia"))
-                dbpedia_concept_map[uri] = concept_id
+                if uri not in dbpedia_uri_set:
+                    dbpedia_uris.append((uri, "dbpedia"))
+                    dbpedia_uri_set.add(uri)
+                dbpedia_concept_map.setdefault(uri, []).append(concept_id)
 
             if dbpedia_uris:
                 _progress(progress, "translate", f"Fetching DBpedia translations for {len(dbpedia_uris)} concepts...")
                 logger.info("Fetching DBpedia translations for %d concepts...", len(dbpedia_uris))
                 dbpedia_translations = client.get_batch_labels(dbpedia_uris, languages)
+                applied = 0
                 for uri, labels in dbpedia_translations.items():
-                    cid = dbpedia_concept_map.get(uri)
-                    if not cid or cid not in concepts:
-                        continue
-                    concept = concepts[cid]
+                    cids = dbpedia_concept_map.get(uri, [])
                     if not labels:
                         continue
-                    # Sanity check: skip if English label doesn't match concept
-                    en_label = labels.get("en", "")
-                    if en_label and concept.prefLabel:
-                        en_lower = en_label.lower()
-                        pref_lower = concept.prefLabel.lower()
-                        if en_lower not in pref_lower and pref_lower not in en_lower:
-                            logger.debug(
-                                "Skipping mismatched DBpedia labels for %s: prefLabel='%s', DBpedia en='%s'",
-                                cid,
-                                concept.prefLabel,
-                                en_label,
-                            )
+                    for cid in cids:
+                        if cid not in concepts:
                             continue
-                    # Merge: DBpedia fills gaps, doesn't overwrite OFF/AGROVOC
-                    merged_labels = dict(labels)
-                    merged_labels.update(concept.labels)
-                    concept.labels = merged_labels
+                        concept = concepts[cid]
+                        # Sanity check: skip if English label doesn't match concept
+                        en_label = labels.get("en", "")
+                        if en_label and concept.prefLabel:
+                            en_lower = en_label.lower()
+                            pref_lower = concept.prefLabel.lower()
+                            if en_lower not in pref_lower and pref_lower not in en_lower:
+                                logger.debug(
+                                    "Skipping mismatched DBpedia labels for %s: prefLabel='%s', DBpedia en='%s'",
+                                    cid,
+                                    concept.prefLabel,
+                                    en_label,
+                                )
+                                continue
+                        # Merge: DBpedia fills gaps, doesn't overwrite OFF/AGROVOC
+                        merged_labels = dict(labels)
+                        merged_labels.update(concept.labels)
+                        concept.labels = merged_labels
+                        applied += 1
+                logger.info("DBpedia translations applied to %d/%d concepts", applied, len(dbpedia_translations))
 
         # Wikidata translations (fills Norwegian/other gaps)
         # Use Wikidata URI if available, fall back to DBpedia URI (via sitelinks)
+        # Multiple concepts can share the same URI, so map URI -> list[concept_id].
         if client is not None:
+            wikidata_uri_set: set[str] = set()
             wikidata_uris: list[tuple[str, str]] = []
-            wikidata_concept_map: dict[str, str] = {}
+            wikidata_concept_map: dict[str, list[str]] = {}
             for concept_id, concept in concepts.items():
                 uri = concept.source_uris.get("wikidata") or concept.source_uris.get("dbpedia")
                 if not uri:
                     continue
-                wikidata_uris.append((uri, "wikidata"))
-                wikidata_concept_map[uri] = concept_id
+                if uri not in wikidata_uri_set:
+                    wikidata_uris.append((uri, "wikidata"))
+                    wikidata_uri_set.add(uri)
+                wikidata_concept_map.setdefault(uri, []).append(concept_id)
 
             if wikidata_uris:
                 _progress(progress, "translate", f"Fetching Wikidata translations for {len(wikidata_uris)} concepts...")
                 logger.info("Fetching Wikidata translations for %d concepts...", len(wikidata_uris))
                 wikidata_translations = client.get_batch_labels(wikidata_uris, languages)
                 for uri, labels in wikidata_translations.items():
-                    cid = wikidata_concept_map.get(uri)
-                    if not cid or cid not in concepts:
-                        continue
-                    concept = concepts[cid]
+                    cids = wikidata_concept_map.get(uri, [])
                     if not labels:
                         continue
-                    # Merge: Wikidata fills gaps, doesn't overwrite
-                    merged_labels = dict(labels)
-                    merged_labels.update(concept.labels)
-                    concept.labels = merged_labels
+                    for cid in cids:
+                        if cid not in concepts:
+                            continue
+                        concept = concepts[cid]
+                        # Merge: Wikidata fills gaps, doesn't overwrite
+                        merged_labels = dict(labels)
+                        merged_labels.update(concept.labels)
+                        concept.labels = merged_labels
 
     # Apply language fallbacks to fill remaining gaps (e.g., nb from sv)
     if languages and len(languages) > 1:

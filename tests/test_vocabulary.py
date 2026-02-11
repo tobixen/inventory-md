@@ -2523,6 +2523,105 @@ class TestTranslationMerging:
 
         assert result["nb"] == "Melk"  # direct translation preserved
 
+    @staticmethod
+    def _make_mock_skos_module():
+        """Create a mock skos module with _is_irrelevant_dbpedia_category."""
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        return mock_module
+
+    def test_shared_dbpedia_uri_labels_applied_to_all_concepts(self):
+        """Multiple concepts sharing the same DBpedia URI should all get labels.
+
+        Regression test: previously dbpedia_concept_map was URI -> single concept_id,
+        so only the last concept processed got labels (e.g. AGROVOC path got labels but
+        root concept did not).
+        """
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [
+                        {"name": "Resistor", "metadata": {"categories": ["resistor"]}},
+                    ],
+                }
+            ]
+        }
+
+        dbpedia_resistor = {
+            "uri": "http://dbpedia.org/resource/Resistor",
+            "prefLabel": "Resistor",
+            "source": "dbpedia",
+            "broader": [
+                {
+                    "uri": "http://dbpedia.org/resource/Electronics",
+                    "label": "Electronics",
+                    "relType": "hypernym",
+                },
+            ],
+        }
+        dbpedia_electronics = {
+            "uri": "http://dbpedia.org/resource/Electronics",
+            "prefLabel": "Electronics",
+            "source": "dbpedia",
+            "broader": [],
+        }
+
+        mock_client = MagicMock()
+
+        # lookup_concept returns context-aware results so _resolve_missing_uris
+        # can populate source_uris for the root "electronics" concept
+        def lookup_side_effect(label, lang="en", source=None):
+            lower = label.lower()
+            if "resistor" in lower:
+                return dbpedia_resistor
+            if "electronics" in lower:
+                return dbpedia_electronics
+            return None
+
+        mock_client.lookup_concept.side_effect = lookup_side_effect
+        mock_client._get_oxigraph_store.return_value = None
+        # DBpedia batch labels: same Electronics URI maps to multiple concepts
+        mock_client.get_batch_labels.return_value = {
+            "http://dbpedia.org/resource/Resistor": {
+                "en": "Resistor",
+                "de": "Widerstand",
+            },
+            "http://dbpedia.org/resource/Electronics": {
+                "en": "Electronics",
+                "de": "Elektronik",
+                "nb": "Elektronikk",
+            },
+        }
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, _ = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                enabled_sources=["off", "dbpedia"],
+                languages=["en", "de", "nb"],
+            )
+
+        # The root "electronics" concept should have labels from DBpedia
+        assert "electronics" in vocab, f"Missing root; keys containing 'electr': {[k for k in vocab if 'electr' in k]}"
+        root = vocab["electronics"]
+        assert root.labels.get("de") == "Elektronik", f"Root labels: {root.labels}"
+        assert root.labels.get("nb") == "Elektronikk", f"Root labels: {root.labels}"
+
+        # Child/leaf concepts should also have their labels
+        resistor_concepts = [c for cid, c in vocab.items() if c.prefLabel == "Resistor" and c.labels.get("de")]
+        assert len(resistor_concepts) > 0, "At least one resistor concept should have German label"
+
 
 class TestWikidataFallbackPhase:
     """Tests for Wikidata as a full independent category source."""
