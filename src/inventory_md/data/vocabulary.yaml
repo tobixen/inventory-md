@@ -226,6 +226,22 @@ concepts:
   clothing:
     prefLabel: "Clothing"
     altLabel: ["apparel", "clothes", "garments", "klær", "tekstil"]
+    labels:
+      en: "Clothing"
+      nb: "Klær"
+      nn: "Klede"
+      de: "Kleidung"
+      sv: "Kläder"
+      da: "Tøj"
+      nl: "Kleding"
+      fi: "Vaatteet"
+      fr: "Vêtements"
+      es: "Ropa"
+      it: "Abbigliamento"
+      pl: "Odzież"
+      ru: "Одежда"
+      uk: "Одяг"
+      bg: "Облекло"
 
   books:
     prefLabel: "Books"

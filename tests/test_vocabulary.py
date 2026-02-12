@@ -3961,6 +3961,90 @@ class TestFindAdditionalTranslationUris:
             assert call[1].get("source") != "dbpedia" and call[0][2] if len(call[0]) > 2 else True
 
 
+class TestTranslationMap:
+    """Tests for language-aware translation map in build_vocabulary_with_skos_hierarchy.
+
+    Norwegian category labels like 'klær' should map to their curated English
+    concepts ('clothing') rather than creating orphan duplicates.
+    """
+
+    @staticmethod
+    def _make_inventory(categories: list[str]) -> dict:
+        return {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": c.title(), "metadata": {"categories": [c]}} for c in categories],
+                }
+            ]
+        }
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_translation_map_leaf_maps_to_local_root(self, mock_skos_paths):
+        """category:klær should map to the 'clothing' concept, not create an orphan."""
+        mock_skos_paths.return_value = ([], False, {}, [])
+
+        local_vocab = {
+            "clothing": vocabulary.Concept(
+                id="clothing",
+                prefLabel="Clothing",
+                altLabels=["klær", "tekstil"],
+                source="local",
+                labels={"en": "Clothing", "nb": "Klær"},
+            ),
+        }
+        inventory = self._make_inventory(["klær"])
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                lang="nb",
+                enabled_sources=["off", "agrovoc"],
+            )
+
+        # "klær" should map to "clothing", not to itself
+        assert "klær" in mappings
+        assert "clothing" in mappings["klær"]
+        # No orphan "klær" concept should exist
+        assert "klær" not in vocab
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_translation_map_path_remaps_root_segment(self, mock_skos_paths):
+        """category:klær/jakke should map to clothing/jakke."""
+        mock_skos_paths.return_value = ([], False, {}, [])
+
+        local_vocab = {
+            "clothing": vocabulary.Concept(
+                id="clothing",
+                prefLabel="Clothing",
+                altLabels=["klær"],
+                source="local",
+                labels={"en": "Clothing", "nb": "Klær"},
+            ),
+        }
+        inventory = self._make_inventory(["klær/jakke"])
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                lang="nb",
+                enabled_sources=["off", "agrovoc"],
+            )
+
+        # "klær/jakke" should map to "clothing/jakke"
+        assert "klær/jakke" in mappings
+        assert "clothing/jakke" in mappings["klær/jakke"]
+        # The concept tree should have clothing/jakke, not klær/jakke
+        assert "clothing/jakke" in vocab
+        assert "klær/jakke" not in vocab
+
+
 class TestProgressCallback:
     """Tests for progress reporting callback in build_vocabulary_with_skos_hierarchy."""
 

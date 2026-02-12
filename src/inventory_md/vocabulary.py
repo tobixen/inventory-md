@@ -1948,6 +1948,41 @@ def build_vocabulary_with_skos_hierarchy(
     if local_vocab:
         concepts.update(local_vocab)
 
+    # Build language-aware translation map: Norwegian label → concept ID
+    # Priority: labels[nb] > labels[no] > altLabels
+    # This maps e.g. "klær" → "clothing" so Norwegian category labels resolve
+    # to their curated English concepts rather than creating orphan duplicates.
+    local_translation_map: dict[str, str] = {}
+    if local_vocab:
+        lang_chain = [lang] if lang else []
+        # Add fallback languages (no → [nb, da, nn, sv])
+        fallbacks: dict[str, list[str]] = {
+            "nb": ["no"],
+            "no": ["nb"],
+            "nn": ["no", "nb"],
+            "da": ["no", "nb"],
+        }
+        if lang in fallbacks:
+            for fb in fallbacks[lang]:
+                if fb not in lang_chain:
+                    lang_chain.append(fb)
+
+        # First pass: index by translated labels (highest priority)
+        for cid, c in local_vocab.items():
+            for try_lang in lang_chain:
+                if try_lang in c.labels:
+                    label_lower = c.labels[try_lang].lower()
+                    if label_lower != cid.lower() and label_lower not in local_translation_map:
+                        local_translation_map[label_lower] = cid
+                    break  # Use first matching language
+
+        # Second pass: index by altLabels (lower priority, only if not already mapped)
+        for cid, c in local_vocab.items():
+            for alt in c.altLabels:
+                alt_lower = alt.lower()
+                if alt_lower != cid.lower() and alt_lower not in local_translation_map:
+                    local_translation_map[alt_lower] = cid
+
     # Collect categories from inventory, separating leaf labels from path-based ones
     leaf_labels: set[str] = set()  # Simple labels for hierarchy expansion
     path_categories: set[str] = set()  # Path-based categories to keep as-is
@@ -1966,9 +2001,15 @@ def build_vocabulary_with_skos_hierarchy(
     # First, register path-based categories directly in the vocabulary tree
     for path_cat in sorted(path_categories):
         parts = path_cat.split("/")
-        # Map the full path to itself
-        local_src_path = f"category_by_source/local/{path_cat}"
-        category_mappings[path_cat] = [path_cat, local_src_path]
+        # Remap root segment through translation map (e.g. "klær/jakke" → "clothing/jakke")
+        root_lower = parts[0].lower()
+        if root_lower in local_translation_map:
+            translated_root = local_translation_map[root_lower]
+            parts = [translated_root] + parts[1:]
+        resolved_path = "/".join(parts)
+        # Map the full path — keep original path_cat as the mapping key for item counting
+        local_src_path = f"category_by_source/local/{resolved_path}"
+        category_mappings[path_cat] = [resolved_path, local_src_path]
         _add_paths_to_concepts([local_src_path], concepts, "local")
         # Create concept for each path component
         for i in range(len(parts)):
@@ -2049,6 +2090,20 @@ def build_vocabulary_with_skos_hierarchy(
         if label_lower in local_vocab_labels:
             local_concept_id = local_vocab_labels[label_lower]
             local_concept = local_vocab[local_concept_id]
+        elif label_lower in local_translation_map:
+            # Norwegian label maps to a curated concept (e.g. "klær" → "clothing")
+            local_concept_id = local_translation_map[label_lower]
+            local_concept = local_vocab[local_concept_id]
+
+        if local_concept is not None:
+            # If this is a translated root concept (no broader), map directly
+            # and skip external lookups that would fail for the Norwegian word
+            if not local_concept.broader and local_concept_id != label_lower:
+                local_src_path = f"category_by_source/local/{local_concept_id}"
+                category_mappings[label] = [local_concept_id, local_src_path]
+                _add_paths_to_concepts([local_src_path], concepts, "local")
+                logger.debug("Translation map '%s' -> local root '%s'", label, local_concept_id)
+                continue
 
             # If the local entry has an AGROVOC URI, use it for hierarchy expansion
             if local_concept.uri and "agrovoc" in local_concept.uri.lower() and client:
