@@ -502,6 +502,17 @@ class TestConfigClass:
 
         assert cfg.lang == "no"
 
+    def test_config_lang_yaml_boolean_no(self, tmp_path, monkeypatch):
+        """Test lang handles YAML parsing 'no' as boolean False."""
+        monkeypatch.chdir(tmp_path)
+        # YAML parses bare 'no' as False - config should handle this
+        config_file = tmp_path / "inventory-md.yaml"
+        config_file.write_text("lang: no\n")
+
+        cfg = config.Config()
+
+        assert cfg.lang == "no"
+
     def test_config_skos_enabled_default(self, tmp_path, monkeypatch):
         """Test skos_enabled property default."""
         monkeypatch.chdir(tmp_path)

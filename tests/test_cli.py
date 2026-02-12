@@ -1,6 +1,7 @@
 """Tests for CLI module."""
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -252,3 +253,43 @@ class TestParseConfigSkos:
 
         assert result.returncode == 0
         assert "SKOS" not in result.stdout
+
+    def test_parse_writes_lang_to_json(self, tmp_path, monkeypatch):
+        """Test that configured lang is written to inventory.json."""
+        inventory_md = tmp_path / "inventory.md"
+        inventory_md.write_text("# Test\n\n## ID:Box1 Test Box\n\n* Test item\n")
+
+        config_file = tmp_path / "inventory-md.yaml"
+        config_file.write_text("lang: no\n")
+
+        monkeypatch.chdir(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "parse", str(inventory_md)],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        output_json = json.loads((tmp_path / "inventory.json").read_text())
+        assert output_json["lang"] == "no"
+
+    def test_parse_omits_lang_when_english(self, tmp_path, monkeypatch):
+        """Test that lang is omitted from inventory.json when it's the default (en)."""
+        inventory_md = tmp_path / "inventory.md"
+        inventory_md.write_text("# Test\n\n## ID:Box1 Test Box\n\n* Test item\n")
+
+        # No config = default lang 'en'
+        monkeypatch.chdir(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "parse", str(inventory_md)],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        output_json = json.loads((tmp_path / "inventory.json").read_text())
+        assert "lang" not in output_json

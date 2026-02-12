@@ -211,6 +211,8 @@ def parse_command(
 
         # Save to JSON if not validating
         if not validate_only:
+            if lang and lang != "en":
+                data["lang"] = lang
             parser.save_json(data, output)
             print(f"\n✅ Success! {output} has been updated.")
 
@@ -1018,7 +1020,7 @@ Examples:
             # --hierarchy implies --skos, config can also enable these
             hierarchy_mode = getattr(args, "hierarchy", False) or config.skos_hierarchy_mode
             use_skos = getattr(args, "skos", False) or hierarchy_mode or config.skos_enabled
-            lang = config.lang if use_skos else None
+            lang = config.lang
             languages = config.skos_languages if use_skos else None
 
         enabled_sources = config.get("skos.enabled_sources", ["off", "agrovoc", "dbpedia", "wikidata"])

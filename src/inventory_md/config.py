@@ -394,7 +394,11 @@ class Config:
     @property
     def lang(self) -> str:
         """Return default language for the inventory."""
-        return self.get("lang", "en")
+        value = self.get("lang", "en")
+        # YAML parses bare 'no' as boolean False — map it back to Norwegian
+        if value is False:
+            return "no"
+        return str(value) if value else "en"
 
     @property
     def skos_enabled(self) -> bool:

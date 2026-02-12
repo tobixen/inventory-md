@@ -1319,7 +1319,7 @@
             <div class="view-toggle">
                 <button class="view-btn active" data-view="containers" id="containerViewBtn"></button>
                 <button class="view-btn" data-view="gallery" id="galleryViewBtn"></button>
-                <button class="view-btn" data-view="shopping" id="shoppingViewBtn"></button>
+                <button class="view-btn" data-view="shopping" id="shoppingViewBtn" style="display: none;"></button>
             </div>
 
             <div class="tag-filter" id="tagFilter" style="margin-top: 15px;">
@@ -2569,6 +2569,14 @@
                 } catch (vocabError) {
                     console.log('⚠️  Vocabulary not available:', vocabError.message);
                 }
+
+                // Show shopping list button only if shopping-list.md exists
+                try {
+                    const shoppingResponse = await fetch('shopping-list.md', {method: 'HEAD'});
+                    if (shoppingResponse.ok) {
+                        document.getElementById('shoppingViewBtn').style.display = '';
+                    }
+                } catch (e) { /* no shopping list */ }
 
                 // Display intro text if available
                 if (inventoryData.intro) {
