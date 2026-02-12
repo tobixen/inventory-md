@@ -2554,6 +2554,18 @@
                     if (availableLanguages.length > 1) {
                         console.log('✅ Available languages:', availableLanguages.join(', '));
                     }
+                    // Set category label language from inventory config
+                    if (LANGUAGE && LANGUAGE !== 'en') {
+                        // Map general language codes to specific ones available in vocabulary
+                        // e.g. 'no' -> 'nb' (Norwegian bokmål)
+                        const langMap = {'no': 'nb'};
+                        const mapped = langMap[LANGUAGE] || LANGUAGE;
+                        if (availableLanguages.includes(mapped)) {
+                            currentLanguage = mapped;
+                        } else if (availableLanguages.includes(LANGUAGE)) {
+                            currentLanguage = LANGUAGE;
+                        }
+                    }
                 } catch (vocabError) {
                     console.log('⚠️  Vocabulary not available:', vocabError.message);
                 }
