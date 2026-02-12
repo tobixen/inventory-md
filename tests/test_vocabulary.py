@@ -292,7 +292,7 @@ class TestBuildCategoryTree:
         assert tree.label_index.get("food/vegetables") == "food/vegetables"
 
     def test_virtual_root_defines_roots(self):
-        """Test that _root.narrower controls which concepts are roots."""
+        """Test that _root.narrower controls which concepts are curated roots."""
         vocab = {
             "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food", "tools"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
@@ -301,7 +301,8 @@ class TestBuildCategoryTree:
         }
         tree = vocabulary.build_category_tree(vocab)
 
-        assert tree.roots == ["food", "tools"]
+        # Curated roots first, then orphans appended alphabetically
+        assert tree.roots == ["food", "tools", "environmental_design"]
 
     def test_virtual_root_excluded_from_tree(self):
         """Test that _root is removed from concepts after root detection."""
@@ -351,20 +352,48 @@ class TestBuildCategoryTree:
 
         assert tree.roots == ["food", "tools"]
 
-    def test_virtual_root_blocks_external_rootless_concepts(self):
-        """Test that external rootless concepts are excluded from roots."""
+    def test_virtual_root_promotes_orphans_to_roots(self):
+        """Test that orphan concepts are promoted to roots after curated ones."""
         vocab = {
             "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
-            "environmental_design": vocabulary.Concept(id="environmental_design", prefLabel="Environmental design"),
-            "goods_(economics)": vocabulary.Concept(id="goods_(economics)", prefLabel="Goods (economics)"),
+            "verktøy": vocabulary.Concept(id="verktøy", prefLabel="Verktøy"),
+            "leker": vocabulary.Concept(id="leker", prefLabel="Leker"),
         }
         tree = vocabulary.build_category_tree(vocab)
 
-        assert tree.roots == ["food"]
-        # External concepts still exist but are not roots
-        assert "environmental_design" in tree.concepts
-        assert "goods_(economics)" in tree.concepts
+        # Curated root first, then orphans sorted alphabetically
+        assert tree.roots == ["food", "leker", "verktøy"]
+        assert "verktøy" in tree.concepts
+        assert "leker" in tree.concepts
+
+    def test_virtual_root_orphans_sorted_after_curated_roots(self):
+        """Test that curated roots keep their order, orphans follow alphabetically."""
+        vocab = {
+            "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["tools", "food"]),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools"),
+            "zebra": vocabulary.Concept(id="zebra", prefLabel="Zebra"),
+            "alpha": vocabulary.Concept(id="alpha", prefLabel="Alpha"),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        # Curated order preserved, then orphans alphabetically
+        assert tree.roots == ["tools", "food", "alpha", "zebra"]
+
+    def test_reachable_children_not_promoted_to_roots(self):
+        """Test that concepts reachable via narrower chains are not orphan roots."""
+        vocab = {
+            "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food"]),
+            "food": vocabulary.Concept(id="food", prefLabel="Food", narrower=["fruit"]),
+            "fruit": vocabulary.Concept(id="fruit", prefLabel="Fruit", broader=["food"]),
+            "orphan": vocabulary.Concept(id="orphan", prefLabel="Orphan"),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        # fruit is reachable from food, so only food and orphan are roots
+        assert tree.roots == ["food", "orphan"]
+        assert "fruit" in tree.concepts
 
     def test_virtual_root_preserves_narrower_order(self):
         """Test that roots appear in _root.narrower order, not alphabetical."""

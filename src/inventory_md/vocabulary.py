@@ -587,6 +587,22 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
         virtual_root = concepts[VIRTUAL_ROOT_ID]
         roots = [cid for cid in virtual_root.narrower if cid in concepts]
         del concepts[VIRTUAL_ROOT_ID]
+
+        # Add orphan concepts as roots so they're visible in the tree.
+        # The UI filters by item count, so unused concepts won't display.
+        reachable: set[str] = set()
+        queue = list(roots)
+        while queue:
+            cid = queue.pop()
+            if cid in reachable:
+                continue
+            reachable.add(cid)
+            if cid in concepts:
+                queue.extend(concepts[cid].narrower)
+
+        orphans = [cid for cid, c in concepts.items() if "/" not in cid and not c.broader and cid not in reachable]
+        orphans.sort(key=lambda x: concepts[x].prefLabel.lower())
+        roots.extend(orphans)
     else:
         # Fallback: infer roots from concepts with no broader and no "/"
         roots = [cid for cid, c in concepts.items() if "/" not in cid and not c.broader]
