@@ -1343,7 +1343,7 @@
                 <div class="category-browser-header" onclick="toggleCategoryBrowser()">
                     <span class="category-browser-title" id="categoryBrowserTitle"></span>
                     <span id="languageSelectorContainer" style="display: none; margin-left: auto; margin-right: 10px;" onclick="event.stopPropagation();"></span>
-                    <button class="category-browser-clear" onclick="clearCategoryFilter(event)" id="categoryClearBtn" style="display: none;">Clear</button>
+                    <button class="category-browser-clear" onclick="clearCategoryFilter(event)" id="categoryClearBtn" style="display: none;" data-i18n="clear">Clear</button>
                 </div>
                 <div class="category-browser-content" id="categoryTree">
                     <!-- Category tree will be inserted here -->
@@ -1436,7 +1436,11 @@
                 container: 'Container',
                 swipeHint: '← swipe to browse →',
                 tagsSelected: 'selected',
-                tagsAvailable: 'available'
+                tagsAvailable: 'available',
+                categories: 'Categories',
+                items: 'items',
+                clear: 'Clear',
+                noCategoriesFound: 'No categories found'
             },
             no: {
                 title: '🏠 Inventarliste',
@@ -1466,11 +1470,15 @@
                 container: 'Container',
                 swipeHint: '← sveip for å bla →',
                 tagsSelected: 'valgt',
-                tagsAvailable: 'tilgjengelig'
+                tagsAvailable: 'tilgjengelig',
+                categories: 'Kategorier',
+                items: 'gjenstander',
+                clear: 'Nullstill',
+                noCategoriesFound: 'Ingen kategorier funnet'
             }
         };
 
-        const t = translations[LANGUAGE];
+        let t = translations[LANGUAGE];
 
         // Initialize UI text with translations
         function initializeUI() {
@@ -1484,6 +1492,7 @@
             document.getElementById('stats').textContent = t.loading;
             document.getElementById('results').textContent = t.loading;
             document.getElementById('swipeIndicator').textContent = t.swipeHint;
+            document.getElementById('categoryClearBtn').textContent = t.clear;
         }
 
         // Call initializeUI on page load
@@ -1704,11 +1713,11 @@
             if (selectedCategory && vocabularyData && vocabularyData.concepts[selectedCategory]) {
                 const concept = vocabularyData.concepts[selectedCategory];
                 const count = categoryCounts.get(selectedCategory) || 0;
-                titleEl.innerHTML = `📁 ${getConceptLabel(concept)} <span style="color: #666; font-weight: normal;">(${count} items)</span>`;
+                titleEl.innerHTML = `📁 ${getConceptLabel(concept)} <span style="color: #666; font-weight: normal;">(${count} ${t.items})</span>`;
                 if (clearBtn) clearBtn.style.display = 'block';
             } else {
                 const totalCategories = vocabularyData ? Object.keys(vocabularyData.concepts).length : 0;
-                titleEl.textContent = `📁 Categories (${totalCategories})`;
+                titleEl.textContent = `📁 ${t.categories} (${totalCategories})`;
                 if (clearBtn) clearBtn.style.display = 'none';
             }
         }
@@ -2135,7 +2144,7 @@
                 html += renderCategoryNode(rootId);
             }
 
-            treeEl.innerHTML = html || '<div style="padding: 15px; color: #666;">No categories found</div>';
+            treeEl.innerHTML = html || `<div style="padding: 15px; color: #666;">${t.noCategoriesFound}</div>`;
         }
 
         // Display category browser
@@ -2227,7 +2236,7 @@
             const topMatches = matches.slice(0, 15);
 
             if (topMatches.length === 0) {
-                resultsEl.innerHTML = '<div style="padding: 10px; color: #666;">No categories found</div>';
+                resultsEl.innerHTML = `<div style="padding: 10px; color: #666;">${t.noCategoriesFound}</div>`;
             } else {
                 resultsEl.innerHTML = topMatches.map(m => {
                     const pathDisplay = m.id.includes('/') ? `<span style="color: #888; font-size: 12px;"> (${m.id})</span>` : '';
@@ -2521,8 +2530,10 @@
                 inventoryData = await response.json();
 
                 // Update language from inventory if specified
-                if (inventoryData.lang) {
+                if (inventoryData.lang && translations[inventoryData.lang]) {
                     LANGUAGE = inventoryData.lang;
+                    t = translations[LANGUAGE];
+                    initializeUI();
                     console.log('📝 Using language from inventory:', LANGUAGE);
                 }
 
