@@ -2010,11 +2010,15 @@ def build_vocabulary_with_skos_hierarchy(
         # (lower priority, only if not already mapped)
         # Only use altLabels matching the inventory language to prevent
         # cross-language false matches (e.g., Norwegian "barn" matching English "Barn")
+        # Use lang_chain for fallback (e.g., "no" → "nb")
         for cid, c in local_vocab.items():
-            for alt in c.altLabels.get(lang, []):
-                alt_lower = alt.lower()
-                if alt_lower != cid.lower() and alt_lower not in local_translation_map:
-                    local_translation_map[alt_lower] = cid
+            for try_lang in lang_chain:
+                if try_lang in c.altLabels:
+                    for alt in c.altLabels[try_lang]:
+                        alt_lower = alt.lower()
+                        if alt_lower != cid.lower() and alt_lower not in local_translation_map:
+                            local_translation_map[alt_lower] = cid
+                    break  # Use first matching language
 
     # Collect categories from inventory, separating leaf labels from path-based ones
     leaf_labels: set[str] = set()  # Simple labels for hierarchy expansion

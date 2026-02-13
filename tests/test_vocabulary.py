@@ -4243,6 +4243,40 @@ class TestTranslationMap:
         assert "spill" in mappings
         assert "games" in mappings["spill"]
 
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_translation_map_lang_no_falls_back_to_nb(self, mock_skos_paths):
+        """lang='no' should fall back to 'nb' altLabels for translation map.
+
+        The inventory config uses lang: 'no' (ISO 639-1 macrolanguage) but
+        altLabels are tagged as 'nb' (Bokmål). The translation map must
+        use the fallback chain to find them.
+        """
+        mock_skos_paths.return_value = ([], False, {}, [])
+
+        local_vocab = {
+            "electronics": vocabulary.Concept(
+                id="electronics",
+                prefLabel="Electronics",
+                altLabels={"en": ["electrical"], "nb": ["elektronikk", "elektrisk"]},
+                source="local",
+            ),
+        }
+        inventory = self._make_inventory(["elektronikk"])
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                lang="no",
+                enabled_sources=["off", "agrovoc"],
+            )
+
+        # "elektronikk" (nb altLabel) should map to "electronics" even with lang="no"
+        assert "elektronikk" in mappings
+        assert "electronics" in mappings["elektronikk"]
+
     def test_altlabels_merge_per_language(self):
         """Per-language dict merge should combine altLabels without duplicates."""
         target = vocabulary.Concept(
