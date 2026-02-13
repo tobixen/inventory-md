@@ -1589,12 +1589,6 @@ concepts:
       nb: "Bad"
     broader: household
 
-  barn:
-    prefLabel: "Children's items"
-    labels:
-      nb: "Barn"
-    broader: games
-
   hage:
     prefLabel: "Garden"
     labels:
@@ -1651,7 +1645,7 @@ concepts:
     labels:
       nb: "Babyutstyr"
       en: "Baby equipment"
-    broader: barn
+    broader: household
 
   belysning:
     prefLabel: "Lighting"
