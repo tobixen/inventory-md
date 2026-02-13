@@ -2006,6 +2006,13 @@ def build_vocabulary_with_skos_hierarchy(
         if root_lower in local_translation_map:
             translated_root = local_translation_map[root_lower]
             parts = [translated_root] + parts[1:]
+        # If root is a local concept with broader, resolve to full path
+        # (e.g., bad → household/bad, so bad/tekstil → household/bad/tekstil)
+        root_id = parts[0]
+        if local_vocab and root_id in local_vocab and local_vocab[root_id].broader:
+            broader_path = _resolve_broader_chain(root_id, local_vocab)
+            if broader_path != root_id:
+                parts = broader_path.split("/") + parts[1:]
         resolved_path = "/".join(parts)
         # Map the full path — keep original path_cat as the mapping key for item counting
         local_src_path = f"category_by_source/local/{resolved_path}"

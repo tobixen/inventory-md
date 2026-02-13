@@ -4044,6 +4044,80 @@ class TestTranslationMap:
         assert "clothing/jakke" in vocab
         assert "klær/jakke" not in vocab
 
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_path_broader_chain_resolved(self, mock_skos_paths):
+        """bad/tekstil should resolve to household/bad/tekstil when bad has broader:household."""
+        mock_skos_paths.return_value = ([], False, {}, [])
+
+        local_vocab = {
+            "household": vocabulary.Concept(
+                id="household",
+                prefLabel="Household",
+                source="local",
+            ),
+            "bad": vocabulary.Concept(
+                id="bad",
+                prefLabel="Bathroom",
+                broader=["household"],
+                source="local",
+            ),
+        }
+        inventory = self._make_inventory(["bad/tekstil"])
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                lang="nb",
+                enabled_sources=["off", "agrovoc"],
+            )
+
+        # "bad/tekstil" should map to "household/bad/tekstil"
+        assert "bad/tekstil" in mappings
+        assert "household/bad/tekstil" in mappings["bad/tekstil"]
+        # The concept tree should have household/bad/tekstil, not bad/tekstil
+        assert "household/bad/tekstil" in vocab
+        assert "bad/tekstil" not in vocab
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_path_translation_plus_broader(self, mock_skos_paths):
+        """sport/vinter should resolve to recreation/sports/vinter (translation + broader)."""
+        mock_skos_paths.return_value = ([], False, {}, [])
+
+        local_vocab = {
+            "recreation": vocabulary.Concept(
+                id="recreation",
+                prefLabel="Recreation",
+                source="local",
+            ),
+            "sports": vocabulary.Concept(
+                id="sports",
+                prefLabel="Sports",
+                altLabels=["sport"],
+                broader=["recreation"],
+                source="local",
+            ),
+        }
+        inventory = self._make_inventory(["sport/vinter"])
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                lang="nb",
+                enabled_sources=["off", "agrovoc"],
+            )
+
+        # "sport/vinter" should map to "recreation/sports/vinter"
+        assert "sport/vinter" in mappings
+        assert "recreation/sports/vinter" in mappings["sport/vinter"]
+        assert "recreation/sports/vinter" in vocab
+        assert "sport/vinter" not in vocab
+
 
 class TestProgressCallback:
     """Tests for progress reporting callback in build_vocabulary_with_skos_hierarchy."""

@@ -902,6 +902,7 @@ concepts:
 
   household/cleaning:
     prefLabel: "Cleaning supplies"
+    altLabel: ["rengjøring"]
     broader: household
 
   household/storage:
@@ -911,7 +912,7 @@ concepts:
   # Simple household mappings
   bedding:
     prefLabel: "Bedding"
-    altLabel: ["bed linen", "bedclothes", "duvet", "pillow"]
+    altLabel: ["bed linen", "bedclothes", "duvet", "pillow", "sengetøy"]
     broader: household
     uri: "http://dbpedia.org/resource/Bedding"
     # AGROVOC returns "litter for animals" (farm bedding) - use DBpedia
@@ -989,7 +990,7 @@ concepts:
 
   safety-equipment:
     prefLabel: "Safety equipment"
-    altLabel: ["sikkerhetsutstyr", "verneutstyr"]
+    altLabel: ["sikkerhetsutstyr", "verneutstyr", "sikkerhet"]
     broader: medical
 
   misc:
@@ -1623,6 +1624,47 @@ concepts:
     labels:
       nb: "Oppbevaring"
     broader: household
+
+  plastboks:
+    prefLabel: "Plastic storage box"
+    labels:
+      nb: "Plastboks"
+      en: "Plastic storage box"
+    broader: oppbevaring
+
+  bananeske:
+    prefLabel: "Banana box"
+    labels:
+      nb: "Bananeske"
+      en: "Banana box"
+    broader: oppbevaring
+
+  pose:
+    prefLabel: "Bag"
+    labels:
+      nb: "Pose"
+      en: "Bag"
+    broader: oppbevaring
+
+  babyutstyr:
+    prefLabel: "Baby equipment"
+    labels:
+      nb: "Babyutstyr"
+      en: "Baby equipment"
+    broader: barn
+
+  belysning:
+    prefLabel: "Lighting"
+    labels:
+      nb: "Belysning"
+      en: "Lighting"
+    broader: household
+
+  hobby:
+    prefLabel: "Hobbies & Crafts"
+    labels:
+      nb: "Hobby"
+    broader: recreation
 
   sko:
     prefLabel: "Shoes"
