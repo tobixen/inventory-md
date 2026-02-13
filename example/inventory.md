@@ -44,7 +44,7 @@ Permanent arbeidsplass med verktøy.
 * tag:verktøy,måling Vater 60cm
 * tag:verktøy,måling Tommestokk 2m
 
-## ID:A1 parent:Workbench Verktøykasse - Skruer og biter
+## ID:A1 parent:Workbench photos:A1 Verktøykasse - Skruer og biter
 
 Organisert kasse med forskjellige skruer og bits.
 
@@ -66,7 +66,7 @@ Småelektronikk og kabler.
 * tag:elektronikk,komponenter Motstander og kondensatorer
 * tag:elektronikk,komponenter Arduino-brettkort (2 stk)
 
-## ID:A3 parent:Workbench Verktøykasse - Maling og lim
+## ID:A3 parent:Workbench photos:A3 Verktøykasse - Maling og lim
 
 Diverse maling, lim og forseglingsmidler.
 
@@ -102,7 +102,7 @@ Lagerområde for sesongbaserte ting og lagring.
 
 # Oversikt
 
-## ID:C1 parent:Loft Sport og friluft - Vinter
+## ID:C1 parent:Loft photos:C1 Sport og friluft - Vinter
 
 Utstyr for vintersport.
 
@@ -145,7 +145,7 @@ Våtrom og generell oppbevaring.
 
 # Oversikt
 
-## ID:B1 parent:Kjeller Elektronikk - Datautstyr
+## ID:B1 parent:Kjeller photos:B1 Elektronikk - Datautstyr
 
 Gamle datamaskiner og tilbehør.
 

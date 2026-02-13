@@ -1,20 +1,33 @@
 {
-  "intro": "Demo Inventory\n\n## Om inventarlisten\n\nDette er en demo inventarliste som viser funksjonene i Inventory System:\n\n* Hierarkisk organisering med foreldre/barn-relasjoner\n* Tagging av items for enkel søking\n* Support for bilder (når du legger til egne bilder)\n* Multi-tag filtering\n* Alias search\n\n## Hvordan bruke\n\n1. Søk etter innhold i søkefeltet\n2. Filtrer på boksserie (A, B, C, etc)\n3. Klikk på emneord for å filtrere på tags\n4. Klikk på boks-ID for å navigere til forelder/barn-containere",
-  "numbering_scheme": "Denne demoen bruker følgende system:\n\n* **A-serien**: Verktøykasser (A1-A10)\n* **B-serien**: Elektronikk og dataområde (B1-B10)\n* **C-serien**: Sport og friluft (C1-C10)\n* **Locations**: Overordnede plasseringer (Garasje, Loft, Kjeller)",
+  "intro": "Demo Inventory",
+  "numbering_scheme": "Denne demoen bruker følgende system:",
   "containers": [
     {
       "id": "Garasje",
       "parent": null,
-      "heading": "ID:Garasje Oversikt over garasjen",
+      "heading": "Oversikt over garasjen",
+      "description": "Hovedområde for verktøy og utstyr.",
+      "items": [],
+      "images": [],
+      "photos_link": "",
+      "metadata": {
+        "id": "Garasje"
+      }
+    },
+    {
+      "id": "Oversikt",
+      "parent": null,
+      "heading": "Oversikt",
       "description": "",
       "items": [],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {}
     },
     {
       "id": "Workbench",
       "parent": "Garasje",
-      "heading": "ID:Workbench parent:Garasje Arbeidsbenk i garasjen",
+      "heading": "Arbeidsbenk i garasjen",
       "description": "Permanent arbeidsplass med verktøy.",
       "items": [
         {
@@ -27,7 +40,8 @@
               "verktøy",
               "manuell"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -39,7 +53,8 @@
               "verktøy",
               "manuell"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": "Drill1",
@@ -52,7 +67,8 @@
               "verktøy",
               "elektrisk"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -64,7 +80,8 @@
               "verktøy",
               "måling"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -76,16 +93,21 @@
               "verktøy",
               "måling"
             ]
-          }
+          },
+          "indented": false
         }
       ],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {
+        "id": "Workbench",
+        "parent": "Garasje"
+      }
     },
     {
       "id": "A1",
       "parent": "Workbench",
-      "heading": "ID:A1 parent:Workbench Verktøykasse - Skruer og biter",
+      "heading": "Verktøykasse - Skruer og biter",
       "description": "Organisert kasse med forskjellige skruer og bits.",
       "items": [
         {
@@ -98,7 +120,8 @@
               "skruer",
               "metall"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -110,7 +133,8 @@
               "skruer",
               "tre"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -122,7 +146,8 @@
               "verktøy",
               "bits"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -134,7 +159,8 @@
               "verktøy",
               "bits"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": "BitBox1",
@@ -143,16 +169,33 @@
           "raw_text": "ID:BitBox1 Liten plastboks med spesialbiter",
           "metadata": {
             "id": "BitBox1"
-          }
+          },
+          "indented": false
         }
       ],
-      "images": [],
-      "photos_link": ""
+      "images": [
+        {
+          "alt": "A1/IMG_20251007_173413.jpg",
+          "thumb": "resized/A1/IMG_20251007_173413.jpg",
+          "full": "photos/A1/IMG_20251007_173413.jpg"
+        },
+        {
+          "alt": "A1/IMG_20251007_180509.jpg",
+          "thumb": "resized/A1/IMG_20251007_180509.jpg",
+          "full": "photos/A1/IMG_20251007_180509.jpg"
+        }
+      ],
+      "photos_link": "",
+      "metadata": {
+        "id": "A1",
+        "parent": "Workbench",
+        "photos": "A1"
+      }
     },
     {
       "id": "A2",
       "parent": "Workbench",
-      "heading": "ID:A2 parent:Workbench Verktøykasse - Elektrisk",
+      "heading": "Verktøykasse - Elektrisk",
       "description": "Småelektronikk og kabler.",
       "items": [
         {
@@ -165,7 +208,8 @@
               "elektronikk",
               "kabel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -177,7 +221,8 @@
               "elektronikk",
               "kabel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -189,7 +234,8 @@
               "elektronikk",
               "kabel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -201,7 +247,8 @@
               "elektronikk",
               "verktøy"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -213,7 +260,8 @@
               "elektronikk",
               "verktøy"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -225,7 +273,8 @@
               "elektronikk",
               "komponenter"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -237,16 +286,21 @@
               "elektronikk",
               "komponenter"
             ]
-          }
+          },
+          "indented": false
         }
       ],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {
+        "id": "A2",
+        "parent": "Workbench"
+      }
     },
     {
       "id": "A3",
       "parent": "Workbench",
-      "heading": "ID:A3 parent:Workbench Verktøykasse - Maling og lim",
+      "heading": "Verktøykasse - Maling og lim",
       "description": "Diverse maling, lim og forseglingsmidler.",
       "items": [
         {
@@ -259,7 +313,8 @@
               "maling",
               "tre"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -271,7 +326,8 @@
               "maling",
               "metall"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -283,7 +339,8 @@
               "lim",
               "kontakt"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -295,7 +352,8 @@
               "lim",
               "epoxy"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -307,7 +365,8 @@
               "lim",
               "silikon"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -319,7 +378,8 @@
               "maling",
               "verktøy"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -331,16 +391,28 @@
               "maling",
               "verktøy"
             ]
-          }
+          },
+          "indented": false
         }
       ],
-      "images": [],
-      "photos_link": ""
+      "images": [
+        {
+          "alt": "A3/IMG_20251007_182547.jpg",
+          "thumb": "resized/A3/IMG_20251007_182547.jpg",
+          "full": "photos/A3/IMG_20251007_182547.jpg"
+        }
+      ],
+      "photos_link": "",
+      "metadata": {
+        "id": "A3",
+        "parent": "Workbench",
+        "photos": "A3"
+      }
     },
     {
       "id": "Drill1",
       "parent": "Workbench",
-      "heading": "ID:Drill1 parent:Workbench Borhammer Bosch GBH 2-26",
+      "heading": "Borhammer Bosch GBH 2-26",
       "description": "Elektrisk borhammer med tilbehør.",
       "items": [
         {
@@ -348,44 +420,53 @@
           "parent": null,
           "name": "Borkassett SDS-plus",
           "raw_text": "Borkassett SDS-plus",
-          "metadata": {}
+          "metadata": {},
+          "indented": false
         },
         {
           "id": null,
           "parent": null,
           "name": "Meiselsett for betong",
           "raw_text": "Meiselsett for betong",
-          "metadata": {}
+          "metadata": {},
+          "indented": false
         },
         {
           "id": null,
           "parent": null,
           "name": "Dybdeanlegg",
           "raw_text": "Dybdeanlegg",
-          "metadata": {}
+          "metadata": {},
+          "indented": false
         },
         {
           "id": null,
           "parent": null,
           "name": "Sidehåndtak",
           "raw_text": "Sidehåndtak",
-          "metadata": {}
+          "metadata": {},
+          "indented": false
         },
         {
           "id": null,
           "parent": null,
           "name": "Oppbevaringskoffert",
           "raw_text": "Oppbevaringskoffert",
-          "metadata": {}
+          "metadata": {},
+          "indented": false
         }
       ],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {
+        "id": "Drill1",
+        "parent": "Workbench"
+      }
     },
     {
       "id": "BitBox1",
       "parent": "A1",
-      "heading": "ID:BitBox1 parent:A1 Spesialbiter",
+      "heading": "Spesialbiter",
       "description": "Samling av sjeldnere bits.",
       "items": [
         {
@@ -393,39 +474,59 @@
           "parent": null,
           "name": "Torx bits T10-T40",
           "raw_text": "Torx bits T10-T40",
-          "metadata": {}
+          "metadata": {},
+          "indented": false
         },
         {
           "id": null,
           "parent": null,
           "name": "Sekskantnøkler 1.5-10mm",
           "raw_text": "Sekskantnøkler 1.5-10mm",
-          "metadata": {}
+          "metadata": {},
+          "indented": false
         },
         {
           "id": null,
           "parent": null,
           "name": "Pozidriv bits PZ1-PZ3",
           "raw_text": "Pozidriv bits PZ1-PZ3",
-          "metadata": {}
+          "metadata": {},
+          "indented": false
         }
       ],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {
+        "id": "BitBox1",
+        "parent": "A1"
+      }
     },
     {
       "id": "Loft",
       "parent": null,
-      "heading": "ID:Loft Oversikt over loftet",
+      "heading": "Oversikt over loftet",
+      "description": "Lagerområde for sesongbaserte ting og lagring.",
+      "items": [],
+      "images": [],
+      "photos_link": "",
+      "metadata": {
+        "id": "Loft"
+      }
+    },
+    {
+      "id": "Oversikt",
+      "parent": null,
+      "heading": "Oversikt",
       "description": "",
       "items": [],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {}
     },
     {
       "id": "C1",
       "parent": "Loft",
-      "heading": "ID:C1 parent:Loft Sport og friluft - Vinter",
+      "heading": "Sport og friluft - Vinter",
       "description": "Utstyr for vintersport.",
       "items": [
         {
@@ -439,7 +540,8 @@
               "ski",
               "barn"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -452,7 +554,8 @@
               "ski",
               "barn"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -465,7 +568,8 @@
               "ski",
               "voksen"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -478,7 +582,8 @@
               "ski",
               "voksen"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -491,7 +596,8 @@
               "ski",
               "tilbehør"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -504,7 +610,8 @@
               "ski",
               "tilbehør"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -517,7 +624,8 @@
               "vinter",
               "barn"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -530,16 +638,33 @@
               "vinter",
               "barn"
             ]
-          }
+          },
+          "indented": false
         }
       ],
-      "images": [],
-      "photos_link": ""
+      "images": [
+        {
+          "alt": "C1/IMG_20260113_135938.jpg",
+          "thumb": "resized/C1/IMG_20260113_135938.jpg",
+          "full": "photos/C1/IMG_20260113_135938.jpg"
+        },
+        {
+          "alt": "C1/IMG_20260113_135949.jpg",
+          "thumb": "resized/C1/IMG_20260113_135949.jpg",
+          "full": "photos/C1/IMG_20260113_135949.jpg"
+        }
+      ],
+      "photos_link": "",
+      "metadata": {
+        "id": "C1",
+        "parent": "Loft",
+        "photos": "C1"
+      }
     },
     {
       "id": "C2",
       "parent": "Loft",
-      "heading": "ID:C2 parent:Loft Sport og friluft - Sommer",
+      "heading": "Sport og friluft - Sommer",
       "description": "Campingutstyr og sommersport.",
       "items": [
         {
@@ -552,7 +677,8 @@
               "camping",
               "sove"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -564,7 +690,8 @@
               "camping",
               "sove"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -576,7 +703,8 @@
               "camping",
               "koking"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -588,7 +716,8 @@
               "camping",
               "koking"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -600,7 +729,8 @@
               "sport",
               "sykkel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -612,7 +742,8 @@
               "sport",
               "sykkel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -624,16 +755,21 @@
               "sport",
               "sykkel"
             ]
-          }
+          },
+          "indented": false
         }
       ],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {
+        "id": "C2",
+        "parent": "Loft"
+      }
     },
     {
       "id": "C3",
       "parent": "Loft",
-      "heading": "ID:C3 parent:Loft Leker og barneting",
+      "heading": "Leker og barneting",
       "description": "Leketøy og barneutstyr i oppbevaring.",
       "items": [
         {
@@ -647,7 +783,8 @@
               "barn",
               "bygg"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -660,7 +797,8 @@
               "barn",
               "dukker"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -673,7 +811,8 @@
               "barn",
               "biler"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -685,7 +824,8 @@
               "bok",
               "barn"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -697,7 +837,8 @@
               "bok",
               "barn"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -710,7 +851,8 @@
               "barn",
               "vår"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -723,25 +865,43 @@
               "barn",
               "sommer"
             ]
-          }
+          },
+          "indented": false
         }
       ],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {
+        "id": "C3",
+        "parent": "Loft"
+      }
     },
     {
       "id": "Kjeller",
       "parent": null,
-      "heading": "ID:Kjeller Oversikt over kjelleren",
+      "heading": "Oversikt over kjelleren",
+      "description": "Våtrom og generell oppbevaring.",
+      "items": [],
+      "images": [],
+      "photos_link": "",
+      "metadata": {
+        "id": "Kjeller"
+      }
+    },
+    {
+      "id": "Oversikt",
+      "parent": null,
+      "heading": "Oversikt",
       "description": "",
       "items": [],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {}
     },
     {
       "id": "B1",
       "parent": "Kjeller",
-      "heading": "ID:B1 parent:Kjeller Elektronikk - Datautstyr",
+      "heading": "Elektronikk - Datautstyr",
       "description": "Gamle datamaskiner og tilbehør.",
       "items": [
         {
@@ -755,7 +915,8 @@
               "pc",
               "gammel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -768,7 +929,8 @@
               "pc",
               "gammel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -780,7 +942,8 @@
               "elektronikk",
               "skjerm"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -792,7 +955,8 @@
               "elektronikk",
               "tilbehør"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -804,7 +968,8 @@
               "elektronikk",
               "kabel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -816,16 +981,33 @@
               "elektronikk",
               "lagring"
             ]
-          }
+          },
+          "indented": false
         }
       ],
-      "images": [],
-      "photos_link": ""
+      "images": [
+        {
+          "alt": "B1/IMG_20260111_212816.jpg",
+          "thumb": "resized/B1/IMG_20260111_212816.jpg",
+          "full": "photos/B1/IMG_20260111_212816.jpg"
+        },
+        {
+          "alt": "B1/IMG_20260111_212824.jpg",
+          "thumb": "resized/B1/IMG_20260111_212824.jpg",
+          "full": "photos/B1/IMG_20260111_212824.jpg"
+        }
+      ],
+      "photos_link": "",
+      "metadata": {
+        "id": "B1",
+        "parent": "Kjeller",
+        "photos": "B1"
+      }
     },
     {
       "id": "B2",
       "parent": "Kjeller",
-      "heading": "ID:B2 parent:Kjeller Elektronikk - Audio/Video",
+      "heading": "Elektronikk - Audio/Video",
       "description": "Lydanlegg og videoutstyr.",
       "items": [
         {
@@ -838,7 +1020,8 @@
               "elektronikk",
               "lyd"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -850,7 +1033,8 @@
               "elektronikk",
               "lyd"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -862,7 +1046,8 @@
               "elektronikk",
               "lyd"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -874,7 +1059,8 @@
               "elektronikk",
               "video"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -886,7 +1072,8 @@
               "elektronikk",
               "kabel"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -898,16 +1085,21 @@
               "elektronikk",
               "kabel"
             ]
-          }
+          },
+          "indented": false
         }
       ],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {
+        "id": "B2",
+        "parent": "Kjeller"
+      }
     },
     {
       "id": "B3",
       "parent": "Kjeller",
-      "heading": "ID:B3 parent:Kjeller Strøm og belysning",
+      "heading": "Strøm og belysning",
       "description": "Reserve pærer og lysutstyr.",
       "items": [
         {
@@ -920,7 +1112,8 @@
               "belysning",
               "led"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -932,7 +1125,8 @@
               "belysning",
               "led"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -944,7 +1138,8 @@
               "belysning",
               "arbeid"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -956,7 +1151,8 @@
               "elektronikk",
               "strøm"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -968,7 +1164,8 @@
               "elektronikk",
               "strøm"
             ]
-          }
+          },
+          "indented": false
         },
         {
           "id": null,
@@ -980,11 +1177,26 @@
               "elektronikk",
               "strøm"
             ]
-          }
+          },
+          "indented": false
         }
       ],
       "images": [],
-      "photos_link": ""
+      "photos_link": "",
+      "metadata": {
+        "id": "B3",
+        "parent": "Kjeller"
+      }
+    },
+    {
+      "id": "Ekstra-Notater",
+      "parent": null,
+      "heading": "Ekstra Notater",
+      "description": "Dette er en demo-inventarliste. For å lage din egen: Kopier denne strukturen eller bruk `inventory-md init` Rediger markdown-filen med ditt eget innhold Kjør `inventory-md parse inventory.md` Åpne `search.html` i nettleseren Lykke til med din inventarliste!",
+      "items": [],
+      "images": [],
+      "photos_link": "",
+      "metadata": {}
     }
   ]
 }
