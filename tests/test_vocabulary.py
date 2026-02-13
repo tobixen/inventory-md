@@ -3274,9 +3274,11 @@ class TestRootCategoryMerges:
         }
         assert set(root.narrower) == expected
 
-    def test_hobby_deleted(self, pkg_vocab):
-        """hobby concept should not exist after merge."""
-        assert "hobby" not in pkg_vocab
+    def test_hobby_under_recreation(self, pkg_vocab):
+        """hobby concept should exist under recreation."""
+        assert "hobby" in pkg_vocab
+        assert pkg_vocab["hobby"].broader == ["recreation"]
+        assert pkg_vocab["hobby"].prefLabel == "Hobbies & Crafts"
 
     def test_recreation_root_exists(self, pkg_vocab):
         """recreation should exist as a new root with correct children."""
