@@ -4,7 +4,9 @@
 # Format:
 #   concept-id:
 #     prefLabel: "Display name"
-#     altLabel: ["synonym1", "synonym2"]
+#     altLabel:
+#       en: ["synonym1", "synonym2"]
+#       nb: ["norsk synonym"]
 #     broader: "parent-category"  # or list: ["parent1", "parent2"]
 #     narrower: ["child1", "child2"]
 #
@@ -36,7 +38,9 @@ concepts:
 
   food:
     prefLabel: "Food"
-    altLabel: ["groceries", "provisions", "foodstuffs", "mat", "matvarer"]
+    altLabel:
+      en: ["groceries", "provisions", "foodstuffs"]
+      nb: ["mat", "matvarer"]
     uri: "http://dbpedia.org/resource/Food"
     labels:
       en: "Food"
@@ -69,7 +73,9 @@ concepts:
 
   tools:
     prefLabel: "Tools"
-    altLabel: ["equipment", "implements", "verktøy", "utstyr"]
+    altLabel:
+      en: ["equipment", "implements"]
+      nb: ["verktøy", "utstyr"]
     uri: "http://dbpedia.org/resource/Tool"
     labels:
       en: "Tools"
@@ -89,7 +95,9 @@ concepts:
 
   recreation:
     prefLabel: "Recreation & Transport"
-    altLabel: ["leisure", "transportation", "fritid"]
+    altLabel:
+      en: ["leisure", "transportation"]
+      nb: ["fritid"]
     labels:
       en: "Recreation & Transport"
       nb: "Fritid og transport"
@@ -121,7 +129,9 @@ concepts:
 
   electronics:
     prefLabel: "Electronics"
-    altLabel: ["electrical", "electric", "elektronikk", "elektrisk"]
+    altLabel:
+      en: ["electrical", "electric"]
+      nb: ["elektronikk", "elektrisk"]
     narrower:
       - cables
       - electronics/connectors
@@ -135,38 +145,45 @@ concepts:
 
   electronics/connectors:
     prefLabel: "Connectors"
-    altLabel: ["plugs", "jacks", "terminals"]
+    altLabel:
+      en: ["plugs", "jacks", "terminals"]
     broader: electronics
 
   electronics/power:
     prefLabel: "Power electronics"
-    altLabel: ["power supplies", "batteries"]
+    altLabel:
+      en: ["power supplies", "batteries"]
     broader: electronics
 
   electronics/circuits:
     prefLabel: "Circuits"
-    altLabel: ["circuit boards", "PCB"]
+    altLabel:
+      en: ["circuit boards", "PCB"]
     broader: electronics
 
   electronics/components:
     prefLabel: "Electronic components"
-    altLabel: ["parts", "modules"]
+    altLabel:
+      en: ["parts", "modules"]
     broader: electronics
 
   # Electronics cable mappings
   ac-cable:
     prefLabel: "AC cable"
-    altLabel: ["ac_cable", "mains cable", "power cord"]
+    altLabel:
+      en: ["ac_cable", "mains cable", "power cord"]
     broader: electronics
 
   dc-cable:
     prefLabel: "DC cable"
-    altLabel: ["dc_cable"]
+    altLabel:
+      en: ["dc_cable"]
     broader: electronics
 
   electrical-cable:
     prefLabel: "Electrical cable"
-    altLabel: ["electrical_cable"]
+    altLabel:
+      en: ["electrical_cable"]
     broader: electronics
 
   cables:
@@ -176,46 +193,56 @@ concepts:
   # Electronics connector mappings
   electrical-connector:
     prefLabel: "Electrical connector"
-    altLabel: ["electrical_connector", "electrical-connectors", "electrical_connectors", "electronics_connector"]
+    altLabel:
+      en: ["electrical_connector", "electrical-connectors", "electrical_connectors", "electronics_connector"]
     broader: electronics/connectors
 
   power-connector:
     prefLabel: "Power connector"
-    altLabel: ["power_connector", "power-connector/converter"]
+    altLabel:
+      en: ["power_connector", "power-connector/converter"]
     broader: electronics/connectors
 
   dc-power-connectors:
     prefLabel: "DC power connectors"
-    altLabel: ["dc_power_connectors"]
+    altLabel:
+      en: ["dc_power_connectors"]
     broader: electronics/connectors
 
   mains-power-connectors:
     prefLabel: "Mains power connectors"
-    altLabel: ["mains_power_connectors"]
+    altLabel:
+      en: ["mains_power_connectors"]
     broader: electronics/connectors
 
   # Electronics power mappings
   # Electronics component mappings
   adc-module:
     prefLabel: "ADC module"
-    altLabel: ["adc_module", "analog to digital converter"]
+    altLabel:
+      en: ["adc_module", "analog to digital converter"]
     broader: electronics/components
 
   analog-circuits:
     prefLabel: "Analog circuits"
-    altLabel: ["analog_circuits"]
+    altLabel:
+      en: ["analog_circuits"]
     broader: electronics/circuits
 
   boat-equipment:
     prefLabel: "Boat equipment"
-    altLabel: ["marine", "nautical", "sailing", "båt", "båtutstyr"]
+    altLabel:
+      en: ["marine", "nautical", "sailing"]
+      nb: ["båt", "båtutstyr"]
     labels:
       nb: "Båtutstyr"
     broader: ["transport"]
 
   household:
     prefLabel: "Household"
-    altLabel: ["home", "domestic", "husholdning", "hjem"]
+    altLabel:
+      en: ["home", "domestic"]
+      nb: ["husholdning", "hjem"]
     narrower:
       - household/cleaning
       - household/storage
@@ -225,7 +252,9 @@ concepts:
 
   clothing:
     prefLabel: "Clothing"
-    altLabel: ["apparel", "clothes", "garments", "klær", "tekstil"]
+    altLabel:
+      en: ["apparel", "clothes", "garments"]
+      nb: ["klær", "tekstil"]
     labels:
       en: "Clothing"
       nb: "Klær"
@@ -245,12 +274,16 @@ concepts:
 
   books:
     prefLabel: "Books"
-    altLabel: ["literature", "reading", "bøker", "bok", "litteratur"]
+    altLabel:
+      en: ["literature", "reading"]
+      nb: ["bøker", "bok", "litteratur"]
     broader: household
 
   documents:
     prefLabel: "Documents"
-    altLabel: ["papers", "paperwork", "dokumenter", "papirer"]
+    altLabel:
+      en: ["papers", "paperwork"]
+      nb: ["dokumenter", "papirer"]
     broader: household
 
   # =============================================================================
@@ -259,7 +292,8 @@ concepts:
 
   food/beverages:
     prefLabel: "Beverages"
-    altLabel: ["drinks"]
+    altLabel:
+      en: ["drinks"]
     broader: food
     narrower:
       - alcohol
@@ -270,7 +304,8 @@ concepts:
 
   food/dairy:
     prefLabel: "Dairy"
-    altLabel: ["dairy products"]
+    altLabel:
+      en: ["dairy products"]
     broader: food
     narrower:
       - milk
@@ -281,7 +316,8 @@ concepts:
 
   food/grains:
     prefLabel: "Grains & cereals"
-    altLabel: ["cereals", "grains"]
+    altLabel:
+      en: ["cereals", "grains"]
     broader: food
     narrower:
       - pasta
@@ -294,7 +330,8 @@ concepts:
 
   food/meat:
     prefLabel: "Meat"
-    altLabel: ["meats"]
+    altLabel:
+      en: ["meats"]
     broader: food
     narrower:
       - food/meat/pork
@@ -311,12 +348,14 @@ concepts:
 
   food/meat/chicken:
     prefLabel: "Chicken"
-    altLabel: ["poultry"]
+    altLabel:
+      en: ["poultry"]
     broader: food/meat
 
   food/seafood:
     prefLabel: "Seafood"
-    altLabel: ["fish", "marine food"]
+    altLabel:
+      en: ["fish", "marine food"]
     broader: food
     narrower:
       - fish
@@ -325,12 +364,14 @@ concepts:
 
   food/seafood/canned-fish:
     prefLabel: "Canned fish"
-    altLabel: ["tinned fish", "tuna", "sardines"]
+    altLabel:
+      en: ["tinned fish", "tuna", "sardines"]
     broader: food/seafood
 
   food/vegetables:
     prefLabel: "Vegetables"
-    altLabel: ["veggies", "greens"]
+    altLabel:
+      en: ["veggies", "greens"]
     broader: food
     narrower:
       - potatoes
@@ -344,7 +385,8 @@ concepts:
 
   food/fruits:
     prefLabel: "Fruits"
-    altLabel: ["fruit"]
+    altLabel:
+      en: ["fruit"]
     broader: food
     narrower:
       - bananas
@@ -354,7 +396,8 @@ concepts:
 
   food/legumes:
     prefLabel: "Legumes"
-    altLabel: ["pulses", "beans and lentils"]
+    altLabel:
+      en: ["pulses", "beans and lentils"]
     broader: food
     narrower:
       - beans
@@ -365,7 +408,8 @@ concepts:
 
   food/condiments:
     prefLabel: "Condiments & sauces"
-    altLabel: ["sauces", "condiment"]
+    altLabel:
+      en: ["sauces", "condiment"]
     broader: food
     narrower:
       - oil
@@ -381,7 +425,8 @@ concepts:
 
   food/snacks:
     prefLabel: "Snacks"
-    altLabel: ["snack foods"]
+    altLabel:
+      en: ["snack foods"]
     broader: food
     narrower:
       - chips
@@ -392,7 +437,8 @@ concepts:
 
   food/preserved:
     prefLabel: "Preserved foods"
-    altLabel: ["canned", "jarred", "preserves", "conserves"]
+    altLabel:
+      en: ["canned", "jarred", "preserves", "conserves"]
     broader: food
     narrower:
       - canning
@@ -403,12 +449,14 @@ concepts:
 
   food/preserved/pickles:
     prefLabel: "Pickles"
-    altLabel: ["pickled vegetables"]
+    altLabel:
+      en: ["pickled vegetables"]
     broader: food/preserved
 
   food/baking:
     prefLabel: "Baking"
-    altLabel: ["baking supplies", "baking ingredients"]
+    altLabel:
+      en: ["baking supplies", "baking ingredients"]
     broader: food
     narrower:
       - sugar
@@ -417,7 +465,8 @@ concepts:
 
   food/spices:
     prefLabel: "Spices & herbs"
-    altLabel: ["spice", "herbs", "seasonings"]
+    altLabel:
+      en: ["spice", "herbs", "seasonings"]
     broader: food
     narrower:
       - bouillon
@@ -431,12 +480,14 @@ concepts:
 
   food/spices/pepper:
     prefLabel: "Pepper"
-    altLabel: ["black pepper", "peppercorns"]
+    altLabel:
+      en: ["black pepper", "peppercorns"]
     broader: food/spices
 
   food/spices/curry:
     prefLabel: "Curry"
-    altLabel: ["curry powder", "curry paste"]
+    altLabel:
+      en: ["curry powder", "curry paste"]
     broader: food/spices
 
   food/spices/thyme:
@@ -451,74 +502,93 @@ concepts:
   # Beverages
   beer:
     prefLabel: "Beer"
-    altLabel: ["bier", "пиво"]
+    altLabel:
+      en: ["bier"]
+      bg: ["пиво"]
     broader: food/beverages
 
   wine:
     prefLabel: "Wine"
-    altLabel: ["вино"]
+    altLabel:
+      bg: ["вино"]
     broader: food/beverages
 
   alcohol:
     prefLabel: "Alcoholic beverages"
-    altLabel: ["alcohol", "booze", "spirits"]
+    altLabel:
+      en: ["alcohol", "booze", "spirits"]
     broader: food/beverages
 
   coffee:
     prefLabel: "Coffee"
-    altLabel: ["kaffe", "кафе"]
+    altLabel:
+      nb: ["kaffe"]
+      bg: ["кафе"]
     broader: food/beverages
 
   tea:
     prefLabel: "Tea"
-    altLabel: ["чай"]
+    altLabel:
+      bg: ["чай"]
     broader: food/beverages
 
   juice:
     prefLabel: "Juice"
-    altLabel: ["сок"]
+    altLabel:
+      bg: ["сок"]
     broader: food/beverages
 
   # Dairy
   milk:
     prefLabel: "Milk"
-    altLabel: ["мляко"]
+    altLabel:
+      bg: ["мляко"]
     broader: food/dairy
 
   cheese:
     prefLabel: "Cheese"
-    altLabel: ["сирене"]
+    altLabel:
+      bg: ["сирене"]
     broader: food/dairy
 
   yogurt:
     prefLabel: "Yogurt"
-    altLabel: ["yoghurt", "кисело мляко"]
+    altLabel:
+      en: ["yoghurt"]
+      bg: ["кисело мляко"]
     broader: food/dairy
 
   butter:
     prefLabel: "Butter"
-    altLabel: ["масло"]
+    altLabel:
+      bg: ["масло"]
     broader: food/dairy
 
   cream:
     prefLabel: "Cream"
-    altLabel: ["smetana", "сметана"]
+    altLabel:
+      en: ["smetana"]
+      bg: ["сметана"]
     broader: food/dairy
 
   # Grains
   pasta:
     prefLabel: "Pasta"
-    altLabel: ["spaghetti", "макарони"]
+    altLabel:
+      en: ["spaghetti"]
+      bg: ["макарони"]
     broader: food/grains
 
   rice:
     prefLabel: "Rice"
-    altLabel: ["ориз"]
+    altLabel:
+      bg: ["ориз"]
     broader: food/grains
 
   bread:
     prefLabel: "Bread"
-    altLabel: ["хляб"]
+    altLabel:
+      bg: ["хляб"]
     broader: food/grains
 
   noodles:
@@ -527,70 +597,87 @@ concepts:
 
   flour:
     prefLabel: "Flour"
-    altLabel: ["брашно"]
+    altLabel:
+      bg: ["брашно"]
     broader: food/grains
 
   buckwheat:
     prefLabel: "Buckwheat"
-    altLabel: ["гречка"]
+    altLabel:
+      bg: ["гречка"]
     broader: food/grains
 
   # Meat
   meat:
     prefLabel: "Meat"
-    altLabel: ["месо"]
+    altLabel:
+      bg: ["месо"]
     broader: food
 
   ham:
     prefLabel: "Ham"
-    altLabel: ["шунка"]
+    altLabel:
+      bg: ["шунка"]
     broader: food/meat
 
   sausage:
     prefLabel: "Sausage"
-    altLabel: ["sausages", "колбас"]
+    altLabel:
+      en: ["sausages"]
+      bg: ["колбас"]
     broader: food/meat
 
   # Seafood
   fish:
     prefLabel: "Fish"
-    altLabel: ["риба"]
+    altLabel:
+      bg: ["риба"]
     broader: food/seafood
 
   tuna:
     prefLabel: "Tuna"
-    altLabel: ["риба тон"]
+    altLabel:
+      bg: ["риба тон"]
     broader: food/seafood/canned-fish
 
   sardines:
     prefLabel: "Sardines"
-    altLabel: ["сардини"]
+    altLabel:
+      bg: ["сардини"]
     broader: food/seafood/canned-fish
 
   # Vegetables
   potatoes:
     prefLabel: "Potatoes"
-    altLabel: ["potato", "картофи"]
+    altLabel:
+      en: ["potato"]
+      bg: ["картофи"]
     broader: food/vegetables
 
   onions:
     prefLabel: "Onions"
-    altLabel: ["onion", "лук"]
+    altLabel:
+      en: ["onion"]
+      bg: ["лук"]
     broader: food/vegetables
 
   garlic:
     prefLabel: "Garlic"
-    altLabel: ["чесън"]
+    altLabel:
+      bg: ["чесън"]
     broader: food/vegetables
 
   tomatoes:
     prefLabel: "Tomatoes"
-    altLabel: ["tomato", "домати"]
+    altLabel:
+      en: ["tomato"]
+      bg: ["домати"]
     broader: food/vegetables
 
   mushrooms:
     prefLabel: "Mushrooms"
-    altLabel: ["гъби"]
+    altLabel:
+      bg: ["гъби"]
     broader: food/vegetables
     uri: "http://dbpedia.org/resource/Mushroom"
 
@@ -601,59 +688,79 @@ concepts:
   # Fruits
   bananas:
     prefLabel: "Bananas"
-    altLabel: ["banana", "банани"]
+    altLabel:
+      en: ["banana"]
+      bg: ["банани"]
     broader: food/fruits
 
   olive:
     prefLabel: "Olives"
-    altLabel: ["olives", "маслини"]
+    altLabel:
+      en: ["olives"]
+      bg: ["маслини"]
     broader: food/fruits
 
   # Legumes
   beans:
     prefLabel: "Beans"
-    altLabel: ["bean", "боб", "фасул"]
+    altLabel:
+      en: ["bean"]
+      bg: ["боб", "фасул"]
     broader: food/legumes
 
   lentils:
     prefLabel: "Lentils"
-    altLabel: ["lentil", "леща"]
+    altLabel:
+      en: ["lentil"]
+      bg: ["леща"]
     broader: food/legumes
 
   chickpeas:
     prefLabel: "Chickpeas"
-    altLabel: ["chickpea", "нахут"]
+    altLabel:
+      en: ["chickpea"]
+      bg: ["нахут"]
     broader: food/legumes
 
   soybeans:
     prefLabel: "Soybeans"
-    altLabel: ["soy", "soja", "соя"]
+    altLabel:
+      en: ["soy"]
+      nb: ["soja"]
+      bg: ["соя"]
     broader: food/legumes
 
   # Condiments
   oil:
     prefLabel: "Oil"
-    altLabel: ["cooking oil"]
+    altLabel:
+      en: ["cooking oil"]
     broader: food/condiments
 
   vinegar:
     prefLabel: "Vinegar"
-    altLabel: ["оцет"]
+    altLabel:
+      bg: ["оцет"]
     broader: food/condiments
 
   mayonnaise:
     prefLabel: "Mayonnaise"
-    altLabel: ["mayo", "майонеза"]
+    altLabel:
+      en: ["mayo"]
+      bg: ["майонеза"]
     broader: food/condiments
 
   ketchup:
     prefLabel: "Ketchup"
-    altLabel: ["catsup", "кетчуп"]
+    altLabel:
+      en: ["catsup"]
+      bg: ["кетчуп"]
     broader: food/condiments
 
   mustard:
     prefLabel: "Mustard"
-    altLabel: ["горчица"]
+    altLabel:
+      bg: ["горчица"]
     broader: food/condiments
 
   pesto:
@@ -666,99 +773,127 @@ concepts:
 
   salt:
     prefLabel: "Salt"
-    altLabel: ["сол"]
+    altLabel:
+      bg: ["сол"]
     broader: food/condiments
 
   soy-sauce:
     prefLabel: "Soy sauce"
-    altLabel: ["соев сос"]
+    altLabel:
+      bg: ["соев сос"]
     broader: food/condiments
 
   spread:
     prefLabel: "Spread"
-    altLabel: ["spreads"]
+    altLabel:
+      en: ["spreads"]
     broader: food/condiments
 
   # Snacks
   snacks:
     prefLabel: "Snacks"
-    altLabel: ["snack foods"]
+    altLabel:
+      en: ["snack foods"]
     broader: food
     uri: "http://dbpedia.org/resource/Snack"
 
   chips:
     prefLabel: "Chips"
-    altLabel: ["crisps", "чипс"]
+    altLabel:
+      en: ["crisps"]
+      bg: ["чипс"]
     broader: food/snacks
 
   nuts:
     prefLabel: "Nuts"
-    altLabel: ["nut", "cashews", "peanuts", "almonds"]
+    altLabel:
+      en: ["nut", "cashews", "peanuts", "almonds"]
     broader: food/snacks
 
   cashews:
     prefLabel: "Cashews"
-    altLabel: ["cashew", "кашу"]
+    altLabel:
+      en: ["cashew"]
+      bg: ["кашу"]
     broader: food/snacks
 
   peanuts:
     prefLabel: "Peanuts"
-    altLabel: ["peanut", "groundnuts", "фъстъци"]
+    altLabel:
+      en: ["peanut", "groundnuts"]
+      bg: ["фъстъци"]
     broader: food/snacks
     uri: "http://dbpedia.org/resource/Peanut"
     # AGROVOC uses "groundnuts" which is less common
 
   biscuits:
     prefLabel: "Biscuits"
-    altLabel: ["cookies", "бисквити"]
+    altLabel:
+      en: ["cookies"]
+      bg: ["бисквити"]
     broader: food/snacks
 
   chocolate:
     prefLabel: "Chocolate"
-    altLabel: ["шоколад"]
+    altLabel:
+      bg: ["шоколад"]
     broader: food/snacks
 
   # Preserved
   canning:
     prefLabel: "Canning"
-    altLabel: ["preserving", "консервиране"]
+    altLabel:
+      en: ["preserving"]
+      bg: ["консервиране"]
     broader: food/preserved
 
   jam:
     prefLabel: "Jam"
-    altLabel: ["marmalade", "конфитюр"]
+    altLabel:
+      en: ["marmalade"]
+      bg: ["конфитюр"]
     broader: food/preserved
 
   pate:
     prefLabel: "Pâté"
-    altLabel: ["liver pate", "пастет"]
+    altLabel:
+      en: ["liver pate"]
+      bg: ["пастет"]
     broader: food/preserved
 
   caper:
     prefLabel: "Capers"
-    altLabel: ["capers", "каперси"]
+    altLabel:
+      en: ["capers"]
+      bg: ["каперси"]
     broader: food/preserved
 
   # Baking
   sugar:
     prefLabel: "Sugar"
-    altLabel: ["захар"]
+    altLabel:
+      bg: ["захар"]
     broader: food/baking
 
   honey:
     prefLabel: "Honey"
-    altLabel: ["мед"]
+    altLabel:
+      bg: ["мед"]
     broader: food/baking
 
   # Spices
   spice:
     prefLabel: "Spice"
-    altLabel: ["spices", "подправки"]
+    altLabel:
+      en: ["spices"]
+      bg: ["подправки"]
     broader: food/spices
 
   bouillon:
     prefLabel: "Bouillon"
-    altLabel: ["stock cubes", "бульон"]
+    altLabel:
+      en: ["stock cubes"]
+      bg: ["бульон"]
     broader: food/spices
 
   # Meals/dishes (still food)
@@ -784,18 +919,21 @@ concepts:
 
   tools/bike:
     prefLabel: "Bike tools"
-    altLabel: ["bicycle tools", "cycling tools"]
+    altLabel:
+      en: ["bicycle tools", "cycling tools"]
     broader: tools
 
   # Tool mappings
   bike-tool:
     prefLabel: "Bike tool"
-    altLabel: ["bike_tool", "bicycle_tool"]
+    altLabel:
+      en: ["bike_tool", "bicycle_tool"]
     broader: tools/bike
 
   bike-tools:
     prefLabel: "Bike tools"
-    altLabel: ["bicycle_tools"]
+    altLabel:
+      en: ["bicycle_tools"]
     broader: tools/bike
 
   bicycle-tools:
@@ -804,7 +942,8 @@ concepts:
 
   hammer:
     prefLabel: "Hammer"
-    altLabel: ["hammers"]
+    altLabel:
+      en: ["hammers"]
     broader: tools/hand
 
   # =============================================================================
@@ -813,17 +952,20 @@ concepts:
 
   boat-equipment/safety:
     prefLabel: "Safety equipment"
-    altLabel: ["safety gear", "lifesaving"]
+    altLabel:
+      en: ["safety gear", "lifesaving"]
     broader: boat-equipment
 
   boat-equipment/navigation:
     prefLabel: "Navigation"
-    altLabel: ["nav equipment"]
+    altLabel:
+      en: ["nav equipment"]
     broader: boat-equipment
 
   boat-equipment/rigging:
     prefLabel: "Rigging"
-    altLabel: ["standing rigging", "running rigging"]
+    altLabel:
+      en: ["standing rigging", "running rigging"]
     broader: boat-equipment
 
   boat-equipment/deck:
@@ -832,7 +974,8 @@ concepts:
 
   boat-equipment/engine:
     prefLabel: "Engine parts"
-    altLabel: ["motor parts"]
+    altLabel:
+      en: ["motor parts"]
     broader: boat-equipment
 
   # Simple boat mappings
@@ -862,17 +1005,20 @@ concepts:
 
   shackle:
     prefLabel: "Shackle"
-    altLabel: ["shackles"]
+    altLabel:
+      en: ["shackles"]
     broader: boat-equipment/rigging
 
   nautical-chart:
     prefLabel: "Nautical chart"
-    altLabel: ["sea chart", "marine chart"]
+    altLabel:
+      en: ["sea chart", "marine chart"]
     broader: boat-equipment/navigation
 
   nautical-book:
     prefLabel: "Nautical book"
-    altLabel: ["pilot book", "sailing guide"]
+    altLabel:
+      en: ["pilot book", "sailing guide"]
     broader: boat-equipment/navigation
 
   autopilot:
@@ -893,7 +1039,8 @@ concepts:
 
   single-board-computer:
     prefLabel: "Single-board computer"
-    altLabel: ["SBC", "raspberry pi"]
+    altLabel:
+      en: ["SBC", "raspberry pi"]
     broader: electronics
 
   # =============================================================================
@@ -902,7 +1049,8 @@ concepts:
 
   household/cleaning:
     prefLabel: "Cleaning supplies"
-    altLabel: ["rengjøring"]
+    altLabel:
+      nb: ["rengjøring"]
     broader: household
 
   household/storage:
@@ -912,7 +1060,9 @@ concepts:
   # Simple household mappings
   bedding:
     prefLabel: "Bedding"
-    altLabel: ["bed linen", "bedclothes", "duvet", "pillow", "sengetøy"]
+    altLabel:
+      en: ["bed linen", "bedclothes", "duvet", "pillow"]
+      nb: ["sengetøy"]
     broader: household
     uri: "http://dbpedia.org/resource/Bedding"
     # AGROVOC returns "litter for animals" (farm bedding) - use DBpedia
@@ -927,7 +1077,9 @@ concepts:
 
   consumables:
     prefLabel: "Consumables"
-    altLabel: ["supplies", "forbruksvarer"]
+    altLabel:
+      en: ["supplies"]
+      nb: ["forbruksvarer"]
     broader: hardware
     labels:
       en: "Consumables"
@@ -938,7 +1090,9 @@ concepts:
 
   hardware:
     prefLabel: "Hardware"
-    altLabel: ["fasteners", "fixings", "jernvare", "beslag"]
+    altLabel:
+      en: ["fasteners", "fixings"]
+      nb: ["jernvare", "beslag"]
     labels:
       en: "Hardware"
       nb: "Jernvare"
@@ -953,22 +1107,26 @@ concepts:
 
   adhesive:
     prefLabel: "Adhesive"
-    altLabel: ["glue"]
+    altLabel:
+      en: ["glue"]
     broader: consumables
 
   adhesive-tape:
     prefLabel: "Adhesive tape"
-    altLabel: ["tape"]
+    altLabel:
+      en: ["tape"]
     broader: consumables
 
   lubricant:
     prefLabel: "Lubricant"
-    altLabel: ["lube", "grease"]
+    altLabel:
+      en: ["lube", "grease"]
     broader: consumables
 
   sandpaper:
     prefLabel: "Sandpaper"
-    altLabel: ["abrasive paper"]
+    altLabel:
+      en: ["abrasive paper"]
     broader: consumables
 
   sandpaper-sheet:
@@ -985,17 +1143,21 @@ concepts:
 
   composite-material:
     prefLabel: "Composite material"
-    altLabel: ["fiberglass", "carbon fiber"]
+    altLabel:
+      en: ["fiberglass", "carbon fiber"]
     broader: consumables
 
   safety-equipment:
     prefLabel: "Safety equipment"
-    altLabel: ["sikkerhetsutstyr", "verneutstyr", "sikkerhet"]
+    altLabel:
+      nb: ["sikkerhetsutstyr", "verneutstyr", "sikkerhet"]
     broader: medical
 
   misc:
     prefLabel: "Miscellaneous"
-    altLabel: ["other", "various", "diverse", "annet"]
+    altLabel:
+      en: ["other", "various"]
+      nb: ["diverse", "annet"]
     labels:
       en: "Miscellaneous"
       nb: "Diverse"
@@ -1015,7 +1177,8 @@ concepts:
   # Bike-related
   bike-part:
     prefLabel: "Bike part"
-    altLabel: ["bicycle part"]
+    altLabel:
+      en: ["bicycle part"]
     broader: tools
 
   bike-light:
@@ -1024,7 +1187,8 @@ concepts:
 
   bicycle-tube:
     prefLabel: "Bicycle tube"
-    altLabel: ["inner tube"]
+    altLabel:
+      en: ["inner tube"]
     broader: consumables
 
   # =============================================================================
@@ -1033,7 +1197,9 @@ concepts:
 
   automotive:
     prefLabel: "Automotive"
-    altLabel: ["vehicles", "car parts", "auto", "bil", "kjøretøy"]
+    altLabel:
+      en: ["vehicles", "car parts", "auto"]
+      nb: ["bil", "kjøretøy"]
     labels:
       nb: "Kjøretøy"
     broader: ["transport"]
@@ -1061,7 +1227,9 @@ concepts:
 
   outdoor:
     prefLabel: "Outdoor equipment"
-    altLabel: ["camping", "hiking", "friluft", "friluftsliv", "ute"]
+    altLabel:
+      en: ["camping", "hiking"]
+      nb: ["friluft", "friluftsliv", "ute"]
     labels:
       en: "Outdoor equipment"
       nb: "Friluftsutstyr"
@@ -1091,12 +1259,14 @@ concepts:
 
   sleeping-bag:
     prefLabel: "Sleeping bag"
-    altLabel: ["sleeping_bag"]
+    altLabel:
+      en: ["sleeping_bag"]
     broader: outdoor
 
   backpack:
     prefLabel: "Backpack"
-    altLabel: ["rucksack", "daypack"]
+    altLabel:
+      en: ["rucksack", "daypack"]
     broader: outdoor/hiking
 
   # =============================================================================
@@ -1118,7 +1288,8 @@ concepts:
   # Clothing/fashion mappings
   hat:
     prefLabel: "Hat"
-    altLabel: ["hats", "cap"]
+    altLabel:
+      en: ["hats", "cap"]
     broader: clothing/accessories
 
   # =============================================================================
@@ -1127,7 +1298,9 @@ concepts:
 
   construction:
     prefLabel: "Construction"
-    altLabel: ["building", "building materials", "bygg", "byggematerialer"]
+    altLabel:
+      en: ["building", "building materials"]
+      nb: ["bygg", "byggematerialer"]
     broader: hardware
     narrower:
       - fasteners
@@ -1137,7 +1310,8 @@ concepts:
 
   construction/lumber:
     prefLabel: "Lumber"
-    altLabel: ["wood", "timber"]
+    altLabel:
+      en: ["wood", "timber"]
     broader: construction
     uri: "http://dbpedia.org/resource/Lumber"
 
@@ -1148,7 +1322,8 @@ concepts:
   # Construction mappings
   washer:
     prefLabel: "Washer"
-    altLabel: ["washers", "flat washer"]
+    altLabel:
+      en: ["washers", "flat washer"]
     broader: construction
     uri: "http://dbpedia.org/resource/Washer_(hardware)"
     # AGROVOC returns "cleaning equipment" (washing machine) - use DBpedia
@@ -1159,7 +1334,9 @@ concepts:
 
   office:
     prefLabel: "Office supplies"
-    altLabel: ["stationery", "office equipment", "kontor", "kontorrekvisita"]
+    altLabel:
+      en: ["stationery", "office equipment"]
+      nb: ["kontor", "kontorrekvisita"]
     labels:
       en: "Office supplies"
       nb: "Kontorrekvisita"
@@ -1189,17 +1366,20 @@ concepts:
   # Office mappings
   pen:
     prefLabel: "Pen"
-    altLabel: ["pens"]
+    altLabel:
+      en: ["pens"]
     broader: office/writing
 
   pencil:
     prefLabel: "Pencil"
-    altLabel: ["pencils"]
+    altLabel:
+      en: ["pencils"]
     broader: office/writing
 
   notebook:
     prefLabel: "Notebook"
-    altLabel: ["notepad"]
+    altLabel:
+      en: ["notepad"]
     broader: office/paper
 
   # =============================================================================
@@ -1208,7 +1388,9 @@ concepts:
 
   sports:
     prefLabel: "Sports"
-    altLabel: ["athletics", "sport", "idrett"]
+    altLabel:
+      en: ["athletics", "sport"]
+      nb: ["idrett"]
     broader: recreation
     narrower:
       - sports/cycling
@@ -1229,7 +1411,9 @@ concepts:
 
   games:
     prefLabel: "Games"
-    altLabel: ["toys", "puzzles", "spill", "leker", "puslespill"]
+    altLabel:
+      en: ["toys", "puzzles"]
+      nb: ["spill", "leker", "puslespill"]
 
   # =============================================================================
   # MEDICAL / HEALTH
@@ -1237,7 +1421,9 @@ concepts:
 
   medical:
     prefLabel: "Health & Safety"
-    altLabel: ["health", "healthcare", "first aid", "medisin", "helse", "førstehjelp", "safety", "PPE", "protective equipment"]
+    altLabel:
+      en: ["health", "healthcare", "first aid", "safety", "PPE", "protective equipment"]
+      nb: ["medisin", "helse", "førstehjelp"]
     labels:
       en: "Health & Safety"
       nb: "Helse og sikkerhet"
@@ -1262,17 +1448,20 @@ concepts:
   # Medical mappings
   first-aid:
     prefLabel: "First aid"
-    altLabel: ["first_aid"]
+    altLabel:
+      en: ["first_aid"]
     broader: medical
 
   bandage:
     prefLabel: "Bandage"
-    altLabel: ["bandages"]
+    altLabel:
+      en: ["bandages"]
     broader: medical
 
   medicine:
     prefLabel: "Medicine"
-    altLabel: ["medication", "drugs"]
+    altLabel:
+      en: ["medication", "drugs"]
     broader: medical
     uri: "http://dbpedia.org/resource/Medicine"
 
@@ -1369,7 +1558,8 @@ concepts:
 
   gps:
     prefLabel: "GPS"
-    altLabel: ["Global Positioning System", "sat nav", "navigation"]
+    altLabel:
+      en: ["Global Positioning System", "sat nav", "navigation"]
     broader: electronics
     uri: "http://dbpedia.org/resource/Global_Positioning_System"
 
@@ -1508,7 +1698,8 @@ concepts:
   # More DBpedia mappings - Construction
   fasteners:
     prefLabel: "Fasteners"
-    altLabel: ["screws", "bolts", "nails"]
+    altLabel:
+      en: ["screws", "bolts", "nails"]
     broader: construction
 
   plumbing:
@@ -1547,14 +1738,16 @@ concepts:
 
   seal:
     prefLabel: "Seal"
-    altLabel: ["rubber seal", "gasket", "o-ring"]
+    altLabel:
+      en: ["rubber seal", "gasket", "o-ring"]
     broader: consumables
     uri: "http://dbpedia.org/resource/Hermetic_seal"
     # AGROVOC returns marine mammals - use DBpedia for hardware seals
 
   tubing:
     prefLabel: "Tubing"
-    altLabel: ["tube", "pipes", "hose"]
+    altLabel:
+      en: ["tube", "pipes", "hose"]
     broader: consumables
     uri: "http://dbpedia.org/resource/Tubing_(material)"
     # AGROVOC returns agricultural pipes
