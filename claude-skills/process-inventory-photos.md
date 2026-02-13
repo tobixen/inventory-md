@@ -65,6 +65,16 @@ For items not in Open Food Facts, try manual lookups:
 - Text should be saved both in the original language and the inventory language (English for Solveig, Norwegian for Furuset).
 - Note items that are unclear with TODO tag
 
+### 3b. Ask about unclear items using structured questions
+After viewing all photos, collect unclear items and ask the user using the AskUserQuestion tool with multiple-choice options. Group related questions together (up to 4 questions per call). This is more efficient than asking one question at a time.
+
+Example questions:
+- "Is the black square item in photo X a solar panel?" with options like "Yes, folding solar panel" / "No, something else"
+- "Are photos X and Y showing the same bag or different bags?" with options like "Same bag" / "Two different bags"
+- "What brand are these bike panniers?" with options like "Decathlon" / "Unknown brand" / "Not panniers"
+
+This structured approach helps identify items faster and avoids back-and-forth.
+
 ### 4. Create/update photo-registry.md
 Map each photo to visible items:
 ```markdown
