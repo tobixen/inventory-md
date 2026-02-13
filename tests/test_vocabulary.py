@@ -4450,3 +4450,490 @@ class TestProgressCallback:
             )
         assert isinstance(vocab, dict)
         assert isinstance(mappings, dict)
+
+
+class TestBuildExternalBroaderPaths:
+    """Tests for _build_external_broader_paths helper."""
+
+    def test_basic_path_building(self):
+        """Build paths from a list of broader relations."""
+        broader = [
+            {"label": "Inventions", "uri": "http://example.com/Inv", "relType": "hypernym"},
+            {"label": "Gadgets", "uri": "http://example.com/Gad", "relType": "subject"},
+        ]
+        paths, broader_ids = vocabulary._build_external_broader_paths(broader, "widget", lambda b: False, "hypernym")
+        assert paths == ["inventions/widget", "gadgets/widget"]
+        assert broader_ids == ["inventions", "gadgets"]
+
+    def test_priority_rel_inserted_first(self):
+        """Priority relation type is inserted at the front of the list."""
+        broader = [
+            {"label": "Gadgets", "uri": "http://example.com/Gad", "relType": "subject"},
+            {"label": "Inventions", "uri": "http://example.com/Inv", "relType": "hypernym"},
+        ]
+        paths, _ = vocabulary._build_external_broader_paths(broader, "widget", lambda b: False, "hypernym")
+        # hypernym should come first despite being second in input
+        assert paths[0] == "inventions/widget"
+
+    def test_irrelevant_entries_skipped(self):
+        """Entries matching the irrelevancy check are skipped."""
+        broader = [
+            {"label": "Irrelevant", "relType": "hypernym"},
+            {"label": "Good", "relType": "hypernym"},
+        ]
+        paths, broader_ids = vocabulary._build_external_broader_paths(
+            broader, "widget", lambda b: b.get("label") == "Irrelevant", "hypernym"
+        )
+        assert len(paths) == 1
+        assert paths[0] == "good/widget"
+        assert broader_ids == ["good"]
+
+    def test_max_paths_respected(self):
+        """No more than max_paths paths are returned."""
+        broader = [{"label": f"Cat{i}", "relType": "hypernym"} for i in range(10)]
+        paths, _ = vocabulary._build_external_broader_paths(broader, "widget", lambda b: False, "hypernym", max_paths=2)
+        assert len(paths) == 2
+
+    def test_duplicate_broader_ids_skipped(self):
+        """Duplicate broader IDs are not repeated."""
+        broader = [
+            {"label": "Tools", "relType": "hypernym"},
+            {"label": "Tools", "relType": "subject"},
+        ]
+        paths, broader_ids = vocabulary._build_external_broader_paths(broader, "widget", lambda b: False, "hypernym")
+        assert len(paths) == 1
+        assert broader_ids == ["tools"]
+
+    def test_self_reference_skipped(self):
+        """Broader entries matching concept_id are skipped."""
+        broader = [
+            {"label": "Widget", "relType": "hypernym"},
+            {"label": "Tools", "relType": "hypernym"},
+        ]
+        paths, _ = vocabulary._build_external_broader_paths(broader, "widget", lambda b: False, "hypernym")
+        assert len(paths) == 1
+        assert paths[0] == "tools/widget"
+
+    def test_empty_broader_list(self):
+        """Empty broader list returns empty results."""
+        paths, broader_ids = vocabulary._build_external_broader_paths([], "widget", lambda b: False, "hypernym")
+        assert paths == []
+        assert broader_ids == []
+
+
+class TestSupplementaryExternalPaths:
+    """Tests for supplementary category_by_source paths from DBpedia/Wikidata.
+
+    Verifies that category_by_source/dbpedia/ and category_by_source/wikidata/
+    subtrees are populated even when another source is primary.
+    """
+
+    @staticmethod
+    def _make_mock_skos_module():
+        """Create a mock skos module with both DBpedia and Wikidata checks."""
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        mock_module._is_abstract_wikidata_class.return_value = False
+        return mock_module
+
+    def test_dbpedia_supplementary_when_off_primary(self):
+        """OFF provides primary hierarchy; DBpedia still creates category_by_source paths."""
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Potatoes", "metadata": {"categories": ["potatoes"]}}],
+                }
+            ]
+        }
+
+        mock_off_client = MagicMock()
+        mock_off_client.lookup_concept.return_value = {
+            "uri": "off:en:potatoes",
+            "prefLabel": "Potatoes",
+            "source": "off",
+            "broader": [{"uri": "off:en:vegetables", "label": "Vegetables"}],
+            "node_id": "en:potatoes",
+        }
+        mock_off_client.build_paths_to_root.return_value = (
+            ["food/vegetables/potatoes"],
+            {"food/vegetables/potatoes": "off:en:potatoes"},
+            ["plant_based_foods/vegetables/potatoes"],
+        )
+        mock_off_client.get_labels.return_value = {}
+
+        mock_client = MagicMock()
+        # DBpedia returns broader relations
+        mock_client.lookup_concept.return_value = {
+            "uri": "http://dbpedia.org/resource/Potato",
+            "prefLabel": "Potato",
+            "source": "dbpedia",
+            "broader": [
+                {"label": "Root vegetables", "relType": "hypernym"},
+            ],
+        }
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient", return_value=mock_off_client),
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+            patch("inventory_md.vocabulary.build_skos_hierarchy_paths", return_value=([], False, {}, [])),
+        ):
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "agrovoc", "dbpedia"]
+            )
+
+        # Primary hierarchy should be from OFF
+        assert "potatoes" in mappings
+        assert any("food/vegetables" in p for p in mappings["potatoes"])
+
+        # category_by_source/dbpedia/ should also exist
+        assert "category_by_source/dbpedia" in vocab
+        cbs_dbpedia = [p for p in mappings["potatoes"] if p.startswith("category_by_source/dbpedia/")]
+        assert len(cbs_dbpedia) > 0
+        assert any("root_vegetables" in p for p in cbs_dbpedia)
+
+    def test_wikidata_supplementary_when_dbpedia_primary(self):
+        """DBpedia provides primary hierarchy; Wikidata still creates category_by_source paths."""
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Widget", "metadata": {"categories": ["widget"]}}],
+                }
+            ]
+        }
+
+        mock_client = MagicMock()
+
+        # DBpedia returns one thing, Wikidata returns another
+        def lookup_side_effect(label, lang, source=None):
+            if source == "dbpedia":
+                return {
+                    "uri": "http://dbpedia.org/resource/Widget",
+                    "prefLabel": "Widget",
+                    "source": "dbpedia",
+                    "broader": [
+                        {"label": "Inventions", "relType": "hypernym"},
+                    ],
+                }
+            elif source == "wikidata":
+                return {
+                    "uri": "http://www.wikidata.org/entity/Q123",
+                    "prefLabel": "Widget",
+                    "source": "wikidata",
+                    "broader": [
+                        {
+                            "label": "Mechanical device",
+                            "uri": "http://www.wikidata.org/entity/Q456",
+                            "relType": "instance_of",
+                        },
+                    ],
+                }
+            return None
+
+        mock_client.lookup_concept.side_effect = lookup_side_effect
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, enabled_sources=["off", "dbpedia", "wikidata"]
+            )
+
+        # Primary hierarchy should be from DBpedia
+        assert "widget" in mappings
+        assert any("inventions" in p for p in mappings["widget"])
+
+        # category_by_source/dbpedia/ should exist
+        assert "category_by_source/dbpedia" in vocab
+        cbs_dbpedia = [p for p in mappings["widget"] if p.startswith("category_by_source/dbpedia/")]
+        assert len(cbs_dbpedia) > 0
+
+        # category_by_source/wikidata/ should also exist
+        assert "category_by_source/wikidata" in vocab
+        cbs_wikidata = [p for p in mappings["widget"] if p.startswith("category_by_source/wikidata/")]
+        assert len(cbs_wikidata) > 0
+        assert any("mechanical_device" in p for p in cbs_wikidata)
+
+    def test_local_broader_gets_dbpedia_and_wikidata_paths(self):
+        """Local vocab hierarchy + external supplementary category_by_source paths."""
+        local_vocab = {
+            "tools": vocabulary.Concept(
+                id="tools",
+                prefLabel="Tools",
+                source="local",
+            ),
+            "hammer": vocabulary.Concept(
+                id="hammer",
+                prefLabel="Hammer",
+                broader=["tools"],
+                source="local",
+            ),
+        }
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Hammer", "metadata": {"categories": ["hammer"]}}],
+                }
+            ]
+        }
+
+        mock_client = MagicMock()
+
+        def lookup_side_effect(label, lang, source=None):
+            if source == "dbpedia":
+                return {
+                    "uri": "http://dbpedia.org/resource/Hammer",
+                    "prefLabel": "Hammer",
+                    "description": "A hand tool",
+                    "wikipediaUrl": "https://en.wikipedia.org/wiki/Hammer",
+                    "broader": [
+                        {"label": "Hand tools", "relType": "hypernym"},
+                    ],
+                }
+            elif source == "wikidata":
+                return {
+                    "uri": "http://www.wikidata.org/entity/Q169470",
+                    "prefLabel": "Hammer",
+                    "broader": [
+                        {
+                            "label": "Striking tool",
+                            "uri": "http://www.wikidata.org/entity/Q1234",
+                            "relType": "instance_of",
+                        },
+                    ],
+                }
+            return None
+
+        mock_client.lookup_concept.side_effect = lookup_side_effect
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                enabled_sources=["off", "dbpedia", "wikidata"],
+            )
+
+        # Primary hierarchy should be from local vocab (tools/hammer)
+        assert "hammer" in mappings
+        assert any("tools" in p for p in mappings["hammer"])
+
+        # category_by_source/dbpedia/ should exist with broader paths
+        cbs_dbpedia = [p for p in mappings["hammer"] if p.startswith("category_by_source/dbpedia/")]
+        assert len(cbs_dbpedia) > 0
+        assert any("hand_tools" in p for p in cbs_dbpedia)
+
+        # category_by_source/wikidata/ should exist with broader paths
+        cbs_wikidata = [p for p in mappings["hammer"] if p.startswith("category_by_source/wikidata/")]
+        assert len(cbs_wikidata) > 0
+        assert any("striking_tool" in p for p in cbs_wikidata)
+
+        # Concept should be enriched with DBpedia metadata
+        hammer = vocab.get("tools/hammer")
+        assert hammer is not None
+        assert hammer.uri == "http://dbpedia.org/resource/Hammer"
+
+    def test_translated_root_gets_supplementary_paths(self):
+        """Norwegian label → local root concept still gets DBpedia/Wikidata category_by_source."""
+        local_vocab = {
+            "clothing": vocabulary.Concept(
+                id="clothing",
+                prefLabel="Clothing",
+                source="local",
+                labels={"nb": "klær"},
+            ),
+        }
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Klær", "metadata": {"categories": ["klær"]}}],
+                }
+            ]
+        }
+
+        mock_client = MagicMock()
+
+        def lookup_side_effect(label, lang, source=None):
+            if source == "dbpedia" and label.lower() == "clothing":
+                return {
+                    "uri": "http://dbpedia.org/resource/Clothing",
+                    "prefLabel": "Clothing",
+                    "broader": [
+                        {"label": "Textiles", "relType": "hypernym"},
+                    ],
+                }
+            elif source == "wikidata" and label.lower() == "clothing":
+                return {
+                    "uri": "http://www.wikidata.org/entity/Q11460",
+                    "prefLabel": "Clothing",
+                    "broader": [
+                        {
+                            "label": "Textile product",
+                            "uri": "http://www.wikidata.org/entity/Q9999",
+                            "relType": "instance_of",
+                        },
+                    ],
+                }
+            return None
+
+        mock_client.lookup_concept.side_effect = lookup_side_effect
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                lang="nb",
+                enabled_sources=["off", "dbpedia", "wikidata"],
+            )
+
+        # "klær" should map to "clothing" (local root)
+        assert "klær" in mappings
+        assert "clothing" in mappings["klær"]
+
+        # category_by_source/dbpedia/ should exist
+        cbs_dbpedia = [p for p in mappings["klær"] if p.startswith("category_by_source/dbpedia/")]
+        assert len(cbs_dbpedia) > 0
+        assert any("textiles" in p for p in cbs_dbpedia)
+
+        # category_by_source/wikidata/ should exist
+        cbs_wikidata = [p for p in mappings["klær"] if p.startswith("category_by_source/wikidata/")]
+        assert len(cbs_wikidata) > 0
+        assert any("textile_product" in p for p in cbs_wikidata)
+
+    def test_agrovoc_uri_concept_gets_supplementary_paths(self):
+        """AGROVOC primary (via local URI) + external supplementary paths."""
+        local_vocab = {
+            "rice": vocabulary.Concept(
+                id="rice",
+                prefLabel="Rice",
+                broader=["cereals"],
+                source="local",
+                uri="http://aims.fao.org/aos/agrovoc/c_6599",
+            ),
+            "cereals": vocabulary.Concept(
+                id="cereals",
+                prefLabel="Cereals",
+                source="local",
+            ),
+        }
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Rice", "metadata": {"categories": ["rice"]}}],
+                }
+            ]
+        }
+
+        mock_client = MagicMock()
+        # Oxigraph store for AGROVOC hierarchy
+        mock_store = MagicMock()
+        mock_store.is_loaded = True
+        mock_client._get_oxigraph_store.return_value = mock_store
+        mock_client.get_batch_labels.return_value = {}
+
+        def lookup_side_effect(label, lang, source=None):
+            if source == "dbpedia":
+                return {
+                    "uri": "http://dbpedia.org/resource/Rice",
+                    "prefLabel": "Rice",
+                    "broader": [
+                        {"label": "Cereals", "relType": "hypernym"},
+                    ],
+                }
+            elif source == "wikidata":
+                return {
+                    "uri": "http://www.wikidata.org/entity/Q5090",
+                    "prefLabel": "Rice",
+                    "broader": [
+                        {"label": "Cereal", "uri": "http://www.wikidata.org/entity/Q12117", "relType": "instance_of"},
+                    ],
+                }
+            return None
+
+        mock_client.lookup_concept.side_effect = lookup_side_effect
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+            patch(
+                "inventory_md.vocabulary._build_paths_to_root",
+                return_value=(
+                    ["cereals/rice"],
+                    {"cereals/rice": "http://aims.fao.org/aos/agrovoc/c_6599"},
+                    ["cereals/rice"],
+                ),
+            ),
+        ):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                enabled_sources=["off", "agrovoc", "dbpedia", "wikidata"],
+            )
+
+        # Primary hierarchy should be from AGROVOC
+        assert "rice" in mappings
+        assert any("cereals" in p for p in mappings["rice"])
+
+        # category_by_source/dbpedia/ should exist
+        cbs_dbpedia = [p for p in mappings["rice"] if p.startswith("category_by_source/dbpedia/")]
+        assert len(cbs_dbpedia) > 0
+
+        # category_by_source/wikidata/ should exist
+        cbs_wikidata = [p for p in mappings["rice"] if p.startswith("category_by_source/wikidata/")]
+        assert len(cbs_wikidata) > 0
