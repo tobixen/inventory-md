@@ -1917,11 +1917,28 @@
                 <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px;">${categoryId}</code>
             </div>`;
 
-            // Alt labels
-            if (concept.altLabels && concept.altLabels.length > 0) {
+            // Alt labels (dict format: {lang: [labels]} or legacy array)
+            const altLabels = concept.altLabels || {};
+            let altLabelItems = [];
+            if (Array.isArray(altLabels)) {
+                // Legacy flat array format
+                altLabelItems = altLabels;
+            } else if (typeof altLabels === 'object') {
+                // New language-tagged dict format: show current language first, then others
+                const curLang = currentLanguage || 'en';
+                if (altLabels[curLang]) {
+                    altLabelItems.push(...altLabels[curLang]);
+                }
+                for (const [lang, labels] of Object.entries(altLabels)) {
+                    if (lang !== curLang && labels.length > 0) {
+                        altLabelItems.push(...labels.map(l => `${l} [${lang}]`));
+                    }
+                }
+            }
+            if (altLabelItems.length > 0) {
                 html += `<div class="category-modal-section">
                     <div class="category-modal-section-title">Also known as</div>
-                    <div>${concept.altLabels.join(', ')}</div>
+                    <div>${altLabelItems.join(', ')}</div>
                 </div>`;
             }
 
@@ -2220,8 +2237,10 @@
                         continue;
                     }
                 }
-                // Check altLabels
-                if (concept.altLabels && concept.altLabels.some(alt => alt.toLowerCase().includes(query))) {
+                // Check altLabels (dict format: {lang: [labels]} or legacy array)
+                const alts = concept.altLabels || {};
+                const allAlts = Array.isArray(alts) ? alts : Object.values(alts).flat();
+                if (allAlts.some(alt => alt.toLowerCase().includes(query))) {
                     matches.push({ id, concept, count, matchType: 'altLabel' });
                     continue;
                 }

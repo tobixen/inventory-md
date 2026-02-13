@@ -18,21 +18,21 @@ class TestConcept:
         concept = vocabulary.Concept(
             id="food/vegetables",
             prefLabel="Vegetables",
-            altLabels=["veggies", "greens"],
+            altLabels={"en": ["veggies", "greens"]},
             broader=["food"],
             narrower=["food/vegetables/potatoes"],
             source="local",
         )
         assert concept.id == "food/vegetables"
         assert concept.prefLabel == "Vegetables"
-        assert concept.altLabels == ["veggies", "greens"]
+        assert concept.altLabels == {"en": ["veggies", "greens"]}
 
     def test_concept_to_dict(self):
         """Test converting concept to dictionary."""
         concept = vocabulary.Concept(
             id="food/vegetables",
             prefLabel="Vegetables",
-            altLabels=["veggies"],
+            altLabels={"en": ["veggies"]},
             broader=["food"],
             narrower=[],
             source="local",
@@ -40,7 +40,7 @@ class TestConcept:
         d = concept.to_dict()
         assert d["id"] == "food/vegetables"
         assert d["prefLabel"] == "Vegetables"
-        assert d["altLabels"] == ["veggies"]
+        assert d["altLabels"] == {"en": ["veggies"]}
         assert d["broader"] == ["food"]
         assert d["source"] == "local"
 
@@ -49,7 +49,7 @@ class TestConcept:
         d = {
             "id": "food/vegetables",
             "prefLabel": "Vegetables",
-            "altLabels": ["veggies"],
+            "altLabels": {"en": ["veggies"]},
             "broader": ["food"],
             "narrower": [],
             "source": "local",
@@ -57,14 +57,57 @@ class TestConcept:
         concept = vocabulary.Concept.from_dict(d)
         assert concept.id == "food/vegetables"
         assert concept.prefLabel == "Vegetables"
+        assert concept.altLabels == {"en": ["veggies"]}
+
+    def test_concept_from_dict_backward_compat_list(self):
+        """Test creating concept from dictionary with legacy list altLabels."""
+        d = {
+            "id": "food/vegetables",
+            "prefLabel": "Vegetables",
+            "altLabels": ["veggies"],
+            "broader": ["food"],
+        }
+        concept = vocabulary.Concept.from_dict(d)
+        assert concept.altLabels == {"en": ["veggies"]}
 
     def test_concept_defaults(self):
         """Test concept with default values."""
         concept = vocabulary.Concept(id="test", prefLabel="Test")
-        assert concept.altLabels == []
+        assert concept.altLabels == {}
         assert concept.broader == []
         assert concept.narrower == []
         assert concept.source == "local"
+
+    def test_get_alt_labels_all(self):
+        """Test get_alt_labels returns all labels when lang is None."""
+        concept = vocabulary.Concept(
+            id="food",
+            prefLabel="Food",
+            altLabels={"en": ["groceries", "provisions"], "nb": ["mat", "matvarer"]},
+        )
+        all_alts = concept.get_alt_labels()
+        assert all_alts == ["groceries", "provisions", "mat", "matvarer"]
+
+    def test_get_alt_labels_by_language(self):
+        """Test get_alt_labels returns only labels for a specific language."""
+        concept = vocabulary.Concept(
+            id="food",
+            prefLabel="Food",
+            altLabels={"en": ["groceries"], "nb": ["mat"]},
+        )
+        assert concept.get_alt_labels("en") == ["groceries"]
+        assert concept.get_alt_labels("nb") == ["mat"]
+        assert concept.get_alt_labels("de") == []
+
+    def test_get_all_alt_labels_flat_deduplicates(self):
+        """Test get_all_alt_labels_flat deduplicates across languages."""
+        concept = vocabulary.Concept(
+            id="sport",
+            prefLabel="Sports",
+            altLabels={"en": ["sport", "athletics"], "nb": ["sport", "idrett"]},
+        )
+        flat = concept.get_all_alt_labels_flat()
+        assert flat == ["sport", "athletics", "idrett"]
 
 
 class TestLoadLocalVocabulary:
@@ -88,7 +131,7 @@ concepts:
 
         assert "christmas-decorations" in vocab
         assert vocab["christmas-decorations"].prefLabel == "Christmas decorations"
-        assert vocab["christmas-decorations"].altLabels == ["jul", "xmas"]
+        assert vocab["christmas-decorations"].altLabels == {"en": ["jul", "xmas"]}
         assert vocab["christmas-decorations"].broader == ["seasonal"]
 
         assert "tools/hand-tools" in vocab
@@ -132,7 +175,7 @@ concepts:
     altLabel: "spuds"
 """)
         vocab = vocabulary.load_local_vocabulary(vocab_file)
-        assert vocab["potatoes"].altLabels == ["spuds"]
+        assert vocab["potatoes"].altLabels == {"en": ["spuds"]}
 
     def test_load_with_string_broader(self, tmp_path):
         """Test loading with broader as single string."""
@@ -146,6 +189,49 @@ concepts:
 """)
         vocab = vocabulary.load_local_vocabulary(vocab_file)
         assert vocab["potatoes"].broader == ["vegetables"]
+
+    def test_load_with_language_tagged_altlabels(self, tmp_path):
+        """Test loading vocabulary with language-tagged dict altLabels."""
+        pytest.importorskip("yaml")
+        vocab_file = tmp_path / "vocab.yaml"
+        vocab_file.write_text("""
+concepts:
+  food:
+    prefLabel: "Food"
+    altLabel:
+      en: ["groceries", "provisions"]
+      nb: ["mat", "matvarer"]
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file)
+        assert vocab["food"].altLabels == {"en": ["groceries", "provisions"], "nb": ["mat", "matvarer"]}
+
+    def test_load_backward_compat_flat_altlabels(self, tmp_path):
+        """Test that flat list altLabels are wrapped as en."""
+        pytest.importorskip("yaml")
+        vocab_file = tmp_path / "vocab.yaml"
+        vocab_file.write_text("""
+concepts:
+  tools:
+    prefLabel: "Tools"
+    altLabel: ["equipment", "implements"]
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file)
+        assert vocab["tools"].altLabels == {"en": ["equipment", "implements"]}
+
+    def test_load_dict_altlabel_string_values(self, tmp_path):
+        """Test that dict altLabels with string values are wrapped in lists."""
+        pytest.importorskip("yaml")
+        vocab_file = tmp_path / "vocab.yaml"
+        vocab_file.write_text("""
+concepts:
+  food:
+    prefLabel: "Food"
+    altLabel:
+      en: "groceries"
+      nb: "mat"
+""")
+        vocab = vocabulary.load_local_vocabulary(vocab_file)
+        assert vocab["food"].altLabels == {"en": ["groceries"], "nb": ["mat"]}
 
 
 class TestLookupConcept:
@@ -181,7 +267,7 @@ class TestLookupConcept:
             "food/vegetables": vocabulary.Concept(
                 id="food/vegetables",
                 prefLabel="Vegetables",
-                altLabels=["veggies", "greens"],
+                altLabels={"en": ["veggies", "greens"]},
             )
         }
         concept = vocabulary.lookup_concept("veggies", vocab)
@@ -282,7 +368,7 @@ class TestBuildCategoryTree:
             "food/vegetables": vocabulary.Concept(
                 id="food/vegetables",
                 prefLabel="Vegetables",
-                altLabels=["veggies"],
+                altLabels={"en": ["veggies"]},
             ),
         }
         tree = vocabulary.build_category_tree(vocab)
@@ -496,7 +582,7 @@ class TestBuildVocabularyFromInventory:
             "food": vocabulary.Concept(
                 id="food",
                 prefLabel="Food & Groceries",  # Custom label
-                altLabels=["mat"],
+                altLabels={"nb": ["mat"]},
             ),
         }
         inventory = {
@@ -513,7 +599,7 @@ class TestBuildVocabularyFromInventory:
 
         # Local vocab should take precedence
         assert vocab["food"].prefLabel == "Food & Groceries"
-        assert vocab["food"].altLabels == ["mat"]
+        assert vocab["food"].altLabels == {"nb": ["mat"]}
         # But inventory categories should also be there
         assert "food/vegetables" in vocab
 
@@ -667,7 +753,7 @@ class TestSaveVocabularyJson:
             "food/vegetables": vocabulary.Concept(
                 id="food/vegetables",
                 prefLabel="Vegetables",
-                altLabels=["veggies"],
+                altLabels={"en": ["veggies"]},
             ),
         }
         output_path = tmp_path / "vocabulary.json"
@@ -681,7 +767,7 @@ class TestSaveVocabularyJson:
         assert "roots" in data
         assert "labelIndex" in data
         assert "food" in data["concepts"]
-        assert data["concepts"]["food/vegetables"]["altLabels"] == ["veggies"]
+        assert data["concepts"]["food/vegetables"]["altLabels"] == {"en": ["veggies"]}
 
     def test_save_with_category_mappings(self, tmp_path):
         """Test saving vocabulary with category mappings for hierarchy mode."""
@@ -1065,7 +1151,8 @@ concepts:
 concepts:
   tools:
     prefLabel: "Tools"
-    altLabel: ["equipment"]
+    altLabel:
+      en: ["equipment"]
   food:
     prefLabel: "Food"
     narrower:
@@ -2116,7 +2203,7 @@ class TestConceptDeduplication:
             "ac-cable": vocabulary.Concept(
                 id="ac-cable",
                 prefLabel="AC Cable",
-                altLabels=["power cord", "mains cable"],
+                altLabels={"en": ["power cord", "mains cable"]},
                 broader=["electronics"],
                 source="local",
                 uri="http://example.com/ac-cable",
@@ -2130,8 +2217,8 @@ class TestConceptDeduplication:
         concept = vocab.get("electronics/ac-cable")
         assert concept is not None
         assert concept.prefLabel == "AC Cable"
-        assert "power cord" in concept.altLabels
-        assert "mains cable" in concept.altLabels
+        assert "power cord" in concept.get_all_alt_labels_flat()
+        assert "mains cable" in concept.get_all_alt_labels_flat()
         assert concept.uri == "http://example.com/ac-cable"
         assert concept.description == "A cable for AC power."
         assert concept.source == "local"
@@ -2164,13 +2251,13 @@ class TestConceptDeduplication:
             "books": vocabulary.Concept(
                 id="books",
                 prefLabel="Books",
-                altLabels=["reading material"],
+                altLabels={"en": ["reading material"]},
                 source="local",
             ),
             "book": vocabulary.Concept(
                 id="book",
                 prefLabel="Book",
-                altLabels=["paperback", "hardcover"],
+                altLabels={"en": ["paperback", "hardcover"]},
                 broader=["books"],
                 source="local",
             ),
@@ -2183,9 +2270,10 @@ class TestConceptDeduplication:
         books = vocab.get("books")
         assert books is not None
         # altLabels from both should be present
-        assert "reading material" in books.altLabels
-        assert "paperback" in books.altLabels
-        assert "hardcover" in books.altLabels
+        all_alts = books.get_all_alt_labels_flat()
+        assert "reading material" in all_alts
+        assert "paperback" in all_alts
+        assert "hardcover" in all_alts
         # Flat "book" should be removed
         assert vocab.get("book") is None
 
@@ -3990,7 +4078,7 @@ class TestTranslationMap:
             "clothing": vocabulary.Concept(
                 id="clothing",
                 prefLabel="Clothing",
-                altLabels=["klær", "tekstil"],
+                altLabels={"nb": ["klær", "tekstil"]},
                 source="local",
                 labels={"en": "Clothing", "nb": "Klær"},
             ),
@@ -4022,7 +4110,7 @@ class TestTranslationMap:
             "clothing": vocabulary.Concept(
                 id="clothing",
                 prefLabel="Clothing",
-                altLabels=["klær"],
+                altLabels={"nb": ["klær"]},
                 source="local",
                 labels={"en": "Clothing", "nb": "Klær"},
             ),
@@ -4097,7 +4185,7 @@ class TestTranslationMap:
             "sports": vocabulary.Concept(
                 id="sports",
                 prefLabel="Sports",
-                altLabels=["sport"],
+                altLabels={"en": ["sport"], "nb": ["sport"]},
                 broader=["recreation"],
                 source="local",
             ),
@@ -4119,6 +4207,69 @@ class TestTranslationMap:
         assert "recreation/sports/vinter" in mappings["sport/vinter"]
         assert "recreation/sports/vinter" in vocab
         assert "sport/vinter" not in vocab
+
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_translation_map_filters_by_language(self, mock_skos_paths):
+        """Norwegian altLabel 'barn' should NOT map when inventory lang is 'nb'.
+
+        The translation map should only use altLabels matching the inventory
+        language, preventing cross-language false matches where Norwegian
+        'barn' (children) gets matched to English 'Barn' (agricultural building).
+        """
+        mock_skos_paths.return_value = ([], False, {}, [])
+
+        local_vocab = {
+            "games": vocabulary.Concept(
+                id="games",
+                prefLabel="Games",
+                altLabels={"en": ["toys", "puzzles"], "nb": ["spill", "leker"]},
+                source="local",
+            ),
+        }
+        # Use "spill" (nb altLabel) which should map, and "toys" (en) which should not
+        inventory = self._make_inventory(["spill"])
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                lang="nb",
+                enabled_sources=["off", "agrovoc"],
+            )
+
+        # "spill" (nb altLabel) should map to "games"
+        assert "spill" in mappings
+        assert "games" in mappings["spill"]
+
+    def test_altlabels_merge_per_language(self):
+        """Per-language dict merge should combine altLabels without duplicates."""
+        target = vocabulary.Concept(
+            id="food",
+            prefLabel="Food",
+            altLabels={"en": ["groceries"], "nb": ["mat"]},
+        )
+        source = vocabulary.Concept(
+            id="food",
+            prefLabel="Food",
+            altLabels={"en": ["provisions", "groceries"], "de": ["Lebensmittel"]},
+        )
+        # Merge source into target per-language
+        for lang, alts in source.altLabels.items():
+            if lang not in target.altLabels:
+                target.altLabels[lang] = list(alts)
+            else:
+                existing = set(target.altLabels[lang])
+                for alt in alts:
+                    if alt not in existing:
+                        target.altLabels[lang].append(alt)
+
+        assert target.altLabels == {
+            "en": ["groceries", "provisions"],
+            "nb": ["mat"],
+            "de": ["Lebensmittel"],
+        }
 
 
 class TestProgressCallback:

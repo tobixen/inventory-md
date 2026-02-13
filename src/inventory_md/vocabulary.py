@@ -265,7 +265,7 @@ class Concept:
 
     id: str  # Unique identifier (path like "food/vegetables/potatoes")
     prefLabel: str  # Preferred display label (primary language)
-    altLabels: list[str] = field(default_factory=list)  # Alternative labels/synonyms
+    altLabels: dict[str, list[str]] = field(default_factory=dict)  # lang -> alternative labels
     broader: list[str] = field(default_factory=list)  # Parent concept IDs
     narrower: list[str] = field(default_factory=list)  # Child concept IDs
     source: str = "local"  # "local", "agrovoc", "dbpedia"
@@ -304,13 +304,37 @@ class Concept:
         """Get label for a specific language, falling back to prefLabel."""
         return self.labels.get(lang, self.prefLabel)
 
+    def get_alt_labels(self, lang: str | None = None) -> list[str]:
+        """Get altLabels for a specific language, or all if lang is None."""
+        if lang is None:
+            seen: set[str] = set()
+            result: list[str] = []
+            for labels in self.altLabels.values():
+                for label in labels:
+                    if label not in seen:
+                        seen.add(label)
+                        result.append(label)
+            return result
+        return list(self.altLabels.get(lang, []))
+
+    def get_all_alt_labels_flat(self) -> list[str]:
+        """All altLabels across all languages (deduplicated)."""
+        return self.get_alt_labels(lang=None)
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Concept:
         """Create from dictionary."""
+        raw_alt = data.get("altLabels", {})
+        if isinstance(raw_alt, list):
+            alt_labels = {"en": raw_alt} if raw_alt else {}
+        elif isinstance(raw_alt, dict):
+            alt_labels = raw_alt
+        else:
+            alt_labels = {}
         return cls(
             id=data["id"],
             prefLabel=data.get("prefLabel", data["id"]),
-            altLabels=data.get("altLabels", []),
+            altLabels=alt_labels,
             broader=data.get("broader", []),
             narrower=data.get("narrower", []),
             source=data.get("source", "local"),
@@ -379,10 +403,16 @@ def load_local_vocabulary(path: Path, default_source: str = "local") -> dict[str
         if concept_data is None:
             concept_data = {}
 
-        # Handle altLabel as string or list
-        alt_labels = concept_data.get("altLabel", [])
-        if isinstance(alt_labels, str):
-            alt_labels = [alt_labels]
+        # Handle altLabel as string, list, or dict
+        raw_alt = concept_data.get("altLabel", {})
+        if isinstance(raw_alt, str):
+            alt_labels = {"en": [raw_alt]}
+        elif isinstance(raw_alt, list):
+            alt_labels = {"en": raw_alt} if raw_alt else {}
+        elif isinstance(raw_alt, dict):
+            alt_labels = {k: ([v] if isinstance(v, str) else v) for k, v in raw_alt.items()}
+        else:
+            alt_labels = {}
 
         # Handle broader as string or list
         broader = concept_data.get("broader", [])
@@ -450,7 +480,7 @@ def build_label_index(concepts: dict[str, Concept]) -> dict[str, str]:
         # Add prefLabel
         index[concept.prefLabel.lower()] = concept_id
         # Add all altLabels
-        for alt_label in concept.altLabels:
+        for alt_label in concept.get_all_alt_labels_flat():
             index[alt_label.lower()] = concept_id
         # Also add the ID itself
         index[concept_id.lower()] = concept_id
@@ -564,7 +594,7 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
         k: Concept(
             id=v.id,
             prefLabel=v.prefLabel,
-            altLabels=v.altLabels.copy(),
+            altLabels={lang: ls.copy() for lang, ls in v.altLabels.items()},
             broader=v.broader.copy(),
             narrower=v.narrower.copy(),
             source=v.source,
@@ -1010,7 +1040,7 @@ def _enrich_with_skos(
                     concepts[cat_path] = Concept(
                         id=cat_path,
                         prefLabel=pref_label,
-                        altLabels=[],
+                        altLabels={},
                         broader=broader_ids[:1] if broader_ids else [],  # Just first broader
                         narrower=[],
                         source=concept_data.get("source", "skos"),
@@ -1976,9 +2006,12 @@ def build_vocabulary_with_skos_hierarchy(
                         local_translation_map[label_lower] = cid
                     break  # Use first matching language
 
-        # Second pass: index by altLabels (lower priority, only if not already mapped)
+        # Second pass: index by altLabels in the inventory's language
+        # (lower priority, only if not already mapped)
+        # Only use altLabels matching the inventory language to prevent
+        # cross-language false matches (e.g., Norwegian "barn" matching English "Barn")
         for cid, c in local_vocab.items():
-            for alt in c.altLabels:
+            for alt in c.altLabels.get(lang, []):
                 alt_lower = alt.lower()
                 if alt_lower != cid.lower() and alt_lower not in local_translation_map:
                     local_translation_map[alt_lower] = cid
@@ -2061,7 +2094,7 @@ def build_vocabulary_with_skos_hierarchy(
                 if pref_singular != pref_lower and pref_singular not in local_vocab_labels:
                     local_vocab_labels[pref_singular] = concept_id
             # Index all alt labels
-            for alt in concept.altLabels:
+            for alt in concept.get_all_alt_labels_flat():
                 local_vocab_labels[alt.lower()] = concept_id
                 # Also normalized form
                 normalized_alt = alt.lower().replace("-", " ").replace("_", " ")
@@ -2296,7 +2329,9 @@ def build_vocabulary_with_skos_hierarchy(
                             concepts[concept_id] = Concept(
                                 id=concept_id,
                                 prefLabel=dbpedia_concept.get("prefLabel", label.title()),
-                                altLabels=dbpedia_concept.get("altLabels", []),
+                                altLabels={"en": dbpedia_concept.get("altLabels", [])}
+                                if dbpedia_concept.get("altLabels")
+                                else {},
                                 source="dbpedia",
                                 uri=dbpedia_concept["uri"],
                                 description=dbpedia_concept.get("description"),
@@ -2393,7 +2428,9 @@ def build_vocabulary_with_skos_hierarchy(
                             concepts[concept_id] = Concept(
                                 id=concept_id,
                                 prefLabel=wikidata_concept.get("prefLabel", label.title()),
-                                altLabels=wikidata_concept.get("altLabels", []),
+                                altLabels={"en": wikidata_concept.get("altLabels", [])}
+                                if wikidata_concept.get("altLabels")
+                                else {},
                                 source="wikidata",
                                 uri=wikidata_concept["uri"],
                                 description=wikidata_concept.get("description"),
@@ -2459,17 +2496,21 @@ def build_vocabulary_with_skos_hierarchy(
                 if not _target_existed:
                     # Newly created by _add_paths_to_concepts: overwrite metadata
                     _target.prefLabel = _flat.prefLabel
-                    _target.altLabels = _flat.altLabels.copy()
+                    _target.altLabels = {lang: ls.copy() for lang, ls in _flat.altLabels.items()}
                     # Preserve external source from enrichment; otherwise use
                     # the flat concept's source (e.g. "package" or "local")
                     if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
                         _target.source = _flat.source
                 else:
-                    # Existing concept (e.g., singular/plural merge): merge altLabels
-                    existing_alts = set(_target.altLabels)
-                    for alt in _flat.altLabels:
-                        if alt not in existing_alts:
-                            _target.altLabels.append(alt)
+                    # Existing concept (e.g., singular/plural merge): merge altLabels per-language
+                    for lang, alts in _flat.altLabels.items():
+                        if lang not in _target.altLabels:
+                            _target.altLabels[lang] = list(alts)
+                        else:
+                            existing = set(_target.altLabels[lang])
+                            for alt in alts:
+                                if alt not in existing:
+                                    _target.altLabels[lang].append(alt)
                 # Propagate package/local source from the authoritative flat
                 # concept, unless the target was enriched by an external source
                 if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
@@ -2705,10 +2746,14 @@ def build_vocabulary_with_skos_hierarchy(
                     _target.source = _flat.source
                 if _flat.prefLabel and not _target.prefLabel:
                     _target.prefLabel = _flat.prefLabel
-                existing_alts = set(_target.altLabels)
-                for alt in _flat.altLabels:
-                    if alt not in existing_alts:
-                        _target.altLabels.append(alt)
+                for lang, alts in _flat.altLabels.items():
+                    if lang not in _target.altLabels:
+                        _target.altLabels[lang] = list(alts)
+                    else:
+                        existing = set(_target.altLabels[lang])
+                        for alt in alts:
+                            if alt not in existing:
+                                _target.altLabels[lang].append(alt)
                 if _flat.uri and not _target.uri:
                     _target.uri = _flat.uri
                 if _flat.description and not _target.description:
@@ -2732,7 +2777,7 @@ def build_vocabulary_with_skos_hierarchy(
                 _add_paths_to_concepts([resolved], concepts, _flat.source)
                 _target = concepts[resolved]
                 _target.prefLabel = _flat.prefLabel
-                _target.altLabels = _flat.altLabels.copy()
+                _target.altLabels = {lang: ls.copy() for lang, ls in _flat.altLabels.items()}
                 _target.uri = _flat.uri
                 _target.description = _flat.description
                 _target.wikipediaUrl = _flat.wikipediaUrl

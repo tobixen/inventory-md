@@ -1223,7 +1223,8 @@ def vocabulary_command(args, config: Config) -> int:
             # Sort by ID
             for concept_id in sorted(vocab.keys()):
                 concept = vocab[concept_id]
-                alt_str = f" (aka: {', '.join(concept.altLabels)})" if concept.altLabels else ""
+                all_alts = concept.get_all_alt_labels_flat()
+                alt_str = f" (aka: {', '.join(all_alts)})" if all_alts else ""
                 print(f"  {concept_id}: {concept.prefLabel}{alt_str}")
 
         return 0
@@ -1240,8 +1241,9 @@ def vocabulary_command(args, config: Config) -> int:
         if concept:
             print(f"Found: {concept.id}")
             print(f"  prefLabel: {concept.prefLabel}")
-            if concept.altLabels:
-                print(f"  altLabels: {', '.join(concept.altLabels)}")
+            all_alts = concept.get_all_alt_labels_flat()
+            if all_alts:
+                print(f"  altLabels: {', '.join(all_alts)}")
             if concept.broader:
                 print(f"  broader: {', '.join(concept.broader)}")
             if concept.narrower:
