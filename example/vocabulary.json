@@ -3,94 +3,4132 @@
     "food": {
       "id": "food",
       "prefLabel": "Food",
-      "altLabels": [],
+      "altLabels": [
+        "groceries",
+        "provisions",
+        "foodstuffs",
+        "mat",
+        "matvarer"
+      ],
       "broader": [],
       "narrower": [
+        "food/beverages",
+        "food/dairy",
+        "food/grains",
+        "food/meat",
+        "food/seafood",
         "food/vegetables",
-        "food/staples",
-        "food/canned"
+        "food/fruits",
+        "food/legumes",
+        "food/condiments",
+        "food/snacks",
+        "food/preserved",
+        "food/baking",
+        "food/spices"
       ],
-      "source": "inventory"
-    },
-    "food/vegetables": {
-      "id": "food/vegetables",
-      "prefLabel": "Vegetables",
-      "altLabels": [],
-      "broader": [
-        "food"
-      ],
-      "narrower": [
-        "food/vegetables/potatoes"
-      ],
-      "source": "inventory"
-    },
-    "food/vegetables/potatoes": {
-      "id": "food/vegetables/potatoes",
-      "prefLabel": "Potatoes",
-      "altLabels": [],
-      "broader": [
-        "food/vegetables"
-      ],
-      "narrower": [],
-      "source": "inventory"
-    },
-    "food/staples": {
-      "id": "food/staples",
-      "prefLabel": "Staples",
-      "altLabels": [],
-      "broader": [
-        "food"
-      ],
-      "narrower": [],
-      "source": "inventory"
-    },
-    "food/canned": {
-      "id": "food/canned",
-      "prefLabel": "Canned",
-      "altLabels": [],
-      "broader": [
-        "food"
-      ],
-      "narrower": [],
-      "source": "inventory"
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Food",
+      "labels": {
+        "en": "Food",
+        "nb": "Mat",
+        "de": "Lebensmittel",
+        "fr": "Nourriture",
+        "es": "Alimento",
+        "it": "Alimento",
+        "nl": "Voedsel",
+        "sv": "Mat",
+        "pl": "Żywność",
+        "ru": "Пища",
+        "uk": "Їжа",
+        "fi": "Ruoka",
+        "bg": "Храна"
+      }
     },
     "tools": {
       "id": "tools",
       "prefLabel": "Tools",
-      "altLabels": [],
+      "altLabels": [
+        "equipment",
+        "implements",
+        "verktøy",
+        "utstyr"
+      ],
       "broader": [],
       "narrower": [
-        "tools/hand-tools"
+        "tools/hand",
+        "tools/power",
+        "tools/measuring",
+        "tools/cleaning",
+        "tools/bike"
       ],
-      "source": "inventory"
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Tool",
+      "labels": {
+        "en": "Tools",
+        "nb": "Verktøy",
+        "de": "Werkzeuge",
+        "sv": "Verktyg",
+        "da": "Værktøj",
+        "nl": "Gereedschap",
+        "fi": "Työkalut",
+        "fr": "Outils",
+        "es": "Herramientas",
+        "it": "Utensili",
+        "pl": "Narzędzia",
+        "ru": "Инструменты",
+        "uk": "Інструменти",
+        "bg": "Инструменти"
+      }
     },
-    "tools/hand-tools": {
-      "id": "tools/hand-tools",
-      "prefLabel": "Hand Tools",
+    "recreation": {
+      "id": "recreation",
+      "prefLabel": "Recreation & Transport",
+      "altLabels": [
+        "leisure",
+        "transportation",
+        "fritid"
+      ],
+      "broader": [],
+      "narrower": [
+        "outdoor",
+        "sports",
+        "transport"
+      ],
+      "source": "package",
+      "labels": {
+        "en": "Recreation & Transport",
+        "nb": "Fritid og transport",
+        "de": "Freizeit & Transport",
+        "sv": "Fritid och transport",
+        "da": "Fritid og transport",
+        "nl": "Recreatie en vervoer",
+        "fi": "Vapaa-aika ja liikenne",
+        "fr": "Loisirs et transport",
+        "es": "Ocio y transporte",
+        "it": "Svago e trasporto",
+        "pl": "Rekreacja i transport",
+        "ru": "Отдых и транспорт",
+        "uk": "Відпочинок і транспорт",
+        "bg": "Отдих и транспорт"
+      }
+    },
+    "transport": {
+      "id": "transport",
+      "prefLabel": "Transport",
+      "altLabels": [],
+      "broader": [
+        "recreation"
+      ],
+      "narrower": [
+        "automotive",
+        "boat-equipment"
+      ],
+      "source": "package",
+      "labels": {
+        "nb": "Transport"
+      }
+    },
+    "electronics": {
+      "id": "electronics",
+      "prefLabel": "Electronics",
+      "altLabels": [
+        "electrical",
+        "electric",
+        "elektronikk",
+        "elektrisk"
+      ],
+      "broader": [],
+      "narrower": [
+        "cables",
+        "electronics/connectors",
+        "electronics/power",
+        "electronics/circuits",
+        "electronics/components"
+      ],
+      "source": "package"
+    },
+    "electronics/connectors": {
+      "id": "electronics/connectors",
+      "prefLabel": "Connectors",
+      "altLabels": [
+        "plugs",
+        "jacks",
+        "terminals"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "electronics/power": {
+      "id": "electronics/power",
+      "prefLabel": "Power electronics",
+      "altLabels": [
+        "power supplies",
+        "batteries"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "electronics/circuits": {
+      "id": "electronics/circuits",
+      "prefLabel": "Circuits",
+      "altLabels": [
+        "circuit boards",
+        "PCB"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "electronics/components": {
+      "id": "electronics/components",
+      "prefLabel": "Electronic components",
+      "altLabels": [
+        "parts",
+        "modules"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "ac-cable": {
+      "id": "ac-cable",
+      "prefLabel": "AC cable",
+      "altLabels": [
+        "ac_cable",
+        "mains cable",
+        "power cord"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "dc-cable": {
+      "id": "dc-cable",
+      "prefLabel": "DC cable",
+      "altLabels": [
+        "dc_cable"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "electrical-cable": {
+      "id": "electrical-cable",
+      "prefLabel": "Electrical cable",
+      "altLabels": [
+        "electrical_cable"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "cables": {
+      "id": "cables",
+      "prefLabel": "Cables",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "electrical-connector": {
+      "id": "electrical-connector",
+      "prefLabel": "Electrical connector",
+      "altLabels": [
+        "electrical_connector",
+        "electrical-connectors",
+        "electrical_connectors",
+        "electronics_connector"
+      ],
+      "broader": [
+        "electronics/connectors"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "power-connector": {
+      "id": "power-connector",
+      "prefLabel": "Power connector",
+      "altLabels": [
+        "power_connector",
+        "power-connector/converter"
+      ],
+      "broader": [
+        "electronics/connectors"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "dc-power-connectors": {
+      "id": "dc-power-connectors",
+      "prefLabel": "DC power connectors",
+      "altLabels": [
+        "dc_power_connectors"
+      ],
+      "broader": [
+        "electronics/connectors"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "mains-power-connectors": {
+      "id": "mains-power-connectors",
+      "prefLabel": "Mains power connectors",
+      "altLabels": [
+        "mains_power_connectors"
+      ],
+      "broader": [
+        "electronics/connectors"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "adc-module": {
+      "id": "adc-module",
+      "prefLabel": "ADC module",
+      "altLabels": [
+        "adc_module",
+        "analog to digital converter"
+      ],
+      "broader": [
+        "electronics/components"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "analog-circuits": {
+      "id": "analog-circuits",
+      "prefLabel": "Analog circuits",
+      "altLabels": [
+        "analog_circuits"
+      ],
+      "broader": [
+        "electronics/circuits"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-equipment": {
+      "id": "boat-equipment",
+      "prefLabel": "Boat equipment",
+      "altLabels": [
+        "marine",
+        "nautical",
+        "sailing",
+        "båt",
+        "båtutstyr"
+      ],
+      "broader": [
+        "transport"
+      ],
+      "narrower": [
+        "boat-equipment/safety",
+        "boat-equipment/navigation",
+        "boat-equipment/rigging",
+        "boat-equipment/deck",
+        "boat-equipment/engine"
+      ],
+      "source": "package",
+      "labels": {
+        "nb": "Båtutstyr"
+      }
+    },
+    "household": {
+      "id": "household",
+      "prefLabel": "Household",
+      "altLabels": [
+        "home",
+        "domestic",
+        "husholdning",
+        "hjem"
+      ],
+      "broader": [],
+      "narrower": [
+        "household/cleaning",
+        "household/storage",
+        "office",
+        "books",
+        "documents"
+      ],
+      "source": "package"
+    },
+    "clothing": {
+      "id": "clothing",
+      "prefLabel": "Clothing",
+      "altLabels": [
+        "apparel",
+        "clothes",
+        "garments",
+        "klær",
+        "tekstil"
+      ],
+      "broader": [],
+      "narrower": [
+        "clothing/workwear",
+        "clothing/footwear",
+        "clothing/accessories"
+      ],
+      "source": "package",
+      "labels": {
+        "en": "Clothing",
+        "nb": "Klær",
+        "nn": "Klede",
+        "de": "Kleidung",
+        "sv": "Kläder",
+        "da": "Tøj",
+        "nl": "Kleding",
+        "fi": "Vaatteet",
+        "fr": "Vêtements",
+        "es": "Ropa",
+        "it": "Abbigliamento",
+        "pl": "Odzież",
+        "ru": "Одежда",
+        "uk": "Одяг",
+        "bg": "Облекло"
+      }
+    },
+    "books": {
+      "id": "books",
+      "prefLabel": "Books",
+      "altLabels": [
+        "literature",
+        "reading",
+        "bøker",
+        "bok",
+        "litteratur"
+      ],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "documents": {
+      "id": "documents",
+      "prefLabel": "Documents",
+      "altLabels": [
+        "papers",
+        "paperwork",
+        "dokumenter",
+        "papirer"
+      ],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "food/beverages": {
+      "id": "food/beverages",
+      "prefLabel": "Beverages",
+      "altLabels": [
+        "drinks"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "alcohol",
+        "coffee",
+        "tea",
+        "food/beverages/juice",
+        "food/beverages/soft-drinks"
+      ],
+      "source": "package"
+    },
+    "food/dairy": {
+      "id": "food/dairy",
+      "prefLabel": "Dairy",
+      "altLabels": [
+        "dairy products"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "milk",
+        "cheese",
+        "yogurt",
+        "butter",
+        "cream"
+      ],
+      "source": "package"
+    },
+    "food/grains": {
+      "id": "food/grains",
+      "prefLabel": "Grains & cereals",
+      "altLabels": [
+        "cereals",
+        "grains"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "pasta",
+        "rice",
+        "bread",
+        "noodles",
+        "flour",
+        "food/grains/oats",
+        "buckwheat"
+      ],
+      "source": "package"
+    },
+    "food/meat": {
+      "id": "food/meat",
+      "prefLabel": "Meat",
+      "altLabels": [
+        "meats"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "food/meat/pork",
+        "food/meat/beef",
+        "food/meat/chicken",
+        "food/meat/lamb",
+        "sausage",
+        "ham",
+        "food/meat/bacon"
+      ],
+      "source": "package"
+    },
+    "food/meat/pork": {
+      "id": "food/meat/pork",
+      "prefLabel": "Pork",
+      "altLabels": [],
+      "broader": [
+        "food/meat"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "food/meat/chicken": {
+      "id": "food/meat/chicken",
+      "prefLabel": "Chicken",
+      "altLabels": [
+        "poultry"
+      ],
+      "broader": [
+        "food/meat"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "food/seafood": {
+      "id": "food/seafood",
+      "prefLabel": "Seafood",
+      "altLabels": [
+        "fish",
+        "marine food"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "fish",
+        "food/seafood/shellfish",
+        "food/seafood/canned-fish"
+      ],
+      "source": "package"
+    },
+    "food/seafood/canned-fish": {
+      "id": "food/seafood/canned-fish",
+      "prefLabel": "Canned fish",
+      "altLabels": [
+        "tinned fish",
+        "tuna",
+        "sardines"
+      ],
+      "broader": [
+        "food/seafood"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "food/vegetables": {
+      "id": "food/vegetables",
+      "prefLabel": "Vegetables",
+      "altLabels": [
+        "veggies",
+        "greens"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "potatoes",
+        "onions",
+        "garlic",
+        "tomatoes",
+        "food/vegetables/peppers",
+        "food/vegetables/carrots",
+        "food/vegetables/cabbage",
+        "mushrooms"
+      ],
+      "source": "package"
+    },
+    "food/fruits": {
+      "id": "food/fruits",
+      "prefLabel": "Fruits",
+      "altLabels": [
+        "fruit"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "bananas",
+        "food/fruits/apples",
+        "food/fruits/oranges",
+        "food/fruits/berries"
+      ],
+      "source": "package"
+    },
+    "food/legumes": {
+      "id": "food/legumes",
+      "prefLabel": "Legumes",
+      "altLabels": [
+        "pulses",
+        "beans and lentils"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "beans",
+        "lentils",
+        "chickpeas",
+        "food/legumes/peas",
+        "soybeans"
+      ],
+      "source": "package"
+    },
+    "food/condiments": {
+      "id": "food/condiments",
+      "prefLabel": "Condiments & sauces",
+      "altLabels": [
+        "sauces",
+        "condiment"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "oil",
+        "vinegar",
+        "mayonnaise",
+        "food/condiments/ketchup",
+        "food/condiments/mustard",
+        "food/condiments/soy-sauce",
+        "pesto",
+        "bolognese",
+        "salt",
+        "food/condiments/pepper"
+      ],
+      "source": "package"
+    },
+    "food/snacks": {
+      "id": "food/snacks",
+      "prefLabel": "Snacks",
+      "altLabels": [
+        "snack foods"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "chips",
+        "nuts",
+        "biscuits",
+        "chocolate",
+        "food/snacks/crackers"
+      ],
+      "source": "package"
+    },
+    "food/preserved": {
+      "id": "food/preserved",
+      "prefLabel": "Preserved foods",
+      "altLabels": [
+        "canned",
+        "jarred",
+        "preserves",
+        "conserves"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "canning",
+        "jam",
+        "food/preserved/pickles",
+        "preserved-vegetables",
+        "pate"
+      ],
+      "source": "package"
+    },
+    "food/preserved/pickles": {
+      "id": "food/preserved/pickles",
+      "prefLabel": "Pickles",
+      "altLabels": [
+        "pickled vegetables"
+      ],
+      "broader": [
+        "food/preserved"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "food/baking": {
+      "id": "food/baking",
+      "prefLabel": "Baking",
+      "altLabels": [
+        "baking supplies",
+        "baking ingredients"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "sugar",
+        "food/baking/yeast",
+        "food/baking/baking-powder"
+      ],
+      "source": "package"
+    },
+    "food/spices": {
+      "id": "food/spices",
+      "prefLabel": "Spices & herbs",
+      "altLabels": [
+        "spice",
+        "herbs",
+        "seasonings"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [
+        "bouillon",
+        "food/spices/pepper",
+        "food/spices/cinnamon",
+        "food/spices/paprika",
+        "food/spices/curry",
+        "food/spices/thyme",
+        "food/spices/oregano",
+        "food/spices/basil"
+      ],
+      "source": "package"
+    },
+    "food/spices/pepper": {
+      "id": "food/spices/pepper",
+      "prefLabel": "Pepper",
+      "altLabels": [
+        "black pepper",
+        "peppercorns"
+      ],
+      "broader": [
+        "food/spices"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "food/spices/curry": {
+      "id": "food/spices/curry",
+      "prefLabel": "Curry",
+      "altLabels": [
+        "curry powder",
+        "curry paste"
+      ],
+      "broader": [
+        "food/spices"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "food/spices/thyme": {
+      "id": "food/spices/thyme",
+      "prefLabel": "Thyme",
+      "altLabels": [],
+      "broader": [
+        "food/spices"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "beer": {
+      "id": "beer",
+      "prefLabel": "Beer",
+      "altLabels": [
+        "bier",
+        "пиво"
+      ],
+      "broader": [
+        "food/beverages"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "wine": {
+      "id": "wine",
+      "prefLabel": "Wine",
+      "altLabels": [
+        "вино"
+      ],
+      "broader": [
+        "food/beverages"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "alcohol": {
+      "id": "alcohol",
+      "prefLabel": "Alcoholic beverages",
+      "altLabels": [
+        "alcohol",
+        "booze",
+        "spirits"
+      ],
+      "broader": [
+        "food/beverages"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "coffee": {
+      "id": "coffee",
+      "prefLabel": "Coffee",
+      "altLabels": [
+        "kaffe",
+        "кафе"
+      ],
+      "broader": [
+        "food/beverages"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tea": {
+      "id": "tea",
+      "prefLabel": "Tea",
+      "altLabels": [
+        "чай"
+      ],
+      "broader": [
+        "food/beverages"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "juice": {
+      "id": "juice",
+      "prefLabel": "Juice",
+      "altLabels": [
+        "сок"
+      ],
+      "broader": [
+        "food/beverages"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "milk": {
+      "id": "milk",
+      "prefLabel": "Milk",
+      "altLabels": [
+        "мляко"
+      ],
+      "broader": [
+        "food/dairy"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "cheese": {
+      "id": "cheese",
+      "prefLabel": "Cheese",
+      "altLabels": [
+        "сирене"
+      ],
+      "broader": [
+        "food/dairy"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "yogurt": {
+      "id": "yogurt",
+      "prefLabel": "Yogurt",
+      "altLabels": [
+        "yoghurt",
+        "кисело мляко"
+      ],
+      "broader": [
+        "food/dairy"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "butter": {
+      "id": "butter",
+      "prefLabel": "Butter",
+      "altLabels": [
+        "масло"
+      ],
+      "broader": [
+        "food/dairy"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "cream": {
+      "id": "cream",
+      "prefLabel": "Cream",
+      "altLabels": [
+        "smetana",
+        "сметана"
+      ],
+      "broader": [
+        "food/dairy"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "pasta": {
+      "id": "pasta",
+      "prefLabel": "Pasta",
+      "altLabels": [
+        "spaghetti",
+        "макарони"
+      ],
+      "broader": [
+        "food/grains"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "rice": {
+      "id": "rice",
+      "prefLabel": "Rice",
+      "altLabels": [
+        "ориз"
+      ],
+      "broader": [
+        "food/grains"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bread": {
+      "id": "bread",
+      "prefLabel": "Bread",
+      "altLabels": [
+        "хляб"
+      ],
+      "broader": [
+        "food/grains"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "noodles": {
+      "id": "noodles",
+      "prefLabel": "Noodles",
+      "altLabels": [],
+      "broader": [
+        "food/grains"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "flour": {
+      "id": "flour",
+      "prefLabel": "Flour",
+      "altLabels": [
+        "брашно"
+      ],
+      "broader": [
+        "food/grains"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "buckwheat": {
+      "id": "buckwheat",
+      "prefLabel": "Buckwheat",
+      "altLabels": [
+        "гречка"
+      ],
+      "broader": [
+        "food/grains"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "meat": {
+      "id": "meat",
+      "prefLabel": "Meat",
+      "altLabels": [
+        "месо"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "ham": {
+      "id": "ham",
+      "prefLabel": "Ham",
+      "altLabels": [
+        "шунка"
+      ],
+      "broader": [
+        "food/meat"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sausage": {
+      "id": "sausage",
+      "prefLabel": "Sausage",
+      "altLabels": [
+        "sausages",
+        "колбас"
+      ],
+      "broader": [
+        "food/meat"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "fish": {
+      "id": "fish",
+      "prefLabel": "Fish",
+      "altLabels": [
+        "риба"
+      ],
+      "broader": [
+        "food/seafood"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tuna": {
+      "id": "tuna",
+      "prefLabel": "Tuna",
+      "altLabels": [
+        "риба тон"
+      ],
+      "broader": [
+        "food/seafood/canned-fish"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sardines": {
+      "id": "sardines",
+      "prefLabel": "Sardines",
+      "altLabels": [
+        "сардини"
+      ],
+      "broader": [
+        "food/seafood/canned-fish"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "potatoes": {
+      "id": "potatoes",
+      "prefLabel": "Potatoes",
+      "altLabels": [
+        "potato",
+        "картофи"
+      ],
+      "broader": [
+        "food/vegetables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "onions": {
+      "id": "onions",
+      "prefLabel": "Onions",
+      "altLabels": [
+        "onion",
+        "лук"
+      ],
+      "broader": [
+        "food/vegetables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "garlic": {
+      "id": "garlic",
+      "prefLabel": "Garlic",
+      "altLabels": [
+        "чесън"
+      ],
+      "broader": [
+        "food/vegetables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tomatoes": {
+      "id": "tomatoes",
+      "prefLabel": "Tomatoes",
+      "altLabels": [
+        "tomato",
+        "домати"
+      ],
+      "broader": [
+        "food/vegetables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "mushrooms": {
+      "id": "mushrooms",
+      "prefLabel": "Mushrooms",
+      "altLabels": [
+        "гъби"
+      ],
+      "broader": [
+        "food/vegetables"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Mushroom"
+    },
+    "preserved-vegetables": {
+      "id": "preserved-vegetables",
+      "prefLabel": "Preserved vegetables",
+      "altLabels": [],
+      "broader": [
+        "food/preserved"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bananas": {
+      "id": "bananas",
+      "prefLabel": "Bananas",
+      "altLabels": [
+        "banana",
+        "банани"
+      ],
+      "broader": [
+        "food/fruits"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "olive": {
+      "id": "olive",
+      "prefLabel": "Olives",
+      "altLabels": [
+        "olives",
+        "маслини"
+      ],
+      "broader": [
+        "food/fruits"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "beans": {
+      "id": "beans",
+      "prefLabel": "Beans",
+      "altLabels": [
+        "bean",
+        "боб",
+        "фасул"
+      ],
+      "broader": [
+        "food/legumes"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "lentils": {
+      "id": "lentils",
+      "prefLabel": "Lentils",
+      "altLabels": [
+        "lentil",
+        "леща"
+      ],
+      "broader": [
+        "food/legumes"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "chickpeas": {
+      "id": "chickpeas",
+      "prefLabel": "Chickpeas",
+      "altLabels": [
+        "chickpea",
+        "нахут"
+      ],
+      "broader": [
+        "food/legumes"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "soybeans": {
+      "id": "soybeans",
+      "prefLabel": "Soybeans",
+      "altLabels": [
+        "soy",
+        "soja",
+        "соя"
+      ],
+      "broader": [
+        "food/legumes"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "oil": {
+      "id": "oil",
+      "prefLabel": "Oil",
+      "altLabels": [
+        "cooking oil"
+      ],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "vinegar": {
+      "id": "vinegar",
+      "prefLabel": "Vinegar",
+      "altLabels": [
+        "оцет"
+      ],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "mayonnaise": {
+      "id": "mayonnaise",
+      "prefLabel": "Mayonnaise",
+      "altLabels": [
+        "mayo",
+        "майонеза"
+      ],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "ketchup": {
+      "id": "ketchup",
+      "prefLabel": "Ketchup",
+      "altLabels": [
+        "catsup",
+        "кетчуп"
+      ],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "mustard": {
+      "id": "mustard",
+      "prefLabel": "Mustard",
+      "altLabels": [
+        "горчица"
+      ],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "pesto": {
+      "id": "pesto",
+      "prefLabel": "Pesto",
+      "altLabels": [],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bolognese": {
+      "id": "bolognese",
+      "prefLabel": "Bolognese sauce",
+      "altLabels": [],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "salt": {
+      "id": "salt",
+      "prefLabel": "Salt",
+      "altLabels": [
+        "сол"
+      ],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "soy-sauce": {
+      "id": "soy-sauce",
+      "prefLabel": "Soy sauce",
+      "altLabels": [
+        "соев сос"
+      ],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "spread": {
+      "id": "spread",
+      "prefLabel": "Spread",
+      "altLabels": [
+        "spreads"
+      ],
+      "broader": [
+        "food/condiments"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "snacks": {
+      "id": "snacks",
+      "prefLabel": "Snacks",
+      "altLabels": [
+        "snack foods"
+      ],
+      "broader": [
+        "food"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Snack"
+    },
+    "chips": {
+      "id": "chips",
+      "prefLabel": "Chips",
+      "altLabels": [
+        "crisps",
+        "чипс"
+      ],
+      "broader": [
+        "food/snacks"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "nuts": {
+      "id": "nuts",
+      "prefLabel": "Nuts",
+      "altLabels": [
+        "nut",
+        "cashews",
+        "peanuts",
+        "almonds"
+      ],
+      "broader": [
+        "food/snacks"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "cashews": {
+      "id": "cashews",
+      "prefLabel": "Cashews",
+      "altLabels": [
+        "cashew",
+        "кашу"
+      ],
+      "broader": [
+        "food/snacks"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "peanuts": {
+      "id": "peanuts",
+      "prefLabel": "Peanuts",
+      "altLabels": [
+        "peanut",
+        "groundnuts",
+        "фъстъци"
+      ],
+      "broader": [
+        "food/snacks"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Peanut"
+    },
+    "biscuits": {
+      "id": "biscuits",
+      "prefLabel": "Biscuits",
+      "altLabels": [
+        "cookies",
+        "бисквити"
+      ],
+      "broader": [
+        "food/snacks"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "chocolate": {
+      "id": "chocolate",
+      "prefLabel": "Chocolate",
+      "altLabels": [
+        "шоколад"
+      ],
+      "broader": [
+        "food/snacks"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "canning": {
+      "id": "canning",
+      "prefLabel": "Canning",
+      "altLabels": [
+        "preserving",
+        "консервиране"
+      ],
+      "broader": [
+        "food/preserved"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "jam": {
+      "id": "jam",
+      "prefLabel": "Jam",
+      "altLabels": [
+        "marmalade",
+        "конфитюр"
+      ],
+      "broader": [
+        "food/preserved"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "pate": {
+      "id": "pate",
+      "prefLabel": "Pâté",
+      "altLabels": [
+        "liver pate",
+        "пастет"
+      ],
+      "broader": [
+        "food/preserved"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "caper": {
+      "id": "caper",
+      "prefLabel": "Capers",
+      "altLabels": [
+        "capers",
+        "каперси"
+      ],
+      "broader": [
+        "food/preserved"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sugar": {
+      "id": "sugar",
+      "prefLabel": "Sugar",
+      "altLabels": [
+        "захар"
+      ],
+      "broader": [
+        "food/baking"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "honey": {
+      "id": "honey",
+      "prefLabel": "Honey",
+      "altLabels": [
+        "мед"
+      ],
+      "broader": [
+        "food/baking"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "spice": {
+      "id": "spice",
+      "prefLabel": "Spice",
+      "altLabels": [
+        "spices",
+        "подправки"
+      ],
+      "broader": [
+        "food/spices"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bouillon": {
+      "id": "bouillon",
+      "prefLabel": "Bouillon",
+      "altLabels": [
+        "stock cubes",
+        "бульон"
+      ],
+      "broader": [
+        "food/spices"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tools/hand": {
+      "id": "tools/hand",
+      "prefLabel": "Hand tools",
       "altLabels": [],
       "broader": [
         "tools"
       ],
       "narrower": [],
-      "source": "inventory"
+      "source": "package"
+    },
+    "tools/power": {
+      "id": "tools/power",
+      "prefLabel": "Power tools",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tools/measuring": {
+      "id": "tools/measuring",
+      "prefLabel": "Measuring tools",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tools/cleaning": {
+      "id": "tools/cleaning",
+      "prefLabel": "Cleaning tools",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tools/bike": {
+      "id": "tools/bike",
+      "prefLabel": "Bike tools",
+      "altLabels": [
+        "bicycle tools",
+        "cycling tools"
+      ],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bike-tool": {
+      "id": "bike-tool",
+      "prefLabel": "Bike tool",
+      "altLabels": [
+        "bike_tool",
+        "bicycle_tool"
+      ],
+      "broader": [
+        "tools/bike"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bike-tools": {
+      "id": "bike-tools",
+      "prefLabel": "Bike tools",
+      "altLabels": [
+        "bicycle_tools"
+      ],
+      "broader": [
+        "tools/bike"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bicycle-tools": {
+      "id": "bicycle-tools",
+      "prefLabel": "Bicycle tools",
+      "altLabels": [],
+      "broader": [
+        "tools/bike"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "hammer": {
+      "id": "hammer",
+      "prefLabel": "Hammer",
+      "altLabels": [
+        "hammers"
+      ],
+      "broader": [
+        "tools/hand"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-equipment/safety": {
+      "id": "boat-equipment/safety",
+      "prefLabel": "Safety equipment",
+      "altLabels": [
+        "safety gear",
+        "lifesaving"
+      ],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-equipment/navigation": {
+      "id": "boat-equipment/navigation",
+      "prefLabel": "Navigation",
+      "altLabels": [
+        "nav equipment"
+      ],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-equipment/rigging": {
+      "id": "boat-equipment/rigging",
+      "prefLabel": "Rigging",
+      "altLabels": [
+        "standing rigging",
+        "running rigging"
+      ],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-equipment/deck": {
+      "id": "boat-equipment/deck",
+      "prefLabel": "Deck hardware",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-equipment/engine": {
+      "id": "boat-equipment/engine",
+      "prefLabel": "Engine parts",
+      "altLabels": [
+        "motor parts"
+      ],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-spare": {
+      "id": "boat-spare",
+      "prefLabel": "Boat spare parts",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-hardware": {
+      "id": "boat-hardware",
+      "prefLabel": "Boat hardware",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-lighting": {
+      "id": "boat-lighting",
+      "prefLabel": "Boat lighting",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-material": {
+      "id": "boat-material",
+      "prefLabel": "Boat material",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat-repair": {
+      "id": "boat-repair",
+      "prefLabel": "Boat repair",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sail-repair": {
+      "id": "sail-repair",
+      "prefLabel": "Sail repair",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/rigging"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "shackle": {
+      "id": "shackle",
+      "prefLabel": "Shackle",
+      "altLabels": [
+        "shackles"
+      ],
+      "broader": [
+        "boat-equipment/rigging"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "nautical-chart": {
+      "id": "nautical-chart",
+      "prefLabel": "Nautical chart",
+      "altLabels": [
+        "sea chart",
+        "marine chart"
+      ],
+      "broader": [
+        "boat-equipment/navigation"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "nautical-book": {
+      "id": "nautical-book",
+      "prefLabel": "Nautical book",
+      "altLabels": [
+        "pilot book",
+        "sailing guide"
+      ],
+      "broader": [
+        "boat-equipment/navigation"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "autopilot": {
+      "id": "autopilot",
+      "prefLabel": "Autopilot",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/navigation"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bilge-pump": {
+      "id": "bilge-pump",
+      "prefLabel": "Bilge pump",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "engine-part": {
+      "id": "engine-part",
+      "prefLabel": "Engine part",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/engine"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "single-board-computer": {
+      "id": "single-board-computer",
+      "prefLabel": "Single-board computer",
+      "altLabels": [
+        "SBC",
+        "raspberry pi"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "household/cleaning": {
+      "id": "household/cleaning",
+      "prefLabel": "Cleaning supplies",
+      "altLabels": [
+        "rengjøring"
+      ],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "household/storage": {
+      "id": "household/storage",
+      "prefLabel": "Storage",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bedding": {
+      "id": "bedding",
+      "prefLabel": "Bedding",
+      "altLabels": [
+        "bed linen",
+        "bedclothes",
+        "duvet",
+        "pillow",
+        "sengetøy"
+      ],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Bedding"
+    },
+    "consumables": {
+      "id": "consumables",
+      "prefLabel": "Consumables",
+      "altLabels": [
+        "supplies",
+        "forbruksvarer"
+      ],
+      "broader": [
+        "hardware"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "en": "Consumables",
+        "nb": "Forbruksvarer",
+        "nn": "Forbruksvarer",
+        "sv": "Förbrukningsmaterial",
+        "da": "Forbrugsvarer"
+      }
+    },
+    "hardware": {
+      "id": "hardware",
+      "prefLabel": "Hardware",
+      "altLabels": [
+        "fasteners",
+        "fixings",
+        "jernvare",
+        "beslag"
+      ],
+      "broader": [],
+      "narrower": [
+        "construction",
+        "consumables"
+      ],
+      "source": "package",
+      "labels": {
+        "en": "Hardware",
+        "nb": "Jernvare",
+        "de": "Eisenwaren",
+        "sv": "Järnvaror",
+        "da": "Isenkram",
+        "nl": "IJzerwaren",
+        "fi": "Rautakauppatavarat"
+      }
+    },
+    "adhesive": {
+      "id": "adhesive",
+      "prefLabel": "Adhesive",
+      "altLabels": [
+        "glue"
+      ],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "adhesive-tape": {
+      "id": "adhesive-tape",
+      "prefLabel": "Adhesive tape",
+      "altLabels": [
+        "tape"
+      ],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "lubricant": {
+      "id": "lubricant",
+      "prefLabel": "Lubricant",
+      "altLabels": [
+        "lube",
+        "grease"
+      ],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sandpaper": {
+      "id": "sandpaper",
+      "prefLabel": "Sandpaper",
+      "altLabels": [
+        "abrasive paper"
+      ],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sandpaper-sheet": {
+      "id": "sandpaper-sheet",
+      "prefLabel": "Sandpaper sheet",
+      "altLabels": [],
+      "broader": [
+        "sandpaper"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sandpaper-roll": {
+      "id": "sandpaper-roll",
+      "prefLabel": "Sandpaper roll",
+      "altLabels": [],
+      "broader": [
+        "sandpaper"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sanding-disc": {
+      "id": "sanding-disc",
+      "prefLabel": "Sanding disc",
+      "altLabels": [],
+      "broader": [
+        "sandpaper"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "composite-material": {
+      "id": "composite-material",
+      "prefLabel": "Composite material",
+      "altLabels": [
+        "fiberglass",
+        "carbon fiber"
+      ],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "safety-equipment": {
+      "id": "safety-equipment",
+      "prefLabel": "Safety equipment",
+      "altLabels": [
+        "sikkerhetsutstyr",
+        "verneutstyr",
+        "sikkerhet"
+      ],
+      "broader": [
+        "medical"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "misc": {
+      "id": "misc",
+      "prefLabel": "Miscellaneous",
+      "altLabels": [
+        "other",
+        "various",
+        "diverse",
+        "annet"
+      ],
+      "broader": [],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "en": "Miscellaneous",
+        "nb": "Diverse",
+        "de": "Verschiedenes",
+        "sv": "Diverse",
+        "da": "Diverse",
+        "nl": "Diversen",
+        "fi": "Sekalaista",
+        "fr": "Divers",
+        "es": "Miscelánea",
+        "it": "Varie",
+        "pl": "Różne",
+        "ru": "Разное",
+        "uk": "Різне",
+        "bg": "Разни"
+      }
+    },
+    "bike-part": {
+      "id": "bike-part",
+      "prefLabel": "Bike part",
+      "altLabels": [
+        "bicycle part"
+      ],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bike-light": {
+      "id": "bike-light",
+      "prefLabel": "Bike light",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bicycle-tube": {
+      "id": "bicycle-tube",
+      "prefLabel": "Bicycle tube",
+      "altLabels": [
+        "inner tube"
+      ],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "automotive": {
+      "id": "automotive",
+      "prefLabel": "Automotive",
+      "altLabels": [
+        "vehicles",
+        "car parts",
+        "auto",
+        "bil",
+        "kjøretøy"
+      ],
+      "broader": [
+        "transport"
+      ],
+      "narrower": [
+        "automotive/accessories",
+        "automotive/lighting",
+        "automotive/maintenance"
+      ],
+      "source": "package",
+      "labels": {
+        "nb": "Kjøretøy"
+      }
+    },
+    "automotive/accessories": {
+      "id": "automotive/accessories",
+      "prefLabel": "Automotive accessories",
+      "altLabels": [],
+      "broader": [
+        "automotive"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "automotive/lighting": {
+      "id": "automotive/lighting",
+      "prefLabel": "Automotive lighting",
+      "altLabels": [],
+      "broader": [
+        "automotive"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "automotive/maintenance": {
+      "id": "automotive/maintenance",
+      "prefLabel": "Automotive maintenance",
+      "altLabels": [],
+      "broader": [
+        "automotive"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "outdoor": {
+      "id": "outdoor",
+      "prefLabel": "Outdoor equipment",
+      "altLabels": [
+        "camping",
+        "hiking",
+        "friluft",
+        "friluftsliv",
+        "ute"
+      ],
+      "broader": [
+        "recreation"
+      ],
+      "narrower": [
+        "camping",
+        "outdoor/hiking",
+        "outdoor/cooking"
+      ],
+      "source": "package",
+      "labels": {
+        "en": "Outdoor equipment",
+        "nb": "Friluftsutstyr",
+        "de": "Outdoor-Ausrüstung",
+        "sv": "Friluftsutrustning",
+        "da": "Friluftsudstyr",
+        "nl": "Outdooruitrusting",
+        "fi": "Retkeilyvarusteet"
+      }
+    },
+    "outdoor/hiking": {
+      "id": "outdoor/hiking",
+      "prefLabel": "Hiking equipment",
+      "altLabels": [],
+      "broader": [
+        "outdoor"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "outdoor/cooking": {
+      "id": "outdoor/cooking",
+      "prefLabel": "Outdoor cooking",
+      "altLabels": [],
+      "broader": [
+        "outdoor"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "camping": {
+      "id": "camping",
+      "prefLabel": "Camping",
+      "altLabels": [],
+      "broader": [
+        "outdoor"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sleeping-bag": {
+      "id": "sleeping-bag",
+      "prefLabel": "Sleeping bag",
+      "altLabels": [
+        "sleeping_bag"
+      ],
+      "broader": [
+        "outdoor"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "backpack": {
+      "id": "backpack",
+      "prefLabel": "Backpack",
+      "altLabels": [
+        "rucksack",
+        "daypack"
+      ],
+      "broader": [
+        "outdoor/hiking"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "clothing/workwear": {
+      "id": "clothing/workwear",
+      "prefLabel": "Workwear",
+      "altLabels": [],
+      "broader": [
+        "clothing"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "clothing/footwear": {
+      "id": "clothing/footwear",
+      "prefLabel": "Footwear",
+      "altLabels": [],
+      "broader": [
+        "clothing"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "clothing/accessories": {
+      "id": "clothing/accessories",
+      "prefLabel": "Clothing accessories",
+      "altLabels": [],
+      "broader": [
+        "clothing"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "hat": {
+      "id": "hat",
+      "prefLabel": "Hat",
+      "altLabels": [
+        "hats",
+        "cap"
+      ],
+      "broader": [
+        "clothing/accessories"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "construction": {
+      "id": "construction",
+      "prefLabel": "Construction",
+      "altLabels": [
+        "building",
+        "building materials",
+        "bygg",
+        "byggematerialer"
+      ],
+      "broader": [
+        "hardware"
+      ],
+      "narrower": [
+        "fasteners",
+        "construction/lumber",
+        "plumbing",
+        "construction/electrical"
+      ],
+      "source": "package"
+    },
+    "construction/lumber": {
+      "id": "construction/lumber",
+      "prefLabel": "Lumber",
+      "altLabels": [
+        "wood",
+        "timber"
+      ],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Lumber"
+    },
+    "construction/electrical": {
+      "id": "construction/electrical",
+      "prefLabel": "Electrical",
+      "altLabels": [],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "washer": {
+      "id": "washer",
+      "prefLabel": "Washer",
+      "altLabels": [
+        "washers",
+        "flat washer"
+      ],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Washer_(hardware)"
+    },
+    "office": {
+      "id": "office",
+      "prefLabel": "Office supplies",
+      "altLabels": [
+        "stationery",
+        "office equipment",
+        "kontor",
+        "kontorrekvisita"
+      ],
+      "broader": [
+        "household"
+      ],
+      "narrower": [
+        "office/writing",
+        "office/paper",
+        "office/storage"
+      ],
+      "source": "package",
+      "labels": {
+        "en": "Office supplies",
+        "nb": "Kontorrekvisita",
+        "de": "Bürobedarf",
+        "sv": "Kontorsmaterial",
+        "da": "Kontorartikler",
+        "nl": "Kantoorbenodigdheden",
+        "fi": "Toimistotarvikkeet"
+      }
+    },
+    "office/writing": {
+      "id": "office/writing",
+      "prefLabel": "Writing supplies",
+      "altLabels": [],
+      "broader": [
+        "office"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "office/paper": {
+      "id": "office/paper",
+      "prefLabel": "Paper products",
+      "altLabels": [],
+      "broader": [
+        "office"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "office/storage": {
+      "id": "office/storage",
+      "prefLabel": "Office storage",
+      "altLabels": [],
+      "broader": [
+        "office"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "pen": {
+      "id": "pen",
+      "prefLabel": "Pen",
+      "altLabels": [
+        "pens"
+      ],
+      "broader": [
+        "office/writing"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "pencil": {
+      "id": "pencil",
+      "prefLabel": "Pencil",
+      "altLabels": [
+        "pencils"
+      ],
+      "broader": [
+        "office/writing"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "notebook": {
+      "id": "notebook",
+      "prefLabel": "Notebook",
+      "altLabels": [
+        "notepad"
+      ],
+      "broader": [
+        "office/paper"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sports": {
+      "id": "sports",
+      "prefLabel": "Sports",
+      "altLabels": [
+        "athletics",
+        "sport",
+        "idrett"
+      ],
+      "broader": [
+        "recreation"
+      ],
+      "narrower": [
+        "sports/cycling",
+        "sports/water-sports",
+        "sports/ball-sports"
+      ],
+      "source": "package"
+    },
+    "sports/cycling": {
+      "id": "sports/cycling",
+      "prefLabel": "Cycling",
+      "altLabels": [],
+      "broader": [
+        "sports"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sports/water-sports": {
+      "id": "sports/water-sports",
+      "prefLabel": "Water sports",
+      "altLabels": [],
+      "broader": [
+        "sports"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sports/ball-sports": {
+      "id": "sports/ball-sports",
+      "prefLabel": "Ball sports",
+      "altLabels": [],
+      "broader": [
+        "sports"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "games": {
+      "id": "games",
+      "prefLabel": "Games",
+      "altLabels": [
+        "toys",
+        "puzzles",
+        "spill",
+        "leker",
+        "puslespill"
+      ],
+      "broader": [],
+      "narrower": [],
+      "source": "package"
+    },
+    "medical": {
+      "id": "medical",
+      "prefLabel": "Health & Safety",
+      "altLabels": [
+        "health",
+        "healthcare",
+        "first aid",
+        "medisin",
+        "helse",
+        "førstehjelp",
+        "safety",
+        "PPE",
+        "protective equipment"
+      ],
+      "broader": [],
+      "narrower": [
+        "first-aid",
+        "medicine",
+        "safety-equipment"
+      ],
+      "source": "package",
+      "labels": {
+        "en": "Health & Safety",
+        "nb": "Helse og sikkerhet",
+        "nn": "Helse og tryggleik",
+        "de": "Gesundheit & Sicherheit",
+        "sv": "Hälsa och säkerhet",
+        "da": "Sundhed og sikkerhed",
+        "fr": "Santé et sécurité",
+        "es": "Salud y seguridad",
+        "nl": "Gezondheid en veiligheid",
+        "it": "Salute e sicurezza",
+        "pl": "Zdrowie i bezpieczeństwo",
+        "fi": "Terveys ja turvallisuus",
+        "ru": "Здоровье и безопасность",
+        "uk": "Здоров'я та безпека",
+        "bg": "Здраве и безопасност"
+      }
+    },
+    "first-aid": {
+      "id": "first-aid",
+      "prefLabel": "First aid",
+      "altLabels": [
+        "first_aid"
+      ],
+      "broader": [
+        "medical"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bandage": {
+      "id": "bandage",
+      "prefLabel": "Bandage",
+      "altLabels": [
+        "bandages"
+      ],
+      "broader": [
+        "medical"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "medicine": {
+      "id": "medicine",
+      "prefLabel": "Medicine",
+      "altLabels": [
+        "medication",
+        "drugs"
+      ],
+      "broader": [
+        "medical"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Medicine"
+    },
+    "bike_clamp": {
+      "id": "bike_clamp",
+      "prefLabel": "Bike clamp",
+      "altLabels": [],
+      "broader": [
+        "tools/bike"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bike_hardware": {
+      "id": "bike_hardware",
+      "prefLabel": "Bike hardware",
+      "altLabels": [],
+      "broader": [
+        "tools/bike"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bike_repair_kit": {
+      "id": "bike_repair_kit",
+      "prefLabel": "Bike repair kit",
+      "altLabels": [],
+      "broader": [
+        "tools/bike"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "boat_hatch": {
+      "id": "boat_hatch",
+      "prefLabel": "Boat hatch",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/deck"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "buoy_holder": {
+      "id": "buoy_holder",
+      "prefLabel": "Buoy holder",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "cockpit_lamp": {
+      "id": "cockpit_lamp",
+      "prefLabel": "Cockpit lamp",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "corner_bracket": {
+      "id": "corner_bracket",
+      "prefLabel": "Corner bracket",
+      "altLabels": [],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bushing": {
+      "id": "bushing",
+      "prefLabel": "Bushing",
+      "altLabels": [],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "block": {
+      "id": "block",
+      "prefLabel": "Block",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/rigging"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "chain_lubricant": {
+      "id": "chain_lubricant",
+      "prefLabel": "Chain lubricant",
+      "altLabels": [],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "chemical_sealant": {
+      "id": "chemical_sealant",
+      "prefLabel": "Chemical sealant",
+      "altLabels": [],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "anti_corrosion_spray": {
+      "id": "anti_corrosion_spray",
+      "prefLabel": "Anti-corrosion spray",
+      "altLabels": [],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "current_shunt": {
+      "id": "current_shunt",
+      "prefLabel": "Current shunt",
+      "altLabels": [],
+      "broader": [
+        "electronics/components"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "diesel_filter": {
+      "id": "diesel_filter",
+      "prefLabel": "Diesel filter",
+      "altLabels": [],
+      "broader": [
+        "automotive/maintenance"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "dehumidifier_consumable": {
+      "id": "dehumidifier_consumable",
+      "prefLabel": "Dehumidifier consumable",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "cigarette_lighter_plug": {
+      "id": "cigarette_lighter_plug",
+      "prefLabel": "Cigarette lighter plug",
+      "altLabels": [],
+      "broader": [
+        "automotive"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "fuse_holder": {
+      "id": "fuse_holder",
+      "prefLabel": "Fuse holder",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "gps": {
+      "id": "gps",
+      "prefLabel": "GPS",
+      "altLabels": [
+        "Global Positioning System",
+        "sat nav",
+        "navigation"
+      ],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Global_Positioning_System"
+    },
+    "led_controller": {
+      "id": "led_controller",
+      "prefLabel": "LED controller",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "led_strip": {
+      "id": "led_strip",
+      "prefLabel": "LED strip",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "resistive_components": {
+      "id": "resistive_components",
+      "prefLabel": "Resistive components",
+      "altLabels": [],
+      "broader": [
+        "electronics/components"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sdr_receiver": {
+      "id": "sdr_receiver",
+      "prefLabel": "SDR receiver",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "signal_cables": {
+      "id": "signal_cables",
+      "prefLabel": "Signal cables",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "smart_home_sensor": {
+      "id": "smart_home_sensor",
+      "prefLabel": "Smart home sensor",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "smart_sensor": {
+      "id": "smart_sensor",
+      "prefLabel": "Smart sensor",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "zigbee_coordinator": {
+      "id": "zigbee_coordinator",
+      "prefLabel": "Zigbee coordinator",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "drill_bit_set": {
+      "id": "drill_bit_set",
+      "prefLabel": "Drill bit set",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sail_tool": {
+      "id": "sail_tool",
+      "prefLabel": "Sail tool",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sanding_accessory": {
+      "id": "sanding_accessory",
+      "prefLabel": "Sanding accessory",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sanding_delta": {
+      "id": "sanding_delta",
+      "prefLabel": "Sanding delta",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sanding_sponge": {
+      "id": "sanding_sponge",
+      "prefLabel": "Sanding sponge",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tool": {
+      "id": "tool",
+      "prefLabel": "Tool",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Tool"
+    },
+    "welding_electrode": {
+      "id": "welding_electrode",
+      "prefLabel": "Welding electrode",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "work_light": {
+      "id": "work_light",
+      "prefLabel": "Work light",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "toilet_paper": {
+      "id": "toilet_paper",
+      "prefLabel": "Toilet paper",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "toilet_service_kit": {
+      "id": "toilet_service_kit",
+      "prefLabel": "Toilet service kit",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "water_filter_cartridge": {
+      "id": "water_filter_cartridge",
+      "prefLabel": "Water filter cartridge",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "engine_maintenance": {
+      "id": "engine_maintenance",
+      "prefLabel": "Engine maintenance",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/engine"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "fender": {
+      "id": "fender",
+      "prefLabel": "Fender",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "float": {
+      "id": "float",
+      "prefLabel": "Float",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "fuel_sender_flange": {
+      "id": "fuel_sender_flange",
+      "prefLabel": "Fuel sender flange",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/engine"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "hatch": {
+      "id": "hatch",
+      "prefLabel": "Hatch",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/deck"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "marine_electrical": {
+      "id": "marine_electrical",
+      "prefLabel": "Marine electrical",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "marine_propulsion": {
+      "id": "marine_propulsion",
+      "prefLabel": "Marine propulsion",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/engine"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Marine_propulsion"
+    },
+    "maritime_book": {
+      "id": "maritime_book",
+      "prefLabel": "Maritime book",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/navigation"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "mast_fitting": {
+      "id": "mast_fitting",
+      "prefLabel": "Mast fitting",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/rigging"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "pump_service_kit": {
+      "id": "pump_service_kit",
+      "prefLabel": "Pump service kit",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sailing_ship_components": {
+      "id": "sailing_ship_components",
+      "prefLabel": "Sailing ship components",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment/rigging"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "winches": {
+      "id": "winches",
+      "prefLabel": "Winches",
+      "altLabels": [],
+      "broader": [
+        "boat-equipment"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "fasteners": {
+      "id": "fasteners",
+      "prefLabel": "Fasteners",
+      "altLabels": [
+        "screws",
+        "bolts",
+        "nails"
+      ],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "plumbing": {
+      "id": "plumbing",
+      "prefLabel": "Plumbing",
+      "altLabels": [],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "screw_assortment": {
+      "id": "screw_assortment",
+      "prefLabel": "Screw assortment",
+      "altLabels": [],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "threaded_stud": {
+      "id": "threaded_stud",
+      "prefLabel": "Threaded stud",
+      "altLabels": [],
+      "broader": [
+        "construction"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "sup_repair": {
+      "id": "sup_repair",
+      "prefLabel": "SUP repair",
+      "altLabels": [],
+      "broader": [
+        "outdoor"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "tent_spare": {
+      "id": "tent_spare",
+      "prefLabel": "Tent spare",
+      "altLabels": [],
+      "broader": [
+        "outdoor"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "patch_kit": {
+      "id": "patch_kit",
+      "prefLabel": "Patch kit",
+      "altLabels": [],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "ph_test_strips": {
+      "id": "ph_test_strips",
+      "prefLabel": "pH test strips",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "pool_chlorine": {
+      "id": "pool_chlorine",
+      "prefLabel": "Pool chlorine",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "seal": {
+      "id": "seal",
+      "prefLabel": "Seal",
+      "altLabels": [
+        "rubber seal",
+        "gasket",
+        "o-ring"
+      ],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Hermetic_seal"
+    },
+    "tubing": {
+      "id": "tubing",
+      "prefLabel": "Tubing",
+      "altLabels": [
+        "tube",
+        "pipes",
+        "hose"
+      ],
+      "broader": [
+        "consumables"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Tubing_(material)"
+    },
+    "disc": {
+      "id": "disc",
+      "prefLabel": "Disc",
+      "altLabels": [],
+      "broader": [
+        "misc"
+      ],
+      "narrower": [],
+      "source": "package",
+      "uri": "http://dbpedia.org/resource/Disc"
+    },
+    "pedal": {
+      "id": "pedal",
+      "prefLabel": "Pedal",
+      "altLabels": [],
+      "broader": [
+        "tools/bike"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "antenna-adapter": {
+      "id": "antenna-adapter",
+      "prefLabel": "Antenna adapter",
+      "altLabels": [],
+      "broader": [
+        "electronics"
+      ],
+      "narrower": [],
+      "source": "package"
+    },
+    "bad": {
+      "id": "bad",
+      "prefLabel": "Bathroom",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Bad"
+      }
+    },
+    "barn": {
+      "id": "barn",
+      "prefLabel": "Children's items",
+      "altLabels": [],
+      "broader": [
+        "games"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Barn"
+      }
+    },
+    "hage": {
+      "id": "hage",
+      "prefLabel": "Garden",
+      "altLabels": [],
+      "broader": [
+        "outdoor"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Hage"
+      }
+    },
+    "kjøkken": {
+      "id": "kjøkken",
+      "prefLabel": "Kitchen",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Kjøkken"
+      }
+    },
+    "kunst": {
+      "id": "kunst",
+      "prefLabel": "Art",
+      "altLabels": [],
+      "broader": [
+        "misc"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Kunst"
+      }
+    },
+    "møbler": {
+      "id": "møbler",
+      "prefLabel": "Furniture",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Møbler"
+      }
+    },
+    "oppbevaring": {
+      "id": "oppbevaring",
+      "prefLabel": "Storage",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Oppbevaring"
+      }
+    },
+    "plastboks": {
+      "id": "plastboks",
+      "prefLabel": "Plastic storage box",
+      "altLabels": [],
+      "broader": [
+        "oppbevaring"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Plastboks",
+        "en": "Plastic storage box"
+      }
+    },
+    "bananeske": {
+      "id": "bananeske",
+      "prefLabel": "Banana box",
+      "altLabels": [],
+      "broader": [
+        "oppbevaring"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Bananeske",
+        "en": "Banana box"
+      }
+    },
+    "pose": {
+      "id": "pose",
+      "prefLabel": "Bag",
+      "altLabels": [],
+      "broader": [
+        "oppbevaring"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Pose",
+        "en": "Bag"
+      }
+    },
+    "babyutstyr": {
+      "id": "babyutstyr",
+      "prefLabel": "Baby equipment",
+      "altLabels": [],
+      "broader": [
+        "barn"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Babyutstyr",
+        "en": "Baby equipment"
+      }
+    },
+    "belysning": {
+      "id": "belysning",
+      "prefLabel": "Lighting",
+      "altLabels": [],
+      "broader": [
+        "household"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Belysning",
+        "en": "Lighting"
+      }
+    },
+    "hobby": {
+      "id": "hobby",
+      "prefLabel": "Hobbies & Crafts",
+      "altLabels": [],
+      "broader": [
+        "recreation"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Hobby"
+      }
+    },
+    "sko": {
+      "id": "sko",
+      "prefLabel": "Shoes",
+      "altLabels": [],
+      "broader": [
+        "clothing"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Sko"
+      }
+    },
+    "dyr": {
+      "id": "dyr",
+      "prefLabel": "Animals",
+      "altLabels": [],
+      "broader": [
+        "misc"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Dyr"
+      }
+    },
+    "garage": {
+      "id": "garage",
+      "prefLabel": "Garage",
+      "altLabels": [],
+      "broader": [
+        "tools"
+      ],
+      "narrower": [],
+      "source": "package",
+      "labels": {
+        "nb": "Garasje"
+      }
     }
   },
   "roots": [
     "food",
-    "tools"
+    "tools",
+    "electronics",
+    "household",
+    "clothing",
+    "hardware",
+    "recreation",
+    "medical",
+    "games",
+    "misc"
   ],
   "labelIndex": {
     "food": "food",
-    "vegetables": "food/vegetables",
-    "food/vegetables": "food/vegetables",
-    "potatoes": "food/vegetables/potatoes",
-    "food/vegetables/potatoes": "food/vegetables/potatoes",
-    "staples": "food/staples",
-    "food/staples": "food/staples",
-    "canned": "food/canned",
-    "food/canned": "food/canned",
+    "groceries": "food",
+    "provisions": "food",
+    "foodstuffs": "food",
+    "mat": "food",
+    "matvarer": "food",
     "tools": "tools",
-    "hand tools": "tools/hand-tools",
-    "tools/hand-tools": "tools/hand-tools"
+    "equipment": "tools",
+    "implements": "tools",
+    "verktøy": "tools",
+    "utstyr": "tools",
+    "recreation & transport": "recreation",
+    "leisure": "recreation",
+    "transportation": "recreation",
+    "fritid": "recreation",
+    "recreation": "recreation",
+    "transport": "transport",
+    "electronics": "electronics",
+    "electrical": "construction/electrical",
+    "electric": "electronics",
+    "elektronikk": "electronics",
+    "elektrisk": "electronics",
+    "connectors": "electronics/connectors",
+    "plugs": "electronics/connectors",
+    "jacks": "electronics/connectors",
+    "terminals": "electronics/connectors",
+    "electronics/connectors": "electronics/connectors",
+    "power electronics": "electronics/power",
+    "power supplies": "electronics/power",
+    "batteries": "electronics/power",
+    "electronics/power": "electronics/power",
+    "circuits": "electronics/circuits",
+    "circuit boards": "electronics/circuits",
+    "pcb": "electronics/circuits",
+    "electronics/circuits": "electronics/circuits",
+    "electronic components": "electronics/components",
+    "parts": "electronics/components",
+    "modules": "electronics/components",
+    "electronics/components": "electronics/components",
+    "ac cable": "ac-cable",
+    "ac_cable": "ac-cable",
+    "mains cable": "ac-cable",
+    "power cord": "ac-cable",
+    "ac-cable": "ac-cable",
+    "dc cable": "dc-cable",
+    "dc_cable": "dc-cable",
+    "dc-cable": "dc-cable",
+    "electrical cable": "electrical-cable",
+    "electrical_cable": "electrical-cable",
+    "electrical-cable": "electrical-cable",
+    "cables": "cables",
+    "electrical connector": "electrical-connector",
+    "electrical_connector": "electrical-connector",
+    "electrical-connectors": "electrical-connector",
+    "electrical_connectors": "electrical-connector",
+    "electronics_connector": "electrical-connector",
+    "electrical-connector": "electrical-connector",
+    "power connector": "power-connector",
+    "power_connector": "power-connector",
+    "power-connector/converter": "power-connector",
+    "power-connector": "power-connector",
+    "dc power connectors": "dc-power-connectors",
+    "dc_power_connectors": "dc-power-connectors",
+    "dc-power-connectors": "dc-power-connectors",
+    "mains power connectors": "mains-power-connectors",
+    "mains_power_connectors": "mains-power-connectors",
+    "mains-power-connectors": "mains-power-connectors",
+    "adc module": "adc-module",
+    "adc_module": "adc-module",
+    "analog to digital converter": "adc-module",
+    "adc-module": "adc-module",
+    "analog circuits": "analog-circuits",
+    "analog_circuits": "analog-circuits",
+    "analog-circuits": "analog-circuits",
+    "boat equipment": "boat-equipment",
+    "marine": "boat-equipment",
+    "nautical": "boat-equipment",
+    "sailing": "boat-equipment",
+    "båt": "boat-equipment",
+    "båtutstyr": "boat-equipment",
+    "boat-equipment": "boat-equipment",
+    "household": "household",
+    "home": "household",
+    "domestic": "household",
+    "husholdning": "household",
+    "hjem": "household",
+    "clothing": "clothing",
+    "apparel": "clothing",
+    "clothes": "clothing",
+    "garments": "clothing",
+    "klær": "clothing",
+    "tekstil": "clothing",
+    "books": "books",
+    "literature": "books",
+    "reading": "books",
+    "bøker": "books",
+    "bok": "books",
+    "litteratur": "books",
+    "documents": "documents",
+    "papers": "documents",
+    "paperwork": "documents",
+    "dokumenter": "documents",
+    "papirer": "documents",
+    "beverages": "food/beverages",
+    "drinks": "food/beverages",
+    "food/beverages": "food/beverages",
+    "dairy": "food/dairy",
+    "dairy products": "food/dairy",
+    "food/dairy": "food/dairy",
+    "grains & cereals": "food/grains",
+    "cereals": "food/grains",
+    "grains": "food/grains",
+    "food/grains": "food/grains",
+    "meat": "meat",
+    "meats": "food/meat",
+    "food/meat": "food/meat",
+    "pork": "food/meat/pork",
+    "food/meat/pork": "food/meat/pork",
+    "chicken": "food/meat/chicken",
+    "poultry": "food/meat/chicken",
+    "food/meat/chicken": "food/meat/chicken",
+    "seafood": "food/seafood",
+    "fish": "fish",
+    "marine food": "food/seafood",
+    "food/seafood": "food/seafood",
+    "canned fish": "food/seafood/canned-fish",
+    "tinned fish": "food/seafood/canned-fish",
+    "tuna": "tuna",
+    "sardines": "sardines",
+    "food/seafood/canned-fish": "food/seafood/canned-fish",
+    "vegetables": "food/vegetables",
+    "veggies": "food/vegetables",
+    "greens": "food/vegetables",
+    "food/vegetables": "food/vegetables",
+    "fruits": "food/fruits",
+    "fruit": "food/fruits",
+    "food/fruits": "food/fruits",
+    "legumes": "food/legumes",
+    "pulses": "food/legumes",
+    "beans and lentils": "food/legumes",
+    "food/legumes": "food/legumes",
+    "condiments & sauces": "food/condiments",
+    "sauces": "food/condiments",
+    "condiment": "food/condiments",
+    "food/condiments": "food/condiments",
+    "snacks": "snacks",
+    "snack foods": "snacks",
+    "food/snacks": "food/snacks",
+    "preserved foods": "food/preserved",
+    "canned": "food/preserved",
+    "jarred": "food/preserved",
+    "preserves": "food/preserved",
+    "conserves": "food/preserved",
+    "food/preserved": "food/preserved",
+    "pickles": "food/preserved/pickles",
+    "pickled vegetables": "food/preserved/pickles",
+    "food/preserved/pickles": "food/preserved/pickles",
+    "baking": "food/baking",
+    "baking supplies": "food/baking",
+    "baking ingredients": "food/baking",
+    "food/baking": "food/baking",
+    "spices & herbs": "food/spices",
+    "spice": "spice",
+    "herbs": "food/spices",
+    "seasonings": "food/spices",
+    "food/spices": "food/spices",
+    "pepper": "food/spices/pepper",
+    "black pepper": "food/spices/pepper",
+    "peppercorns": "food/spices/pepper",
+    "food/spices/pepper": "food/spices/pepper",
+    "curry": "food/spices/curry",
+    "curry powder": "food/spices/curry",
+    "curry paste": "food/spices/curry",
+    "food/spices/curry": "food/spices/curry",
+    "thyme": "food/spices/thyme",
+    "food/spices/thyme": "food/spices/thyme",
+    "beer": "beer",
+    "bier": "beer",
+    "пиво": "beer",
+    "wine": "wine",
+    "вино": "wine",
+    "alcoholic beverages": "alcohol",
+    "alcohol": "alcohol",
+    "booze": "alcohol",
+    "spirits": "alcohol",
+    "coffee": "coffee",
+    "kaffe": "coffee",
+    "кафе": "coffee",
+    "tea": "tea",
+    "чай": "tea",
+    "juice": "juice",
+    "сок": "juice",
+    "milk": "milk",
+    "мляко": "milk",
+    "cheese": "cheese",
+    "сирене": "cheese",
+    "yogurt": "yogurt",
+    "yoghurt": "yogurt",
+    "кисело мляко": "yogurt",
+    "butter": "butter",
+    "масло": "butter",
+    "cream": "cream",
+    "smetana": "cream",
+    "сметана": "cream",
+    "pasta": "pasta",
+    "spaghetti": "pasta",
+    "макарони": "pasta",
+    "rice": "rice",
+    "ориз": "rice",
+    "bread": "bread",
+    "хляб": "bread",
+    "noodles": "noodles",
+    "flour": "flour",
+    "брашно": "flour",
+    "buckwheat": "buckwheat",
+    "гречка": "buckwheat",
+    "месо": "meat",
+    "ham": "ham",
+    "шунка": "ham",
+    "sausage": "sausage",
+    "sausages": "sausage",
+    "колбас": "sausage",
+    "риба": "fish",
+    "риба тон": "tuna",
+    "сардини": "sardines",
+    "potatoes": "potatoes",
+    "potato": "potatoes",
+    "картофи": "potatoes",
+    "onions": "onions",
+    "onion": "onions",
+    "лук": "onions",
+    "garlic": "garlic",
+    "чесън": "garlic",
+    "tomatoes": "tomatoes",
+    "tomato": "tomatoes",
+    "домати": "tomatoes",
+    "mushrooms": "mushrooms",
+    "гъби": "mushrooms",
+    "preserved vegetables": "preserved-vegetables",
+    "preserved-vegetables": "preserved-vegetables",
+    "bananas": "bananas",
+    "banana": "bananas",
+    "банани": "bananas",
+    "olives": "olive",
+    "маслини": "olive",
+    "olive": "olive",
+    "beans": "beans",
+    "bean": "beans",
+    "боб": "beans",
+    "фасул": "beans",
+    "lentils": "lentils",
+    "lentil": "lentils",
+    "леща": "lentils",
+    "chickpeas": "chickpeas",
+    "chickpea": "chickpeas",
+    "нахут": "chickpeas",
+    "soybeans": "soybeans",
+    "soy": "soybeans",
+    "soja": "soybeans",
+    "соя": "soybeans",
+    "oil": "oil",
+    "cooking oil": "oil",
+    "vinegar": "vinegar",
+    "оцет": "vinegar",
+    "mayonnaise": "mayonnaise",
+    "mayo": "mayonnaise",
+    "майонеза": "mayonnaise",
+    "ketchup": "ketchup",
+    "catsup": "ketchup",
+    "кетчуп": "ketchup",
+    "mustard": "mustard",
+    "горчица": "mustard",
+    "pesto": "pesto",
+    "bolognese sauce": "bolognese",
+    "bolognese": "bolognese",
+    "salt": "salt",
+    "сол": "salt",
+    "soy sauce": "soy-sauce",
+    "соев сос": "soy-sauce",
+    "soy-sauce": "soy-sauce",
+    "spread": "spread",
+    "spreads": "spread",
+    "chips": "chips",
+    "crisps": "chips",
+    "чипс": "chips",
+    "nuts": "nuts",
+    "nut": "nuts",
+    "cashews": "cashews",
+    "peanuts": "peanuts",
+    "almonds": "nuts",
+    "cashew": "cashews",
+    "кашу": "cashews",
+    "peanut": "peanuts",
+    "groundnuts": "peanuts",
+    "фъстъци": "peanuts",
+    "biscuits": "biscuits",
+    "cookies": "biscuits",
+    "бисквити": "biscuits",
+    "chocolate": "chocolate",
+    "шоколад": "chocolate",
+    "canning": "canning",
+    "preserving": "canning",
+    "консервиране": "canning",
+    "jam": "jam",
+    "marmalade": "jam",
+    "конфитюр": "jam",
+    "pâté": "pate",
+    "liver pate": "pate",
+    "пастет": "pate",
+    "pate": "pate",
+    "capers": "caper",
+    "каперси": "caper",
+    "caper": "caper",
+    "sugar": "sugar",
+    "захар": "sugar",
+    "honey": "honey",
+    "мед": "honey",
+    "spices": "spice",
+    "подправки": "spice",
+    "bouillon": "bouillon",
+    "stock cubes": "bouillon",
+    "бульон": "bouillon",
+    "hand tools": "tools/hand",
+    "tools/hand": "tools/hand",
+    "power tools": "tools/power",
+    "tools/power": "tools/power",
+    "measuring tools": "tools/measuring",
+    "tools/measuring": "tools/measuring",
+    "cleaning tools": "tools/cleaning",
+    "tools/cleaning": "tools/cleaning",
+    "bike tools": "bike-tools",
+    "bicycle tools": "bicycle-tools",
+    "cycling tools": "tools/bike",
+    "tools/bike": "tools/bike",
+    "bike tool": "bike-tool",
+    "bike_tool": "bike-tool",
+    "bicycle_tool": "bike-tool",
+    "bike-tool": "bike-tool",
+    "bicycle_tools": "bike-tools",
+    "bike-tools": "bike-tools",
+    "bicycle-tools": "bicycle-tools",
+    "hammer": "hammer",
+    "hammers": "hammer",
+    "safety equipment": "safety-equipment",
+    "safety gear": "boat-equipment/safety",
+    "lifesaving": "boat-equipment/safety",
+    "boat-equipment/safety": "boat-equipment/safety",
+    "navigation": "gps",
+    "nav equipment": "boat-equipment/navigation",
+    "boat-equipment/navigation": "boat-equipment/navigation",
+    "rigging": "boat-equipment/rigging",
+    "standing rigging": "boat-equipment/rigging",
+    "running rigging": "boat-equipment/rigging",
+    "boat-equipment/rigging": "boat-equipment/rigging",
+    "deck hardware": "boat-equipment/deck",
+    "boat-equipment/deck": "boat-equipment/deck",
+    "engine parts": "boat-equipment/engine",
+    "motor parts": "boat-equipment/engine",
+    "boat-equipment/engine": "boat-equipment/engine",
+    "boat spare parts": "boat-spare",
+    "boat-spare": "boat-spare",
+    "boat hardware": "boat-hardware",
+    "boat-hardware": "boat-hardware",
+    "boat lighting": "boat-lighting",
+    "boat-lighting": "boat-lighting",
+    "boat material": "boat-material",
+    "boat-material": "boat-material",
+    "boat repair": "boat-repair",
+    "boat-repair": "boat-repair",
+    "sail repair": "sail-repair",
+    "sail-repair": "sail-repair",
+    "shackle": "shackle",
+    "shackles": "shackle",
+    "nautical chart": "nautical-chart",
+    "sea chart": "nautical-chart",
+    "marine chart": "nautical-chart",
+    "nautical-chart": "nautical-chart",
+    "nautical book": "nautical-book",
+    "pilot book": "nautical-book",
+    "sailing guide": "nautical-book",
+    "nautical-book": "nautical-book",
+    "autopilot": "autopilot",
+    "bilge pump": "bilge-pump",
+    "bilge-pump": "bilge-pump",
+    "engine part": "engine-part",
+    "engine-part": "engine-part",
+    "single-board computer": "single-board-computer",
+    "sbc": "single-board-computer",
+    "raspberry pi": "single-board-computer",
+    "single-board-computer": "single-board-computer",
+    "cleaning supplies": "household/cleaning",
+    "rengjøring": "household/cleaning",
+    "household/cleaning": "household/cleaning",
+    "storage": "oppbevaring",
+    "household/storage": "household/storage",
+    "bedding": "bedding",
+    "bed linen": "bedding",
+    "bedclothes": "bedding",
+    "duvet": "bedding",
+    "pillow": "bedding",
+    "sengetøy": "bedding",
+    "consumables": "consumables",
+    "supplies": "consumables",
+    "forbruksvarer": "consumables",
+    "hardware": "hardware",
+    "fasteners": "fasteners",
+    "fixings": "hardware",
+    "jernvare": "hardware",
+    "beslag": "hardware",
+    "adhesive": "adhesive",
+    "glue": "adhesive",
+    "adhesive tape": "adhesive-tape",
+    "tape": "adhesive-tape",
+    "adhesive-tape": "adhesive-tape",
+    "lubricant": "lubricant",
+    "lube": "lubricant",
+    "grease": "lubricant",
+    "sandpaper": "sandpaper",
+    "abrasive paper": "sandpaper",
+    "sandpaper sheet": "sandpaper-sheet",
+    "sandpaper-sheet": "sandpaper-sheet",
+    "sandpaper roll": "sandpaper-roll",
+    "sandpaper-roll": "sandpaper-roll",
+    "sanding disc": "sanding-disc",
+    "sanding-disc": "sanding-disc",
+    "composite material": "composite-material",
+    "fiberglass": "composite-material",
+    "carbon fiber": "composite-material",
+    "composite-material": "composite-material",
+    "sikkerhetsutstyr": "safety-equipment",
+    "verneutstyr": "safety-equipment",
+    "sikkerhet": "safety-equipment",
+    "safety-equipment": "safety-equipment",
+    "miscellaneous": "misc",
+    "other": "misc",
+    "various": "misc",
+    "diverse": "misc",
+    "annet": "misc",
+    "misc": "misc",
+    "bike part": "bike-part",
+    "bicycle part": "bike-part",
+    "bike-part": "bike-part",
+    "bike light": "bike-light",
+    "bike-light": "bike-light",
+    "bicycle tube": "bicycle-tube",
+    "inner tube": "bicycle-tube",
+    "bicycle-tube": "bicycle-tube",
+    "automotive": "automotive",
+    "vehicles": "automotive",
+    "car parts": "automotive",
+    "auto": "automotive",
+    "bil": "automotive",
+    "kjøretøy": "automotive",
+    "automotive accessories": "automotive/accessories",
+    "automotive/accessories": "automotive/accessories",
+    "automotive lighting": "automotive/lighting",
+    "automotive/lighting": "automotive/lighting",
+    "automotive maintenance": "automotive/maintenance",
+    "automotive/maintenance": "automotive/maintenance",
+    "outdoor equipment": "outdoor",
+    "camping": "camping",
+    "hiking": "outdoor",
+    "friluft": "outdoor",
+    "friluftsliv": "outdoor",
+    "ute": "outdoor",
+    "outdoor": "outdoor",
+    "hiking equipment": "outdoor/hiking",
+    "outdoor/hiking": "outdoor/hiking",
+    "outdoor cooking": "outdoor/cooking",
+    "outdoor/cooking": "outdoor/cooking",
+    "sleeping bag": "sleeping-bag",
+    "sleeping_bag": "sleeping-bag",
+    "sleeping-bag": "sleeping-bag",
+    "backpack": "backpack",
+    "rucksack": "backpack",
+    "daypack": "backpack",
+    "workwear": "clothing/workwear",
+    "clothing/workwear": "clothing/workwear",
+    "footwear": "clothing/footwear",
+    "clothing/footwear": "clothing/footwear",
+    "clothing accessories": "clothing/accessories",
+    "clothing/accessories": "clothing/accessories",
+    "hat": "hat",
+    "hats": "hat",
+    "cap": "hat",
+    "construction": "construction",
+    "building": "construction",
+    "building materials": "construction",
+    "bygg": "construction",
+    "byggematerialer": "construction",
+    "lumber": "construction/lumber",
+    "wood": "construction/lumber",
+    "timber": "construction/lumber",
+    "construction/lumber": "construction/lumber",
+    "construction/electrical": "construction/electrical",
+    "washer": "washer",
+    "washers": "washer",
+    "flat washer": "washer",
+    "office supplies": "office",
+    "stationery": "office",
+    "office equipment": "office",
+    "kontor": "office",
+    "kontorrekvisita": "office",
+    "office": "office",
+    "writing supplies": "office/writing",
+    "office/writing": "office/writing",
+    "paper products": "office/paper",
+    "office/paper": "office/paper",
+    "office storage": "office/storage",
+    "office/storage": "office/storage",
+    "pen": "pen",
+    "pens": "pen",
+    "pencil": "pencil",
+    "pencils": "pencil",
+    "notebook": "notebook",
+    "notepad": "notebook",
+    "sports": "sports",
+    "athletics": "sports",
+    "sport": "sports",
+    "idrett": "sports",
+    "cycling": "sports/cycling",
+    "sports/cycling": "sports/cycling",
+    "water sports": "sports/water-sports",
+    "sports/water-sports": "sports/water-sports",
+    "ball sports": "sports/ball-sports",
+    "sports/ball-sports": "sports/ball-sports",
+    "games": "games",
+    "toys": "games",
+    "puzzles": "games",
+    "spill": "games",
+    "leker": "games",
+    "puslespill": "games",
+    "health & safety": "medical",
+    "health": "medical",
+    "healthcare": "medical",
+    "first aid": "first-aid",
+    "medisin": "medical",
+    "helse": "medical",
+    "førstehjelp": "medical",
+    "safety": "medical",
+    "ppe": "medical",
+    "protective equipment": "medical",
+    "medical": "medical",
+    "first_aid": "first-aid",
+    "first-aid": "first-aid",
+    "bandage": "bandage",
+    "bandages": "bandage",
+    "medicine": "medicine",
+    "medication": "medicine",
+    "drugs": "medicine",
+    "bike clamp": "bike_clamp",
+    "bike_clamp": "bike_clamp",
+    "bike hardware": "bike_hardware",
+    "bike_hardware": "bike_hardware",
+    "bike repair kit": "bike_repair_kit",
+    "bike_repair_kit": "bike_repair_kit",
+    "boat hatch": "boat_hatch",
+    "boat_hatch": "boat_hatch",
+    "buoy holder": "buoy_holder",
+    "buoy_holder": "buoy_holder",
+    "cockpit lamp": "cockpit_lamp",
+    "cockpit_lamp": "cockpit_lamp",
+    "corner bracket": "corner_bracket",
+    "corner_bracket": "corner_bracket",
+    "bushing": "bushing",
+    "block": "block",
+    "chain lubricant": "chain_lubricant",
+    "chain_lubricant": "chain_lubricant",
+    "chemical sealant": "chemical_sealant",
+    "chemical_sealant": "chemical_sealant",
+    "anti-corrosion spray": "anti_corrosion_spray",
+    "anti_corrosion_spray": "anti_corrosion_spray",
+    "current shunt": "current_shunt",
+    "current_shunt": "current_shunt",
+    "diesel filter": "diesel_filter",
+    "diesel_filter": "diesel_filter",
+    "dehumidifier consumable": "dehumidifier_consumable",
+    "dehumidifier_consumable": "dehumidifier_consumable",
+    "cigarette lighter plug": "cigarette_lighter_plug",
+    "cigarette_lighter_plug": "cigarette_lighter_plug",
+    "fuse holder": "fuse_holder",
+    "fuse_holder": "fuse_holder",
+    "gps": "gps",
+    "global positioning system": "gps",
+    "sat nav": "gps",
+    "led controller": "led_controller",
+    "led_controller": "led_controller",
+    "led strip": "led_strip",
+    "led_strip": "led_strip",
+    "resistive components": "resistive_components",
+    "resistive_components": "resistive_components",
+    "sdr receiver": "sdr_receiver",
+    "sdr_receiver": "sdr_receiver",
+    "signal cables": "signal_cables",
+    "signal_cables": "signal_cables",
+    "smart home sensor": "smart_home_sensor",
+    "smart_home_sensor": "smart_home_sensor",
+    "smart sensor": "smart_sensor",
+    "smart_sensor": "smart_sensor",
+    "zigbee coordinator": "zigbee_coordinator",
+    "zigbee_coordinator": "zigbee_coordinator",
+    "drill bit set": "drill_bit_set",
+    "drill_bit_set": "drill_bit_set",
+    "sail tool": "sail_tool",
+    "sail_tool": "sail_tool",
+    "sanding accessory": "sanding_accessory",
+    "sanding_accessory": "sanding_accessory",
+    "sanding delta": "sanding_delta",
+    "sanding_delta": "sanding_delta",
+    "sanding sponge": "sanding_sponge",
+    "sanding_sponge": "sanding_sponge",
+    "tool": "tool",
+    "welding electrode": "welding_electrode",
+    "welding_electrode": "welding_electrode",
+    "work light": "work_light",
+    "work_light": "work_light",
+    "toilet paper": "toilet_paper",
+    "toilet_paper": "toilet_paper",
+    "toilet service kit": "toilet_service_kit",
+    "toilet_service_kit": "toilet_service_kit",
+    "water filter cartridge": "water_filter_cartridge",
+    "water_filter_cartridge": "water_filter_cartridge",
+    "engine maintenance": "engine_maintenance",
+    "engine_maintenance": "engine_maintenance",
+    "fender": "fender",
+    "float": "float",
+    "fuel sender flange": "fuel_sender_flange",
+    "fuel_sender_flange": "fuel_sender_flange",
+    "hatch": "hatch",
+    "marine electrical": "marine_electrical",
+    "marine_electrical": "marine_electrical",
+    "marine propulsion": "marine_propulsion",
+    "marine_propulsion": "marine_propulsion",
+    "maritime book": "maritime_book",
+    "maritime_book": "maritime_book",
+    "mast fitting": "mast_fitting",
+    "mast_fitting": "mast_fitting",
+    "pump service kit": "pump_service_kit",
+    "pump_service_kit": "pump_service_kit",
+    "sailing ship components": "sailing_ship_components",
+    "sailing_ship_components": "sailing_ship_components",
+    "winches": "winches",
+    "screws": "fasteners",
+    "bolts": "fasteners",
+    "nails": "fasteners",
+    "plumbing": "plumbing",
+    "screw assortment": "screw_assortment",
+    "screw_assortment": "screw_assortment",
+    "threaded stud": "threaded_stud",
+    "threaded_stud": "threaded_stud",
+    "sup repair": "sup_repair",
+    "sup_repair": "sup_repair",
+    "tent spare": "tent_spare",
+    "tent_spare": "tent_spare",
+    "patch kit": "patch_kit",
+    "patch_kit": "patch_kit",
+    "ph test strips": "ph_test_strips",
+    "ph_test_strips": "ph_test_strips",
+    "pool chlorine": "pool_chlorine",
+    "pool_chlorine": "pool_chlorine",
+    "seal": "seal",
+    "rubber seal": "seal",
+    "gasket": "seal",
+    "o-ring": "seal",
+    "tubing": "tubing",
+    "tube": "tubing",
+    "pipes": "tubing",
+    "hose": "tubing",
+    "disc": "disc",
+    "pedal": "pedal",
+    "antenna adapter": "antenna-adapter",
+    "antenna-adapter": "antenna-adapter",
+    "bathroom": "bad",
+    "bad": "bad",
+    "children's items": "barn",
+    "barn": "barn",
+    "garden": "hage",
+    "hage": "hage",
+    "kitchen": "kjøkken",
+    "kjøkken": "kjøkken",
+    "art": "kunst",
+    "kunst": "kunst",
+    "furniture": "møbler",
+    "møbler": "møbler",
+    "oppbevaring": "oppbevaring",
+    "plastic storage box": "plastboks",
+    "plastboks": "plastboks",
+    "banana box": "bananeske",
+    "bananeske": "bananeske",
+    "bag": "pose",
+    "pose": "pose",
+    "baby equipment": "babyutstyr",
+    "babyutstyr": "babyutstyr",
+    "lighting": "belysning",
+    "belysning": "belysning",
+    "hobbies & crafts": "hobby",
+    "hobby": "hobby",
+    "shoes": "sko",
+    "sko": "sko",
+    "animals": "dyr",
+    "dyr": "dyr",
+    "garage": "garage"
   }
 }

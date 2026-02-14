@@ -1,5 +1,5 @@
 * ~~`inventory-md.json` vs `inventory.json` is confusing - the first is the config file, the other is the parsed version of inventory.md.  Please rename inventory-md.json to config.json.  For backward compatibility, accept inventory-md.json as well.~~ DONE: `config.yaml`/`config.json` now supported in project directory (inventory-md.yaml/json still accepted for backward compatibility)
-* 
+*
 * ~~The "quick start" in the installation guide should be made easier, and should rely on a Makefile~~ DONE
 * System is currently used for "Solveig" (boat) and "Furuset" (home).  I don't want to go public with the database here, but it would be nice with a third demo site with demo data.
 * There are some things now that should be included in the inventory-md:
@@ -36,4 +36,3 @@
   - [x] SKOS path expansion in UI (badges and filters use expanded paths)
   - [x] Global vocabulary shipped with package, multi-location loading with merge precedence
   - [x] Language fallback chains for translations (Scandinavian, Germanic, Romance, Slavic)
-

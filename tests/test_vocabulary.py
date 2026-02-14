@@ -4847,6 +4847,112 @@ class TestSupplementaryExternalPaths:
         assert len(cbs_wikidata) > 0
         assert any("textile_product" in p for p in cbs_wikidata)
 
+        # source_uris should have BOTH DBpedia and Wikidata URIs
+        clothing = vocab["clothing"]
+        assert "dbpedia" in clothing.source_uris
+        assert clothing.source_uris["dbpedia"] == "http://dbpedia.org/resource/Clothing"
+        assert "wikidata" in clothing.source_uris
+        assert clothing.source_uris["wikidata"] == "http://www.wikidata.org/entity/Q11460"
+
+    def test_root_concept_via_altlabel_gets_source_uris(self):
+        """Root concept discovered via altLabel gets source_uris from both sources.
+
+        Simulates the 'games' scenario: Norwegian altLabel 'spill' maps to root
+        concept 'games', which should get DBpedia and Wikidata URIs for translation.
+        """
+        local_vocab = {
+            "games": vocabulary.Concept(
+                id="games",
+                prefLabel="Games",
+                source="package",
+                altLabels={
+                    "en": ["toys", "puzzles"],
+                    "nb": ["spill", "leker"],
+                },
+            ),
+        }
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Spill", "metadata": {"categories": ["spill"]}}],
+                }
+            ]
+        }
+
+        mock_client = MagicMock()
+
+        def lookup_side_effect(label, lang, source=None):
+            # Only respond to the English prefLabel lookup
+            if label.lower() == "games":
+                if source == "dbpedia":
+                    return {
+                        "uri": "http://dbpedia.org/resource/Game",
+                        "prefLabel": "Game",
+                        "description": "A structured form of play",
+                        "broader": [
+                            {"label": "Recreation", "relType": "hypernym"},
+                        ],
+                    }
+                elif source == "wikidata":
+                    return {
+                        "uri": "http://www.wikidata.org/entity/Q11410",
+                        "prefLabel": "Game",
+                        "broader": [
+                            {
+                                "label": "Leisure activity",
+                                "uri": "http://www.wikidata.org/entity/Q1914636",
+                                "relType": "instance_of",
+                            },
+                        ],
+                    }
+            return None
+
+        mock_client.lookup_concept.side_effect = lookup_side_effect
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+
+        mock_skos = self._make_mock_skos_module()
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                local_vocab=local_vocab,
+                lang="nb",
+                enabled_sources=["off", "dbpedia", "wikidata"],
+            )
+
+        # "spill" should map to "games" (root concept via altLabel)
+        assert "spill" in mappings
+        assert "games" in mappings["spill"]
+
+        # Concept should have source_uris from both sources
+        games = vocab["games"]
+        assert "dbpedia" in games.source_uris, f"source_uris={games.source_uris}"
+        assert games.source_uris["dbpedia"] == "http://dbpedia.org/resource/Game"
+        assert "wikidata" in games.source_uris, f"source_uris={games.source_uris}"
+        assert games.source_uris["wikidata"] == "http://www.wikidata.org/entity/Q11410"
+
+        # URI should be set (first source wins)
+        assert games.uri == "http://dbpedia.org/resource/Game"
+        # Description should be enriched
+        assert games.description == "A structured form of play"
+
+        # category_by_source paths should exist
+        cbs_dbpedia = [p for p in mappings["spill"] if p.startswith("category_by_source/dbpedia/")]
+        assert len(cbs_dbpedia) > 0
+        cbs_wikidata = [p for p in mappings["spill"] if p.startswith("category_by_source/wikidata/")]
+        assert len(cbs_wikidata) > 0
+
     def test_agrovoc_uri_concept_gets_supplementary_paths(self):
         """AGROVOC primary (via local URI) + external supplementary paths."""
         local_vocab = {

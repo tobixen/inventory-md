@@ -32,7 +32,7 @@ OFF has a food/kitchen focus.  The big advantage of OFF is that by scanning EANs
 
 ### Hiearchical categories
 
-The idea of using "hierarchical categories" came before I started investigating SKOS.  Hierarchical categories seems intuitive for users, though particularly DBpedia does not play very well with this design.  Perhaps some other navigation system should be made.  
+The idea of using "hierarchical categories" came before I started investigating SKOS.  Hierarchical categories seems intuitive for users, though particularly DBpedia does not play very well with this design.  Perhaps some other navigation system should be made.
 
 When only leaning on DBpedia, OFF and AGROVOC, I got thousands of root-nodes in the hierarchy.  For the hierarhical navigation to work out, we need relatively few root nodes (10 is probably a good number, 100 is too much), and every root node should have relatively few children (5-10 is probably a good number, 100 is way too much).  I see no problem with having multiple paths to the same category (though it may be a bit silly when some of the paths are just irrelevant for the item in the category).
 

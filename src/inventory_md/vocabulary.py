@@ -2008,6 +2008,8 @@ def _build_supplementary_external_paths(
         if dbpedia_data and dbpedia_data.get("uri"):
             if target_id in concepts:
                 _enrich_concept_with_external_metadata(concepts[target_id], dbpedia_data)
+                # Store URI in source_uris so translation phases can find it
+                concepts[target_id].source_uris.setdefault("dbpedia", dbpedia_data["uri"])
             paths, _ = _build_external_broader_paths(
                 dbpedia_data.get("broader", []),
                 concept_id,
@@ -2024,6 +2026,8 @@ def _build_supplementary_external_paths(
         if wikidata_data and wikidata_data.get("uri"):
             if target_id in concepts:
                 _enrich_concept_with_external_metadata(concepts[target_id], wikidata_data)
+                # Store URI in source_uris so translation phases can find it
+                concepts[target_id].source_uris.setdefault("wikidata", wikidata_data["uri"])
             paths, _ = _build_external_broader_paths(
                 wikidata_data.get("broader", []),
                 concept_id,
@@ -2425,6 +2429,7 @@ def build_vocabulary_with_skos_hierarchy(
                 target_id = local_concept_id or concept_id
                 if target_id in concepts:
                     _enrich_concept_with_external_metadata(concepts[target_id], dbpedia_concept)
+                    concepts[target_id].source_uris.setdefault("dbpedia", dbpedia_concept["uri"])
 
                 # Always store URI for translations
                 if concept_id not in all_uri_maps:
@@ -2505,6 +2510,7 @@ def build_vocabulary_with_skos_hierarchy(
                 target_id = local_concept_id or concept_id
                 if target_id in concepts:
                     _enrich_concept_with_external_metadata(concepts[target_id], wikidata_concept)
+                    concepts[target_id].source_uris.setdefault("wikidata", wikidata_concept["uri"])
 
                 # Always store URI for translations
                 if concept_id not in all_uri_maps:
