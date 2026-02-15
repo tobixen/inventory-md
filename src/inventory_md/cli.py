@@ -1138,11 +1138,11 @@ def skos_command(args, config: Config) -> int:
             print(f"Cleared {count} cached lookups")
             return 0
         elif getattr(args, "path", False):
-            print(skos.DEFAULT_CACHE_DIR)
+            print(skos.get_default_cache_dir())
             return 0
         else:
             # Show cache stats
-            cache_dir = skos.DEFAULT_CACHE_DIR
+            cache_dir = skos.get_default_cache_dir()
             if cache_dir.exists():
                 cache_files = list(cache_dir.glob("*.json"))
                 print(f"Cache directory: {cache_dir}")

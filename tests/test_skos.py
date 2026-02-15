@@ -111,6 +111,46 @@ class TestCacheFunctions:
         assert not skos._is_in_not_found_cache(tmp_path, key, ttl=1)
 
 
+class TestGetDefaultCacheDir:
+    """Tests for get_default_cache_dir() env var override."""
+
+    def test_returns_env_var_path_when_set(self):
+        """Env var INVENTORY_MD_SKOS__CACHE_DIR overrides the default."""
+        with patch.dict("os.environ", {"INVENTORY_MD_SKOS__CACHE_DIR": "/var/cache/inventory-md/test/skos"}):
+            result = skos.get_default_cache_dir()
+            from pathlib import Path
+
+            assert result == Path("/var/cache/inventory-md/test/skos")
+
+    def test_returns_fallback_when_env_unset(self):
+        """Falls back to ~/.cache/inventory-md/skos/ when env var is unset."""
+        with patch.dict("os.environ", {}, clear=False):
+            # Ensure the env var is not set
+            import os
+
+            env = os.environ.copy()
+            env.pop("INVENTORY_MD_SKOS__CACHE_DIR", None)
+            with patch.dict("os.environ", env, clear=True):
+                result = skos.get_default_cache_dir()
+                assert result == skos._FALLBACK_CACHE_DIR
+
+    def test_skos_client_uses_get_default_cache_dir(self, tmp_path):
+        """SKOSClient should use get_default_cache_dir() when no cache_dir passed."""
+        custom_dir = str(tmp_path / "custom-cache")
+        with patch.dict("os.environ", {"INVENTORY_MD_SKOS__CACHE_DIR": custom_dir}):
+            client = skos.SKOSClient()
+            from pathlib import Path
+
+            assert client.cache_dir == Path(custom_dir)
+
+    def test_explicit_cache_dir_overrides_env(self, tmp_path):
+        """Explicit cache_dir param takes precedence over env var."""
+        explicit = tmp_path / "explicit"
+        with patch.dict("os.environ", {"INVENTORY_MD_SKOS__CACHE_DIR": "/var/cache/other"}):
+            client = skos.SKOSClient(cache_dir=explicit)
+            assert client.cache_dir == explicit
+
+
 class TestIrrelevantCategoryFilter:
     """Tests for DBpedia category filtering."""
 

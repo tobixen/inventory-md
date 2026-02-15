@@ -39,7 +39,7 @@ DEFAULTS: dict[str, Any] = {
         "enabled": False,  # Enable SKOS lookups in parse --auto
         "hierarchy_mode": False,  # Expand category labels to full SKOS hierarchy paths
         "enabled_sources": ["off", "agrovoc", "dbpedia", "wikidata"],
-        "cache_ttl_days": 30,
+        "cache_ttl_days": 60,
         "timeout": 30.0,
     },
     # Language fallback chains for translations

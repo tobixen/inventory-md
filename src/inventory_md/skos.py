@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from pathlib import Path
@@ -38,8 +39,24 @@ REST_ENDPOINTS = {
 }
 
 # Cache settings
-DEFAULT_CACHE_DIR = Path.home() / ".cache" / "inventory-md" / "skos"
-CACHE_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
+_FALLBACK_CACHE_DIR = Path.home() / ".cache" / "inventory-md" / "skos"
+CACHE_TTL_SECONDS = 60 * 60 * 24 * 60  # 60 days
+
+
+def get_default_cache_dir() -> Path:
+    """Return the default SKOS cache directory.
+
+    Checks the INVENTORY_MD_SKOS__CACHE_DIR environment variable first,
+    then falls back to ~/.cache/inventory-md/skos/.
+    """
+    env_dir = os.environ.get("INVENTORY_MD_SKOS__CACHE_DIR")
+    if env_dir:
+        return Path(env_dir)
+    return _FALLBACK_CACHE_DIR
+
+
+# Keep module-level constant for backward compatibility
+DEFAULT_CACHE_DIR = _FALLBACK_CACHE_DIR
 DEFAULT_TIMEOUT = 30.0  # Per-request timeout; long-running batch queries pass explicit timeout
 
 # After this many consecutive failures to the same endpoint, skip remaining queries
@@ -451,7 +468,7 @@ class SKOSClient:
             use_oxigraph: If True, try to use local Oxigraph store for AGROVOC (fastest).
             agrovoc_path: Path to AGROVOC N-Triples file for Oxigraph. Default: auto-detect.
         """
-        self.cache_dir = cache_dir or DEFAULT_CACHE_DIR
+        self.cache_dir = cache_dir or get_default_cache_dir()
         self.endpoints = endpoints or ENDPOINTS.copy()
         self.timeout = timeout
         self.enabled_sources = enabled_sources or ["agrovoc", "dbpedia"]
