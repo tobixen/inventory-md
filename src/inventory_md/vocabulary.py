@@ -2400,7 +2400,9 @@ def build_vocabulary_with_skos_hierarchy(
                     # store so we compare apples to apples.
                     leaf_for_compare = leaf
                     if lang != "en":
-                        leaf_uri = agrovoc_uri_map.get(leaf.replace(" ", "_"))
+                        # uri_map keys are full path prefixes (e.g. "food/grønnsaker/oliven"),
+                        # so the leaf URI is stored under the full first path.
+                        leaf_uri = agrovoc_uri_map.get(agrovoc_paths[0])
                         if leaf_uri:
                             store = client._get_oxigraph_store()
                             if store is not None and store.is_loaded:

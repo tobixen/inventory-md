@@ -3574,6 +3574,51 @@ class TestAgrovocMismatchSuppression:
         if "tool" in mappings:
             assert not any("equipment" in p for p in mappings["tool"])
 
+    @patch("inventory_md.vocabulary._get_agrovoc_label")
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_cross_language_leaf_not_flagged_as_mismatch(self, mock_skos_paths, mock_get_label):
+        """Norwegian leaf label should not trigger mismatch when English label matches."""
+        # AGROVOC returns Norwegian path: food/grønnsaker/oliven
+        mock_skos_paths.return_value = (
+            ["food/grønnsaker/oliven"],
+            True,
+            {"food/grønnsaker/oliven": "http://aims.fao.org/aos/agrovoc/c_5435"},
+            ["products/grønnsaker/oliven"],
+        )
+        # When we look up the English label for the leaf URI, return "olive"
+        mock_get_label.return_value = "olive"
+
+        # Mock the Oxigraph store on the client
+        mock_store = MagicMock()
+        mock_store.is_loaded = True
+
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Olives", "metadata": {"categories": ["olives"]}}],
+                }
+            ]
+        }
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            with patch("inventory_md.vocabulary.logger") as mock_logger:
+                # Need to mock the SKOSClient's _get_oxigraph_store
+                with patch("inventory_md.skos.SKOSClient._get_oxigraph_store", return_value=mock_store):
+                    vocab, mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
+                        inventory, lang="no", enabled_sources=["off", "agrovoc"]
+                    )
+
+        # Should NOT have logged an AGROVOC mismatch warning
+        for call in mock_logger.warning.call_args_list:
+            assert "AGROVOC mismatch" not in str(call), f"Unexpected mismatch warning: {call}"
+
+        # Olives should have been accepted via AGROVOC
+        assert "olives" in mappings
+        assert any("oliven" in p for p in mappings["olives"])
+
 
 class TestPackageSourceAttribution:
     """Tests for distinguishing package vocabulary from user-local vocabulary."""
