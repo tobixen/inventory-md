@@ -572,7 +572,7 @@ class SKOSClient:
             logger.warning("REST API data fetch failed for %s: %s", uri, e)
             return None
 
-    def _sparql_query(self, endpoint: str, query: str, *, max_retries: int = 3) -> list[dict] | None:
+    def _sparql_query(self, endpoint: str, query: str, *, max_retries: int = 3, context: str = "") -> list[dict] | None:
         """Execute a SPARQL query and return results.
 
         Retries on transient errors (429 Too Many Requests, 503, 504) with
@@ -586,6 +586,7 @@ class SKOSClient:
             endpoint: SPARQL endpoint URL.
             query: SPARQL query string.
             max_retries: Maximum number of retry attempts for transient errors.
+            context: Optional label/description for log messages (e.g., concept name).
 
         Returns:
             List of result bindings (dicts with variable names as keys),
@@ -662,7 +663,8 @@ class SKOSClient:
                     )
                     time.sleep(delay)
                     continue
-                logger.warning("SPARQL query timed out for %s: %s", endpoint, e)
+                ctx = f" (looking up '{context}')" if context else ""
+                logger.warning("SPARQL query timed out for %s%s: %s", endpoint, ctx, e)
                 self._endpoint_failures[endpoint] = self._endpoint_failures.get(endpoint, 0) + 1
                 return None  # None = error, don't cache
             except requests.RequestException as e:
@@ -677,7 +679,8 @@ class SKOSClient:
                     )
                     time.sleep(delay)
                     continue
-                logger.warning("SPARQL query failed for %s: %s", endpoint, e)
+                ctx = f" (looking up '{context}')" if context else ""
+                logger.warning("SPARQL query failed for %s%s: %s", endpoint, ctx, e)
                 self._endpoint_failures[endpoint] = self._endpoint_failures.get(endpoint, 0) + 1
                 return None  # None = error, don't cache
         # All retries exhausted
@@ -947,7 +950,7 @@ class SKOSClient:
             }}
             """
 
-            results = self._sparql_query(endpoint, query)
+            results = self._sparql_query(endpoint, query, context=f"AGROVOC batch labels ({len(chunk)} URIs)")
             if results is None:
                 continue
 
@@ -998,7 +1001,7 @@ class SKOSClient:
             }}
             """
 
-            results = self._sparql_query(endpoint, query)
+            results = self._sparql_query(endpoint, query, context=f"DBpedia batch labels ({len(chunk)} URIs)")
             if results is None:
                 continue  # Skip failed chunk, try next
 
@@ -1085,7 +1088,9 @@ class SKOSClient:
                 }}
                 """
 
-                results = self._sparql_query(endpoint, query)
+                results = self._sparql_query(
+                    endpoint, query, context=f"Wikidata Wikipedia batch labels ({len(chunk)} URIs)"
+                )
                 if results is None:
                     continue
 
@@ -1116,7 +1121,7 @@ class SKOSClient:
                 }}
                 """
 
-                results = self._sparql_query(endpoint, query)
+                results = self._sparql_query(endpoint, query, context=f"Wikidata batch labels ({len(chunk)} URIs)")
                 if results is None:
                     continue
 
@@ -1162,7 +1167,7 @@ class SKOSClient:
         }}
         """
 
-        results = self._sparql_query(endpoint, query)
+        results = self._sparql_query(endpoint, query, context=f"AGROVOC labels for {uri}")
         if results is None:
             return {}
 
@@ -1209,7 +1214,7 @@ class SKOSClient:
         }}
         """
 
-        results = self._sparql_query(endpoint, query)
+        results = self._sparql_query(endpoint, query, context=f"DBpedia labels for {uri}")
         if results is None:
             return {}
 
@@ -1525,7 +1530,7 @@ class SKOSClient:
         LIMIT 1
         """
 
-        results = self._sparql_query(endpoint, query)
+        results = self._sparql_query(endpoint, query, context=label)
         if results is None:
             return None, True  # Query failed (timeout/error)
         if not results:
@@ -1561,7 +1566,7 @@ class SKOSClient:
         }}
         """
 
-        results = self._sparql_query(endpoint, query)
+        results = self._sparql_query(endpoint, query, context=f"broader for {concept_uri}")
         if results is None:
             return []  # Query failed, return empty
         return [{"uri": r["broader"]["value"], "label": r["label"]["value"]} for r in results]
@@ -1878,7 +1883,7 @@ class SKOSClient:
         LIMIT 1
         """
 
-        results = self._sparql_query(endpoint, query)
+        results = self._sparql_query(endpoint, query, context=label)
         if results is None:
             return None, True  # Query failed (timeout/error)
         if not results:
@@ -1940,7 +1945,7 @@ class SKOSClient:
         LIMIT 15
         """
 
-        results = self._sparql_query(endpoint, query)
+        results = self._sparql_query(endpoint, query, context=f"broader for {resource_uri}")
         if results is None:
             return []  # Query failed, return empty
 
@@ -2044,7 +2049,7 @@ class SKOSClient:
             LIMIT 25
             """
 
-            results = self._sparql_query(endpoint, query)
+            results = self._sparql_query(endpoint, query, context=label)
             if results is None:
                 return None, True  # Query failed (timeout/error)
             if not results:
@@ -2115,7 +2120,7 @@ class SKOSClient:
         LIMIT 15
         """
 
-        results = self._sparql_query(endpoint, query)
+        results = self._sparql_query(endpoint, query, context=f"broader for {item_uri}")
         if results is None:
             return []  # Query failed, return empty
 

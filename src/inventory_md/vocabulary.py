@@ -2395,8 +2395,24 @@ def build_vocabulary_with_skos_hierarchy(
                     # Get the leaf concept from the first path
                     leaf = agrovoc_paths[0].split("/")[-1].replace("_", " ").lower()
                     search = label.lower()
+                    # When lang != "en", the leaf is translated (e.g., "bananer"
+                    # for "Bananas").  Fetch the English label from the Oxigraph
+                    # store so we compare apples to apples.
+                    leaf_for_compare = leaf
+                    if lang != "en":
+                        leaf_uri = agrovoc_uri_map.get(leaf.replace(" ", "_"))
+                        if leaf_uri:
+                            store = client._get_oxigraph_store()
+                            if store is not None and store.is_loaded:
+                                en_leaf = _get_agrovoc_label(leaf_uri, store, "en").lower()
+                                if en_leaf:
+                                    leaf_for_compare = en_leaf
                     # Mismatch if leaf doesn't contain search term and vice versa
-                    if search not in leaf and leaf not in search and not _is_singular_plural_variant(search, leaf):
+                    if (
+                        search not in leaf_for_compare
+                        and leaf_for_compare not in search
+                        and not _is_singular_plural_variant(search, leaf_for_compare)
+                    ):
                         agrovoc_mismatch = True
                         logger.warning(
                             "AGROVOC mismatch for '%s': returned '%s'. "
