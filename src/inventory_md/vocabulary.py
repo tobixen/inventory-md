@@ -1886,12 +1886,19 @@ def _find_additional_translation_uris(
             logger.info("  Additional URI progress: %d/%d", idx, len(candidates))
 
         label = concept.prefLabel or cid.split("/")[-1].replace("_", " ")
+        # Try singular form too — DBpedia uses singular ("Book" not "Books")
+        singular = _normalize_to_singular(label)
+        labels_to_try = [label] if singular.lower() == label.lower() else [label, singular]
 
         for source in sources_to_try:
             if source in concept.source_uris:
                 continue  # Already have this source
 
-            result = client.lookup_concept(label, lang, source=source)
+            result = None
+            for try_label in labels_to_try:
+                result = client.lookup_concept(try_label, lang, source=source)
+                if result and result.get("uri"):
+                    break
             if not result or not result.get("uri"):
                 continue
 
@@ -2027,8 +2034,16 @@ def _build_supplementary_external_paths(
     supp_paths: list[str] = []
     target_id = target_concept_id or concept_id
 
+    # Try singular form too — DBpedia uses singular ("Book" not "Books")
+    singular = _normalize_to_singular(label)
+    labels_to_try = [label] if singular.lower() == label.lower() else [label, singular]
+
     if "dbpedia" in enabled_sources:
-        dbpedia_data = client.lookup_concept(label, lang, source="dbpedia")
+        dbpedia_data = None
+        for try_label in labels_to_try:
+            dbpedia_data = client.lookup_concept(try_label, lang, source="dbpedia")
+            if dbpedia_data and dbpedia_data.get("uri"):
+                break
         if dbpedia_data and dbpedia_data.get("uri"):
             if target_id in concepts:
                 _enrich_concept_with_external_metadata(concepts[target_id], dbpedia_data)
@@ -2046,7 +2061,11 @@ def _build_supplementary_external_paths(
                 supp_paths.append(src_path)
 
     if "wikidata" in enabled_sources:
-        wikidata_data = client.lookup_concept(label, lang, source="wikidata")
+        wikidata_data = None
+        for try_label in labels_to_try:
+            wikidata_data = client.lookup_concept(try_label, lang, source="wikidata")
+            if wikidata_data and wikidata_data.get("uri"):
+                break
         if wikidata_data and wikidata_data.get("uri"):
             if target_id in concepts:
                 _enrich_concept_with_external_metadata(concepts[target_id], wikidata_data)
