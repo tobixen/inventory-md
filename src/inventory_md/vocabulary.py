@@ -171,6 +171,30 @@ def load_global_vocabulary() -> dict[str, Concept]:
 # LANGUAGE FALLBACK SUPPORT
 # =============================================================================
 
+# Language code aliases — codes that refer to the same language.
+# Unlike fallbacks (which cross language boundaries), aliases are alternate
+# codes for the same language and should always be fetched together.
+# Example: "nb" (Norwegian Bokmål) and "no" (Norwegian) are used
+# interchangeably by different data sources (OFF uses "no", DBpedia uses "nb").
+LANGUAGE_CODE_ALIASES: dict[str, list[str]] = {
+    "nb": ["no"],
+    "no": ["nb"],
+}
+
+
+def expand_languages_with_aliases(languages: list[str]) -> list[str]:
+    """Expand a languages list to include alias codes.
+
+    Returns a new list with alias languages appended (no duplicates).
+    """
+    expanded = list(languages)
+    for lang in languages:
+        for alias in LANGUAGE_CODE_ALIASES.get(lang, []):
+            if alias not in expanded:
+                expanded.append(alias)
+    return expanded
+
+
 # Default language fallback chains (can be overridden via config)
 DEFAULT_LANGUAGE_FALLBACKS: dict[str, list[str]] = {
     # Scandinavian - mutually intelligible cluster
@@ -2735,13 +2759,18 @@ def build_vocabulary_with_skos_hierarchy(
         logger.info("Fetching translations for %d languages...", len(languages))
         _progress(progress, "translate", f"Fetching translations for {len(languages)} languages...")
 
+        # Expand languages with aliases so all sources return labels under
+        # alternate codes (e.g. OFF uses "no" while we request "nb").
+        # The final apply_language_fallbacks pass will normalise to canonical codes.
+        fetch_languages = expand_languages_with_aliases(languages)
+
         # OFF translations (fast - from local taxonomy data)
         if off_client is not None:
             _progress(progress, "translate", f"Fetching OFF translations for {len(off_node_ids)} concepts...")
             for concept_id, node_id in off_node_ids.items():
                 if concept_id in concepts:
                     concept = concepts[concept_id]
-                    off_labels = off_client.get_labels(node_id, languages, use_fallbacks=False)
+                    off_labels = off_client.get_labels(node_id, fetch_languages, use_fallbacks=False)
                     if off_labels:
                         # Sanity check: skip if English label doesn't match concept
                         en_label = off_labels.get("en", "")
@@ -2776,7 +2805,7 @@ def build_vocabulary_with_skos_hierarchy(
                             or uri.startswith("http://www.wikidata.org/")
                         ):
                             continue
-                        agrovoc_labels = _get_all_labels(uri, store, languages, use_fallbacks=False)
+                        agrovoc_labels = _get_all_labels(uri, store, fetch_languages, use_fallbacks=False)
                         if agrovoc_labels:
                             # Sanity check: skip if English label doesn't match
                             en_label = agrovoc_labels.get("en", "")
@@ -2816,7 +2845,7 @@ def build_vocabulary_with_skos_hierarchy(
             if dbpedia_uris:
                 _progress(progress, "translate", f"Fetching DBpedia translations for {len(dbpedia_uris)} concepts...")
                 logger.info("Fetching DBpedia translations for %d concepts...", len(dbpedia_uris))
-                dbpedia_translations = client.get_batch_labels(dbpedia_uris, languages)
+                dbpedia_translations = client.get_batch_labels(dbpedia_uris, fetch_languages)
                 applied = 0
                 for uri, labels in dbpedia_translations.items():
                     cids = dbpedia_concept_map.get(uri, [])
@@ -2866,7 +2895,7 @@ def build_vocabulary_with_skos_hierarchy(
             if wikidata_uris:
                 _progress(progress, "translate", f"Fetching Wikidata translations for {len(wikidata_uris)} concepts...")
                 logger.info("Fetching Wikidata translations for %d concepts...", len(wikidata_uris))
-                wikidata_translations = client.get_batch_labels(wikidata_uris, languages)
+                wikidata_translations = client.get_batch_labels(wikidata_uris, fetch_languages)
                 for uri, labels in wikidata_translations.items():
                     cids = wikidata_concept_map.get(uri, [])
                     if not labels:

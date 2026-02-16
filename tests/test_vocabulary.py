@@ -1099,6 +1099,26 @@ class TestLanguageFallbacks:
         assert da_idx < nn_idx  # Danish should come before Nynorsk
 
 
+class TestExpandLanguagesWithAliases:
+    """Tests for language code alias expansion."""
+
+    def test_nb_expands_to_no(self):
+        assert vocabulary.expand_languages_with_aliases(["en", "nb"]) == ["en", "nb", "no"]
+
+    def test_no_expands_to_nb(self):
+        assert vocabulary.expand_languages_with_aliases(["en", "no"]) == ["en", "no", "nb"]
+
+    def test_no_duplicates_when_both_present(self):
+        result = vocabulary.expand_languages_with_aliases(["en", "nb", "no"])
+        assert result == ["en", "nb", "no"]
+
+    def test_unaliased_language_unchanged(self):
+        assert vocabulary.expand_languages_with_aliases(["en", "fr"]) == ["en", "fr"]
+
+    def test_empty_list(self):
+        assert vocabulary.expand_languages_with_aliases([]) == []
+
+
 class TestLocalVocabularySourcePreservation:
     """Tests for preserving local vocabulary source even with external URIs.
 
