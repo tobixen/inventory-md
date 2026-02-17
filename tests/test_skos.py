@@ -682,12 +682,15 @@ class TestRESTAPI:
         assert result["uri"] == "http://dbpedia.org/resource/Helmet"
         assert "band" not in result["prefLabel"].lower()
 
+    @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_direct")
     @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_rest")
     @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_sparql")
-    def test_lookup_dbpedia_fallback_to_sparql(self, mock_sparql, mock_rest, tmp_path):
-        """Test fallback to SPARQL when DBpedia REST API fails."""
+    def test_lookup_dbpedia_fallback_to_sparql(self, mock_sparql, mock_rest, mock_direct, tmp_path):
+        """Test fallback to SPARQL when direct and REST both fail."""
         client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True, use_oxigraph=False)
 
+        # Direct URI returns None (miss)
+        mock_direct.return_value = None
         # REST API returns None (failure)
         mock_rest.return_value = None
 
@@ -706,6 +709,7 @@ class TestRESTAPI:
 
         assert result is not None
         assert result["uri"] == "http://dbpedia.org/resource/Potato"
+        mock_direct.assert_called_once()
         mock_sparql.assert_called_once()
 
     def test_lookup_dbpedia_sparql_returns_description_and_wikipedia_url(self, tmp_path):
@@ -1205,8 +1209,8 @@ class TestWikidataLookup:
 
     @patch("inventory_md.skos.SKOSClient._lookup_wikidata_sparql")
     def test_lookup_wikidata_dispatches_to_sparql(self, mock_sparql, tmp_path):
-        """_lookup_wikidata delegates to _lookup_wikidata_sparql."""
-        client = skos.SKOSClient(cache_dir=tmp_path)
+        """_lookup_wikidata delegates to _lookup_wikidata_sparql when REST disabled."""
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=False)
         mock_sparql.return_value = ({"uri": "http://www.wikidata.org/entity/Q10998"}, False)
 
         result, failed = client._lookup_wikidata("toilet paper", "en")
@@ -1843,3 +1847,196 @@ class TestOxigraphStore:
 
         assert stats["oxigraph_available"] is True
         assert stats["oxigraph_triples"] > 0
+
+
+class TestDBpediaDirect:
+    """Tests for _lookup_dbpedia_direct (direct URI construction)."""
+
+    @patch("inventory_md.skos.SKOSClient._get_broader_dbpedia")
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_direct_found(self, mock_query, mock_broader, tmp_path):
+        """Direct lookup succeeds when resource exists."""
+        mock_query.return_value = [
+            {
+                "label": {"value": "Potato"},
+                "comment": {"value": "A starchy tuber"},
+            }
+        ]
+        mock_broader.return_value = [
+            {"uri": "http://dbpedia.org/resource/Category:Root_vegetables", "label": "Root vegetables"}
+        ]
+
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        result = client._lookup_dbpedia_direct("potato", "en")
+
+        assert result is not None
+        concept, failed = result
+        assert failed is False
+        assert concept["uri"] == "http://dbpedia.org/resource/Potato"
+        assert concept["prefLabel"] == "Potato"
+        assert concept["description"] == "A starchy tuber"
+        assert concept["wikipediaUrl"] == "https://en.wikipedia.org/wiki/Potato"
+        assert len(concept["broader"]) == 1
+        mock_broader.assert_called_once_with("http://dbpedia.org/resource/Potato", "en")
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_direct_not_found(self, mock_query, tmp_path):
+        """Direct lookup returns None when resource doesn't exist."""
+        mock_query.return_value = []
+
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        result = client._lookup_dbpedia_direct("nonexistent_thing_xyz", "en")
+
+        assert result is None
+
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_direct_sparql_failure(self, mock_query, tmp_path):
+        """Direct lookup returns None on SPARQL error (allows fallback)."""
+        mock_query.return_value = None  # SPARQL error
+
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        result = client._lookup_dbpedia_direct("potato", "en")
+
+        assert result is None
+
+    @patch("inventory_md.skos.SKOSClient._get_broader_dbpedia")
+    @patch("inventory_md.skos.SKOSClient._sparql_query")
+    def test_direct_multi_word_label(self, mock_query, mock_broader, tmp_path):
+        """Multi-word labels are title-cased and joined with underscores."""
+        mock_query.return_value = [{"label": {"value": "Bread Knife"}, "comment": {"value": "A knife for bread"}}]
+        mock_broader.return_value = []
+
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        result = client._lookup_dbpedia_direct("bread knife", "en")
+
+        assert result is not None
+        concept, _ = result
+        assert concept["uri"] == "http://dbpedia.org/resource/Bread_Knife"
+
+    @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_sparql")
+    @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_rest")
+    @patch("inventory_md.skos.SKOSClient._lookup_dbpedia_direct")
+    def test_fallback_chain_direct_to_rest_to_sparql(self, mock_direct, mock_rest, mock_sparql, tmp_path):
+        """Full fallback chain: direct → REST → SPARQL."""
+        mock_direct.return_value = None  # Direct miss
+        mock_rest.return_value = None  # REST miss
+        mock_sparql.return_value = ({"uri": "http://dbpedia.org/resource/Widget", "source": "dbpedia"}, False)
+
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True)
+        result, failed = client._lookup_dbpedia("widget", "en")
+
+        assert not failed
+        assert result["uri"] == "http://dbpedia.org/resource/Widget"
+        mock_direct.assert_called_once_with("widget", "en")
+        mock_rest.assert_called_once()
+        mock_sparql.assert_called_once_with("widget", "en")
+
+
+class TestWikidataRest:
+    """Tests for _lookup_wikidata_rest (MediaWiki API)."""
+
+    def _make_entity(self, eid, label, *, has_enwiki=True, p31_ids=None, has_p279=False, description=None):
+        """Helper to build a Wikidata entity dict."""
+        entity = {"id": eid, "labels": {"en": {"value": label}}, "claims": {}, "sitelinks": {}}
+        if has_enwiki:
+            entity["sitelinks"]["enwiki"] = {"title": label.replace(" ", "_")}
+        if p31_ids:
+            entity["claims"]["P31"] = [{"mainsnak": {"datavalue": {"value": {"id": qid}}}} for qid in p31_ids]
+        if has_p279:
+            entity["claims"]["P279"] = [{"mainsnak": {"datavalue": {"value": {"id": "Q1"}}}}]
+        if description:
+            entity["descriptions"] = {"en": {"value": description}}
+        return entity
+
+    @patch("inventory_md.skos.SKOSClient._get_broader_wikidata")
+    def test_rest_found_with_p279_preference(self, mock_broader, tmp_path):
+        """REST lookup prefers entities with P279 (class/concept)."""
+        mock_broader.return_value = [{"uri": "http://www.wikidata.org/entity/Q7391", "label": "toy"}]
+
+        # Q11190 = specific game instance, Q12345 = class with P279
+        entity_instance = self._make_entity("Q11190", "Game", has_enwiki=True)
+        entity_class = self._make_entity("Q12345", "Game", has_enwiki=True, has_p279=True, description="An activity")
+
+        search_response = MagicMock()
+        search_response.status_code = 200
+        search_response.json.return_value = {"search": [{"id": "Q11190"}, {"id": "Q12345"}]}
+
+        entities_response = MagicMock()
+        entities_response.status_code = 200
+        entities_response.json.return_value = {"entities": {"Q11190": entity_instance, "Q12345": entity_class}}
+
+        with patch("niquests.get", side_effect=[search_response, entities_response]):
+            client = skos.SKOSClient(cache_dir=tmp_path)
+            result = client._lookup_wikidata_rest("game", "en", "https://www.wikidata.org/w/api.php")
+
+        assert result is not None
+        concept, failed = result
+        assert failed is False
+        assert concept["uri"] == "http://www.wikidata.org/entity/Q12345"
+        assert concept["prefLabel"] == "Game"
+        assert concept["description"] == "An activity"
+        mock_broader.assert_called_once_with("http://www.wikidata.org/entity/Q12345", "en")
+
+    @patch("inventory_md.skos.SKOSClient._get_broader_wikidata")
+    def test_rest_filters_humans(self, mock_broader, tmp_path):
+        """REST lookup filters out human entities (Q5)."""
+        mock_broader.return_value = []
+
+        entity_human = self._make_entity("Q1000", "Rose", has_enwiki=True, p31_ids=["Q5"])
+        entity_flower = self._make_entity("Q2000", "Rose", has_enwiki=True, p31_ids=["Q886"])
+
+        search_response = MagicMock()
+        search_response.status_code = 200
+        search_response.json.return_value = {"search": [{"id": "Q1000"}, {"id": "Q2000"}]}
+
+        entities_response = MagicMock()
+        entities_response.status_code = 200
+        entities_response.json.return_value = {"entities": {"Q1000": entity_human, "Q2000": entity_flower}}
+
+        with patch("niquests.get", side_effect=[search_response, entities_response]):
+            client = skos.SKOSClient(cache_dir=tmp_path)
+            result = client._lookup_wikidata_rest("rose", "en", "https://www.wikidata.org/w/api.php")
+
+        assert result is not None
+        concept, _ = result
+        assert concept["uri"] == "http://www.wikidata.org/entity/Q2000"
+
+    def test_rest_not_found(self, tmp_path):
+        """REST lookup returns None when no candidates found."""
+        search_response = MagicMock()
+        search_response.status_code = 200
+        search_response.json.return_value = {"search": []}
+
+        with patch("niquests.get", return_value=search_response):
+            client = skos.SKOSClient(cache_dir=tmp_path)
+            result = client._lookup_wikidata_rest("zzz_nonexistent", "en", "https://www.wikidata.org/w/api.php")
+
+        assert result is None
+
+    def test_rest_timeout_fallback(self, tmp_path):
+        """REST lookup returns None on timeout (allows SPARQL fallback)."""
+        try:
+            import niquests as requests_mod
+        except ImportError:
+            import requests as requests_mod
+
+        with patch("niquests.get", side_effect=requests_mod.Timeout("timeout")):
+            client = skos.SKOSClient(cache_dir=tmp_path)
+            result = client._lookup_wikidata_rest("game", "en", "https://www.wikidata.org/w/api.php")
+
+        assert result is None
+
+    @patch("inventory_md.skos.SKOSClient._lookup_wikidata_sparql")
+    @patch("inventory_md.skos.SKOSClient._lookup_wikidata_rest")
+    def test_rest_to_sparql_fallback_chain(self, mock_rest, mock_sparql, tmp_path):
+        """When REST returns None, _lookup_wikidata falls back to SPARQL."""
+        mock_rest.return_value = None  # REST miss
+        mock_sparql.return_value = ({"uri": "http://www.wikidata.org/entity/Q42"}, False)
+
+        client = skos.SKOSClient(cache_dir=tmp_path, use_rest_api=True)
+        result, failed = client._lookup_wikidata("game", "en")
+
+        assert not failed
+        assert result["uri"] == "http://www.wikidata.org/entity/Q42"
+        mock_rest.assert_called_once()
+        mock_sparql.assert_called_once_with("game", "en")

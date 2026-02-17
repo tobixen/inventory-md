@@ -36,6 +36,7 @@ ENDPOINTS = {
 REST_ENDPOINTS = {
     "agrovoc": "https://agrovoc.fao.org/browse/rest/v1",
     "dbpedia": "https://lookup.dbpedia.org/api",
+    "wikidata": "https://www.wikidata.org/w/api.php",
 }
 
 # Cache settings
@@ -153,6 +154,22 @@ _ABSTRACT_WIKIDATA_CLASSES: set[str] = {
     "Q151885",  # concept
     "Q246672",  # mathematical object
     "Q16889133",  # class
+}
+
+# Wikidata P31 (instance-of) types to exclude — mirrors the MINUS clauses in
+# the SPARQL search query (humans, fictional characters, films, etc.)
+_EXCLUDED_WIKIDATA_P31: set[str] = {
+    "Q5",  # human
+    "Q15632617",  # fictional human
+    "Q4167410",  # Wikimedia disambiguation page
+    "Q11424",  # film
+    "Q482994",  # album
+    "Q215380",  # musical group
+    "Q5398426",  # television series
+    "Q1002697",  # periodical
+    "Q134556",  # single (music)
+    "Q7366",  # song
+    "Q4830453",  # business
 }
 
 
@@ -1571,16 +1588,77 @@ class SKOSClient:
             return []  # Query failed, return empty
         return [{"uri": r["broader"]["value"], "label": r["label"]["value"]} for r in results]
 
+    def _lookup_dbpedia_direct(self, label: str, lang: str) -> tuple[dict | None, bool] | None:
+        """Look up concept in DBpedia by constructing a direct resource URI.
+
+        Builds ``http://dbpedia.org/resource/{Title_Case_Label}`` and verifies
+        existence with a single lightweight SPARQL query (max_retries=1).
+
+        Returns:
+            Tuple of (concept_dict, query_failed), or ``None`` to signal
+            that the caller should fall back to the next lookup method.
+        """
+        endpoint = self.endpoints.get("dbpedia")
+        if not endpoint:
+            return None
+
+        # Build candidate URI: "bread knife" → "http://dbpedia.org/resource/Bread_Knife"
+        resource_name = label.title().replace(" ", "_")
+        candidate_uri = f"http://dbpedia.org/resource/{resource_name}"
+
+        query = f"""
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+        SELECT ?label ?comment WHERE {{
+            <{candidate_uri}> rdfs:label ?label .
+            FILTER(lang(?label) = "{lang}")
+            OPTIONAL {{
+                <{candidate_uri}> rdfs:comment ?comment .
+                FILTER(lang(?comment) = "{lang}")
+            }}
+        }}
+        LIMIT 1
+        """
+
+        results = self._sparql_query(endpoint, query, max_retries=1, context=f"direct:{label}")
+        if results is None:
+            return None  # SPARQL error → let caller try next method
+        if not results:
+            return None  # Resource doesn't exist → fallback
+
+        pref_label = results[0].get("label", {}).get("value", label)
+        description = results[0].get("comment", {}).get("value")
+
+        # Generate Wikipedia URL
+        wikipedia_url = f"https://en.wikipedia.org/wiki/{resource_name}"
+
+        # Get category hierarchy using existing method
+        broader = self._get_broader_dbpedia(candidate_uri, lang)
+
+        return {
+            "uri": candidate_uri,
+            "prefLabel": pref_label,
+            "source": "dbpedia",
+            "broader": broader,
+            "description": description,
+            "wikipediaUrl": wikipedia_url,
+        }, False
+
     def _lookup_dbpedia(self, label: str, lang: str) -> tuple[dict | None, bool]:
         """Look up concept in DBpedia.
 
-        Priority: REST API (Lookup) > SPARQL (remote).
+        Priority: direct URI → REST API (Lookup) → SPARQL (remote).
 
         Returns:
             Tuple of (concept_dict, query_failed). query_failed is True if
             the query timed out or had a network error.
         """
-        # Try REST API first if enabled (faster)
+        # Try direct URI construction first (cheapest — single SPARQL verify)
+        direct_result = self._lookup_dbpedia_direct(label, lang)
+        if direct_result is not None:
+            return direct_result
+
+        # Try REST API if enabled (faster than full SPARQL search)
         if self.use_rest_api:
             rest_base = self.rest_endpoints.get("dbpedia")
             if rest_base:
@@ -1979,13 +2057,156 @@ class SKOSClient:
     def _lookup_wikidata(self, label: str, lang: str) -> tuple[dict | None, bool]:
         """Look up concept in Wikidata.
 
-        Goes straight to SPARQL (Wikidata has no REST Lookup API).
+        Priority: REST MediaWiki API (wbsearchentities) → SPARQL search.
 
         Returns:
             Tuple of (concept_dict, query_failed). query_failed is True if
             the query timed out or had a network error.
         """
+        if self.use_rest_api:
+            rest_base = self.rest_endpoints.get("wikidata")
+            if rest_base:
+                result = self._lookup_wikidata_rest(label, lang, rest_base)
+                if result is not None:
+                    return result
+                logger.debug(
+                    "Wikidata REST API returned no match, falling back to SPARQL for %s",
+                    label,
+                )
+
         return self._lookup_wikidata_sparql(label, lang)
+
+    def _lookup_wikidata_rest(self, label: str, lang: str, rest_base: str) -> tuple[dict | None, bool] | None:
+        """Look up concept in Wikidata via MediaWiki API (wbsearchentities + wbgetentities).
+
+        Uses the MediaWiki Action API which is not subject to the same rate
+        limits as the SPARQL endpoint.
+
+        Returns:
+            Tuple of (concept_dict, query_failed), or ``None`` to fall back
+            to SPARQL.
+        """
+        try:
+            import niquests as requests
+        except ImportError as e:
+            try:
+                import requests
+            except ImportError:
+                raise ImportError(
+                    "requests required for SKOS lookups. Install with: pip install inventory-md[skos]"
+                ) from e
+
+        headers = {"User-Agent": "inventory-md (SKOS vocabulary builder)"}
+
+        # Step 1: wbsearchentities — find candidate entity IDs
+        search_params = {
+            "action": "wbsearchentities",
+            "search": label,
+            "language": lang,
+            "format": "json",
+            "limit": "10",
+            "type": "item",
+        }
+        try:
+            resp = requests.get(rest_base, params=search_params, headers=headers, timeout=self.timeout)
+            resp.raise_for_status()
+            search_data = resp.json()
+        except (requests.Timeout, requests.RequestException) as e:
+            logger.warning("Wikidata wbsearchentities failed for %s: %s", label, e)
+            return None  # Fall back to SPARQL
+
+        candidates = search_data.get("search", [])
+        if not candidates:
+            return None  # Not found, fall back
+
+        entity_ids = [c["id"] for c in candidates]
+
+        # Step 2: wbgetentities — fetch claims, sitelinks, labels for all candidates
+        get_params = {
+            "action": "wbgetentities",
+            "ids": "|".join(entity_ids),
+            "props": "claims|sitelinks|labels|descriptions",
+            "languages": lang,
+            "sitefilter": "enwiki",
+            "format": "json",
+        }
+        try:
+            resp = requests.get(rest_base, params=get_params, headers=headers, timeout=self.timeout)
+            resp.raise_for_status()
+            entities_data = resp.json()
+        except (requests.Timeout, requests.RequestException) as e:
+            logger.warning("Wikidata wbgetentities failed for %s: %s", label, e)
+            return None  # Fall back to SPARQL
+
+        entities = entities_data.get("entities", {})
+
+        # Step 3: Filter and score candidates
+        best_class: dict | None = None  # Entity with P279 (subclass of)
+        first_valid: dict | None = None
+
+        for eid in entity_ids:
+            entity = entities.get(eid)
+            if not entity or entity.get("missing") is not None:
+                continue
+
+            # Require English Wikipedia sitelink (quality gate)
+            sitelinks = entity.get("sitelinks", {})
+            if "enwiki" not in sitelinks:
+                continue
+
+            # Exclude unwanted P31 types
+            claims = entity.get("claims", {})
+            p31_claims = claims.get("P31", [])
+            p31_ids = set()
+            for claim in p31_claims:
+                mainsnak = claim.get("mainsnak", {})
+                datavalue = mainsnak.get("datavalue", {})
+                value = datavalue.get("value", {})
+                if isinstance(value, dict) and "id" in value:
+                    p31_ids.add(value["id"])
+
+            if p31_ids & _EXCLUDED_WIKIDATA_P31:
+                continue
+
+            if first_valid is None:
+                first_valid = entity
+
+            # Prefer entities with P279 (subclass of) — indicates a class/concept
+            if best_class is None and "P279" in claims:
+                best_class = entity
+
+        chosen = best_class or first_valid
+        if chosen is None:
+            return None  # No valid candidate, fall back
+
+        item_id = chosen.get("id", "")
+        item_uri = f"http://www.wikidata.org/entity/{item_id}"
+
+        # Extract label
+        labels = chosen.get("labels", {})
+        pref_label = labels.get(lang, {}).get("value", label)
+
+        # Extract description
+        descriptions = chosen.get("descriptions", {})
+        description = descriptions.get(lang, {}).get("value")
+
+        # Wikipedia URL from sitelink
+        sitelinks = chosen.get("sitelinks", {})
+        enwiki = sitelinks.get("enwiki", {})
+        wp_title = enwiki.get("title", "")
+        wikipedia_url = f"https://en.wikipedia.org/wiki/{wp_title.replace(' ', '_')}" if wp_title else None
+
+        # Get broader concepts via P31/P279 (still uses SPARQL — single targeted query)
+        broader = self._get_broader_wikidata(item_uri, lang)
+
+        return {
+            "uri": item_uri,
+            "prefLabel": pref_label,
+            "source": "wikidata",
+            "broader": broader,
+            "description": description,
+            "wikipediaUrl": wikipedia_url,
+        }, False
 
     def _lookup_wikidata_sparql(self, label: str, lang: str) -> tuple[dict | None, bool]:
         """Look up concept in Wikidata via SPARQL.
