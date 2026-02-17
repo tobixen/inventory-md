@@ -2196,8 +2196,8 @@ class SKOSClient:
         wp_title = enwiki.get("title", "")
         wikipedia_url = f"https://en.wikipedia.org/wiki/{wp_title.replace(' ', '_')}" if wp_title else None
 
-        # Get broader concepts via P31/P279 (still uses SPARQL — single targeted query)
-        broader = self._get_broader_wikidata(item_uri, lang)
+        # Get broader concepts from claims we already have (no SPARQL needed)
+        broader = self._broader_from_claims(chosen, lang, rest_base, headers, requests)
 
         return {
             "uri": item_uri,
@@ -2207,6 +2207,134 @@ class SKOSClient:
             "description": description,
             "wikipediaUrl": wikipedia_url,
         }, False
+
+    def _broader_from_claims(
+        self,
+        entity: dict,
+        lang: str,
+        rest_base: str,
+        headers: dict,
+        requests: Any,
+    ) -> list[dict]:
+        """Extract broader concepts (P31/P279) from entity claims and fetch labels via REST.
+
+        Replaces _get_broader_wikidata's SPARQL query with pure MediaWiki API
+        calls, avoiding the rate-limited SPARQL endpoint entirely.
+        """
+        claims = entity.get("claims", {})
+
+        # Collect target entity IDs with their relation type
+        broader_ids: list[tuple[str, str]] = []  # (QID, relType)
+        for claim in claims.get("P31", []):
+            qid = self._qid_from_claim(claim)
+            if qid:
+                broader_ids.append((qid, "instance_of"))
+        for claim in claims.get("P279", []):
+            qid = self._qid_from_claim(claim)
+            if qid:
+                broader_ids.append((qid, "subclass_of"))
+
+        if not broader_ids:
+            return []
+
+        # Also fetch P279 (subclass-of) for P31 targets → P31/P279 chain
+        p31_target_ids = [qid for qid, rel in broader_ids if rel == "instance_of"]
+
+        # Batch-fetch labels for all broader entities
+        all_ids = list({qid for qid, _ in broader_ids})
+        labeled = self._fetch_entity_labels(all_ids, lang, rest_base, headers, requests)
+
+        # If we have P31 targets, fetch their P279 superclasses too (P31/P279 chain)
+        if p31_target_ids:
+            p31_entities = self._fetch_entities(p31_target_ids, rest_base, headers, requests)
+            for p31_qid in p31_target_ids:
+                p31_entity = p31_entities.get(p31_qid, {})
+                p31_claims = p31_entity.get("claims", {})
+                for claim in p31_claims.get("P279", []):
+                    qid = self._qid_from_claim(claim)
+                    if qid and qid not in labeled:
+                        broader_ids.append((qid, "subclass_of"))
+                        all_ids.append(qid)
+
+            # Fetch labels for any newly discovered IDs
+            new_ids = [qid for qid in all_ids if qid not in labeled]
+            if new_ids:
+                labeled.update(self._fetch_entity_labels(new_ids, lang, rest_base, headers, requests))
+
+        # Build broader list, filtering abstract classes
+        broader_list = []
+        seen: set[str] = set()
+        for qid, rel_type in broader_ids:
+            uri = f"http://www.wikidata.org/entity/{qid}"
+            if uri in seen or _is_abstract_wikidata_class(uri):
+                continue
+            seen.add(uri)
+            label = labeled.get(qid)
+            if label is None:
+                continue  # No label in requested language
+            broader_list.append({"uri": uri, "label": label, "relType": rel_type})
+
+        # Sort: instance_of first (more specific)
+        broader_list.sort(key=lambda x: 0 if x.get("relType") == "instance_of" else 1)
+        return broader_list
+
+    @staticmethod
+    def _qid_from_claim(claim: dict) -> str | None:
+        """Extract QID from a Wikidata claim's mainsnak."""
+        mainsnak = claim.get("mainsnak", {})
+        datavalue = mainsnak.get("datavalue", {})
+        value = datavalue.get("value", {})
+        if isinstance(value, dict) and "id" in value:
+            return value["id"]
+        return None
+
+    def _fetch_entity_labels(
+        self,
+        qids: list[str],
+        lang: str,
+        rest_base: str,
+        headers: dict,
+        requests: Any,
+    ) -> dict[str, str]:
+        """Fetch labels for a batch of Wikidata entity IDs via wbgetentities."""
+        if not qids:
+            return {}
+        entities = self._fetch_entities(qids, rest_base, headers, requests, props="labels", languages=lang)
+        result: dict[str, str] = {}
+        for qid in qids:
+            entity = entities.get(qid, {})
+            labels = entity.get("labels", {})
+            label_val = labels.get(lang, {}).get("value")
+            if label_val:
+                result[qid] = label_val
+        return result
+
+    def _fetch_entities(
+        self,
+        qids: list[str],
+        rest_base: str,
+        headers: dict,
+        requests: Any,
+        *,
+        props: str = "claims",
+        languages: str | None = None,
+    ) -> dict[str, dict]:
+        """Fetch entities from wbgetentities, returning {qid: entity_dict}."""
+        params: dict[str, str] = {
+            "action": "wbgetentities",
+            "ids": "|".join(qids[:50]),  # API limit
+            "props": props,
+            "format": "json",
+        }
+        if languages:
+            params["languages"] = languages
+        try:
+            resp = requests.get(rest_base, params=params, headers=headers, timeout=self.timeout)
+            resp.raise_for_status()
+            return resp.json().get("entities", {})
+        except (requests.Timeout, requests.RequestException) as e:
+            logger.warning("Wikidata wbgetentities broader failed: %s", e)
+            return {}
 
     def _lookup_wikidata_sparql(self, label: str, lang: str) -> tuple[dict | None, bool]:
         """Look up concept in Wikidata via SPARQL.

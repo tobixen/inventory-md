@@ -1948,11 +1948,8 @@ class TestWikidataRest:
             entity["descriptions"] = {"en": {"value": description}}
         return entity
 
-    @patch("inventory_md.skos.SKOSClient._get_broader_wikidata")
-    def test_rest_found_with_p279_preference(self, mock_broader, tmp_path):
-        """REST lookup prefers entities with P279 (class/concept)."""
-        mock_broader.return_value = [{"uri": "http://www.wikidata.org/entity/Q7391", "label": "toy"}]
-
+    def test_rest_found_with_p279_preference(self, tmp_path):
+        """REST lookup prefers entities with P279 (class/concept) and fetches broader via REST."""
         # Q11190 = specific game instance, Q12345 = class with P279
         entity_instance = self._make_entity("Q11190", "Game", has_enwiki=True)
         entity_class = self._make_entity("Q12345", "Game", has_enwiki=True, has_p279=True, description="An activity")
@@ -1965,7 +1962,12 @@ class TestWikidataRest:
         entities_response.status_code = 200
         entities_response.json.return_value = {"entities": {"Q11190": entity_instance, "Q12345": entity_class}}
 
-        with patch("niquests.get", side_effect=[search_response, entities_response]):
+        # _broader_from_claims fetches labels for P279 target Q1
+        labels_response = MagicMock()
+        labels_response.status_code = 200
+        labels_response.json.return_value = {"entities": {"Q1": {"labels": {"en": {"value": "universe"}}}}}
+
+        with patch("niquests.get", side_effect=[search_response, entities_response, labels_response]):
             client = skos.SKOSClient(cache_dir=tmp_path)
             result = client._lookup_wikidata_rest("game", "en", "https://www.wikidata.org/w/api.php")
 
@@ -1975,13 +1977,11 @@ class TestWikidataRest:
         assert concept["uri"] == "http://www.wikidata.org/entity/Q12345"
         assert concept["prefLabel"] == "Game"
         assert concept["description"] == "An activity"
-        mock_broader.assert_called_once_with("http://www.wikidata.org/entity/Q12345", "en")
+        # Broader fetched via REST, not SPARQL
+        assert any(b["uri"] == "http://www.wikidata.org/entity/Q1" for b in concept["broader"])
 
-    @patch("inventory_md.skos.SKOSClient._get_broader_wikidata")
-    def test_rest_filters_humans(self, mock_broader, tmp_path):
+    def test_rest_filters_humans(self, tmp_path):
         """REST lookup filters out human entities (Q5)."""
-        mock_broader.return_value = []
-
         entity_human = self._make_entity("Q1000", "Rose", has_enwiki=True, p31_ids=["Q5"])
         entity_flower = self._make_entity("Q2000", "Rose", has_enwiki=True, p31_ids=["Q886"])
 
@@ -1993,7 +1993,19 @@ class TestWikidataRest:
         entities_response.status_code = 200
         entities_response.json.return_value = {"entities": {"Q1000": entity_human, "Q2000": entity_flower}}
 
-        with patch("niquests.get", side_effect=[search_response, entities_response]):
+        # Labels for P31 target Q886, plus P31/P279 chain fetch for Q886
+        labels_response = MagicMock()
+        labels_response.status_code = 200
+        labels_response.json.return_value = {"entities": {"Q886": {"labels": {"en": {"value": "flowering plant"}}}}}
+
+        p31_chain_response = MagicMock()
+        p31_chain_response.status_code = 200
+        p31_chain_response.json.return_value = {"entities": {"Q886": {"claims": {}}}}
+
+        with patch(
+            "niquests.get",
+            side_effect=[search_response, entities_response, labels_response, p31_chain_response],
+        ):
             client = skos.SKOSClient(cache_dir=tmp_path)
             result = client._lookup_wikidata_rest("rose", "en", "https://www.wikidata.org/w/api.php")
 
