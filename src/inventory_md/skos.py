@@ -836,11 +836,12 @@ class SKOSClient:
 
         # Batch fetch uncached AGROVOC labels
         if uncached_agrovoc:
-            batch_results = self._get_agrovoc_labels_batch(uncached_agrovoc, languages)
+            batch_results, succeeded = self._get_agrovoc_labels_batch(uncached_agrovoc, languages)
             for uri, labels in batch_results.items():
                 results[uri] = labels
-                # Only cache non-empty results (empty likely means SPARQL failure)
-                if labels:
+                # Cache results for URIs whose query succeeded (even if empty —
+                # empty means "no labels in requested languages", not "query failed")
+                if uri in succeeded:
                     uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
                     cache_key = f"labels:agrovoc:{uri_hash}"
                     cache_path = _get_cache_path(self.cache_dir, cache_key)
@@ -848,11 +849,10 @@ class SKOSClient:
 
         # Batch fetch uncached DBpedia labels
         if uncached_dbpedia:
-            batch_results = self._get_dbpedia_labels_batch(uncached_dbpedia, languages)
+            batch_results, succeeded = self._get_dbpedia_labels_batch(uncached_dbpedia, languages)
             for uri, labels in batch_results.items():
                 results[uri] = labels
-                # Only cache non-empty results (empty likely means SPARQL failure)
-                if labels:
+                if uri in succeeded:
                     uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
                     cache_key = f"labels:dbpedia:{uri_hash}"
                     cache_path = _get_cache_path(self.cache_dir, cache_key)
@@ -860,11 +860,10 @@ class SKOSClient:
 
         # Batch fetch uncached Wikidata labels (uses DBpedia URIs internally)
         if uncached_wikidata:
-            batch_results = self._get_wikidata_labels_batch(uncached_wikidata, languages)
+            batch_results, succeeded = self._get_wikidata_labels_batch(uncached_wikidata, languages)
             for uri, labels in batch_results.items():
                 results[uri] = labels
-                # Only cache non-empty results (empty likely means SPARQL failure)
-                if labels:
+                if uri in succeeded:
                     uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
                     cache_key = f"labels:wikidata:{uri_hash}"
                     cache_path = _get_cache_path(self.cache_dir, cache_key)
@@ -872,14 +871,19 @@ class SKOSClient:
 
         return results
 
-    def _get_agrovoc_labels_batch(self, uris: list[str], languages: list[str]) -> dict[str, dict[str, str]]:
+    def _get_agrovoc_labels_batch(
+        self, uris: list[str], languages: list[str]
+    ) -> tuple[dict[str, dict[str, str]], set[str]]:
         """Get labels for multiple AGROVOC URIs in SPARQL queries.
 
         Uses local Oxigraph store if available (better language coverage),
         otherwise falls back to remote SPARQL endpoint.
+
+        Returns:
+            Tuple of (labels_by_uri, succeeded_uris).
         """
         if not uris:
-            return {}
+            return {}, set()
 
         # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
         query_languages = set(languages)
@@ -890,16 +894,21 @@ class SKOSClient:
         # Deduplicate URIs
         unique_uris = list(dict.fromkeys(uris))
         labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in unique_uris}
+        # Local Oxigraph always succeeds; remote SPARQL may fail per-chunk
+        succeeded_uris: set[str] = set()
 
         # Try local Oxigraph first (has better language coverage including Norwegian)
         oxigraph_store = self._get_oxigraph_store()
         if oxigraph_store is not None and oxigraph_store.is_loaded:
             labels_by_uri = self._get_agrovoc_labels_batch_oxigraph(oxigraph_store, unique_uris, query_languages)
+            succeeded_uris = set(unique_uris)  # Local queries always succeed
         else:
             # Fall back to remote SPARQL endpoint
             endpoint = self.endpoints.get("agrovoc")
             if endpoint:
-                labels_by_uri = self._get_agrovoc_labels_batch_sparql(endpoint, unique_uris, query_languages)
+                labels_by_uri, succeeded_uris = self._get_agrovoc_labels_batch_sparql(
+                    endpoint, unique_uris, query_languages
+                )
 
         # Apply fallbacks: if 'nb' not found but 'no' exists, copy 'no' to 'nb'
         for uri_labels in labels_by_uri.values():
@@ -909,7 +918,7 @@ class SKOSClient:
                     if fallback_lang and fallback_lang in uri_labels:
                         uri_labels[requested_lang] = uri_labels[fallback_lang]
 
-        return labels_by_uri
+        return labels_by_uri, succeeded_uris
 
     def _get_agrovoc_labels_batch_oxigraph(
         self, store: OxigraphStore, uris: list[str], languages: set[str]
@@ -943,9 +952,10 @@ class SKOSClient:
 
     def _get_agrovoc_labels_batch_sparql(
         self, endpoint: str, uris: list[str], languages: set[str]
-    ) -> dict[str, dict[str, str]]:
+    ) -> tuple[dict[str, dict[str, str]], set[str]]:
         """Get AGROVOC labels from remote SPARQL endpoint."""
         labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in uris}
+        succeeded_uris: set[str] = set()
 
         # Split into chunks to avoid URL length limits
         chunk_size = 50
@@ -971,6 +981,7 @@ class SKOSClient:
             if results is None:
                 continue
 
+            succeeded_uris.update(chunk)
             for r in results:
                 concept_uri = r.get("concept", {}).get("value", "")
                 lang = r.get("lang", {}).get("value", "")
@@ -978,16 +989,24 @@ class SKOSClient:
                 if concept_uri and lang and label and concept_uri in labels_by_uri:
                     labels_by_uri[concept_uri][lang] = label
 
-        return labels_by_uri
+        return labels_by_uri, succeeded_uris
 
-    def _get_dbpedia_labels_batch(self, uris: list[str], languages: list[str]) -> dict[str, dict[str, str]]:
+    def _get_dbpedia_labels_batch(
+        self, uris: list[str], languages: list[str]
+    ) -> tuple[dict[str, dict[str, str]], set[str]]:
         """Get labels for multiple DBpedia URIs in SPARQL queries.
 
         Splits large batches into chunks to avoid URL length limits (414 errors).
+
+        Returns:
+            Tuple of (labels_by_uri, succeeded_uris). succeeded_uris contains
+            URIs whose chunks completed without error — an empty label dict for
+            a succeeded URI means "no labels exist" (cacheable), whereas a URI
+            not in succeeded_uris means "query failed" (not cacheable).
         """
         endpoint = self.endpoints.get("dbpedia")
         if not endpoint or not uris:
-            return {}
+            return {}, set()
 
         # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
         query_languages = set(languages)
@@ -1001,6 +1020,8 @@ class SKOSClient:
         # Split into chunks to avoid URL length limits (max ~20 URIs per query)
         chunk_size = 20
         labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in unique_uris}
+        # Track URIs whose chunks succeeded (so empty = "no labels", not "query failed")
+        succeeded_uris: set[str] = set()
 
         for i in range(0, len(unique_uris), chunk_size):
             chunk = unique_uris[i : i + chunk_size]
@@ -1022,6 +1043,7 @@ class SKOSClient:
             if results is None:
                 continue  # Skip failed chunk, try next
 
+            succeeded_uris.update(chunk)
             for r in results:
                 concept_uri = r.get("concept", {}).get("value", "")
                 lang = r.get("lang", {}).get("value", "")
@@ -1038,9 +1060,11 @@ class SKOSClient:
                     if fallback_lang and fallback_lang in uri_labels:
                         uri_labels[requested_lang] = uri_labels[fallback_lang]
 
-        return labels_by_uri
+        return labels_by_uri, succeeded_uris
 
-    def _get_wikidata_labels_batch(self, uris: list[str], languages: list[str]) -> dict[str, dict[str, str]]:
+    def _get_wikidata_labels_batch(
+        self, uris: list[str], languages: list[str]
+    ) -> tuple[dict[str, dict[str, str]], set[str]]:
         """Get labels for multiple concepts from Wikidata.
 
         Handles two URI types:
@@ -1054,11 +1078,11 @@ class SKOSClient:
             languages: List of language codes to fetch.
 
         Returns:
-            Dictionary mapping original URIs to label dictionaries.
+            Tuple of (labels_by_uri, succeeded_uris).
         """
         endpoint = self.endpoints.get("wikidata")
         if not endpoint or not uris:
-            return {}
+            return {}, set()
 
         # Expand languages with fallbacks (e.g., 'nb' -> also query 'no')
         query_languages = set(languages)
@@ -1084,6 +1108,7 @@ class SKOSClient:
                 native_wikidata_uris.append(uri)
 
         labels_by_uri: dict[str, dict[str, str]] = {uri: {} for uri in dict.fromkeys(uris)}
+        succeeded_uris: set[str] = set()
 
         # --- DBpedia URIs via Wikipedia sitelinks ---
         if wp_to_original:
@@ -1110,6 +1135,12 @@ class SKOSClient:
                 )
                 if results is None:
                     continue
+
+                # Mark original URIs in this chunk as succeeded
+                for wp_url in chunk:
+                    original_uri = wp_to_original.get(wp_url)
+                    if original_uri:
+                        succeeded_uris.add(original_uri)
 
                 for r in results:
                     wp_url = r.get("wpPage", {}).get("value", "")
@@ -1142,6 +1173,7 @@ class SKOSClient:
                 if results is None:
                     continue
 
+                succeeded_uris.update(chunk)
                 for r in results:
                     item_uri = r.get("item", {}).get("value", "")
                     lang = r.get("lang", {}).get("value", "")
@@ -1158,7 +1190,7 @@ class SKOSClient:
                     if fallback_lang and fallback_lang in uri_labels:
                         uri_labels[requested_lang] = uri_labels[fallback_lang]
 
-        return labels_by_uri
+        return labels_by_uri, succeeded_uris
 
     def _get_agrovoc_labels(self, uri: str, languages: list[str]) -> dict[str, str]:
         """Get labels from AGROVOC in multiple languages using SPARQL."""

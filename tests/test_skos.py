@@ -975,7 +975,7 @@ class TestLanguageFallback:
             {"concept": {"value": "http://example.org/b"}, "lang": {"value": "nb"}, "label": {"value": "B-nb"}},
         ]
 
-        result = client._get_agrovoc_labels_batch(
+        result, succeeded = client._get_agrovoc_labels_batch(
             ["http://example.org/a", "http://example.org/b"], languages=["en", "nb"]
         )
 
@@ -983,6 +983,7 @@ class TestLanguageFallback:
         assert result["http://example.org/a"]["nb"] == "A-no"
         # URI 'b' should have actual nb
         assert result["http://example.org/b"]["nb"] == "B-nb"
+        assert succeeded == {"http://example.org/a", "http://example.org/b"}
 
 
 class TestWikidataLookup:
@@ -1263,7 +1264,7 @@ class TestWikidataLabels:
             },
         ]
 
-        result = client._get_wikidata_labels_batch(
+        result, succeeded = client._get_wikidata_labels_batch(
             ["http://dbpedia.org/resource/Toilet_paper", "http://dbpedia.org/resource/Potato"],
             languages=["nb"],
         )
@@ -1286,7 +1287,7 @@ class TestWikidataLabels:
             },
         ]
 
-        result = client._get_wikidata_labels_batch(
+        result, _ = client._get_wikidata_labels_batch(
             ["http://dbpedia.org/resource/Potato"],
             languages=["nb"],
         )
@@ -1298,7 +1299,7 @@ class TestWikidataLabels:
         """Non-DBpedia/non-Wikidata URIs produce no SPARQL query and empty labels."""
         client = skos.SKOSClient(cache_dir=tmp_path)
 
-        result = client._get_wikidata_labels_batch(
+        result, succeeded = client._get_wikidata_labels_batch(
             ["http://aims.fao.org/aos/agrovoc/c_13551"],
             languages=["nb"],
         )
@@ -1306,23 +1307,24 @@ class TestWikidataLabels:
         mock_query.assert_not_called()
         # URI is present but with no labels (no query was made for it)
         assert result["http://aims.fao.org/aos/agrovoc/c_13551"] == {}
+        # Non-DBpedia/non-Wikidata URI is not in any succeeded chunk
+        assert "http://aims.fao.org/aos/agrovoc/c_13551" not in succeeded
 
     @patch("inventory_md.skos.SKOSClient._get_wikidata_labels_batch")
     def test_get_batch_labels_dispatches_wikidata(self, mock_wikidata, tmp_path):
         """get_batch_labels dispatches 'wikidata' source to _get_wikidata_labels_batch."""
         client = skos.SKOSClient(cache_dir=tmp_path)
+        uri = "http://dbpedia.org/resource/Potato"
 
-        mock_wikidata.return_value = {
-            "http://dbpedia.org/resource/Potato": {"nb": "potet"},
-        }
+        mock_wikidata.return_value = ({uri: {"nb": "potet"}}, {uri})
 
         result = client.get_batch_labels(
-            [("http://dbpedia.org/resource/Potato", "wikidata")],
+            [(uri, "wikidata")],
             languages=["nb"],
         )
 
-        mock_wikidata.assert_called_once_with(["http://dbpedia.org/resource/Potato"], ["nb"])
-        assert result["http://dbpedia.org/resource/Potato"]["nb"] == "potet"
+        mock_wikidata.assert_called_once_with([uri], ["nb"])
+        assert result[uri]["nb"] == "potet"
 
     @patch("inventory_md.skos.SKOSClient._sparql_query")
     def test_wikidata_batch_handles_native_wikidata_uris(self, mock_query, tmp_path):
@@ -1337,7 +1339,7 @@ class TestWikidataLabels:
             },
         ]
 
-        result = client._get_wikidata_labels_batch(
+        result, _ = client._get_wikidata_labels_batch(
             ["http://www.wikidata.org/entity/Q10998"],
             languages=["nb"],
         )
@@ -1372,7 +1374,7 @@ class TestWikidataLabels:
         ]
         mock_query.side_effect = [dbpedia_results, wikidata_results]
 
-        result = client._get_wikidata_labels_batch(
+        result, _ = client._get_wikidata_labels_batch(
             [
                 "http://dbpedia.org/resource/Potato",
                 "http://www.wikidata.org/entity/Q10998",
@@ -1385,54 +1387,54 @@ class TestWikidataLabels:
 
 
 class TestBatchLabelsCaching:
-    """Tests that get_batch_labels does not cache empty/failed results."""
+    """Tests for get_batch_labels caching of succeeded vs failed results."""
 
     @patch("inventory_md.skos.SKOSClient._get_dbpedia_labels_batch")
-    def test_empty_dbpedia_labels_not_cached(self, mock_batch, tmp_path):
+    def test_failed_dbpedia_labels_not_cached(self, mock_batch, tmp_path):
         """Empty label dicts from failed SPARQL queries must not be cached."""
+        uri = "http://dbpedia.org/resource/Electronics"
         client = skos.SKOSClient(cache_dir=tmp_path)
-        # Simulate a batch that returns empty labels (SPARQL failure)
-        mock_batch.return_value = {
-            "http://dbpedia.org/resource/Electronics": {},
-        }
+        # URI NOT in succeeded set — simulates a failed SPARQL chunk
+        mock_batch.return_value = ({uri: {}}, set())
 
-        client.get_batch_labels(
-            [("http://dbpedia.org/resource/Electronics", "dbpedia")],
-            languages=["nb"],
-        )
+        client.get_batch_labels([(uri, "dbpedia")], languages=["nb"])
 
-        # No cache file should have been written for the empty result
         cache_files = list(tmp_path.glob("labels_dbpedia_*.json"))
-        assert cache_files == [], f"Should not cache empty labels, found {cache_files}"
+        assert cache_files == [], f"Should not cache failed labels, found {cache_files}"
+
+    @patch("inventory_md.skos.SKOSClient._get_dbpedia_labels_batch")
+    def test_succeeded_empty_dbpedia_labels_are_cached(self, mock_batch, tmp_path):
+        """Empty labels from a succeeded query (no translations) should be cached."""
+        uri = "http://dbpedia.org/resource/Electronics"
+        client = skos.SKOSClient(cache_dir=tmp_path)
+        # URI IS in succeeded set — query worked, just no labels in requested lang
+        mock_batch.return_value = ({uri: {}}, {uri})
+
+        client.get_batch_labels([(uri, "dbpedia")], languages=["nb"])
+
+        cache_files = list(tmp_path.glob("labels_dbpedia_*.json"))
+        assert len(cache_files) == 1
 
     @patch("inventory_md.skos.SKOSClient._get_dbpedia_labels_batch")
     def test_nonempty_dbpedia_labels_are_cached(self, mock_batch, tmp_path):
         """Non-empty label dicts should be cached normally."""
+        uri = "http://dbpedia.org/resource/Electronics"
         client = skos.SKOSClient(cache_dir=tmp_path)
-        mock_batch.return_value = {
-            "http://dbpedia.org/resource/Electronics": {"nb": "elektronikk"},
-        }
+        mock_batch.return_value = ({uri: {"nb": "elektronikk"}}, {uri})
 
-        client.get_batch_labels(
-            [("http://dbpedia.org/resource/Electronics", "dbpedia")],
-            languages=["nb"],
-        )
+        client.get_batch_labels([(uri, "dbpedia")], languages=["nb"])
 
         cache_files = list(tmp_path.glob("labels_dbpedia_*.json"))
         assert len(cache_files) == 1
 
     @patch("inventory_md.skos.SKOSClient._get_wikidata_labels_batch")
-    def test_empty_wikidata_labels_not_cached(self, mock_batch, tmp_path):
+    def test_failed_wikidata_labels_not_cached(self, mock_batch, tmp_path):
         """Empty Wikidata label dicts from timeouts must not be cached."""
+        uri = "http://www.wikidata.org/entity/Q11650"
         client = skos.SKOSClient(cache_dir=tmp_path)
-        mock_batch.return_value = {
-            "http://www.wikidata.org/entity/Q11650": {},
-        }
+        mock_batch.return_value = ({uri: {}}, set())
 
-        client.get_batch_labels(
-            [("http://www.wikidata.org/entity/Q11650", "wikidata")],
-            languages=["nb"],
-        )
+        client.get_batch_labels([(uri, "wikidata")], languages=["nb"])
 
         cache_files = list(tmp_path.glob("labels_wikidata_*.json"))
         assert cache_files == []
