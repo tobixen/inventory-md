@@ -2,7 +2,7 @@
 
 ## Design thoughts
 
-Disclaimer: Most of the "design thoughts here was written by a human.  Starting from "overview" further below, most was written by AI.   I will look through and merge together the information properly at some point in the future ... when/if I get time.
+Disclaimer: Most of the "design thoughts" here was written by a human.  Starting from "overview" further below, most was written by AI.   I will look through and merge together the information properly at some point in the future ... when/if I get time.
 
 ### SKOS
 
