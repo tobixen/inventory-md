@@ -91,6 +91,82 @@ This is the introduction.
         assert result["intro"] == "This is the introduction."
         assert len(result["containers"]) == 1
 
+    def test_structural_wrapper_section_not_a_container(self, tmp_path):
+        """Sections without ID are structural wrappers - not containers, but their subsections are."""
+        md_file = tmp_path / "inventory.md"
+        md_file.write_text("""# Storage overview
+
+## ID:box1 Box 1
+
+* item1
+
+## ID:box2 Box 2
+
+* item2
+""")
+        result = parser.parse_inventory(md_file)
+
+        container_ids = [c["id"] for c in result["containers"]]
+        assert "box1" in container_ids
+        assert "box2" in container_ids
+        # The wrapper itself is not a container
+        assert "Storage-overview" not in container_ids
+        assert len(result["containers"]) == 2
+
+    def test_structural_wrapper_items_are_found(self, tmp_path):
+        """Items inside containers under a structural wrapper section are found."""
+        md_file = tmp_path / "inventory.md"
+        md_file.write_text("""# Attic storage
+
+## ID:A1 Box A1
+
+* category:electronics USB cable
+* category:electronics USB charger
+
+## ID:A2 Box A2
+
+* category:tools Hammer
+""")
+        result = parser.parse_inventory(md_file)
+
+        all_items = [item for c in result["containers"] for item in c["items"]]
+        item_names = [i["name"] for i in all_items]
+        assert "USB cable" in item_names
+        assert "USB charger" in item_names
+        assert "Hammer" in item_names
+
+    def test_configurable_intro_section_name(self, tmp_path):
+        """Intro section name is configurable via config dict."""
+        md_file = tmp_path / "inventory.md"
+        md_file.write_text("""# Preface
+
+Custom intro text.
+
+# ID:box1 Box
+
+* item
+""")
+        config = {"sections": {"intro": "Preface", "numbering_scheme": "Numbering"}}
+        result = parser.parse_inventory(md_file, config=config)
+
+        assert result["intro"] == "Custom intro text."
+        assert len(result["containers"]) == 1
+
+    def test_default_intro_section_name(self, tmp_path):
+        """Default intro section name is 'Intro'."""
+        md_file = tmp_path / "inventory.md"
+        md_file.write_text("""# Intro
+
+Default intro text.
+
+# ID:box1 Box
+
+* item
+""")
+        result = parser.parse_inventory(md_file)
+
+        assert result["intro"] == "Default intro text."
+
     def test_parse_indented_items(self, tmp_path):
         """Test parsing indented (nested) items."""
         md_file = tmp_path / "inventory.md"

@@ -174,12 +174,16 @@ def extract_metadata(text: str) -> dict[str, Any]:
     return {"metadata": metadata, "name": remaining}
 
 
-def parse_inventory(md_file: Path) -> dict[str, Any]:
+def parse_inventory(md_file: Path, config: dict[str, Any] | None = None) -> dict[str, Any]:
     """
     Parse the markdown inventory file into structured data using markdown-it-py.
 
     This is a refactored version that uses the markdown-it-py library for base parsing.
     It maintains backward compatibility with the original parse_inventory output format.
+
+    Args:
+        md_file: Path to the inventory markdown file.
+        config: Optional configuration dict. If None, loaded from standard config locations.
 
     Returns:
         {
@@ -189,6 +193,14 @@ def parse_inventory(md_file: Path) -> dict[str, Any]:
         }
     """
     from . import md_adapter
+    from .config import load_config
+
+    if config is None:
+        config = load_config()
+
+    sections_config = config.get("sections", {})
+    intro_section_name = sections_config.get("intro", "Intro")
+    numbering_section_name = sections_config.get("numbering_scheme", "Nummereringsregime")
 
     with open(md_file, encoding="utf-8") as f:
         content = f.read()
@@ -205,28 +217,26 @@ def parse_inventory(md_file: Path) -> dict[str, Any]:
         """Process a section and its subsections recursively."""
         heading = section.heading
 
-        # Skip special sections
-        if heading.strip().startswith("Intro"):
+        # Check for configured special sections (intro, numbering scheme)
+        if heading.strip() == intro_section_name:
             result["intro"] = "\n\n".join(section.paragraphs)
             return
-        if heading.strip().startswith("Nummereringsregime"):
+        if heading.strip() == numbering_section_name:
             result["numbering_scheme"] = "\n\n".join(section.paragraphs)
-            return
-        if heading.strip().startswith("Oversikt over"):
             return
 
         # Extract metadata from heading
         parsed = extract_metadata(heading)
 
-        # Get container ID
-        if parsed["metadata"].get("id"):
-            container_id = parsed["metadata"]["id"]
-        else:
-            # Generate ID from heading text
-            clean_heading = parsed["name"] if parsed["name"] else heading
-            sanitized = re.sub(r"[^\w\s-]", "", clean_heading)
-            sanitized = re.sub(r"\s+", "-", sanitized.strip())
-            container_id = sanitized[:50] if sanitized else f"Container-{section.level}"
+        # Sections without an explicit ID are structural/organizational wrappers
+        # (e.g. "# Attic storage", "# Overview"). Don't create a container for
+        # them, but still recurse so their sub-sections become containers.
+        if not parsed["metadata"].get("id"):
+            for subsection in section.subsections:
+                process_section(subsection, parent_container_id)
+            return
+
+        container_id = parsed["metadata"]["id"]
 
         # Determine parent
         parent_id = parsed["metadata"].get("parent")

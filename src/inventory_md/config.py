@@ -26,6 +26,12 @@ CONFIG_USER_FILENAMES = ["config.yaml", "config.json"]
 
 DEFAULTS: dict[str, Any] = {
     "lang": "en",  # Default language for the inventory
+    "sections": {
+        # Heading text of the intro section (captured into JSON as "intro")
+        "intro": "Intro",
+        # Heading text of the numbering scheme section (captured into JSON as "numbering_scheme")
+        "numbering_scheme": "Nummereringsregime",
+    },
     "api": {"host": "127.0.0.1", "port": 8765},
     "serve": {"host": "127.0.0.1", "port": 8000},
     "labels": {
