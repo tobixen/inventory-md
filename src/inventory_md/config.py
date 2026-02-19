@@ -368,6 +368,14 @@ class Config:
         return self.get("serve.port", 8000)
 
     @property
+    def tingbok_url(self) -> str | None:
+        """Return tingbok service URL if configured (e.g. 'https://tingbok.plann.no').
+
+        Set via config key ``tingbok.url`` or env var ``INVENTORY_MD_TINGBOK__URL``.
+        """
+        return self.get("tingbok.url") or None
+
+    @property
     def labels_base_url(self) -> str:
         """Return labels base URL."""
         return self.get("labels.base_url", "https://inventory.example.com/search.html")

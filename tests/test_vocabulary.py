@@ -5108,3 +5108,202 @@ class TestSupplementaryExternalPaths:
         # category_by_source/wikidata/ should exist
         cbs_wikidata = [p for p in mappings["rice"] if p.startswith("category_by_source/wikidata/")]
         assert len(cbs_wikidata) > 0
+
+
+class TestFetchVocabularyFromTingbok:
+    """Tests for fetch_vocabulary_from_tingbok()."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    VOCAB_RESPONSE = {
+        "food": {
+            "id": "food",
+            "prefLabel": "Food",
+            "altLabel": {"en": ["groceries"], "nb": ["mat"]},
+            "broader": [],
+            "narrower": ["food/vegetables"],
+            "uri": "http://dbpedia.org/resource/Food",
+            "labels": {"en": "Food", "nb": "Mat"},
+            "description": None,
+            "wikipediaUrl": None,
+        },
+        "food/vegetables": {
+            "id": "food/vegetables",
+            "prefLabel": "Vegetables",
+            "altLabel": {},
+            "broader": ["food"],
+            "narrower": [],
+            "uri": None,
+            "labels": {},
+            "description": None,
+            "wikipediaUrl": None,
+        },
+    }
+
+    def test_returns_concepts_on_success(self):
+        """Successful fetch converts JSON to Concept objects with source='package'."""
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = self.VOCAB_RESPONSE
+
+        with patch("niquests.get", return_value=mock_response):
+            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+
+        assert "food" in result
+        assert "food/vegetables" in result
+        assert result["food"].prefLabel == "Food"
+        assert result["food"].source == "package"
+        assert result["food"].altLabels == {"en": ["groceries"], "nb": ["mat"]}
+        assert result["food"].labels == {"en": "Food", "nb": "Mat"}
+        assert result["food"].uri == "http://dbpedia.org/resource/Food"
+        assert result["food/vegetables"].broader == ["food"]
+
+    def test_strips_trailing_slash_from_url(self):
+        """URL with trailing slash is handled correctly."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = self.VOCAB_RESPONSE
+
+        with patch("niquests.get", return_value=mock_response) as mock_get:
+            vocabulary.fetch_vocabulary_from_tingbok("https://tingbok.plann.no/")
+
+        called_url = mock_get.call_args[0][0]
+        assert called_url == "https://tingbok.plann.no/api/vocabulary"
+
+    def test_returns_empty_on_http_error(self):
+        """Non-200 response returns empty dict (don't raise)."""
+        mock_response = MagicMock()
+        mock_response.status_code = 503
+        mock_response.raise_for_status.side_effect = Exception("Service Unavailable")
+
+        with patch("niquests.get", return_value=mock_response):
+            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+
+        assert result == {}
+
+    def test_returns_empty_on_connection_error(self):
+        """Network error returns empty dict (don't raise)."""
+        import niquests
+
+        with patch("niquests.get", side_effect=niquests.ConnectionError("refused")):
+            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+
+        assert result == {}
+
+    def test_returns_empty_on_timeout(self):
+        """Timeout returns empty dict."""
+        import niquests
+
+        with patch("niquests.get", side_effect=niquests.Timeout("timed out")):
+            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+
+        assert result == {}
+
+
+class TestLoadGlobalVocabularyTingbok:
+    """Tests for load_global_vocabulary() with tingbok_url and skip_cwd."""
+
+    VOCAB_RESPONSE = {
+        "food": {
+            "id": "food",
+            "prefLabel": "Food",
+            "altLabel": {},
+            "broader": [],
+            "narrower": [],
+            "uri": None,
+            "labels": {},
+            "description": None,
+            "wikipediaUrl": None,
+        }
+    }
+
+    def test_uses_tingbok_when_url_configured(self):
+        """load_global_vocabulary(tingbok_url=...) fetches from tingbok."""
+        with (
+            patch.object(
+                vocabulary,
+                "fetch_vocabulary_from_tingbok",
+                return_value={
+                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="package"),
+                },
+            ) as mock_fetch,
+            patch.object(vocabulary, "find_vocabulary_files", return_value=[]),
+        ):
+            result = vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
+
+        mock_fetch.assert_called_once_with("https://tingbok.plann.no")
+        assert "food" in result
+        assert result["food"].source == "package"
+
+    def test_skips_package_file_when_tingbok_succeeds(self, tmp_path):
+        """When tingbok returns concepts, the package vocab file is not loaded."""
+        fake_pkg = tmp_path / "pkg"
+        fake_pkg_vocab = fake_pkg / "vocabulary.yaml"
+
+        with (
+            patch.object(
+                vocabulary,
+                "fetch_vocabulary_from_tingbok",
+                return_value={
+                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="package"),
+                },
+            ),
+            patch.object(vocabulary, "find_vocabulary_files", return_value=[fake_pkg_vocab]),
+            patch.object(vocabulary, "_get_package_data_dir", return_value=fake_pkg),
+            patch.object(vocabulary, "load_local_vocabulary") as mock_load,
+        ):
+            vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
+
+        # The package file should not have been loaded
+        mock_load.assert_not_called()
+
+    def test_falls_back_to_local_file_when_tingbok_fails(self, tmp_path):
+        """When tingbok returns empty, falls back to loading the package vocab file."""
+        fake_pkg = tmp_path / "pkg"
+        fake_vocab_path = fake_pkg / "vocabulary.yaml"
+
+        with (
+            patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}),
+            patch.object(vocabulary, "find_vocabulary_files", return_value=[fake_vocab_path]),
+            patch.object(vocabulary, "_get_package_data_dir", return_value=fake_pkg),
+            patch.object(
+                vocabulary,
+                "load_local_vocabulary",
+                return_value={
+                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="package"),
+                },
+            ) as mock_load,
+        ):
+            result = vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
+
+        mock_load.assert_called_once_with(fake_vocab_path, default_source="package")
+        assert "food" in result
+
+    def test_skip_cwd_excludes_cwd_files(self, tmp_path, monkeypatch):
+        """skip_cwd=True does not load vocabulary files found in cwd."""
+        monkeypatch.chdir(tmp_path)
+        cwd_vocab = tmp_path / "vocabulary.yaml"
+        cwd_vocab.write_text("concepts:\n  local_thing:\n    prefLabel: 'Local'\n")
+
+        with (
+            patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}),
+            patch.object(vocabulary, "find_vocabulary_files", return_value=[cwd_vocab]),
+            patch.object(vocabulary, "_get_package_data_dir", return_value=None),
+        ):
+            result = vocabulary.load_global_vocabulary(skip_cwd=True)
+
+        assert "local_thing" not in result
+
+    def test_without_tingbok_url_loads_normally(self, tmp_path):
+        """Without tingbok_url, behaves as before (loads from local files)."""
+        vocab_file = tmp_path / "vocabulary.yaml"
+        vocab_file.write_text("concepts:\n  food:\n    prefLabel: 'Food'\n")
+
+        with (
+            patch.object(vocabulary, "find_vocabulary_files", return_value=[vocab_file]),
+            patch.object(vocabulary, "_get_package_data_dir", return_value=None),
+        ):
+            result = vocabulary.load_global_vocabulary()
+
+        assert "food" in result

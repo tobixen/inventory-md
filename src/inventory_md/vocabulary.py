@@ -138,21 +138,45 @@ def find_vocabulary_files() -> list[Path]:
     return found_files
 
 
-def load_global_vocabulary() -> dict[str, Concept]:
+def load_global_vocabulary(
+    tingbok_url: str | None = None,
+    skip_cwd: bool = False,
+) -> dict[str, Concept]:
     """Load and merge vocabulary from all standard locations.
 
     Loads vocabularies from package defaults, system, user, and local
     directories, merging them with proper precedence (later overrides earlier).
+
+    Args:
+        tingbok_url: Optional URL of a running tingbok service. If provided,
+            the package vocabulary is fetched from tingbok instead of the
+            local file. Falls back to the local file if tingbok is unreachable.
+        skip_cwd: If True, skip vocabulary files found in the current working
+            directory (useful when local vocab is loaded separately).
 
     Returns:
         Merged vocabulary dictionary mapping concept IDs to Concept objects.
     """
     merged: dict[str, Concept] = {}
     pkg_data = _get_package_data_dir()
+    package_loaded_from_tingbok = False
+
+    # Try loading package vocabulary from tingbok first
+    if tingbok_url:
+        pkg_vocab = fetch_vocabulary_from_tingbok(tingbok_url)
+        if pkg_vocab:
+            logger.info("Loaded %d concepts from tingbok (%s)", len(pkg_vocab), tingbok_url)
+            merged.update(pkg_vocab)
+            package_loaded_from_tingbok = True
 
     for vocab_path in find_vocabulary_files():
         try:
             is_package = pkg_data is not None and vocab_path.parent == pkg_data
+            if is_package and package_loaded_from_tingbok:
+                # Already loaded package vocab from tingbok — skip local file
+                continue
+            if skip_cwd and vocab_path.parent == Path.cwd():
+                continue
             vocab = load_local_vocabulary(
                 vocab_path,
                 default_source="package" if is_package else "local",
@@ -163,8 +187,44 @@ def load_global_vocabulary() -> dict[str, Concept]:
         except Exception as e:
             logger.warning("Failed to load vocabulary from %s: %s", vocab_path, e)
 
-    logger.info("Total vocabulary: %d concepts from %d files", len(merged), len(find_vocabulary_files()))
+    logger.info("Total vocabulary: %d concepts", len(merged))
     return merged
+
+
+def fetch_vocabulary_from_tingbok(url: str) -> dict[str, Concept]:
+    """Fetch the package vocabulary from a running tingbok service.
+
+    Args:
+        url: Base URL of the tingbok service (e.g. "https://tingbok.plann.no").
+
+    Returns:
+        Dictionary mapping concept IDs to Concept objects with source="package",
+        or an empty dict if the service is unreachable or returns an error.
+    """
+    import niquests
+
+    base = url.rstrip("/")
+    endpoint = f"{base}/api/vocabulary"
+    try:
+        response = niquests.get(endpoint, timeout=5.0)
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+    except Exception as e:
+        logger.warning("Failed to fetch vocabulary from tingbok %s: %s", endpoint, e)
+        return {}
+
+    concepts: dict[str, Concept] = {}
+    for concept_id, raw in data.items():
+        # tingbok uses "altLabel" (SKOS convention); Concept.from_dict expects "altLabels"
+        raw["altLabels"] = raw.pop("altLabel", {})
+        raw["id"] = concept_id
+        raw["source"] = "package"
+        try:
+            concepts[concept_id] = Concept.from_dict(raw)
+        except Exception as e:
+            logger.warning("Skipping malformed concept '%s' from tingbok: %s", concept_id, e)
+
+    return concepts
 
 
 # =============================================================================

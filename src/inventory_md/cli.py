@@ -152,6 +152,7 @@ def parse_command(
     lang: str = None,
     languages: list[str] = None,
     enabled_sources: list[str] = None,
+    tingbok_url: str | None = None,
 ) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
@@ -245,22 +246,13 @@ def parse_command(
             print("\n🏷️  Generating category vocabulary...")
 
             # Load global vocabulary from all standard locations (package, system, user)
-            # Uses find_vocabulary_files() which includes the package default vocabulary
-            global_vocab = {}
-            pkg_data = vocabulary._get_package_data_dir()
-            for vocab_path in vocabulary.find_vocabulary_files():
-                # Skip cwd entries - local vocab is handled separately based on md_file.parent
-                if vocab_path.parent == Path.cwd():
-                    continue
-                is_package = pkg_data is not None and vocab_path.parent == pkg_data
-                loaded = vocabulary.load_local_vocabulary(
-                    vocab_path,
-                    default_source="package" if is_package else "local",
-                )
-                if loaded:
-                    # Merge: later files override earlier (but keep concepts from both)
-                    global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
-                    print(f"   Loaded {len(loaded)} concepts from {vocab_path}")
+            # Prefers tingbok service if configured; falls back to local package file.
+            global_vocab = vocabulary.load_global_vocabulary(
+                tingbok_url=tingbok_url,
+                skip_cwd=True,  # local vocab is handled separately based on md_file.parent
+            )
+            if global_vocab:
+                print(f"   Loaded {len(global_vocab)} concepts from global vocabulary")
 
             # Load local vocabulary if present (highest priority - overrides global)
             local_vocab_yaml = md_file.parent / "local-vocabulary.yaml"
@@ -1035,6 +1027,7 @@ Examples:
             lang,
             languages,
             enabled_sources,
+            tingbok_url=config.tingbok_url,
         )
     elif args.command == "update-template":
         return update_template(args.directory, args.force)
@@ -1171,20 +1164,11 @@ def vocabulary_command(args, config: Config) -> int:
         directory = Path(directory).resolve()
 
     # Load global vocabulary from all standard locations (package, system, user)
-    # Uses find_vocabulary_files() which includes the package default vocabulary
-    global_vocab = {}
-    pkg_data = vocabulary._get_package_data_dir()
-    for vocab_path in vocabulary.find_vocabulary_files():
-        # Skip cwd entries - local vocab is handled separately based on directory
-        if vocab_path.parent == Path.cwd():
-            continue
-        is_package = pkg_data is not None and vocab_path.parent == pkg_data
-        loaded = vocabulary.load_local_vocabulary(
-            vocab_path,
-            default_source="package" if is_package else "local",
-        )
-        if loaded:
-            global_vocab = vocabulary.merge_vocabularies(global_vocab, loaded)
+    # Prefers tingbok service if configured; falls back to local package file.
+    global_vocab = vocabulary.load_global_vocabulary(
+        tingbok_url=config.tingbok_url,
+        skip_cwd=True,  # local vocab is handled separately based on directory
+    )
 
     # Load local vocabulary from directory (highest priority)
     local_vocab_yaml = directory / "local-vocabulary.yaml"
