@@ -2206,7 +2206,10 @@ def build_vocabulary_with_skos_hierarchy(
         try:
             from . import skos as skos_module
 
-            client = skos_module.SKOSClient(use_oxigraph=not bool(tingbok_url))
+            client = skos_module.SKOSClient(
+                use_oxigraph=not bool(tingbok_url),
+                tingbok_url=tingbok_url,
+            )
         except ImportError:
             logger.info("SKOS module not available, skipping AGROVOC/DBpedia lookups")
 

@@ -2054,3 +2054,195 @@ class TestWikidataRest:
         assert result["uri"] == "http://www.wikidata.org/entity/Q42"
         mock_rest.assert_called_once()
         mock_sparql.assert_called_once_with("game", "en")
+
+
+class TestSKOSClientTingbokFallback:
+    """Tests for SKOSClient routing cache misses through tingbok."""
+
+    TINGBOK_URL = "http://localhost:5100"
+
+    def _make_client(self, tmp_path, **kwargs):
+        return skos.SKOSClient(
+            cache_dir=tmp_path,
+            use_oxigraph=False,
+            tingbok_url=self.TINGBOK_URL,
+            **kwargs,
+        )
+
+    def _tingbok_concept_response(self, **overrides):
+        """Minimal tingbok /api/skos/lookup JSON response."""
+        base = {
+            "uri": "http://dbpedia.org/resource/Clothing",
+            "prefLabel": "Clothing",
+            "altLabels": {},
+            "broader": [{"uri": "http://dbpedia.org/resource/Fashion", "label": "Fashion"}],
+            "narrower": [],
+            "source": "dbpedia",
+            "labels": {},
+            "description": "Clothing items",
+            "wikipediaUrl": None,
+        }
+        base.update(overrides)
+        return base
+
+    def test_lookup_concept_calls_tingbok_on_cache_miss(self, tmp_path):
+        """On cache miss, lookup_concept calls tingbok /api/skos/lookup."""
+        client = self._make_client(tmp_path)
+        with patch.object(
+            client,
+            "_lookup_via_tingbok",
+            return_value=(
+                {
+                    "uri": "http://dbpedia.org/resource/Clothing",
+                    "prefLabel": "Clothing",
+                    "source": "dbpedia",
+                    "broader": [],
+                    "description": None,
+                },
+                False,
+            ),
+        ) as mock_tingbok:
+            result = client.lookup_concept("clothing", "en", source="dbpedia")
+
+        mock_tingbok.assert_called_once_with("clothing", "en", "dbpedia")
+        assert result is not None
+        assert result["uri"] == "http://dbpedia.org/resource/Clothing"
+
+    def test_lookup_concept_skips_tingbok_on_cache_hit(self, tmp_path):
+        """When concept is in local cache, tingbok is not called."""
+        skos._save_to_cache(
+            skos._get_cache_path(tmp_path, "concept:dbpedia:en:clothing"),
+            {
+                "uri": "http://dbpedia.org/resource/Clothing",
+                "prefLabel": "Clothing",
+                "source": "dbpedia",
+                "broader": [],
+                "description": "cached",
+            },
+        )
+        client = self._make_client(tmp_path)
+        with patch.object(client, "_lookup_via_tingbok") as mock_tingbok:
+            result = client.lookup_concept("clothing", "en", source="dbpedia")
+
+        mock_tingbok.assert_not_called()
+        assert result is not None
+
+    def test_tingbok_404_cached_as_not_found(self, tmp_path):
+        """404 from tingbok is cached in not-found cache; direct upstream not called."""
+        client = self._make_client(tmp_path)
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        mock_resp.ok = False
+
+        with (
+            patch("inventory_md.skos.SKOSClient._lookup_dbpedia") as mock_direct,
+            patch("niquests.get", return_value=mock_resp),
+        ):
+            result = client.lookup_concept("nonexistent-xyz", "en", source="dbpedia")
+
+        assert result is None
+        mock_direct.assert_not_called()
+        # Not-found should be cached
+        key = "concept:dbpedia:en:nonexistent-xyz"
+        assert skos._is_in_not_found_cache(tmp_path, key)
+
+    def test_tingbok_network_error_falls_through_to_direct(self, tmp_path):
+        """Network error calling tingbok falls through to direct upstream."""
+        import niquests
+
+        client = self._make_client(tmp_path)
+        direct_result = (
+            {
+                "uri": "http://dbpedia.org/resource/Clothing",
+                "prefLabel": "Clothing",
+                "source": "dbpedia",
+                "broader": [],
+                "description": None,
+            },
+            False,
+        )
+
+        with (
+            patch("niquests.get", side_effect=niquests.exceptions.ConnectionError("refused")),
+            patch.object(client, "_lookup_dbpedia", return_value=direct_result) as mock_direct,
+        ):
+            result = client.lookup_concept("clothing", "en", source="dbpedia")
+
+        mock_direct.assert_called_once()
+        assert result is not None
+
+    def test_tingbok_response_converts_broader_to_dict_list(self, tmp_path):
+        """Broader URIs from tingbok response are converted to {uri, label} dicts."""
+        client = self._make_client(tmp_path)
+        tingbok_json = self._tingbok_concept_response()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.ok = True
+        mock_resp.json.return_value = tingbok_json
+
+        with patch("niquests.get", return_value=mock_resp):
+            result = client.lookup_concept("clothing", "en", source="dbpedia")
+
+        assert result is not None
+        assert isinstance(result["broader"], list)
+        assert all(isinstance(b, dict) for b in result["broader"])
+        assert result["broader"][0]["uri"] == "http://dbpedia.org/resource/Fashion"
+        assert result["broader"][0]["label"] == "Fashion"
+
+    def test_get_batch_labels_routes_uncached_through_tingbok(self, tmp_path):
+        """get_batch_labels calls tingbok batch endpoint for uncached URIs."""
+        client = self._make_client(tmp_path)
+        uris = [
+            ("http://dbpedia.org/resource/Clothing", "dbpedia"),
+            ("http://dbpedia.org/resource/Fashion", "dbpedia"),
+        ]
+        languages = ["en", "nb"]
+
+        tingbok_batch_response = {
+            "labels": {
+                "http://dbpedia.org/resource/Clothing": {"en": "Clothing", "nb": "Klær"},
+                "http://dbpedia.org/resource/Fashion": {"en": "Fashion", "nb": "Mote"},
+            },
+            "source": "dbpedia",
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.ok = True
+        mock_resp.json.return_value = tingbok_batch_response
+
+        with (
+            patch("niquests.post", return_value=mock_resp),
+            patch.object(client, "_get_dbpedia_labels_batch", return_value=({}, set())) as mock_direct,
+        ):
+            result = client.get_batch_labels(uris, languages)
+
+        # Direct batch should not have been called (tingbok handled it)
+        mock_direct.assert_not_called()
+        assert result["http://dbpedia.org/resource/Clothing"]["en"] == "Clothing"
+        assert result["http://dbpedia.org/resource/Clothing"]["nb"] == "Klær"
+
+    def test_get_batch_labels_skips_tingbok_for_cached_uris(self, tmp_path):
+        """Cached URIs bypass both tingbok and direct batch calls."""
+        import hashlib
+
+        uri = "http://dbpedia.org/resource/Clothing"
+        uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+        cache_key = f"labels:dbpedia:{uri_hash}"
+        skos._save_to_cache(
+            skos._get_cache_path(tmp_path, cache_key),
+            {"uri": uri, "source": "dbpedia", "labels": {"en": "Clothing", "nb": "Klær"}},
+        )
+
+        client = self._make_client(tmp_path)
+        with (
+            patch("niquests.post") as mock_post,
+            patch.object(client, "_get_dbpedia_labels_batch", return_value=({}, set())) as mock_direct,
+        ):
+            result = client.get_batch_labels([(uri, "dbpedia")], ["en", "nb"])
+
+        mock_post.assert_not_called()
+        mock_direct.assert_not_called()
+        assert result[uri]["en"] == "Clothing"

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **SKOS lookups routed through tingbok on cache miss** — when `tingbok.url`
+  is configured, `SKOSClient` calls tingbok's `/api/skos/lookup` and
+  `/api/skos/labels/batch` instead of contacting upstream AGROVOC/DBpedia/Wikidata
+  REST APIs directly; network errors fall back to the direct path transparently
 - **Skip AGROVOC database load when tingbok is configured** —
   `build_vocabulary_with_skos_hierarchy()` now accepts `tingbok_url` and,
   when set, creates `SKOSClient(use_oxigraph=False)` so the local AGROVOC

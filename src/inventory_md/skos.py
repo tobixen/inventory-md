@@ -471,6 +471,7 @@ class SKOSClient:
         oxigraph_store: OxigraphStore | None = None,
         use_oxigraph: bool = True,
         agrovoc_path: Path | None = None,
+        tingbok_url: str | None = None,
     ):
         """Initialize SKOS client.
 
@@ -484,6 +485,9 @@ class SKOSClient:
             oxigraph_store: Optional pre-loaded OxigraphStore for local AGROVOC lookups.
             use_oxigraph: If True, try to use local Oxigraph store for AGROVOC (fastest).
             agrovoc_path: Path to AGROVOC N-Triples file for Oxigraph. Default: auto-detect.
+            tingbok_url: Base URL of a running tingbok service.  When set, cache misses
+                        are resolved via tingbok's HTTP API instead of calling upstream
+                        SPARQL/REST endpoints directly.
         """
         self.cache_dir = cache_dir or get_default_cache_dir()
         self.endpoints = endpoints or ENDPOINTS.copy()
@@ -493,6 +497,7 @@ class SKOSClient:
         self.rest_endpoints = rest_endpoints or REST_ENDPOINTS.copy()
         self.use_oxigraph = use_oxigraph
         self.agrovoc_path = agrovoc_path
+        self.tingbok_url = tingbok_url.rstrip("/") if tingbok_url else None
 
         # Circuit breaker: track consecutive failures per endpoint
         # After _CIRCUIT_BREAKER_THRESHOLD consecutive failures, skip queries
@@ -704,6 +709,97 @@ class SKOSClient:
         self._endpoint_failures[endpoint] = self._endpoint_failures.get(endpoint, 0) + 1
         return None
 
+    def _lookup_via_tingbok(self, label: str, lang: str, source: str) -> tuple[dict | None, bool] | None:
+        """Look up a concept via the tingbok HTTP service.
+
+        Returns:
+            ``(concept, query_failed)`` on a definitive result (found or 404),
+            or ``None`` when tingbok is unreachable (caller should fall through
+            to the direct upstream path).
+        """
+        if not self.tingbok_url:
+            return None
+        try:
+            import niquests as requests
+        except ImportError:
+            import requests  # type: ignore[no-redef]
+
+        url = f"{self.tingbok_url}/api/skos/lookup"
+        params = {"label": label, "lang": lang, "source": source}
+        try:
+            response = requests.get(url, params=params, timeout=self.timeout)
+        except Exception as e:
+            logger.debug("tingbok lookup unreachable for '%s': %s", label, e)
+            return None  # Fall through to direct upstream
+
+        if response.status_code == 404:
+            return None, False  # Definitive not-found; cache it
+
+        if not response.ok:
+            logger.debug("tingbok lookup error %s for '%s'", response.status_code, label)
+            return None  # Transient error; fall through to direct upstream
+
+        try:
+            data: dict = response.json()
+        except ValueError as e:
+            logger.debug("tingbok returned non-JSON for '%s': %s", label, e)
+            return None
+
+        # Convert tingbok's ConceptResponse to inventory-md concept dict format.
+        # broader arrives as list[{uri, label}] (labels preserved since v0.0.5).
+        broader_raw = data.get("broader", [])
+        broader = [
+            {"uri": b["uri"], "label": b.get("label", "")} if isinstance(b, dict) else {"uri": b, "label": ""}
+            for b in broader_raw
+            if (b.get("uri") if isinstance(b, dict) else b)
+        ]
+
+        concept: dict = {
+            "uri": data.get("uri"),
+            "prefLabel": data.get("prefLabel", label),
+            "source": data.get("source", source),
+            "broader": broader,
+            "description": data.get("description"),
+            "wikipediaUrl": data.get("wikipediaUrl"),
+        }
+        return concept, False
+
+    def _get_batch_labels_tingbok(
+        self, uris: list[str], languages: list[str], source: str
+    ) -> dict[str, dict[str, str]] | None:
+        """Fetch labels for multiple URIs via tingbok's batch endpoint.
+
+        Returns:
+            ``{uri: {lang: label}}`` on success, or ``None`` when tingbok is
+            unreachable (caller should fall through to the direct batch path).
+        """
+        if not self.tingbok_url or not uris:
+            return None
+        try:
+            import niquests as requests
+        except ImportError:
+            import requests  # type: ignore[no-redef]
+
+        url = f"{self.tingbok_url}/api/skos/labels/batch"
+        body = {"uris": uris, "languages": languages, "source": source}
+        try:
+            response = requests.post(url, json=body, timeout=self.timeout)
+        except Exception as e:
+            logger.debug("tingbok batch labels unreachable: %s", e)
+            return None
+
+        if not response.ok:
+            logger.debug("tingbok batch labels error %s", response.status_code)
+            return None
+
+        try:
+            data: dict = response.json()
+        except ValueError as e:
+            logger.debug("tingbok batch labels non-JSON: %s", e)
+            return None
+
+        return data.get("labels", {})
+
     def lookup_concept(self, label: str, lang: str = "en", source: str = "agrovoc") -> dict | None:
         """Look up a concept by label.
 
@@ -732,7 +828,19 @@ class SKOSClient:
         if _is_in_not_found_cache(self.cache_dir, cache_key):
             return None
 
-        # Query the appropriate endpoint
+        # Try tingbok first when configured; fall through to direct upstream on error
+        if self.tingbok_url:
+            tb_result = self._lookup_via_tingbok(label, lang, source)
+            if tb_result is not None:
+                concept, query_failed = tb_result
+                if not query_failed:
+                    if concept:
+                        _save_to_cache(cache_path, concept)
+                    else:
+                        _add_to_not_found_cache(self.cache_dir, cache_key)
+                return concept
+
+        # Query the appropriate endpoint directly
         if source == "agrovoc":
             concept, query_failed = self._lookup_agrovoc(label, lang)
         elif source == "dbpedia":
@@ -834,40 +942,57 @@ class SKOSClient:
                 elif source == "wikidata":
                     uncached_wikidata.append(uri)
 
+        # Helper: save a labels result to cache and update results dict
+        def _apply_batch_result(uri: str, source_name: str, labels: dict[str, str]) -> None:
+            results[uri] = labels
+            uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
+            cache_key = f"labels:{source_name}:{uri_hash}"
+            cache_path = _get_cache_path(self.cache_dir, cache_key)
+            _save_to_cache(cache_path, {"uri": uri, "source": source_name, "labels": labels})
+
         # Batch fetch uncached AGROVOC labels
         if uncached_agrovoc:
-            batch_results, succeeded = self._get_agrovoc_labels_batch(uncached_agrovoc, languages)
-            for uri, labels in batch_results.items():
-                results[uri] = labels
-                # Cache results for URIs whose query succeeded (even if empty —
-                # empty means "no labels in requested languages", not "query failed")
-                if uri in succeeded:
-                    uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
-                    cache_key = f"labels:agrovoc:{uri_hash}"
-                    cache_path = _get_cache_path(self.cache_dir, cache_key)
-                    _save_to_cache(cache_path, {"uri": uri, "source": "agrovoc", "labels": labels})
+            tb = self._get_batch_labels_tingbok(uncached_agrovoc, languages, "agrovoc")
+            if tb is not None:
+                for uri, labels in tb.items():
+                    _apply_batch_result(uri, "agrovoc", labels)
+                uncached_agrovoc = [u for u in uncached_agrovoc if u not in tb]
+            if uncached_agrovoc:
+                batch_results, succeeded = self._get_agrovoc_labels_batch(uncached_agrovoc, languages)
+                for uri, labels in batch_results.items():
+                    results[uri] = labels
+                    # Cache results for URIs whose query succeeded (even if empty —
+                    # empty means "no labels in requested languages", not "query failed")
+                    if uri in succeeded:
+                        _apply_batch_result(uri, "agrovoc", labels)
 
         # Batch fetch uncached DBpedia labels
         if uncached_dbpedia:
-            batch_results, succeeded = self._get_dbpedia_labels_batch(uncached_dbpedia, languages)
-            for uri, labels in batch_results.items():
-                results[uri] = labels
-                if uri in succeeded:
-                    uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
-                    cache_key = f"labels:dbpedia:{uri_hash}"
-                    cache_path = _get_cache_path(self.cache_dir, cache_key)
-                    _save_to_cache(cache_path, {"uri": uri, "source": "dbpedia", "labels": labels})
+            tb = self._get_batch_labels_tingbok(uncached_dbpedia, languages, "dbpedia")
+            if tb is not None:
+                for uri, labels in tb.items():
+                    _apply_batch_result(uri, "dbpedia", labels)
+                uncached_dbpedia = [u for u in uncached_dbpedia if u not in tb]
+            if uncached_dbpedia:
+                batch_results, succeeded = self._get_dbpedia_labels_batch(uncached_dbpedia, languages)
+                for uri, labels in batch_results.items():
+                    results[uri] = labels
+                    if uri in succeeded:
+                        _apply_batch_result(uri, "dbpedia", labels)
 
         # Batch fetch uncached Wikidata labels (uses DBpedia URIs internally)
         if uncached_wikidata:
-            batch_results, succeeded = self._get_wikidata_labels_batch(uncached_wikidata, languages)
-            for uri, labels in batch_results.items():
-                results[uri] = labels
-                if uri in succeeded:
-                    uri_hash = hashlib.md5(uri.encode()).hexdigest()[:16]
-                    cache_key = f"labels:wikidata:{uri_hash}"
-                    cache_path = _get_cache_path(self.cache_dir, cache_key)
-                    _save_to_cache(cache_path, {"uri": uri, "source": "wikidata", "labels": labels})
+            tb = self._get_batch_labels_tingbok(uncached_wikidata, languages, "wikidata")
+            if tb is not None:
+                for uri, labels in tb.items():
+                    _apply_batch_result(uri, "wikidata", labels)
+                uncached_wikidata = [u for u in uncached_wikidata if u not in tb]
+            if uncached_wikidata:
+                batch_results, succeeded = self._get_wikidata_labels_batch(uncached_wikidata, languages)
+                for uri, labels in batch_results.items():
+                    results[uri] = labels
+                    if uri in succeeded:
+                        _apply_batch_result(uri, "wikidata", labels)
 
         return results
 
