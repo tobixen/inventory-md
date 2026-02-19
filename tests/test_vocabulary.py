@@ -5307,3 +5307,95 @@ class TestLoadGlobalVocabularyTingbok:
             result = vocabulary.load_global_vocabulary()
 
         assert "food" in result
+
+
+class TestBuildVocabularyWithSkosHierarchyTingbok:
+    """Tests that build_vocabulary_with_skos_hierarchy skips AGROVOC when tingbok_url is set."""
+
+    def _make_mock_skos_module(self) -> MagicMock:
+        mock_module = MagicMock()
+        mock_module._is_irrelevant_dbpedia_category.return_value = False
+        mock_module._is_abstract_wikidata_class.return_value = False
+        return mock_module
+
+    def test_tingbok_url_disables_oxigraph(self):
+        """When tingbok_url is set, SKOSClient is created with use_oxigraph=False
+        and no 'Loading AGROVOC database...' progress message is emitted."""
+        inventory = {
+            "containers": [{"id": "box1", "items": [{"name": "Widget", "metadata": {"categories": ["tools"]}}]}]
+        }
+
+        mock_skos = self._make_mock_skos_module()
+        mock_client = MagicMock()
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        progress_calls: list[tuple[str, str]] = []
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                enabled_sources=["off", "agrovoc"],
+                tingbok_url="http://localhost:5100",
+                progress=lambda phase, detail: progress_calls.append((phase, detail)),
+            )
+
+        # SKOSClient must have been created with use_oxigraph=False
+        mock_skos.SKOSClient.assert_called_once()
+        _args, kwargs = mock_skos.SKOSClient.call_args
+        assert kwargs.get("use_oxigraph") is False, (
+            "SKOSClient should be created with use_oxigraph=False when tingbok_url is set"
+        )
+
+        # No "Loading AGROVOC database..." progress message should have been emitted
+        agrovoc_load_msgs = [d for _p, d in progress_calls if "AGROVOC database" in d]
+        assert not agrovoc_load_msgs, f"Expected no AGROVOC load message, got: {agrovoc_load_msgs}"
+
+    def test_no_tingbok_url_loads_oxigraph_eagerly(self):
+        """Without tingbok_url, 'Loading AGROVOC database...' is emitted as a progress message."""
+        inventory = {
+            "containers": [{"id": "box1", "items": [{"name": "Widget", "metadata": {"categories": ["tools"]}}]}]
+        }
+
+        mock_skos = self._make_mock_skos_module()
+        mock_client = MagicMock()
+        mock_client._get_oxigraph_store.return_value = None
+        mock_client.get_batch_labels.return_value = {}
+        mock_skos.SKOSClient.return_value = mock_client
+
+        import inventory_md
+
+        progress_calls: list[tuple[str, str]] = []
+
+        with (
+            patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls,
+            patch.dict("sys.modules", {"inventory_md.skos": mock_skos}),
+            patch.object(inventory_md, "skos", mock_skos, create=True),
+        ):
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+            vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory,
+                enabled_sources=["off", "agrovoc"],
+                tingbok_url=None,
+                progress=lambda phase, detail: progress_calls.append((phase, detail)),
+            )
+
+        # Without tingbok_url, the AGROVOC eager-load message should have been emitted
+        # and SKOSClient created with use_oxigraph=True
+        mock_skos.SKOSClient.assert_called_once()
+        _args, kwargs = mock_skos.SKOSClient.call_args
+        assert kwargs.get("use_oxigraph") is True, (
+            "SKOSClient should be created with use_oxigraph=True when tingbok_url is not set"
+        )
+        agrovoc_load_msgs = [d for _p, d in progress_calls if "AGROVOC database" in d]
+        assert agrovoc_load_msgs, "Expected 'Loading AGROVOC database...' progress message"

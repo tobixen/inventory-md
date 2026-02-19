@@ -2152,6 +2152,7 @@ def build_vocabulary_with_skos_hierarchy(
     languages: list[str] | None = None,
     enabled_sources: list[str] | None = None,
     progress: Callable[[str, str], None] | None = None,
+    tingbok_url: str | None = None,
 ) -> tuple[dict[str, Concept], dict[str, list[str]]]:
     """Build vocabulary using SKOS hierarchy expansion.
 
@@ -2171,6 +2172,9 @@ def build_vocabulary_with_skos_hierarchy(
         progress: Optional callback invoked with (phase, detail) for progress
                   reporting.  Phases: "init", "expand", "warning", "resolve",
                   "translate".
+        tingbok_url: Optional URL of a running tingbok service.  When set,
+                     the local AGROVOC Oxigraph database is not loaded because
+                     all upstream SKOS lookups are handled by tingbok.
 
     Returns:
         Tuple of:
@@ -2190,19 +2194,22 @@ def build_vocabulary_with_skos_hierarchy(
         except ImportError:
             logger.info("OFF module not available, skipping Open Food Facts lookups")
 
-    # Initialize SKOS client if AGROVOC, DBpedia, or Wikidata enabled
+    # Initialize SKOS client if AGROVOC, DBpedia, or Wikidata enabled.
+    # When tingbok_url is configured, skip loading the local Oxigraph database:
+    # upstream AGROVOC lookups are handled by tingbok on cache misses.
     skos_module = None
     client = None
     if "agrovoc" in enabled_sources or "dbpedia" in enabled_sources or "wikidata" in enabled_sources:
         try:
             from . import skos as skos_module
 
-            client = skos_module.SKOSClient(use_oxigraph=True)
+            client = skos_module.SKOSClient(use_oxigraph=not bool(tingbok_url))
         except ImportError:
             logger.info("SKOS module not available, skipping AGROVOC/DBpedia lookups")
 
-    # Eagerly load the Oxigraph store so the delay is visible to the user
-    if client is not None and "agrovoc" in enabled_sources:
+    # Eagerly load the Oxigraph store so the delay is visible to the user.
+    # Skipped when tingbok_url is set since Oxigraph is disabled in that case.
+    if client is not None and "agrovoc" in enabled_sources and not tingbok_url:
         _progress(progress, "init", "Loading AGROVOC database...")
         client._get_oxigraph_store()  # Trigger lazy load
 

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Skip AGROVOC database load when tingbok is configured** —
+  `build_vocabulary_with_skos_hierarchy()` now accepts `tingbok_url` and,
+  when set, creates `SKOSClient(use_oxigraph=False)` so the local AGROVOC
+  Oxigraph database (~30 s load) is never loaded; upstream SKOS lookups on
+  cache misses fall through to the REST APIs as before
+
 ### Added
 - **Tingbok integration** — inventory-md now fetches the package vocabulary
   from [tingbok.plann.no](https://tingbok.plann.no) by default, with

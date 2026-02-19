@@ -292,6 +292,7 @@ def parse_command(
                         languages=languages,
                         enabled_sources=enabled_sources,
                         progress=_print_progress,
+                        tingbok_url=tingbok_url,
                     )
                 else:
                     print(f"   Using SKOS lookups ({lang_info})...")
