@@ -369,11 +369,16 @@ class Config:
 
     @property
     def tingbok_url(self) -> str | None:
-        """Return tingbok service URL if configured (e.g. 'https://tingbok.plann.no').
+        """Return tingbok service URL.
 
-        Set via config key ``tingbok.url`` or env var ``INVENTORY_MD_TINGBOK__URL``.
+        Defaults to 'https://tingbok.plann.no'. Override via config key
+        ``tingbok.url`` or env var ``INVENTORY_MD_TINGBOK__URL``. Set to
+        empty string or 'false' to disable.
         """
-        return self.get("tingbok.url") or None
+        value = self.get("tingbok.url", "https://tingbok.plann.no")
+        if not value or value in ("false", "none", "disabled"):
+            return None
+        return value
 
     @property
     def labels_base_url(self) -> str:

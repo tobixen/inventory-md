@@ -548,3 +548,39 @@ class TestConfigClass:
         cfg = config.Config()
 
         assert cfg.skos_hierarchy_mode is True
+
+    def test_tingbok_url_default(self, tmp_path, monkeypatch):
+        """tingbok_url defaults to https://tingbok.plann.no."""
+        monkeypatch.chdir(tmp_path)
+        cfg = config.Config()
+        assert cfg.tingbok_url == "https://tingbok.plann.no"
+
+    def test_tingbok_url_from_file(self, tmp_path, monkeypatch):
+        """tingbok_url can be overridden in config file."""
+        import json as _json
+
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "inventory-md.json"
+        config_file.write_text(_json.dumps({"tingbok": {"url": "http://localhost:5100"}}))
+        cfg = config.Config()
+        assert cfg.tingbok_url == "http://localhost:5100"
+
+    def test_tingbok_url_disabled_by_empty_string(self, tmp_path, monkeypatch):
+        """Setting tingbok.url to empty string disables tingbok."""
+        import json as _json
+
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "inventory-md.json"
+        config_file.write_text(_json.dumps({"tingbok": {"url": ""}}))
+        cfg = config.Config()
+        assert cfg.tingbok_url is None
+
+    def test_tingbok_url_disabled_by_false(self, tmp_path, monkeypatch):
+        """Setting tingbok.url to 'false' disables tingbok."""
+        import json as _json
+
+        monkeypatch.chdir(tmp_path)
+        config_file = tmp_path / "inventory-md.json"
+        config_file.write_text(_json.dumps({"tingbok": {"url": "false"}}))
+        cfg = config.Config()
+        assert cfg.tingbok_url is None
