@@ -1301,7 +1301,10 @@ def build_skos_hierarchy_paths(
     """
     store = client._get_oxigraph_store()
     if store is None or not store.is_loaded:
-        logger.warning("Oxigraph not available for hierarchy building")
+        if client.use_oxigraph:
+            logger.warning("Oxigraph not available for hierarchy building")
+        else:
+            logger.debug("Oxigraph disabled; skipping local AGROVOC lookup for '%s'", concept_label)
         return [concept_label.lower().replace(" ", "_")], False, {}, []
 
     # First, find the concept URI
