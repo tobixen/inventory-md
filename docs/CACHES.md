@@ -10,15 +10,57 @@ The EAN cache is currently not used by the system itself, only by auxiliary scri
 
 Four sources exist for category information - it's the "package" categories included in the inventory-md package (most root categories and linking up the sources in a good category hierarchy), and then it's AGROVOC, OFF (not a SKOS database, but it does contain hierarchical categories, and inventory items with a barcode can fetch the category directly without manual work), DBpedia and Wikidata.  The other EAN sources also deliver some category information - worth investigating for additional coverage.  It seems necessary to use all of them to get good coverage of translations and hierarchical paths.  All the SKOS sources have public database lookup servers that are chronically overloaded and hard to use - so it's necessary to try the lookups again and again and build up a local cache.  Except, AGROVOC seems to be small enough that it's reasonable to download the full database.
 
-# Consolidation idea
+# Tingbok — centralised lookup service
 
-It would be nice to have some decentralized or federated lookup system for EANs and SKOS, but I'm considering to start with a centralized database system - a small server primarily dedicated to inventory-md users, but secondarily being open for anyone.  It will run on a known address, and all inventory-md systems will primarily query this database for information.  The database will primarily serve information from the cache - and if the data there is missing, it will try to do lookups in the various sources available.  For the EAN data, it should also be able to receive EAN data.  If the server is unavailable or cannot come up with relevant information, the local inventory-md will try probing the various sources directly.
+The consolidation server described above is now implemented as
+[tingbok](https://github.com/tobixen/tingbok), running at
+**https://tingbok.plann.no**.
 
-Such a server could replace the current static database included in the script itself.
+inventory-md queries tingbok by default for the package vocabulary.  If
+tingbok is unreachable, it falls back to the bundled `vocabulary.yaml`
+transparently.  SKOS and EAN lookups via tingbok are planned for later
+phases.
 
-Some rate-limiting is needed when querying other sources.  A simple way may be to let the process for fetching data from the upstream sources be single-threaded/single-process and if the thread is already busy, the server should return a 503.  Alternatively, it could perhaps also work on downloaded full copies not only of the AGROVOC (~1 GB), but also of the DBpedia database (~7 GB compressed, ~100 GB uncompressed for the full dump) and Wikidata database (~80 GB compressed JSON dump, though targeted subsets can be much smaller).
+## Configuration
 
-If too many clients become a problem, we'll probably manage to invent some kind of rate limiting of the clients as well.
+The tingbok URL is configured under the `tingbok` key:
+
+```yaml
+# inventory-md.yaml / inventory-md.json
+tingbok:
+  url: https://tingbok.plann.no   # default — omit to use the public server
+```
+
+To point at a local instance (e.g. for development):
+
+```yaml
+tingbok:
+  url: http://localhost:5100
+```
+
+To disable tingbok entirely and always use the bundled vocabulary:
+
+```yaml
+tingbok:
+  url: ""   # or "false"
+```
+
+The same setting can be overridden with the environment variable
+`INVENTORY_MD_TINGBOK__URL`.
+
+## Roadmap
+
+- **Phase 1 (done):** Vocabulary endpoint — tingbok serves the package
+  vocabulary; inventory-md fetches it on startup.
+- **Phase 2 (planned):** SKOS lookups — migrate AGROVOC/DBpedia/Wikidata
+  lookup and caching logic from `skos.py` into tingbok; inventory-md falls
+  back to direct upstream queries if tingbok is unavailable.
+- **Phase 3 (planned):** EAN lookups — migrate barcode lookup and caching
+  from `scripts/extract_barcodes.py` into tingbok.
+
+Some rate-limiting will be needed when querying upstream sources.  A
+single-threaded upstream fetcher returning 503 when busy is the planned
+approach — it naturally rate-limits without complex queuing.
 
 ## Contributions and Security
 

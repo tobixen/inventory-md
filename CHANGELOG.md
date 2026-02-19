@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Tingbok integration** — inventory-md now fetches the package vocabulary
+  from [tingbok.plann.no](https://tingbok.plann.no) by default, with
+  transparent fallback to the bundled `vocabulary.yaml` if unreachable
+  - New `fetch_vocabulary_from_tingbok()` in `vocabulary.py`
+  - `load_global_vocabulary()` gains `tingbok_url` and `skip_cwd` parameters
+  - `Config.tingbok_url` property (config key `tingbok.url`,
+    env var `INVENTORY_MD_TINGBOK__URL`); defaults to `https://tingbok.plann.no`
+  - Set `tingbok.url` to an empty string or `"false"` to disable
+
+
 - **Multi-source tracking per concept** — new `source_uris` field on `Concept`
   tracks all taxonomy sources (OFF, AGROVOC, DBpedia, Wikidata) that matched
   each concept, with their URIs
