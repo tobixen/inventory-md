@@ -378,7 +378,7 @@ class TestBuildCategoryTree:
         assert tree.label_index.get("food/vegetables") == "food/vegetables"
 
     def test_virtual_root_defines_roots(self):
-        """Test that _root.narrower controls which concepts are curated roots."""
+        """Test that _root.narrower is a whitelist: only listed concepts are roots."""
         vocab = {
             "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food", "tools"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
@@ -387,8 +387,9 @@ class TestBuildCategoryTree:
         }
         tree = vocabulary.build_category_tree(vocab)
 
-        # Curated roots first, then orphans appended alphabetically
-        assert tree.roots == ["food", "tools", "environmental_design"]
+        # Only the curated roots; external orphan not promoted
+        assert tree.roots == ["food", "tools"]
+        assert "environmental_design" in tree.concepts  # still in vocabulary, just not a root
 
     def test_virtual_root_excluded_from_tree(self):
         """Test that _root is removed from concepts after root detection."""
@@ -438,8 +439,8 @@ class TestBuildCategoryTree:
 
         assert tree.roots == ["food", "tools"]
 
-    def test_virtual_root_promotes_orphans_to_roots(self):
-        """Test that orphan concepts are promoted to roots after curated ones."""
+    def test_virtual_root_excludes_orphans(self):
+        """_root whitelist: orphaned concepts must NOT be added to roots."""
         vocab = {
             "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
@@ -448,13 +449,14 @@ class TestBuildCategoryTree:
         }
         tree = vocabulary.build_category_tree(vocab)
 
-        # Curated root first, then orphans sorted alphabetically
-        assert tree.roots == ["food", "leker", "verktøy"]
+        # Only the curated root appears; orphaned external concepts are excluded
+        assert tree.roots == ["food"]
+        # Concepts are still in the vocabulary (accessible by search), just not roots
         assert "verktøy" in tree.concepts
         assert "leker" in tree.concepts
 
-    def test_virtual_root_orphans_sorted_after_curated_roots(self):
-        """Test that curated roots keep their order, orphans follow alphabetically."""
+    def test_virtual_root_whitelist_exact(self):
+        """_root.narrower is an exact whitelist — non-listed orphans are excluded."""
         vocab = {
             "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["tools", "food"]),
             "food": vocabulary.Concept(id="food", prefLabel="Food"),
@@ -464,8 +466,8 @@ class TestBuildCategoryTree:
         }
         tree = vocabulary.build_category_tree(vocab)
 
-        # Curated order preserved, then orphans alphabetically
-        assert tree.roots == ["tools", "food", "alpha", "zebra"]
+        # Only curated roots in their declared order; no orphan promotion
+        assert tree.roots == ["tools", "food"]
 
     def test_reachable_children_not_promoted_to_roots(self):
         """Test that concepts reachable via narrower chains are not orphan roots."""
@@ -477,8 +479,8 @@ class TestBuildCategoryTree:
         }
         tree = vocabulary.build_category_tree(vocab)
 
-        # fruit is reachable from food, so only food and orphan are roots
-        assert tree.roots == ["food", "orphan"]
+        # Only the curated root; neither reachable children nor orphans are promoted
+        assert tree.roots == ["food"]
         assert "fruit" in tree.concepts
 
     def test_virtual_root_preserves_narrower_order(self):
@@ -5399,3 +5401,67 @@ class TestBuildVocabularyWithSkosHierarchyTingbok:
         )
         agrovoc_load_msgs = [d for _p, d in progress_calls if "AGROVOC database" in d]
         assert agrovoc_load_msgs, "Expected 'Loading AGROVOC database...' progress message"
+
+
+class TestFindVocabularyFiles:
+    """Tests for find_vocabulary_files — file discovery and exclusion rules."""
+
+    def test_generated_vocabulary_json_not_picked_up_from_cwd(self, tmp_path) -> None:
+        """vocabulary.json in CWD (generated parse output) must not be used as input."""
+        import os
+        from pathlib import Path
+
+        # Create a vocabulary.json that looks like generated output
+        generated = tmp_path / "vocabulary.json"
+        generated.write_text(
+            '{"concepts": {}, "roots": [], "labelIndex": {}, "categoryMappings": {}}',
+            encoding="utf-8",
+        )
+
+        orig_cwd = Path.cwd()
+        try:
+            os.chdir(tmp_path)
+            files = vocabulary.find_vocabulary_files()
+        finally:
+            os.chdir(orig_cwd)
+
+        local_files = [f for f in files if f.parent == tmp_path]
+        assert local_files == [], (
+            f"find_vocabulary_files() must not return generated vocabulary.json from CWD; got: {local_files}"
+        )
+
+    def test_local_vocabulary_json_is_accepted(self, tmp_path) -> None:
+        """local-vocabulary.json in CWD should still be accepted as input."""
+        import os
+        from pathlib import Path
+
+        local_vocab = tmp_path / "local-vocabulary.json"
+        local_vocab.write_text('{"concepts": {}}', encoding="utf-8")
+
+        orig_cwd = Path.cwd()
+        try:
+            os.chdir(tmp_path)
+            files = vocabulary.find_vocabulary_files()
+        finally:
+            os.chdir(orig_cwd)
+
+        local_files = [f for f in files if f.parent == tmp_path]
+        assert local_vocab in local_files
+
+    def test_vocabulary_yaml_in_cwd_is_accepted(self, tmp_path) -> None:
+        """vocabulary.yaml in CWD should still be accepted (hand-crafted local vocab)."""
+        import os
+        from pathlib import Path
+
+        vocab_yaml = tmp_path / "vocabulary.yaml"
+        vocab_yaml.write_text("concepts: {}", encoding="utf-8")
+
+        orig_cwd = Path.cwd()
+        try:
+            os.chdir(tmp_path)
+            files = vocabulary.find_vocabulary_files()
+        finally:
+            os.chdir(orig_cwd)
+
+        local_files = [f for f in files if f.parent == tmp_path]
+        assert vocab_yaml in local_files

@@ -94,7 +94,15 @@ def find_vocabulary_files() -> list[Path]:
     """
     found_files: list[Path] = []
     vocab_filenames = ["vocabulary.yaml", "vocabulary.yml", "vocabulary.json"]
-    local_vocab_filenames = ["local-vocabulary.yaml", "local-vocabulary.yml", "local-vocabulary.json", *vocab_filenames]
+    # vocabulary.json is excluded from the CWD list because it is the generated
+    # parse output; accepting it as input would cause a feedback loop.
+    local_vocab_filenames = [
+        "local-vocabulary.yaml",
+        "local-vocabulary.yml",
+        "local-vocabulary.json",
+        "vocabulary.yaml",
+        "vocabulary.yml",
+    ]
 
     # 1. Package default vocabulary (lowest priority)
     pkg_data = _get_package_data_dir()
@@ -697,26 +705,12 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
 
     # Find roots - concepts that should appear at the top level of the tree
     if VIRTUAL_ROOT_ID in concepts:
-        # Virtual root defines explicit roots via its narrower list
+        # Virtual root defines explicit roots via its narrower list.
+        # This is a whitelist: only concepts named in _root.narrower appear at
+        # the top of the tree.  External/orphaned concepts are excluded.
         virtual_root = concepts[VIRTUAL_ROOT_ID]
         roots = [cid for cid in virtual_root.narrower if cid in concepts]
         del concepts[VIRTUAL_ROOT_ID]
-
-        # Add orphan concepts as roots so they're visible in the tree.
-        # The UI filters by item count, so unused concepts won't display.
-        reachable: set[str] = set()
-        queue = list(roots)
-        while queue:
-            cid = queue.pop()
-            if cid in reachable:
-                continue
-            reachable.add(cid)
-            if cid in concepts:
-                queue.extend(concepts[cid].narrower)
-
-        orphans = [cid for cid, c in concepts.items() if "/" not in cid and not c.broader and cid not in reachable]
-        orphans.sort(key=lambda x: concepts[x].prefLabel.lower())
-        roots.extend(orphans)
     else:
         # Fallback: infer roots from concepts with no broader and no "/"
         roots = [cid for cid, c in concepts.items() if "/" not in cid and not c.broader]
