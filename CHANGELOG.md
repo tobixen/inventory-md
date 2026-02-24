@@ -5,18 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed
-- **SKOS lookups routed through tingbok on cache miss** — when `tingbok.url`
-  is configured, `SKOSClient` calls tingbok's `/api/skos/lookup` and
-  `/api/skos/labels/batch` instead of contacting upstream AGROVOC/DBpedia/Wikidata
-  REST APIs directly; network errors fall back to the direct path transparently
-- **Skip AGROVOC database load when tingbok is configured** —
-  `build_vocabulary_with_skos_hierarchy()` now accepts `tingbok_url` and,
-  when set, creates `SKOSClient(use_oxigraph=False)` so the local AGROVOC
-  Oxigraph database (~30 s load) is never loaded; upstream SKOS lookups on
-  cache misses fall through to the REST APIs as before
+## [v0.6.0] - 2026-02-24
 
 ### Added
 - **Tingbok integration** — inventory-md now fetches the package vocabulary
@@ -27,8 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Config.tingbok_url` property (config key `tingbok.url`,
     env var `INVENTORY_MD_TINGBOK__URL`); defaults to `https://tingbok.plann.no`
   - Set `tingbok.url` to an empty string or `"false"` to disable
-
-
+- **Direct/REST lookups for DBpedia and Wikidata** — reduces SPARQL load and
+  avoids Wikidata rate limiting
+  - DBpedia: direct URI construction (Title_Case → resource URL) verified
+    with a lightweight SPARQL query, before REST search and full SPARQL
+  - Wikidata: MediaWiki Action API (`wbsearchentities` + `wbgetentities`),
+    not subject to SPARQL rate limits, before SPARQL label search
+  - Wikidata broader concept chain (P31/P279) resolved via REST, making the
+    REST lookup path fully SPARQL-free
+- **Retry with exponential backoff** for SPARQL and DBpedia REST queries —
+  respects `Retry-After` headers on 429s; retries up to 3 times
+- **Circuit breaker** — after 5 consecutive endpoint failures, subsequent
+  queries are skipped immediately to avoid cascading timeouts
+- **SKOS cache directory configurable** via `INVENTORY_MD_SKOS__CACHE_DIR`
+  env var; defaults to `~/.cache/inventory-md/skos/`; cache TTL increased
+  from 30 to 60 days
 - **Multi-source tracking per concept** — new `source_uris` field on `Concept`
   tracks all taxonomy sources (OFF, AGROVOC, DBpedia, Wikidata) that matched
   each concept, with their URIs
@@ -84,11 +86,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enabling translations for previously unreachable concepts
 
 ### Changed
+- **SKOS lookups routed through tingbok on cache miss** — when `tingbok.url`
+  is configured, `SKOSClient` calls tingbok's `/api/skos/lookup` and
+  `/api/skos/labels/batch` instead of contacting upstream AGROVOC/DBpedia/Wikidata
+  REST APIs directly; network errors fall back to the direct path transparently
+- **Skip AGROVOC database load when tingbok is configured** —
+  `build_vocabulary_with_skos_hierarchy()` now accepts `tingbok_url` and,
+  when set, creates `SKOSClient(use_oxigraph=False)` so the local AGROVOC
+  Oxigraph database (~30 s load) is never loaded; upstream SKOS lookups on
+  cache misses fall through to the REST APIs as before
+- **`Concept.altLabels` changed from `list[str]` to `dict[str, list[str]]`**
+  (language → labels) — prevents cross-language false matches (e.g. Norwegian
+  "barn" matching English "Barn"); new helpers `get_alt_labels(lang)` and
+  `get_all_alt_labels_flat()`; backward compat: flat list wrapped as `{"en": [...]}`
+- **Language alias expansion in translation fetch** — `nb↔no` and other aliases
+  resolved in all four translation phases (OFF, AGROVOC, DBpedia, Wikidata) so
+  OFF's `"no"` labels are fetched and normalised to `"nb"` via fallback chain
 - **Distinct `source="package"` for bundled vocabulary** — concepts loaded from the
   package data directory now get `source="package"` instead of `source="local"`,
   making it possible to distinguish package-provided concepts from user-defined ones
 - **Wikidata enabled by default** — `enabled_sources` now includes `"wikidata"` in
   all defaults (vocabulary.py, config.py, cli.py); no longer opt-in
+- **SPARQL timeout reduced** from 300 s to 30 s
+- **Cache empty label results** from succeeded SPARQL queries (to avoid redundant
+  re-fetches of concepts with no labels in a given language)
 - Merged 18 root categories down to 10: new `recreation` root (outdoor, sports,
   transport); `hardware` absorbs construction and consumables; `household` absorbs
   office, books, documents; `medical` renamed "Health & Safety" and absorbs
@@ -98,13 +119,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path-prefixed form (e.g., `ac-cable` → `electronics/ac-cable`), removing 138
   orphaned flat duplicates
 - Vocabulary slimmed to ~258 concepts (from 596) by removing pure-redirect leaves
+- `lang` field written to `inventory.json` so the search UI can auto-detect the
+  inventory language; bare `no` in YAML config correctly mapped to language code
+- Category label language in search UI initialised from inventory `lang` config
+  (was hardcoded to `en`)
 
 ### Fixed
-- **AGROVOC mismatch warnings eliminated** — 14 false-positive warnings during
-  vocabulary build are now suppressed:
+- **Parser dropping containers under ID-less structural sections** — sections
+  without an explicit `ID:` tag are now treated as organizational wrappers; their
+  subsections are still processed as containers but the wrapper itself is not added
+  to the inventory; previously a section like "# Oversikt over boksene" caused a
+  hard return that silently dropped all 189 containers nested beneath it; hard-coded
+  Norwegian/English section name strings removed — configurable via
+  `sections.intro` and `sections.numbering_scheme` config keys
+- **AGROVOC cross-language mismatches** — leaf URI looked up from the full path
+  key; singular/plural variants accepted; false positives from cross-language
+  matches eliminated
+- **AGROVOC mismatch warnings eliminated** — 14 further false-positive warnings
+  during vocabulary build suppressed:
   - AGROVOC lookup skipped when local concept already has a non-AGROVOC URI (9 cases)
-  - Singular/plural variants accepted in mismatch check (e.g., dairy/dairies)
   - DBpedia URIs added to mushrooms, lumber, marine_propulsion, medicine (4 cases)
+- **altLabel translation map** not using language fallback chain (fixed)
+- **Orphan categories promoted** to tree roots for UI visibility
+- **Oxigraph startup warning** silenced when `use_oxigraph=False`
 - Multi-source translation URI resolution: candidate URIs collected from both
   `all_uri_maps` and `concept.uri`, filtered by source type
 - Duplicate connector definitions removed from vocabulary.yaml
