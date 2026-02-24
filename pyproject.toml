@@ -89,10 +89,6 @@ include = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/inventory_md"]
-artifacts = ["src/inventory_md/data/*"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/inventory_md/data" = "inventory_md/data"
 
 [tool.ruff]
 line-length = 120
