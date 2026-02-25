@@ -1604,6 +1604,34 @@
             updateItemPhotoLightbox();
         }
 
+        // Augment container.images with photos linked to items via photo-registry.
+        // This makes item-level photos show up in the container gallery and category filter view.
+        function augmentContainerImagesFromRegistry() {
+            if (!inventoryData || !photoRegistry || !photoRegistry.items) return;
+
+            inventoryData.containers.forEach(container => {
+                const seenPhotos = new Set(container.images.map(img => img.full));
+
+                container.items.forEach(item => {
+                    if (!item.id) return;
+                    const itemPhotos = getItemPhotos(item.id);
+                    itemPhotos.forEach(filename => {
+                        const photoInfo = getPhotoInfo(filename);
+                        if (!photoInfo) return;
+                        const photoContainer = photoInfo.container || container.id;
+                        const fullPath = `photos/${photoContainer}/${filename}`;
+                        if (seenPhotos.has(fullPath)) return;
+                        seenPhotos.add(fullPath);
+                        container.images.push({
+                            thumb: `resized/${photoContainer}/${filename}`,
+                            full: fullPath,
+                            alt: `${item.id} - ${filename}`
+                        });
+                    });
+                });
+            });
+        }
+
         // Build flat image index for gallery view
         function buildImageIndex() {
             allImages = [];
@@ -2614,6 +2642,7 @@
                     document.getElementById('introText').innerHTML = markdownToHtml(inventoryData.intro);
                 }
 
+                augmentContainerImagesFromRegistry();
                 buildImageIndex();
                 buildSearchIndex();
                 buildTagCollection();
