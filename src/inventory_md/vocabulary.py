@@ -187,7 +187,7 @@ def load_global_vocabulary(
                 continue
             vocab = load_local_vocabulary(
                 vocab_path,
-                default_source="package" if is_package else "local",
+                default_source="tingbok" if is_package else "local",
             )
             logger.info("Loaded %d concepts from %s", len(vocab), vocab_path)
             # Later files override earlier ones
@@ -206,7 +206,7 @@ def fetch_vocabulary_from_tingbok(url: str) -> dict[str, Concept]:
         url: Base URL of the tingbok service (e.g. "https://tingbok.plann.no").
 
     Returns:
-        Dictionary mapping concept IDs to Concept objects with source="package",
+        Dictionary mapping concept IDs to Concept objects with source="tingbok",
         or an empty dict if the service is unreachable or returns an error.
     """
     import niquests
@@ -226,7 +226,7 @@ def fetch_vocabulary_from_tingbok(url: str) -> dict[str, Concept]:
         # tingbok uses "altLabel" (SKOS convention); Concept.from_dict expects "altLabels"
         raw["altLabels"] = raw.pop("altLabel", {})
         raw["id"] = concept_id
-        raw["source"] = "package"
+        raw["source"] = "tingbok"
         try:
             concepts[concept_id] = Concept.from_dict(raw)
         except Exception as e:
@@ -462,7 +462,7 @@ def load_local_vocabulary(path: Path, default_source: str = "local") -> dict[str
     Args:
         path: Path to local-vocabulary.yaml or local-vocabulary.json
         default_source: Default source for concepts without an explicit source
-            field. Use "package" for the bundled package vocabulary.
+            field. Use "tingbok" for the bundled package vocabulary.
 
     Returns:
         Dictionary mapping concept IDs to Concept objects.
@@ -1672,6 +1672,7 @@ _CONCEPT_LABEL_OVERRIDES: dict[str, str] = {
     "category_by_source/dbpedia": "DBpedia",
     "category_by_source/wikidata": "Wikidata",
     "category_by_source/local": "Local",
+    "category_by_source/tingbok": "Tingbok",
 }
 
 # Norwegian (nb) label overrides for synthetic concepts with no external source
@@ -1682,6 +1683,7 @@ _CONCEPT_LABEL_OVERRIDES_NB: dict[str, str] = {
     "category_by_source/dbpedia": "DBpedia",
     "category_by_source/wikidata": "Wikidata",
     "category_by_source/local": "Lokal",
+    "category_by_source/tingbok": "Tingbok",
 }
 
 
@@ -2299,9 +2301,12 @@ def build_vocabulary_with_skos_hierarchy(
                 parts = broader_path.split("/") + parts[1:]
         resolved_path = "/".join(parts)
         # Map the full path — keep original path_cat as the mapping key for item counting
-        local_src_path = f"category_by_source/local/{resolved_path}"
+        # Use the root concept's source to name the category_by_source/ mirror path
+        resolved_root = parts[0]
+        concept_source = local_vocab[resolved_root].source if local_vocab and resolved_root in local_vocab else "local"
+        local_src_path = f"category_by_source/{concept_source}/{resolved_path}"
         category_mappings[path_cat] = [resolved_path, local_src_path]
-        _add_paths_to_concepts([local_src_path], concepts, "local")
+        _add_paths_to_concepts([local_src_path], concepts, concept_source)
         # Create concept for each path component
         for i in range(len(parts)):
             concept_id = "/".join(parts[: i + 1])
@@ -2390,9 +2395,10 @@ def build_vocabulary_with_skos_hierarchy(
             # If this is a translated root concept (no broader), map directly
             # and skip external lookups that would fail for the Norwegian word
             if not local_concept.broader and local_concept_id != label_lower:
-                local_src_path = f"category_by_source/local/{local_concept_id}"
+                concept_source = local_concept.source
+                local_src_path = f"category_by_source/{concept_source}/{local_concept_id}"
                 category_mappings[label] = [local_concept_id, local_src_path]
-                _add_paths_to_concepts([local_src_path], concepts, "local")
+                _add_paths_to_concepts([local_src_path], concepts, concept_source)
                 # Build supplementary category_by_source paths from DBpedia/Wikidata
                 # using the English prefLabel (not the Norwegian label that triggered this)
                 en_label = local_concept.prefLabel or local_concept_id
@@ -2598,7 +2604,7 @@ def build_vocabulary_with_skos_hierarchy(
                         # Only set broader if concept doesn't come from local vocab
                         if concept_id in concepts:
                             existing = concepts[concept_id]
-                            if existing.source not in ("local", "package") and not existing.broader:
+                            if existing.source not in ("local", "tingbok") and not existing.broader:
                                 concepts[concept_id].broader = dbpedia_broader_ids[:3]
                         logger.debug("DBpedia paths for '%s' -> %s", label, dbpedia_paths)
                     else:
@@ -2679,7 +2685,7 @@ def build_vocabulary_with_skos_hierarchy(
                         # Only set broader if concept doesn't come from local vocab
                         if concept_id in concepts:
                             existing = concepts[concept_id]
-                            if existing.source not in ("local", "package") and not existing.broader:
+                            if existing.source not in ("local", "tingbok") and not existing.broader:
                                 concepts[concept_id].broader = wikidata_broader_ids[:3]
                         logger.debug("Wikidata paths for '%s' -> %s", label, wikidata_paths)
                     else:
@@ -2756,7 +2762,7 @@ def build_vocabulary_with_skos_hierarchy(
                     _target.prefLabel = _flat.prefLabel
                     _target.altLabels = {lang: ls.copy() for lang, ls in _flat.altLabels.items()}
                     # Preserve external source from enrichment; otherwise use
-                    # the flat concept's source (e.g. "package" or "local")
+                    # the flat concept's source (e.g. "tingbok" or "local")
                     if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
                         _target.source = _flat.source
                 else:
@@ -2769,7 +2775,7 @@ def build_vocabulary_with_skos_hierarchy(
                             for alt in alts:
                                 if alt not in existing:
                                     _target.altLabels[lang].append(alt)
-                # Propagate package/local source from the authoritative flat
+                # Propagate tingbok/local source from the authoritative flat
                 # concept, unless the target was enriched by an external source
                 if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
                     _target.source = _flat.source
@@ -2800,10 +2806,11 @@ def build_vocabulary_with_skos_hierarchy(
                     src_path = f"category_by_source/{primary_source}/{rp}"
                     _add_paths_to_concepts([src_path], concepts, primary_source)
                     category_mappings[label].append(src_path)
-            # Also create category_by_source/local/ path for local vocab entries
+            # Also create category_by_source/<source>/ path for local vocab entries
             if local_broader_path:
-                local_src_path = f"category_by_source/local/{local_broader_path}"
-                _add_paths_to_concepts([local_src_path], concepts, "local")
+                concept_source = local_concept.source if local_concept is not None else "local"
+                local_src_path = f"category_by_source/{concept_source}/{local_broader_path}"
+                _add_paths_to_concepts([local_src_path], concepts, concept_source)
                 category_mappings[label].append(local_src_path)
             # Append supplementary category_by_source paths from DBpedia/Wikidata
             for sp in dbpedia_src_paths:
@@ -3017,7 +3024,7 @@ def build_vocabulary_with_skos_hierarchy(
             if resolved in concepts:
                 # Both exist: merge metadata into the path-prefixed target
                 _target = concepts[resolved]
-                # Propagate package/local source from the authoritative flat
+                # Propagate tingbok/local source from the authoritative flat
                 # concept, unless the target was enriched by an external source
                 if _target.source not in ("dbpedia", "off", "agrovoc", "wikidata"):
                     _target.source = _flat.source

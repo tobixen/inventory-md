@@ -1919,6 +1919,51 @@ class TestCategoryBySource:
         assert "tools/hand_tools" in mappings
         assert "category_by_source/local/tools/hand_tools" in mappings["tools/hand_tools"]
 
+    @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
+    def test_category_by_source_uses_concept_source(self, mock_skos_paths):
+        """category_by_source mirror path prefix matches the local_vocab concept's source.
+
+        When a leaf label matches a concept in local_vocab with source='tingbok',
+        the mirror path should be category_by_source/tingbok/, not category_by_source/local/.
+        Likewise, a source='local' concept still produces category_by_source/local/.
+        """
+        mock_skos_paths.return_value = ([], False, {}, [])
+
+        local_vocab_tingbok = {
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools", source="tingbok"),
+        }
+        local_vocab_local = {
+            "tools": vocabulary.Concept(id="tools", prefLabel="Tools", source="local"),
+        }
+        inventory = {
+            "containers": [
+                {
+                    "id": "box1",
+                    "items": [{"name": "Wrench", "metadata": {"categories": ["tools/hand_tools"]}}],
+                }
+            ]
+        }
+
+        with patch("inventory_md.off.OFFTaxonomyClient") as mock_off_cls:
+            mock_off_cls.return_value.lookup_concept.return_value = None
+            mock_off_cls.return_value.get_labels.return_value = {}
+
+            # tingbok-sourced concept → category_by_source/tingbok/
+            vocab_tb, mappings_tb = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, local_vocab=local_vocab_tingbok, enabled_sources=["off"]
+            )
+            assert "category_by_source/tingbok/tools/hand_tools" in vocab_tb
+            assert "category_by_source/local/tools/hand_tools" not in vocab_tb
+            assert "category_by_source/tingbok/tools/hand_tools" in mappings_tb["tools/hand_tools"]
+
+            # local-sourced concept → category_by_source/local/
+            vocab_lc, mappings_lc = vocabulary.build_vocabulary_with_skos_hierarchy(
+                inventory, local_vocab=local_vocab_local, enabled_sources=["off"]
+            )
+            assert "category_by_source/local/tools/hand_tools" in vocab_lc
+            assert "category_by_source/tingbok/tools/hand_tools" not in vocab_lc
+            assert "category_by_source/local/tools/hand_tools" in mappings_lc["tools/hand_tools"]
+
 
 class TestDBpediaEnrichesLocalConcepts:
     """Tests for enriching local vocab concepts with DBpedia metadata.
@@ -3707,7 +3752,7 @@ concepts:
         ):
             merged = vocabulary.load_global_vocabulary()
 
-        assert merged["clothing"].source == "package"
+        assert merged["clothing"].source == "tingbok"
         assert merged["my_thing"].source == "local"
 
     def test_user_local_overrides_package_keeps_local_source(self, tmp_path):
@@ -5155,7 +5200,7 @@ class TestFetchVocabularyFromTingbok:
         assert "food" in result
         assert "food/vegetables" in result
         assert result["food"].prefLabel == "Food"
-        assert result["food"].source == "package"
+        assert result["food"].source == "tingbok"
         assert result["food"].altLabels == {"en": ["groceries"], "nb": ["mat"]}
         assert result["food"].labels == {"en": "Food", "nb": "Mat"}
         assert result["food"].uri == "http://dbpedia.org/resource/Food"
@@ -5227,7 +5272,7 @@ class TestLoadGlobalVocabularyTingbok:
                 vocabulary,
                 "fetch_vocabulary_from_tingbok",
                 return_value={
-                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="package"),
+                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="tingbok"),
                 },
             ) as mock_fetch,
             patch.object(vocabulary, "find_vocabulary_files", return_value=[]),
@@ -5236,7 +5281,7 @@ class TestLoadGlobalVocabularyTingbok:
 
         mock_fetch.assert_called_once_with("https://tingbok.plann.no")
         assert "food" in result
-        assert result["food"].source == "package"
+        assert result["food"].source == "tingbok"
 
     def test_skips_package_file_when_tingbok_succeeds(self, tmp_path):
         """When tingbok returns concepts, the package vocab file is not loaded."""
@@ -5248,7 +5293,7 @@ class TestLoadGlobalVocabularyTingbok:
                 vocabulary,
                 "fetch_vocabulary_from_tingbok",
                 return_value={
-                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="package"),
+                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="tingbok"),
                 },
             ),
             patch.object(vocabulary, "find_vocabulary_files", return_value=[fake_pkg_vocab]),
@@ -5273,13 +5318,13 @@ class TestLoadGlobalVocabularyTingbok:
                 vocabulary,
                 "load_local_vocabulary",
                 return_value={
-                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="package"),
+                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="tingbok"),
                 },
             ) as mock_load,
         ):
             result = vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
 
-        mock_load.assert_called_once_with(fake_vocab_path, default_source="package")
+        mock_load.assert_called_once_with(fake_vocab_path, default_source="tingbok")
         assert "food" in result
 
     def test_skip_cwd_excludes_cwd_files(self, tmp_path, monkeypatch):
