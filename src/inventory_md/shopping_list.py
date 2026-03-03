@@ -9,6 +9,7 @@ shopping needs like recipe ingredients.
 """
 
 import glob
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -164,20 +165,65 @@ def parse_wanted_items(content: str) -> list[Section]:
     return sections
 
 
-def parse_inventory_for_shopping(content: str) -> list[InventoryItem]:
-    """Extract all tagged items from inventory.md."""
+def _build_category_to_tag(vocab_path: Path) -> dict[str, str]:
+    """Build a mapping from category leaf name to full vocabulary tag path.
+
+    Reads vocabulary.json and maps each leaf concept name to its full ID,
+    e.g. 'pasta' -> 'food/grains/pasta'. Only non-source concepts are included.
+    When multiple concepts share the same leaf name, the first found wins.
+    """
+    try:
+        with open(vocab_path, encoding="utf-8") as f:
+            vocab = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    mapping: dict[str, str] = {}
+    for concept_id in vocab.get("concepts", {}):
+        if concept_id.startswith("category_by_source/"):
+            continue
+        if "/" in concept_id:
+            leaf = concept_id.split("/")[-1]
+            if leaf not in mapping:
+                mapping[leaf] = concept_id
+    return mapping
+
+
+def parse_inventory_for_shopping(
+    content: str,
+    vocab_path: Path | None = None,
+) -> list[InventoryItem]:
+    """Extract all tagged or categorised items from inventory.md.
+
+    Items with ``tag:`` fields are used directly.  Items with only
+    ``category:`` fields are also included; when a ``vocab_path`` is
+    provided the category name is mapped to its full vocabulary tag path
+    (e.g. ``pasta`` -> ``food/grains/pasta``), otherwise the raw category
+    name is used as the tag.
+    """
+    category_to_tag = _build_category_to_tag(vocab_path) if vocab_path else {}
     items = []
 
     for line in content.split("\n"):
-        if "tag:" not in line.lower():
+        has_tag = "tag:" in line
+        has_category = "category:" in line
+        if not (has_tag or has_category):
             continue
         if not line.strip().startswith("*"):
             continue
 
-        tag_match = re.search(r"tag:(\S+)", line)
-        if not tag_match:
-            continue
-        tag = tag_match.group(1).lower()
+        if has_tag:
+            tag_match = re.search(r"tag:(\S+)", line)
+            if not tag_match:
+                continue
+            tag = tag_match.group(1).lower()
+        else:
+            # Map all category: values on this line and join with comma
+            raw_cats = re.findall(r"category:(\S+)", line)
+            mapped = [category_to_tag.get(c.lower(), c.lower()) for c in raw_cats]
+            tag = ",".join(mapped) if mapped else ""
+            if not tag:
+                continue
 
         id_match = re.search(r"ID:(\S+)", line)
         item_id = id_match.group(1) if id_match else ""
@@ -331,11 +377,22 @@ def merge_sections(all_sections: list[list[Section]]) -> list[Section]:
     return list(merged.values())
 
 
-def generate_shopping_list(wanted_path: Path, inventory_path: Path, include_dated: bool = False) -> str:
+def generate_shopping_list(
+    wanted_path: Path,
+    inventory_path: Path,
+    include_dated: bool = False,
+    vocab_path: Path | None = None,
+) -> str:
     """Generate shopping list markdown from wanted-items.md and inventory.md.
 
     If include_dated=True, also includes any wanted-items-YYYY-MM-DD.md files.
+    vocab_path defaults to vocabulary.json in the same directory as inventory_path.
     """
+    if vocab_path is None:
+        candidate = inventory_path.parent / "vocabulary.json"
+        if candidate.exists():
+            vocab_path = candidate
+
     all_sections = [parse_wanted_items(wanted_path.read_text(encoding="utf-8"))]
 
     if include_dated:
@@ -344,7 +401,7 @@ def generate_shopping_list(wanted_path: Path, inventory_path: Path, include_date
                 all_sections.append(parse_wanted_items(dated_path.read_text(encoding="utf-8")))
 
     sections = merge_sections(all_sections) if include_dated else all_sections[0]
-    inventory = parse_inventory_for_shopping(inventory_path.read_text(encoding="utf-8"))
+    inventory = parse_inventory_for_shopping(inventory_path.read_text(encoding="utf-8"), vocab_path=vocab_path)
 
     lines = []
     lines.append("# Shopping List")

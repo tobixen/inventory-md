@@ -77,7 +77,7 @@ The inventory.json has structured data with tags, IDs, and metadata. Generate lo
 ```bash
 # Generate/update inventory.json from markdown
 cd ~/solveig-inventory  # or ~/furusetalle9-inventory
-~/inventory-system/venv/bin/inventory-system parse inventory.md
+inventory-md parse --auto
 ```
 
 ### Find food items sorted by expiry date
@@ -85,10 +85,10 @@ Use the `find_expiring_food.py` script to find items that should be used first (
 
 ```bash
 cd ~/solveig-inventory
-~/inventory-system/scripts/find_expiring_food.py inventory.json          # Show expired items
-~/inventory-system/scripts/find_expiring_food.py inventory.json --limit 10  # Top 10 by expiry
-~/inventory-system/scripts/find_expiring_food.py inventory.json --before 2026-06  # Before date
-~/inventory-system/scripts/find_expiring_food.py inventory.json --all     # All food with dates
+~/inventory-md/scripts/find_expiring_food.py inventory.json          # Show expired items
+~/inventory-md/scripts/find_expiring_food.py inventory.json --limit 10  # Top 10 by expiry
+~/inventory-md/scripts/find_expiring_food.py inventory.json --before 2026-06  # Before date
+~/inventory-md/scripts/find_expiring_food.py inventory.json --all     # All food with dates
 ```
 
 ### Tag hierarchy for food
@@ -192,7 +192,7 @@ Items needed for [recipe name].
 After creating the dated file, remind user:
 ```bash
 # Generate shopping list including temporary items
-~/inventory-system/scripts/generate_shopping_list.py wanted-items.md inventory.md --include-dated
+~/inventory-md/scripts/generate_shopping_list.py wanted-items.md inventory.md --include-dated
 ```
 
 ## Example Process
