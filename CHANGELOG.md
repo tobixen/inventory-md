@@ -10,7 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking Change
 Ref the "Changed" section further down, this release is efficiently adding a hard dependency on my tingbok.plann.no service being up.  Tingbok, including the data, is open source and available both from pypi and github, so should the service be down it's easy to work around this dependency.
 
+### Fixed
+- **Category tree orphan promotion** removed — `build_category_tree()` no longer
+  promotes unreachable concepts to root level.  `_root.narrower` is a whitelist;
+  external orphans are excluded.
+- **`vocabulary.json` feedback loop** — `find_vocabulary_files()` no longer picks up
+  the generated `vocabulary.json` from the CWD as input vocabulary.
+- **Shopping list `category:` items** — `parse_inventory_for_shopping()` now processes
+  items with `category:` fields (the majority), mapping them to full vocabulary tag
+  paths via `vocabulary.json`.  Previously only `tag:` items were processed.
+- **`find_expiring_food.py`** — was checking `metadata.tags` (always empty) instead of
+  `metadata.categories`; zero food items were found.  Now checks both.
+
 ### Added
+- **`augmentContainerImagesFromRegistry()`** — items photographed at a parent-container
+  level now appear when browsing a sub-container or filtering by category.
 - **Multi-source URI support** via `source_uris` and `excluded_sources` on the `Concept`
   dataclass.  When fetched from tingbok, `source_uris` (a list in the API response) is
   converted to a `{source_name: uri}` dict, and `excluded_sources` is passed through.
@@ -21,6 +35,10 @@ Ref the "Changed" section further down, this release is efficiently adding a har
   - `True` otherwise (auto-discover, including sources already in `source_uris`).
 - **`_uri_to_source()`** now recognises `https://tingbok.plann.no/` URIs as `"tingbok"`.
 ### Changed
+- **Source label `"package"` renamed to `"tingbok"`** throughout.  The
+  `category_by_source/` mirror path now uses the matched concept's actual source
+  instead of hardcoding `"local"`, so projects using only the tingbok vocabulary
+  see `category_by_source/tingbok/` rather than `category_by_source/local/`.
 - **Bundled `vocabulary.yaml` removed** — tingbok is now the sole authoritative source
   for the package vocabulary.  `_get_package_data_dir()` removed.  Local overrides in
   `/etc/inventory-md/`, `~/.config/inventory-md/`, and the current directory continue
