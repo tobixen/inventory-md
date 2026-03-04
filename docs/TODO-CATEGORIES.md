@@ -201,6 +201,34 @@ force-reset `_target.source` to `"local"` — the original source is now preserv
 through enrichment and dedup passes.
 
 
+## Google Product Taxonomy (GPT) as a future source
+
+[Google Product Taxonomy](https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt)
+is a candidate additional vocabulary source, particularly for non-food retail categories.
+
+**Why it may be useful:**
+- ~6,000 categories, covering retail/consumer goods well (electronics, clothing, tools, etc.)
+- Stable numeric IDs (e.g. `5122` for *Hardware > Brackets*) — won't break on label changes
+- Multilingual: Google publishes TSV files for many languages
+- Widely used in e-commerce; many items in practice already tagged with GPT IDs
+
+**Proposed URI scheme:** `http://www.google.com/basepages/producttype/{id}`
+(e.g. `http://www.google.com/basepages/producttype/5122`)
+
+These would appear in `source_uris` in `vocabulary.yaml` like any other source.
+
+**What adding it would require:**
+1. A new `GPTClient` in inventory-md that parses the TSV file published by Google
+2. A `_uri_to_source()` entry mapping `http://www.google.com/basepages/producttype/`
+   → `"gpt"`
+3. A lookup phase in the expansion loop (after OFF, AGROVOC, DBpedia, Wikidata)
+4. `excluded_sources: [gpt]` on tingbok concepts where GPT is checked and found
+   inapplicable
+
+**Design note:** The `source_uris` / `excluded_sources` architecture already
+accommodates this — nothing about the current code needs to change before GPT can
+be added.
+
 ## Still some categories missing translations
 
 For categories that exist in the local vocabulary but have no matches in the other category sources (like root node "Health & Safety"), there must be translations locally in the package vocabulary.
