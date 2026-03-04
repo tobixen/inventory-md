@@ -212,8 +212,7 @@ is a candidate additional vocabulary source, particularly for non-food retail ca
 - Multilingual: Google publishes TSV files for many languages
 - Widely used in e-commerce; many items in practice already tagged with GPT IDs
 
-**Proposed URI scheme:** `http://www.google.com/basepages/producttype/{id}`
-(e.g. `http://www.google.com/basepages/producttype/5122`)
+**Proposed URI scheme:** I'm against using `https://www.google.com/basepages/producttype/5122` - it's misleading as it's not a valid URL.  If valid https-URLs does not exist, then construct something like `gpt:id`, mirroring how it's done with off
 
 These would appear in `source_uris` in `vocabulary.yaml` like any other source.
 

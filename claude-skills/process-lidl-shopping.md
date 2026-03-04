@@ -13,7 +13,10 @@ Use this skill when the user mentions:
 
 ### 1. Read the receipt
 
-The Lidl receipt is stored at `~/shopping-analyzer/lidl_receipts.json`. Read the most recent entry (last item in the array).
+The Lidl receipt is stored at `~/shopping-analyzer/lidl_receipts.json`. Read the most recent entry (last item in the array):
+```bash
+jq '.[-1]' ~/shopping-analyzer/lidl_receipts.json
+```
 
 Receipt fields:
 - `purchase_date`: Date in format "YYYY.MM.DD"
@@ -25,7 +28,7 @@ Receipt fields:
 
 Run the barcode extraction script on recent photos:
 ```bash
-~/inventory-system/scripts/extract_barcodes.py ~/s/photos.tobixen/newmi/IMG_*.jpg
+~/inventory-md/scripts/extract_barcodes.py ~/s/photos.tobixen/newmi/IMG_*.jpg
 ```
 
 Typically one photo will be with barcode, and the next with the best-before date
@@ -152,22 +155,20 @@ diary-update --line "EUR 23.08 - groceries - Lidl (milk, yogurt, spaghetti)"
 
 ### 9. Copy photos to storage location directories
 
-Photos should be organized by **storage location**, not by shopping trip. Copy each item's photos to the directory matching where it's stored:
+Photos should be organized by **storage location**, not by shopping trip. Only copy photos that show the product itself or its context — **not** barcode scans or expiry date close-ups. Skip photos for items that will be consumed quickly (fresh produce, bread, etc.).
 
 ```bash
 # Example: nutmeg goes to spices container F-13
 cp ~/s/photos.tobixen/newmi/IMG_nutmeg*.jpg ~/solveig-inventory/photos/F-13/
 
-# Example: milk goes to fridge
-cp ~/s/photos.tobixen/newmi/IMG_milk*.jpg ~/solveig-inventory/photos/pantry-fridge/
-
-# Example: sauces go to food2-spreads
+# Example: sauce goes to food2-spreads
 cp ~/s/photos.tobixen/newmi/IMG_sauce*.jpg ~/solveig-inventory/photos/food2-spreads/
 ```
 
 Create the directory if it doesn't exist: `mkdir -p ~/solveig-inventory/photos/LOCATION-ID/`
 
 **Do NOT** create shopping-date directories like `lidl-2026-01-24/`.
+**Do NOT** copy barcode/expiry-date photos — those are only used for EAN lookup during processing.
 
 ### 10. Commit changes
 
