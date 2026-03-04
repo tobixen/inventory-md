@@ -5092,34 +5092,39 @@ class TestFetchVocabularyFromTingbok:
         called_url = mock_get.call_args[0][0]
         assert called_url == "https://tingbok.plann.no/api/vocabulary"
 
-    def test_returns_empty_on_http_error(self):
-        """Non-200 response returns empty dict (don't raise)."""
+    def test_raises_on_http_error(self):
+        """Non-200 response raises TingbokUnavailableError."""
         mock_response = MagicMock()
         mock_response.status_code = 503
         mock_response.raise_for_status.side_effect = Exception("Service Unavailable")
 
         with patch("niquests.get", return_value=mock_response):
-            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+            with pytest.raises(vocabulary.TingbokUnavailableError):
+                vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
 
-        assert result == {}
-
-    def test_returns_empty_on_connection_error(self):
-        """Network error returns empty dict (don't raise)."""
+    def test_raises_on_connection_error(self):
+        """Network error raises TingbokUnavailableError."""
         import niquests
 
         with patch("niquests.get", side_effect=niquests.ConnectionError("refused")):
-            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+            with pytest.raises(vocabulary.TingbokUnavailableError):
+                vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
 
-        assert result == {}
-
-    def test_returns_empty_on_timeout(self):
-        """Timeout returns empty dict."""
+    def test_raises_on_timeout(self):
+        """Timeout raises TingbokUnavailableError."""
         import niquests
 
         with patch("niquests.get", side_effect=niquests.Timeout("timed out")):
-            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+            with pytest.raises(vocabulary.TingbokUnavailableError):
+                vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
 
-        assert result == {}
+    def test_error_message_contains_url(self):
+        """TingbokUnavailableError message includes the endpoint URL."""
+        import niquests
+
+        with patch("niquests.get", side_effect=niquests.ConnectionError("refused")):
+            with pytest.raises(vocabulary.TingbokUnavailableError, match=self.TINGBOK_URL):
+                vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
 
     def test_source_uris_list_converted_to_dict(self):
         """source_uris list from tingbok JSON is converted to source->URI dict."""
@@ -5221,15 +5226,18 @@ class TestLoadGlobalVocabularyTingbok:
         assert "food" in result
         assert result["food"].source == "tingbok"
 
-    def test_no_fallback_when_tingbok_fails(self):
-        """When tingbok returns empty and no local files, result is empty."""
+    def test_raises_when_tingbok_fails(self):
+        """TingbokUnavailableError from fetch propagates out of load_global_vocabulary."""
         with (
-            patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}),
+            patch.object(
+                vocabulary,
+                "fetch_vocabulary_from_tingbok",
+                side_effect=vocabulary.TingbokUnavailableError("tingbok down"),
+            ),
             patch.object(vocabulary, "find_vocabulary_files", return_value=[]),
         ):
-            result = vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
-
-        assert result == {}
+            with pytest.raises(vocabulary.TingbokUnavailableError):
+                vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
 
     def test_skip_cwd_excludes_cwd_files(self, tmp_path, monkeypatch):
         """skip_cwd=True does not load vocabulary files found in cwd."""

@@ -50,6 +50,10 @@ logger = logging.getLogger(__name__)
 VIRTUAL_ROOT_ID = "_root"
 
 
+class TingbokUnavailableError(RuntimeError):
+    """Raised when the tingbok service cannot be reached or returns an error."""
+
+
 # =============================================================================
 # VOCABULARY FILE DISCOVERY
 # =============================================================================
@@ -176,8 +180,7 @@ def fetch_vocabulary_from_tingbok(url: str) -> dict[str, Concept]:
         response.raise_for_status()
         data: dict[str, Any] = response.json()
     except Exception as e:
-        logger.warning("Failed to fetch vocabulary from tingbok %s: %s", endpoint, e)
-        return {}
+        raise TingbokUnavailableError(f"Failed to fetch vocabulary from tingbok {endpoint}: {e}") from e
 
     concepts: dict[str, Concept] = {}
     for concept_id, raw in data.items():

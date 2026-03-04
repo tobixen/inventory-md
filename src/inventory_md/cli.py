@@ -245,8 +245,8 @@ def parse_command(
             # Generate vocabulary.json for category browser
             print("\n🏷️  Generating category vocabulary...")
 
-            # Load global vocabulary from all standard locations (package, system, user)
-            # Prefers tingbok service if configured; falls back to local package file.
+            # Load global vocabulary: tingbok (if configured) plus local overrides.
+            # Raises TingbokUnavailableError if tingbok is configured but unreachable.
             global_vocab = vocabulary.load_global_vocabulary(
                 tingbok_url=tingbok_url,
                 skip_cwd=True,  # local vocab is handled separately based on md_file.parent
@@ -1164,12 +1164,14 @@ def vocabulary_command(args, config: Config) -> int:
     else:
         directory = Path(directory).resolve()
 
-    # Load global vocabulary from all standard locations (package, system, user)
-    # Prefers tingbok service if configured; falls back to local package file.
-    global_vocab = vocabulary.load_global_vocabulary(
-        tingbok_url=config.tingbok_url,
-        skip_cwd=True,  # local vocab is handled separately based on directory
-    )
+    try:
+        global_vocab = vocabulary.load_global_vocabulary(
+            tingbok_url=config.tingbok_url,
+            skip_cwd=True,  # local vocab is handled separately based on directory
+        )
+    except vocabulary.TingbokUnavailableError as e:
+        print(f"❌ {e}")
+        return 1
 
     # Load local vocabulary from directory (highest priority)
     local_vocab_yaml = directory / "local-vocabulary.yaml"

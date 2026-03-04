@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v0.7.0] - 2026-03-04
 
+### Breaking Change
+Ref the "Changed" section further down, this release is efficiently adding a hard dependency on my tingbok.plann.no service being up.  Tingbok, including the data, is open source and available both from pypi and github, so should the service be down it's easy to work around this dependency.
+
 ### Added
 - **Multi-source URI support** via `source_uris` and `excluded_sources` on the `Concept`
   dataclass.  When fetched from tingbok, `source_uris` (a list in the API response) is
@@ -17,20 +20,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `False` when the source is in `concept.excluded_sources`.
   - `True` otherwise (auto-discover, including sources already in `source_uris`).
 - **`_uri_to_source()`** now recognises `https://tingbok.plann.no/` URIs as `"tingbok"`.
-
 ### Changed
+- **Bundled `vocabulary.yaml` removed** — tingbok is now the sole authoritative source
+  for the package vocabulary.  `_get_package_data_dir()` removed.  Local overrides in
+  `/etc/inventory-md/`, `~/.config/inventory-md/`, and the current directory continue
+  to work as before.  `fetch_vocabulary_from_tingbok()` now raises
+  `TingbokUnavailableError` on any network or HTTP error; `parse` and `vocabulary`
+  commands abort with `❌ …` and exit code 1 rather than writing a degraded
+  `vocabulary.json`.
 - **Expansion loop source guards**: all four sources (OFF, AGROVOC, DBpedia, Wikidata)
   now use `_should_query_source()`.  The previous ad-hoc `skip_agrovoc` heuristic
   (skip when concept has a non-AGROVOC URI) is removed; use `excluded_sources:
   [agrovoc]` in `vocabulary.yaml` instead.
 - **`_resolve_missing_uris()`** skips concepts whose `source_uris` already contains
   `dbpedia` or `wikidata`, or where both are in `excluded_sources`.
-- **Bundled `vocabulary.yaml` removed** — tingbok is now the sole authoritative source
-  for the package vocabulary.  `load_global_vocabulary()` no longer falls back to a
-  bundled file; if tingbok is unreachable and no local overrides exist, the vocabulary
-  is empty.  `_get_package_data_dir()` removed.  Local overrides in
-  `/etc/inventory-md/`, `~/.config/inventory-md/`, and the current directory continue
-  to work as before.
 
 ## [v0.6.1] - 2026-02-24
 
