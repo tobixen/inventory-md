@@ -3395,136 +3395,6 @@ class TestResolveMissingUris:
         assert hw.description == "Physical components"
 
 
-class TestRootCategoryMerges:
-    """Tests for the root category merges in package vocabulary.yaml."""
-
-    @pytest.fixture
-    def pkg_vocab(self):
-        """Load the package vocabulary."""
-        from pathlib import Path
-
-        vocab_file = Path(__file__).resolve().parent.parent / ("src/inventory_md/data/vocabulary.yaml")
-        return vocabulary.load_local_vocabulary(vocab_file)
-
-    def test_root_narrower_count(self, pkg_vocab):
-        """_root.narrower should have exactly 11 entries (10 roots + category_by_source)."""
-        root = pkg_vocab["_root"]
-        assert len(root.narrower) == 11
-
-    def test_root_narrower_contents(self, pkg_vocab):
-        """_root.narrower should list the 10 merged roots plus category_by_source."""
-        root = pkg_vocab["_root"]
-        expected = {
-            "food",
-            "tools",
-            "electronics",
-            "household",
-            "clothing",
-            "hardware",
-            "recreation",
-            "medical",
-            "games",
-            "misc",
-            "category_by_source",
-        }
-        assert set(root.narrower) == expected
-
-    def test_hobby_under_recreation(self, pkg_vocab):
-        """hobby concept should exist under recreation."""
-        assert "hobby" in pkg_vocab
-        assert pkg_vocab["hobby"].broader == ["recreation"]
-        assert pkg_vocab["hobby"].prefLabel == "Hobbies & Crafts"
-
-    def test_recreation_root_exists(self, pkg_vocab):
-        """recreation should exist as a new root with correct children."""
-        rec = pkg_vocab["recreation"]
-        assert rec.prefLabel == "Recreation & Transport"
-        assert set(rec.narrower) == {"outdoor", "sports", "transport"}
-        assert rec.broader == []
-
-    def test_outdoor_demoted_to_recreation(self, pkg_vocab):
-        """outdoor should have broader: recreation."""
-        assert pkg_vocab["outdoor"].broader == ["recreation"]
-
-    def test_sports_demoted_to_recreation(self, pkg_vocab):
-        """sports should have broader: recreation."""
-        assert pkg_vocab["sports"].broader == ["recreation"]
-
-    def test_transport_demoted_to_recreation(self, pkg_vocab):
-        """transport should have broader: recreation."""
-        assert pkg_vocab["transport"].broader == ["recreation"]
-
-    def test_construction_demoted_to_hardware(self, pkg_vocab):
-        """construction should have broader: hardware."""
-        assert pkg_vocab["construction"].broader == ["hardware"]
-
-    def test_consumables_demoted_to_hardware(self, pkg_vocab):
-        """consumables should have broader: hardware."""
-        assert pkg_vocab["consumables"].broader == ["hardware"]
-
-    def test_hardware_has_children(self, pkg_vocab):
-        """hardware.narrower should include construction and consumables."""
-        hw = pkg_vocab["hardware"]
-        assert "construction" in hw.narrower
-        assert "consumables" in hw.narrower
-
-    def test_office_demoted_to_household(self, pkg_vocab):
-        """office should have broader: household."""
-        assert pkg_vocab["office"].broader == ["household"]
-
-    def test_books_demoted_to_household(self, pkg_vocab):
-        """books should have broader: household."""
-        assert pkg_vocab["books"].broader == ["household"]
-
-    def test_documents_demoted_to_household(self, pkg_vocab):
-        """documents should have broader: household."""
-        assert pkg_vocab["documents"].broader == ["household"]
-
-    def test_household_has_children(self, pkg_vocab):
-        """household.narrower should include office, books, documents."""
-        hh = pkg_vocab["household"]
-        assert "office" in hh.narrower
-        assert "books" in hh.narrower
-        assert "documents" in hh.narrower
-
-    def test_medical_renamed(self, pkg_vocab):
-        """medical should have prefLabel 'Health & Safety'."""
-        assert pkg_vocab["medical"].prefLabel == "Health & Safety"
-
-    def test_safety_equipment_under_medical(self, pkg_vocab):
-        """safety-equipment should have broader: medical."""
-        assert pkg_vocab["safety-equipment"].broader == ["medical"]
-        assert "safety-equipment" in pkg_vocab["medical"].narrower
-
-    def test_pool_consumables_moved_to_household(self, pkg_vocab):
-        """ph_test_strips and pool_chlorine should be under household."""
-        assert pkg_vocab["ph_test_strips"].broader == ["household"]
-        assert pkg_vocab["pool_chlorine"].broader == ["household"]
-
-    def test_broader_chain_sleeping_bag(self, pkg_vocab):
-        """sleeping-bag → outdoor → recreation (broader chain)."""
-        sb = pkg_vocab["sleeping-bag"]
-        assert sb.broader == ["outdoor"]
-        outdoor = pkg_vocab["outdoor"]
-        assert outdoor.broader == ["recreation"]
-        rec = pkg_vocab["recreation"]
-        assert rec.broader == []
-
-    def test_broader_chain_pen(self, pkg_vocab):
-        """pen → office/writing → office → household (broader chain)."""
-        pen = pkg_vocab["pen"]
-        assert pen.broader == ["office/writing"]
-        ow = pkg_vocab["office/writing"]
-        assert ow.broader == ["office"]
-        office = pkg_vocab["office"]
-        assert office.broader == ["household"]
-
-    def test_no_concept_has_broader_hobby(self, pkg_vocab):
-        """No concept should reference hobby as broader."""
-        for cid, concept in pkg_vocab.items():
-            assert "hobby" not in concept.broader, f"{cid} still references hobby as broader"
-
-
 class TestAgrovocMismatchSuppression:
     """Tests for AGROVOC mismatch warning suppression.
 
@@ -3728,16 +3598,8 @@ concepts:
         vocab = vocabulary.load_local_vocabulary(vocab_file, default_source="package")
         assert vocab["tools"].source == "custom"
 
-    def test_load_global_vocabulary_package_detection(self, tmp_path):
-        """load_global_vocabulary() sets source='package' for package vocab."""
-        pkg_dir = tmp_path / "pkg_data"
-        pkg_dir.mkdir()
-        pkg_vocab = pkg_dir / "vocabulary.yaml"
-        pkg_vocab.write_text("""
-concepts:
-  clothing:
-    prefLabel: "Clothing"
-""")
+    def test_local_files_use_local_source(self, tmp_path):
+        """load_global_vocabulary() uses source='local' for all non-tingbok vocab files."""
         user_dir = tmp_path / "user"
         user_dir.mkdir()
         user_vocab = user_dir / "vocabulary.yaml"
@@ -3747,44 +3609,10 @@ concepts:
     prefLabel: "My Thing"
 """)
 
-        with (
-            patch.object(vocabulary, "_get_package_data_dir", return_value=pkg_dir),
-            patch.object(vocabulary, "find_vocabulary_files", return_value=[pkg_vocab, user_vocab]),
-        ):
+        with patch.object(vocabulary, "find_vocabulary_files", return_value=[user_vocab]):
             merged = vocabulary.load_global_vocabulary()
 
-        assert merged["clothing"].source == "tingbok"
         assert merged["my_thing"].source == "local"
-
-    def test_user_local_overrides_package_keeps_local_source(self, tmp_path):
-        """User vocab overriding a package concept should have source='local'."""
-        pkg_dir = tmp_path / "pkg_data"
-        pkg_dir.mkdir()
-        pkg_vocab = pkg_dir / "vocabulary.yaml"
-        pkg_vocab.write_text("""
-concepts:
-  clothing:
-    prefLabel: "Clothing"
-""")
-        user_dir = tmp_path / "user"
-        user_dir.mkdir()
-        user_vocab = user_dir / "vocabulary.yaml"
-        user_vocab.write_text("""
-concepts:
-  clothing:
-    prefLabel: "My Clothing"
-    altLabel: "apparel"
-""")
-
-        with (
-            patch.object(vocabulary, "_get_package_data_dir", return_value=pkg_dir),
-            patch.object(vocabulary, "find_vocabulary_files", return_value=[pkg_vocab, user_vocab]),
-        ):
-            merged = vocabulary.load_global_vocabulary()
-
-        # User definition wins (later overrides earlier)
-        assert merged["clothing"].prefLabel == "My Clothing"
-        assert merged["clothing"].source == "local"
 
     def test_package_source_preserved_for_intermediate_concepts(self, tmp_path):
         """Package source propagates when flat concept merges into existing path node.
@@ -5393,49 +5221,15 @@ class TestLoadGlobalVocabularyTingbok:
         assert "food" in result
         assert result["food"].source == "tingbok"
 
-    def test_skips_package_file_when_tingbok_succeeds(self, tmp_path):
-        """When tingbok returns concepts, the package vocab file is not loaded."""
-        fake_pkg = tmp_path / "pkg"
-        fake_pkg_vocab = fake_pkg / "vocabulary.yaml"
-
-        with (
-            patch.object(
-                vocabulary,
-                "fetch_vocabulary_from_tingbok",
-                return_value={
-                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="tingbok"),
-                },
-            ),
-            patch.object(vocabulary, "find_vocabulary_files", return_value=[fake_pkg_vocab]),
-            patch.object(vocabulary, "_get_package_data_dir", return_value=fake_pkg),
-            patch.object(vocabulary, "load_local_vocabulary") as mock_load,
-        ):
-            vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
-
-        # The package file should not have been loaded
-        mock_load.assert_not_called()
-
-    def test_falls_back_to_local_file_when_tingbok_fails(self, tmp_path):
-        """When tingbok returns empty, falls back to loading the package vocab file."""
-        fake_pkg = tmp_path / "pkg"
-        fake_vocab_path = fake_pkg / "vocabulary.yaml"
-
+    def test_no_fallback_when_tingbok_fails(self):
+        """When tingbok returns empty and no local files, result is empty."""
         with (
             patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}),
-            patch.object(vocabulary, "find_vocabulary_files", return_value=[fake_vocab_path]),
-            patch.object(vocabulary, "_get_package_data_dir", return_value=fake_pkg),
-            patch.object(
-                vocabulary,
-                "load_local_vocabulary",
-                return_value={
-                    "food": vocabulary.Concept(id="food", prefLabel="Food", source="tingbok"),
-                },
-            ) as mock_load,
+            patch.object(vocabulary, "find_vocabulary_files", return_value=[]),
         ):
             result = vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
 
-        mock_load.assert_called_once_with(fake_vocab_path, default_source="tingbok")
-        assert "food" in result
+        assert result == {}
 
     def test_skip_cwd_excludes_cwd_files(self, tmp_path, monkeypatch):
         """skip_cwd=True does not load vocabulary files found in cwd."""
@@ -5446,21 +5240,17 @@ class TestLoadGlobalVocabularyTingbok:
         with (
             patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}),
             patch.object(vocabulary, "find_vocabulary_files", return_value=[cwd_vocab]),
-            patch.object(vocabulary, "_get_package_data_dir", return_value=None),
         ):
             result = vocabulary.load_global_vocabulary(skip_cwd=True)
 
         assert "local_thing" not in result
 
-    def test_without_tingbok_url_loads_normally(self, tmp_path):
-        """Without tingbok_url, behaves as before (loads from local files)."""
+    def test_without_tingbok_url_loads_from_local_files(self, tmp_path):
+        """Without tingbok_url, loads from local files only."""
         vocab_file = tmp_path / "vocabulary.yaml"
         vocab_file.write_text("concepts:\n  food:\n    prefLabel: 'Food'\n")
 
-        with (
-            patch.object(vocabulary, "find_vocabulary_files", return_value=[vocab_file]),
-            patch.object(vocabulary, "_get_package_data_dir", return_value=None),
-        ):
+        with patch.object(vocabulary, "find_vocabulary_files", return_value=[vocab_file]):
             result = vocabulary.load_global_vocabulary()
 
         assert "food" in result

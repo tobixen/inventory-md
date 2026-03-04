@@ -33,7 +33,6 @@ Local vocabulary format (local-vocabulary.yaml):
 
 from __future__ import annotations
 
-import importlib.resources
 import json
 import logging
 from collections.abc import Callable
@@ -56,38 +55,16 @@ VIRTUAL_ROOT_ID = "_root"
 # =============================================================================
 
 
-def _get_package_data_dir() -> Path | None:
-    """Get the package data directory containing the default vocabulary.
-
-    Returns:
-        Path to the package data directory, or None if not found.
-    """
-    try:
-        # Python 3.9+ way to get package resources
-        files = importlib.resources.files("inventory_md")
-        data_dir = files / "data"
-        # Check if it's a real path (installed package) or traversable
-        if hasattr(data_dir, "_path"):
-            return Path(data_dir._path)
-        # For editable installs, try to resolve the path
-        with importlib.resources.as_file(data_dir) as path:
-            return path
-    except (ModuleNotFoundError, FileNotFoundError, TypeError):
-        # Fallback: try relative to this file (for development)
-        dev_path = Path(__file__).parent / "data"
-        if dev_path.exists():
-            return dev_path
-    return None
-
-
 def find_vocabulary_files() -> list[Path]:
     """Find all vocabulary files, in merge order (lowest priority first).
 
     Searches in order:
-    1. Package default vocabulary (shipped with inventory-md)
-    2. /etc/inventory-md/vocabulary.yaml
-    3. ~/.config/inventory-md/vocabulary.yaml
-    4. ./vocabulary.yaml or ./local-vocabulary.yaml (highest priority)
+    1. /etc/inventory-md/vocabulary.yaml
+    2. ~/.config/inventory-md/vocabulary.yaml
+    3. ./vocabulary.yaml or ./local-vocabulary.yaml (highest priority)
+
+    The canonical package vocabulary is fetched from tingbok; use
+    load_global_vocabulary(tingbok_url=...) for the full vocabulary.
 
     Returns:
         List of found vocabulary files. Files later in the list override earlier.
@@ -104,17 +81,7 @@ def find_vocabulary_files() -> list[Path]:
         "vocabulary.yml",
     ]
 
-    # 1. Package default vocabulary (lowest priority)
-    pkg_data = _get_package_data_dir()
-    if pkg_data:
-        for filename in vocab_filenames:
-            path = pkg_data / filename
-            if path.exists():
-                found_files.append(path)
-                logger.debug("Found package vocabulary: %s", path)
-                break
-
-    # 2. System-wide config (/etc/inventory-md/)
+    # 1. System-wide config (/etc/inventory-md/)
     etc_dir = Path("/etc/inventory-md")
     if etc_dir.exists():
         for filename in vocab_filenames:
@@ -124,7 +91,7 @@ def find_vocabulary_files() -> list[Path]:
                 logger.debug("Found system vocabulary: %s", path)
                 break
 
-    # 3. User config (~/.config/inventory-md/)
+    # 2. User config (~/.config/inventory-md/)
     user_dir = Path.home() / ".config" / "inventory-md"
     if user_dir.exists():
         for filename in vocab_filenames:
@@ -134,7 +101,7 @@ def find_vocabulary_files() -> list[Path]:
                 logger.debug("Found user vocabulary: %s", path)
                 break
 
-    # 4. Current directory (highest priority) - also check local-vocabulary.*
+    # 3. Current directory (highest priority) - also check local-vocabulary.*
     cwd = Path.cwd()
     for filename in local_vocab_filenames:
         path = cwd / filename
@@ -152,13 +119,14 @@ def load_global_vocabulary(
 ) -> dict[str, Concept]:
     """Load and merge vocabulary from all standard locations.
 
-    Loads vocabularies from package defaults, system, user, and local
-    directories, merging them with proper precedence (later overrides earlier).
+    The canonical package vocabulary is fetched from tingbok (lowest priority).
+    Local overrides from /etc/inventory-md/, ~/.config/inventory-md/, and the
+    current directory are merged on top (highest priority last).
 
     Args:
-        tingbok_url: Optional URL of a running tingbok service. If provided,
-            the package vocabulary is fetched from tingbok instead of the
-            local file. Falls back to the local file if tingbok is unreachable.
+        tingbok_url: URL of a running tingbok service. If provided, the package
+            vocabulary is fetched from tingbok. If unreachable, no package-level
+            concepts are loaded.
         skip_cwd: If True, skip vocabulary files found in the current working
             directory (useful when local vocab is loaded separately).
 
@@ -166,29 +134,19 @@ def load_global_vocabulary(
         Merged vocabulary dictionary mapping concept IDs to Concept objects.
     """
     merged: dict[str, Concept] = {}
-    pkg_data = _get_package_data_dir()
-    package_loaded_from_tingbok = False
 
-    # Try loading package vocabulary from tingbok first
+    # Fetch package vocabulary from tingbok (lowest priority)
     if tingbok_url:
         pkg_vocab = fetch_vocabulary_from_tingbok(tingbok_url)
         if pkg_vocab:
             logger.info("Loaded %d concepts from tingbok (%s)", len(pkg_vocab), tingbok_url)
             merged.update(pkg_vocab)
-            package_loaded_from_tingbok = True
 
     for vocab_path in find_vocabulary_files():
         try:
-            is_package = pkg_data is not None and vocab_path.parent == pkg_data
-            if is_package and package_loaded_from_tingbok:
-                # Already loaded package vocab from tingbok — skip local file
-                continue
             if skip_cwd and vocab_path.parent == Path.cwd():
                 continue
-            vocab = load_local_vocabulary(
-                vocab_path,
-                default_source="tingbok" if is_package else "local",
-            )
+            vocab = load_local_vocabulary(vocab_path)
             logger.info("Loaded %d concepts from %s", len(vocab), vocab_path)
             # Later files override earlier ones
             merged.update(vocab)

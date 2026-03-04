@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.7.0] - 2026-03-04
 
 ### Added
 - **Multi-source URI support** via `source_uris` and `excluded_sources` on the `Concept`
@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [agrovoc]` in `vocabulary.yaml` instead.
 - **`_resolve_missing_uris()`** skips concepts whose `source_uris` already contains
   `dbpedia` or `wikidata`, or where both are in `excluded_sources`.
+- **Bundled `vocabulary.yaml` removed** — tingbok is now the sole authoritative source
+  for the package vocabulary.  `load_global_vocabulary()` no longer falls back to a
+  bundled file; if tingbok is unreachable and no local overrides exist, the vocabulary
+  is empty.  `_get_package_data_dir()` removed.  Local overrides in
+  `/etc/inventory-md/`, `~/.config/inventory-md/`, and the current directory continue
+  to work as before.
 
 ## [v0.6.1] - 2026-02-24
 
