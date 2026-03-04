@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking Change
 Ref the "Changed" section further down, this release is efficiently adding a hard dependency on my tingbok.plann.no service being up.  Tingbok, including the data, is open source and available both from pypi and github, so should the service be down it's easy to work around this dependency.
 
+(There may be other breaking changes as well that I have forgotten to mention - it's still the 0.x-series, so I'm in my full rights to reorganize things - and as for now, I suppose I'm the only user in the world.  However, this is a concern I find worth flagging)
+
 ### Fixed
 - **Category tree orphan promotion** removed — `build_category_tree()` no longer
   promotes unreachable concepts to root level.  `_root.narrower` is a whitelist;
