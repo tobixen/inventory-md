@@ -10,13 +10,19 @@ Line 232 is a no-op rename: `raw.pop("excluded_sources", [])` is immediately rea
 raw["excluded_sources"] = raw.pop("excluded_sources", [])  # equivalent to nothing
 ```
 
+**Fixed:** Line removed.
+
 ### `_uri_to_source` — missing `https://` variants for external sources
 
-The function handles `http://www.wikidata.org/` but Wikidata entity URIs can also appear as `https://www.wikidata.org/` (e.g. from newer API responses). Similarly DBpedia sometimes returns `https://dbpedia.org/`. The existing code is not new here, but with the introduction of `_should_query_source` relying on this function (indirectly via `concept.source_uris`), wrong classification could cause a source to be re-queried unnecessarily. Worth noting.
+The function handles `http://www.wikidata.org/` but Wikidata entity URIs can also appear as `https://www.wikidata.org/` (e.g. from newer API responses). Similarly DBpedia sometimes returns `https://dbpedia.org/`. The existing code is not new here, but with the introduction of `_should_query_source` relying on this function (indirectly via `concept.source_uris`), wrong classification could cause a source to be re-queried unnecessarily. Probably we should stick to the https URLs.
+
+**Fixed:** Both `https://dbpedia.org/` and `https://www.wikidata.org/` now recognised, with tests added.
 
 ### `_should_query_source` — "tingbok" hardcoded as string
 
 The function special-cases `source == "tingbok"` with a string literal. If this source name ever changes (it's defined via `_uri_to_source`), this breaks silently. Consider a constant or at least a comment pointing to the string's origin.
+
+**Fixed:** Comment added pointing to `_uri_to_source`.
 
 ### `_resolve_missing_uris` — inconsistency with `_should_query_source`
 
@@ -36,6 +42,8 @@ for source in sources_to_try:
     ...
 ```
 
+**Fixed:** `_should_query_source` check added inside the inner loop.
+
 ### `build_vocabulary_with_skos_hierarchy` — AGROVOC skip logic cleanup
 
 The old `skip_agrovoc` logic was removed and replaced with `_should_query_source`. Good simplification.
@@ -50,6 +58,8 @@ Tests are well-structured and directly test the new behaviour. One gap:
 
 There's no test covering the case where a concept has `excluded_sources=["dbpedia"]` but not `["wikidata"]` — to verify the inner loop still queries wikidata (and skips dbpedia). The bug described above would not be caught by existing tests.
 
+**Fixed:** `test_respects_per_concept_excluded_sources` added to `TestResolveMissingUris`.
+
 ---
 
 ## `docs/` changes
@@ -60,10 +70,10 @@ Pure prose/planning — no issues.
 
 ## Summary
 
-| Severity | Issue |
-|---|---|
-| Bug | `_resolve_missing_uris` inner loop doesn't call `_should_query_source`, so per-source exclusion isn't enforced there |
-| Nit | `raw["excluded_sources"] = raw.pop("excluded_sources", [])` is a no-op |
-| Minor | `"tingbok"` string hardcoded in `_should_query_source`, not tied to `_uri_to_source` |
-| Minor | `_uri_to_source` doesn't handle `https://` for wikidata/dbpedia URIs |
-| Test gap | No test for partial `excluded_sources` in `_resolve_missing_uris` |
+| Severity | Issue | Status |
+|---|---|---|
+| Bug | `_resolve_missing_uris` inner loop doesn't call `_should_query_source`, so per-source exclusion isn't enforced there | Fixed |
+| Nit | `raw["excluded_sources"] = raw.pop("excluded_sources", [])` is a no-op | Fixed |
+| Minor | `"tingbok"` string hardcoded in `_should_query_source`, not tied to `_uri_to_source` | Fixed (comment) |
+| Minor | `_uri_to_source` doesn't handle `https://` for wikidata/dbpedia URIs | Fixed |
+| Test gap | No test for partial `excluded_sources` in `_resolve_missing_uris` | Fixed |

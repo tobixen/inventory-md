@@ -3394,6 +3394,35 @@ class TestResolveMissingUris:
         assert hw.uri == "http://dbpedia.org/resource/Hardware"
         assert hw.description == "Physical components"
 
+    def test_respects_per_concept_excluded_sources(self):
+        """Concept with excluded_sources=['dbpedia'] is still queried via wikidata."""
+        concepts = {
+            "tools/wrench": vocabulary.Concept(
+                id="tools/wrench",
+                prefLabel="Wrench",
+                source="local",
+                excluded_sources=["dbpedia"],
+            ),
+        }
+        all_uri_maps: dict[str, str] = {}
+        client = self._make_client()
+        client.lookup_concept.side_effect = lambda label, lang, source: (
+            {
+                "uri": "http://www.wikidata.org/entity/Q111",
+                "prefLabel": "Wrench",
+            }
+            if source == "wikidata" and label == "Wrench"
+            else None
+        )
+
+        count = vocabulary._resolve_missing_uris(concepts, all_uri_maps, client, "en", ["dbpedia", "wikidata"])
+
+        assert count == 1
+        assert concepts["tools/wrench"].uri == "http://www.wikidata.org/entity/Q111"
+        # dbpedia must not have been queried
+        for call in client.lookup_concept.call_args_list:
+            assert call.kwargs.get("source") != "dbpedia"
+
 
 class TestAgrovocMismatchSuppression:
     """Tests for AGROVOC mismatch warning suppression.
@@ -3840,6 +3869,12 @@ class TestUriToSource:
 
     def test_tingbok_uri_base(self):
         assert vocabulary._uri_to_source("https://tingbok.plann.no/") == "tingbok"
+
+    def test_dbpedia_https_uri(self):
+        assert vocabulary._uri_to_source("https://dbpedia.org/resource/Potato") == "dbpedia"
+
+    def test_wikidata_https_uri(self):
+        assert vocabulary._uri_to_source("https://www.wikidata.org/entity/Q10998") == "wikidata"
 
 
 class TestShouldQuerySource:

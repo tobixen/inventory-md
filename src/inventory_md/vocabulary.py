@@ -190,7 +190,6 @@ def fetch_vocabulary_from_tingbok(url: str) -> dict[str, Concept]:
         raw["source"] = "tingbok"
         # Convert source_uris from list[str] → dict[str, str] (source name → URI)
         raw_source_uris: list[str] = raw.pop("source_uris", [])
-        raw["excluded_sources"] = raw.pop("excluded_sources", [])
         try:
             concept = Concept.from_dict(raw)
             for u in raw_source_uris:
@@ -1730,9 +1729,9 @@ def _uri_to_source(uri: str) -> str | None:
         return "off"
     if uri.startswith("http://aims.fao.org/"):
         return "agrovoc"
-    if uri.startswith("http://dbpedia.org/"):
+    if uri.startswith("http://dbpedia.org/") or uri.startswith("https://dbpedia.org/"):
         return "dbpedia"
-    if uri.startswith("http://www.wikidata.org/"):
+    if uri.startswith("http://www.wikidata.org/") or uri.startswith("https://www.wikidata.org/"):
         return "wikidata"
     if uri.startswith("https://tingbok.plann.no/"):
         return "tingbok"
@@ -1747,7 +1746,7 @@ def _should_query_source(source: str, local_concept: Concept | None) -> bool:
     - Source in concept.excluded_sources → checked and rejected → False.
     - Anything else (including source already in source_uris) → True.
     """
-    if source == "tingbok":
+    if source == "tingbok":  # source name as returned by _uri_to_source
         return False
     if local_concept is None:
         return True
@@ -1849,6 +1848,8 @@ def _resolve_missing_uris(
         label = concept.prefLabel or cid.split("/")[-1].replace("_", " ")
 
         for source in sources_to_try:
+            if not _should_query_source(source, concept):
+                continue
             result = client.lookup_concept(label, lang, source=source)
             if not result or not result.get("uri"):
                 continue
