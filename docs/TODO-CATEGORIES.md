@@ -2,18 +2,21 @@
 
 Known issues and improvement areas for the SKOS vocabulary and category hierarchy system.  We focus first on getting a good, working category system for ~/solveig-inventory, afterwards ~/furuset-inventory should be dealt with.
 
-## Multiple-sources
+## Multiple-sources (important!)
 
-Let me be clear on this:
+Some of the logic has sort of been moved from inventory-md to a separate tingbok project - the source for tingbok is under ~/tingbok
 
-If a category exists in multiple sources (say, dbpedia, wikidata, off), then ...
+The tingbok vocabulary.json should contain the URL to all applicable data sources.  Currently there is an `uri` field but it's only used in some few of the categories, and it only allows a single URL, not a list of URLs.  It needs to be changed a bit so the URL for every matching source can be stored in the vocabulary.  off probably doesn't have the uri-concept, but we can make mock URIs ... like `off://category:{categoryname}`.  If the list is empty, then tingbok should autogenerate a list, if the list contains items i.e. for bedding, with agrovoc missing, then it should assume that there is no need to look up bedding in agrovoc.
 
-* The category should be stored in the vocabulary with all the sources present
-* It should be displayed not with one source in the UI, but with the full list of sources
-* It should be accessible through several paths starting from "Category by Source", and most likely also other paths starting with our defined root nodes.
-* All translations should be made available.  The fallback logic (use nn or da or no if no nb is found, etc) should only apply if NONE of the sources have nb language.  no should be used it it exists in any of the sources, if not continue with da etc.
-* All descriptions should be shown in the info-box.
-* Sometimes a category is completely wrong (like the animal seal vs a rubber seal), in such cases the local or package-wide vocabulary could contain data telling that another concept is NOT the same.
+The git-controlled tingbok `vocabulary.json` should not contain any redundant altlabels etc.  If translations exists upstream, then that's sufficient.  (but translation information may exist in local caches and should be delivered to the end-clients).
+
+Currently it seems that lots of translations are missing in the category system.  The logic should be to fetch *all* translations from *all* sources.  The fallback logic (use nn or da or no if no nb is found, etc) should only apply if NONE of the sources have nb language.  (exceptions may apply - like no is sort of the same as nb and may be considered as a primary altlabel source and not just fallback).
+
+Categories should be displayed not only with one source in the UI, but with the full list of sources (and the info box should either contain information from all the sources, or it should be possible to choose source and then see the info)
+
+The very most of the categories should be accessible by several paths, both from the virtual `_root`-node and through the "Category by Source" node. (I think this is sort of working already)
+
+Sometimes a category is completely wrong (like the animal seal vs a rubber seal).  I noticed the wikidata has a https://www.wikidata.org/wiki/Property:P1889 "different from", perhaps something like this may be used to distinguish rubber seals from live seals and human-bed-related items from animal-pee-absorbing matters?
 
 ## ~~Wikidata source is not visible under "Category by Source"~~
 
