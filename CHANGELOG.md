@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Multi-source URI support** via `source_uris` and `excluded_sources` on the `Concept`
+  dataclass.  When fetched from tingbok, `source_uris` (a list in the API response) is
+  converted to a `{source_name: uri}` dict, and `excluded_sources` is passed through.
+- **`_should_query_source(source, concept)`** helper — centralised guard for deciding
+  whether to query a given external source for a concept:
+  - Always `False` for `"tingbok"` (informational only, no upstream lookups).
+  - `False` when the source is in `concept.excluded_sources`.
+  - `True` otherwise (auto-discover, including sources already in `source_uris`).
+- **`_uri_to_source()`** now recognises `https://tingbok.plann.no/` URIs as `"tingbok"`.
+
+### Changed
+- **Expansion loop source guards**: all four sources (OFF, AGROVOC, DBpedia, Wikidata)
+  now use `_should_query_source()`.  The previous ad-hoc `skip_agrovoc` heuristic
+  (skip when concept has a non-AGROVOC URI) is removed; use `excluded_sources:
+  [agrovoc]` in `vocabulary.yaml` instead.
+- **`_resolve_missing_uris()`** skips concepts whose `source_uris` already contains
+  `dbpedia` or `wikidata`, or where both are in `excluded_sources`.
+
 ## [v0.6.1] - 2026-02-24
 
 ### Fixed

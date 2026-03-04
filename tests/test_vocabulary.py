@@ -3529,24 +3529,25 @@ class TestAgrovocMismatchSuppression:
     """Tests for AGROVOC mismatch warning suppression.
 
     The vocabulary builder should skip AGROVOC lookup when the local concept
-    already has a non-AGROVOC URI, and tolerate singular/plural differences
+    has "agrovoc" in excluded_sources, and tolerate singular/plural differences
     in the mismatch check.
     """
 
     @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
-    def test_agrovoc_skipped_when_local_has_dbpedia_uri(self, mock_skos_paths):
-        """AGROVOC lookup should be skipped when local concept has a DBpedia URI."""
+    def test_agrovoc_skipped_when_in_excluded_sources(self, mock_skos_paths):
+        """AGROVOC lookup should be skipped when excluded_sources includes 'agrovoc'."""
         local_vocab = {
-            "tools": vocabulary.Concept(
-                id="tools",
-                prefLabel="Tools",
+            "household/bedding": vocabulary.Concept(
+                id="household/bedding",
+                prefLabel="Bedding",
                 source="local",
-                broader=["hardware"],
-                uri="http://dbpedia.org/resource/Tool",
+                broader=["household"],
+                uri="http://dbpedia.org/resource/Bedding",
+                excluded_sources=["agrovoc"],
             ),
-            "hardware": vocabulary.Concept(
-                id="hardware",
-                prefLabel="Hardware",
+            "household": vocabulary.Concept(
+                id="household",
+                prefLabel="Household",
                 source="local",
                 broader=[],
             ),
@@ -3556,7 +3557,7 @@ class TestAgrovocMismatchSuppression:
             "containers": [
                 {
                     "id": "box1",
-                    "items": [{"name": "Tools", "metadata": {"categories": ["tools"]}}],
+                    "items": [{"name": "Bedding", "metadata": {"categories": ["household/bedding"]}}],
                 }
             ]
         }
@@ -3570,7 +3571,7 @@ class TestAgrovocMismatchSuppression:
                 local_vocab=local_vocab,
             )
 
-        # AGROVOC should NOT have been called because tools has a DBpedia URI
+        # AGROVOC should NOT have been called because bedding has agrovoc in excluded_sources
         mock_skos_paths.assert_not_called()
 
     @patch("inventory_md.vocabulary.build_skos_hierarchy_paths")
@@ -4005,6 +4006,51 @@ class TestUriToSource:
 
     def test_unknown_uri(self):
         assert vocabulary._uri_to_source("https://example.com/foo") is None
+
+    def test_tingbok_uri(self):
+        assert vocabulary._uri_to_source("https://tingbok.plann.no/api/vocabulary/food") == "tingbok"
+
+    def test_tingbok_uri_base(self):
+        assert vocabulary._uri_to_source("https://tingbok.plann.no/") == "tingbok"
+
+
+class TestShouldQuerySource:
+    """Tests for _should_query_source() helper."""
+
+    def test_returns_false_for_tingbok(self):
+        assert vocabulary._should_query_source("tingbok", None) is False
+
+    def test_returns_true_when_no_local_concept(self):
+        assert vocabulary._should_query_source("agrovoc", None) is True
+
+    def test_returns_true_for_unknown_source(self):
+        concept = vocabulary.Concept(id="food", prefLabel="Food")
+        assert vocabulary._should_query_source("agrovoc", concept) is True
+
+    def test_returns_false_when_source_in_excluded_sources(self):
+        concept = vocabulary.Concept(
+            id="household/bedding",
+            prefLabel="Bedding",
+            excluded_sources=["agrovoc"],
+        )
+        assert vocabulary._should_query_source("agrovoc", concept) is False
+
+    def test_returns_true_when_source_in_source_uris(self):
+        """Source in source_uris → still queried (for hierarchy enrichment)."""
+        concept = vocabulary.Concept(
+            id="food",
+            prefLabel="Food",
+            source_uris={"dbpedia": "http://dbpedia.org/resource/Food"},
+        )
+        assert vocabulary._should_query_source("dbpedia", concept) is True
+
+    def test_returns_true_when_source_not_in_excluded(self):
+        concept = vocabulary.Concept(
+            id="household/bedding",
+            prefLabel="Bedding",
+            excluded_sources=["agrovoc"],
+        )
+        assert vocabulary._should_query_source("dbpedia", concept) is True
 
 
 class TestFindAdditionalTranslationUris:
@@ -5246,6 +5292,70 @@ class TestFetchVocabularyFromTingbok:
             result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
 
         assert result == {}
+
+    def test_source_uris_list_converted_to_dict(self):
+        """source_uris list from tingbok JSON is converted to source->URI dict."""
+        response_data = {
+            "food": {
+                "id": "food",
+                "prefLabel": "Food",
+                "altLabel": {},
+                "broader": [],
+                "narrower": [],
+                "uri": "http://dbpedia.org/resource/Food",
+                "labels": {},
+                "description": None,
+                "wikipediaUrl": None,
+                "source_uris": [
+                    "https://tingbok.plann.no/api/vocabulary/food",
+                    "http://dbpedia.org/resource/Food",
+                    "http://aims.fao.org/aos/agrovoc/c_3490",
+                ],
+                "excluded_sources": [],
+            }
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = response_data
+
+        with patch("niquests.get", return_value=mock_response):
+            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+
+        food = result["food"]
+        assert isinstance(food.source_uris, dict)
+        assert food.source_uris.get("tingbok") == "https://tingbok.plann.no/api/vocabulary/food"
+        assert food.source_uris.get("dbpedia") == "http://dbpedia.org/resource/Food"
+        assert food.source_uris.get("agrovoc") == "http://aims.fao.org/aos/agrovoc/c_3490"
+
+    def test_excluded_sources_passed_through(self):
+        """excluded_sources from tingbok JSON is stored on Concept."""
+        response_data = {
+            "household/bedding": {
+                "id": "household/bedding",
+                "prefLabel": "Bedding",
+                "altLabel": {},
+                "broader": ["household"],
+                "narrower": [],
+                "uri": "http://dbpedia.org/resource/Bedding",
+                "labels": {},
+                "description": None,
+                "wikipediaUrl": None,
+                "source_uris": [
+                    "https://tingbok.plann.no/api/vocabulary/household/bedding",
+                    "http://dbpedia.org/resource/Bedding",
+                ],
+                "excluded_sources": ["agrovoc"],
+            }
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = response_data
+
+        with patch("niquests.get", return_value=mock_response):
+            result = vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL)
+
+        bedding = result["household/bedding"]
+        assert bedding.excluded_sources == ["agrovoc"]
 
 
 class TestLoadGlobalVocabularyTingbok:

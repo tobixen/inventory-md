@@ -227,8 +227,16 @@ def fetch_vocabulary_from_tingbok(url: str) -> dict[str, Concept]:
         raw["altLabels"] = raw.pop("altLabel", {})
         raw["id"] = concept_id
         raw["source"] = "tingbok"
+        # Convert source_uris from list[str] → dict[str, str] (source name → URI)
+        raw_source_uris: list[str] = raw.pop("source_uris", [])
+        raw["excluded_sources"] = raw.pop("excluded_sources", [])
         try:
-            concepts[concept_id] = Concept.from_dict(raw)
+            concept = Concept.from_dict(raw)
+            for u in raw_source_uris:
+                src = _uri_to_source(u)
+                if src and src not in concept.source_uris:
+                    concept.source_uris[src] = u
+            concepts[concept_id] = concept
         except Exception as e:
             logger.warning("Skipping malformed concept '%s' from tingbok: %s", concept_id, e)
 
@@ -367,6 +375,7 @@ class Concept:
     wikipediaUrl: str | None = None  # Link to Wikipedia article
     descriptions: dict[str, str] = field(default_factory=dict)  # lang -> description
     source_uris: dict[str, str] = field(default_factory=dict)  # source name -> URI
+    excluded_sources: list[str] = field(default_factory=list)  # sources checked and rejected
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -390,6 +399,8 @@ class Concept:
             result["descriptions"] = self.descriptions
         if self.source_uris:
             result["source_uris"] = self.source_uris
+        if self.excluded_sources:
+            result["excluded_sources"] = self.excluded_sources
         return result
 
     def get_label(self, lang: str) -> str:
@@ -436,6 +447,7 @@ class Concept:
             wikipediaUrl=data.get("wikipediaUrl"),
             descriptions=data.get("descriptions", {}),
             source_uris=data.get("source_uris", {}),
+            excluded_sources=data.get("excluded_sources", []),
         )
 
 
@@ -1761,7 +1773,26 @@ def _uri_to_source(uri: str) -> str | None:
         return "dbpedia"
     if uri.startswith("http://www.wikidata.org/"):
         return "wikidata"
+    if uri.startswith("https://tingbok.plann.no/"):
+        return "tingbok"
     return None
+
+
+def _should_query_source(source: str, local_concept: Concept | None) -> bool:
+    """Return True if *source* should be queried for *local_concept*.
+
+    - "tingbok" is never a queryable external source → False.
+    - No local concept → auto-discover → True.
+    - Source in concept.excluded_sources → checked and rejected → False.
+    - Anything else (including source already in source_uris) → True.
+    """
+    if source == "tingbok":
+        return False
+    if local_concept is None:
+        return True
+    if source in local_concept.excluded_sources:
+        return False
+    return True
 
 
 def _populate_source_uris(
@@ -1835,6 +1866,12 @@ def _resolve_missing_uris(
         if concept.uri is not None:
             continue
         if cid in all_uri_maps:
+            continue
+        # Skip if dbpedia/wikidata URIs already known from tingbok source_uris
+        if "dbpedia" in concept.source_uris or "wikidata" in concept.source_uris:
+            continue
+        # Skip if both dbpedia and wikidata have been checked and rejected
+        if "dbpedia" in concept.excluded_sources and "wikidata" in concept.excluded_sources:
             continue
         candidates.append((cid, concept))
 
@@ -2481,7 +2518,7 @@ def build_vocabulary_with_skos_hierarchy(
         sources_found: list[str] = []
 
         # --- OFF lookup ---
-        if off_client is not None:
+        if off_client is not None and _should_query_source("off", local_concept):
             off_result = off_client.lookup_concept(label, lang=lang)
             if off_result and off_result.get("node_id"):
                 node_id = off_result["node_id"]
@@ -2498,8 +2535,7 @@ def build_vocabulary_with_skos_hierarchy(
                     logger.debug("OFF found '%s' -> %d paths", label, len(off_paths))
 
         # --- AGROVOC lookup ---
-        skip_agrovoc = local_concept is not None and local_concept.uri and "agrovoc" not in local_concept.uri.lower()
-        if client is not None and "agrovoc" in enabled_sources and not skip_agrovoc:
+        if client is not None and "agrovoc" in enabled_sources and _should_query_source("agrovoc", local_concept):
             agrovoc_paths, found_in_agrovoc, agrovoc_uri_map, agrovoc_raw = build_skos_hierarchy_paths(
                 label, client, lang
             )
@@ -2554,7 +2590,7 @@ def build_vocabulary_with_skos_hierarchy(
         # --- DBpedia lookup ---
         # Always look up DBpedia for category_by_source paths and metadata enrichment
         dbpedia_src_paths: list[str] = []
-        if client is not None and "dbpedia" in enabled_sources:
+        if client is not None and "dbpedia" in enabled_sources and _should_query_source("dbpedia", local_concept):
             dbpedia_concept = client.lookup_concept(label, lang, source="dbpedia")
             if dbpedia_concept and dbpedia_concept.get("uri"):
                 concept_id = label.lower().replace(" ", "_")
@@ -2635,7 +2671,7 @@ def build_vocabulary_with_skos_hierarchy(
         # --- Wikidata lookup ---
         # Always look up Wikidata for category_by_source paths and metadata enrichment
         wikidata_src_paths: list[str] = []
-        if client is not None and "wikidata" in enabled_sources:
+        if client is not None and "wikidata" in enabled_sources and _should_query_source("wikidata", local_concept):
             wikidata_concept = client.lookup_concept(label, lang, source="wikidata")
             if wikidata_concept and wikidata_concept.get("uri"):
                 concept_id = label.lower().replace(" ", "_")
