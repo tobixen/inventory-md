@@ -71,17 +71,6 @@ The ideal logic goes like this:
    the broader "categories by source should be dynamically generated from tingbok"
    work, covered under "Remove redundant logic from inventory-md" below.
 
-## reconsider the API and documentation
-
-~~MCP protocol~~: fastapi-mcp added as main dependency; MCP server mounted at `/mcp`,
-exposing vocabulary, SKOS lookup, and EAN endpoints as MCP tools.
-
-~~Root URL~~: `GET /` now returns HTML (with links to GitHub and /docs) or JSON
-service info with version, depending on Accept header.
-
-~~README~~: Updated concept count, source list, API endpoint table, Quick start
-(uses uv), Development section. Removed TODO markers and AI disclaimer.
-
 ## Move "memory" information into docs
 
 There is a file ~/.claude/projects/-home-tobias-inventory-system/memory - useful information should exists in the docs (tingbok and inventory-md) rather than in the memory file.  It's needed to look through and check if the old file maps well with the current realities.  The list below contains my comments after looking through the file.  My opinions below may involve changes in the code, both tingbok and inventory-md - small changes can be done immediately, big changes should be added to this TODO-CATEGORIES-document.
@@ -95,6 +84,8 @@ There is a file ~/.claude/projects/-home-tobias-inventory-system/memory - useful
 * Tingbok should have some built-in rate-limiting handling.  Niquests comes with some built-in logic for this ... check Retry in niquests.packages.urllib3.util
 
 ## ~~Remove redundant logic from inventory-md~~ **Done** (2026-03-06)
+
+(but quite some regressions are observed after this was done)
 
 `skos.py`, `off.py`, and ~2300 lines of hierarchy/translation logic removed from
 inventory-md.  The `inventory-md skos` CLI command and `--skos`/`--hierarchy` parse

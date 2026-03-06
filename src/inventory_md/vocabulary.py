@@ -802,6 +802,8 @@ def _uri_to_source(uri: str) -> str | None:
     """Determine the source name from a URI prefix."""
     if uri.startswith("off:"):
         return "off"
+    if uri.startswith("gpt:"):
+        return "gpt"
     if uri.startswith("http://aims.fao.org/"):
         return "agrovoc"
     if uri.startswith("http://dbpedia.org/") or uri.startswith("https://dbpedia.org/"):
