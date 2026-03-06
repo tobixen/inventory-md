@@ -513,42 +513,6 @@ class TestConfigClass:
 
         assert cfg.lang == "no"
 
-    def test_config_skos_enabled_default(self, tmp_path, monkeypatch):
-        """Test skos_enabled property default."""
-        monkeypatch.chdir(tmp_path)
-
-        cfg = config.Config()
-
-        assert cfg.skos_enabled is False
-
-    def test_config_skos_enabled_from_file(self, tmp_path, monkeypatch):
-        """Test skos_enabled property from config file."""
-        monkeypatch.chdir(tmp_path)
-        config_file = tmp_path / "inventory-md.json"
-        config_file.write_text(json.dumps({"skos": {"enabled": True}}))
-
-        cfg = config.Config()
-
-        assert cfg.skos_enabled is True
-
-    def test_config_skos_hierarchy_mode_default(self, tmp_path, monkeypatch):
-        """Test skos_hierarchy_mode property default."""
-        monkeypatch.chdir(tmp_path)
-
-        cfg = config.Config()
-
-        assert cfg.skos_hierarchy_mode is False
-
-    def test_config_skos_hierarchy_mode_from_file(self, tmp_path, monkeypatch):
-        """Test skos_hierarchy_mode property from config file."""
-        monkeypatch.chdir(tmp_path)
-        config_file = tmp_path / "inventory-md.json"
-        config_file.write_text(json.dumps({"skos": {"enabled": True, "hierarchy_mode": True}}))
-
-        cfg = config.Config()
-
-        assert cfg.skos_hierarchy_mode is True
-
     def test_tingbok_url_default(self, tmp_path, monkeypatch):
         """tingbok_url defaults to https://tingbok.plann.no."""
         monkeypatch.chdir(tmp_path)

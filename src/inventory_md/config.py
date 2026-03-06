@@ -41,13 +41,6 @@ DEFAULTS: dict[str, Any] = {
         "show_date": True,
         "duplicate_qr": False,
     },
-    "skos": {
-        "enabled": False,  # Enable SKOS lookups in parse --auto
-        "hierarchy_mode": False,  # Expand category labels to full SKOS hierarchy paths
-        "enabled_sources": ["off", "agrovoc", "dbpedia", "wikidata"],
-        "cache_ttl_days": 60,
-        "timeout": 30.0,
-    },
     # Language fallback chains for translations
     # When a label isn't found in the preferred language, try these in order
     "language_fallbacks": {
@@ -418,41 +411,6 @@ class Config:
         if value is False:
             return "no"
         return str(value) if value else "en"
-
-    @property
-    def skos_enabled(self) -> bool:
-        """Return whether SKOS lookups are enabled."""
-        return self.get("skos.enabled", False)
-
-    @property
-    def skos_languages(self) -> list[str]:
-        """Return list of languages for SKOS lookups.
-
-        Returns languages to query for category labels. The first language
-        is the primary/default, others are alternatives shown in UI.
-
-        Example config:
-            skos:
-              languages: ["en", "nb", "de"]
-        """
-        default_lang = self.lang
-        return self.get("skos.languages", [default_lang])
-
-    @property
-    def skos_hierarchy_mode(self) -> bool:
-        """Return whether SKOS hierarchy expansion is enabled.
-
-        When True, category labels like "potato" are expanded to full
-        SKOS hierarchy paths like "food/plant_products/vegetables/potato".
-
-        This ensures all food items can be found under a unified "food" root.
-
-        Example config:
-            skos:
-              enabled: true
-              hierarchy_mode: true
-        """
-        return self.get("skos.hierarchy_mode", False)
 
     @property
     def language_fallbacks(self) -> dict[str, list[str]]:

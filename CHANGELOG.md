@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+- **`skos.py`** module (SKOSClient, SPARQL queries to AGROVOC/DBpedia/Wikidata) — all
+  source-specific lookups are now handled exclusively by tingbok.
+- **`off.py`** module (Open Food Facts taxonomy client) — OFF lookups moved to tingbok.
+- **`build_vocabulary_with_skos_hierarchy()`** and `_enrich_with_skos()` from
+  `vocabulary.py` — hierarchy expansion is no longer done in inventory-md.
+- **`inventory-md skos`** CLI command (`expand`, `lookup`, `cache` subcommands).
+- **`--skos` / `--hierarchy`** flags from `inventory-md parse`.
+- `skos_enabled`, `skos_hierarchy_mode`, and related config properties.
+
 ## [v0.7.0] - 2026-03-04
 
 ### Breaking Change

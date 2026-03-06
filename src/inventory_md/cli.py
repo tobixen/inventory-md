@@ -147,11 +147,7 @@ def parse_command(
     validate_only: bool = False,
     wanted_items: Path = None,
     include_dated: bool = True,
-    use_skos: bool = False,
-    hierarchy_mode: bool = False,
     lang: str = None,
-    languages: list[str] = None,
-    enabled_sources: list[str] = None,
     tingbok_url: str | None = None,
 ) -> int:
     """Parse inventory markdown file and generate JSON."""
@@ -268,41 +264,9 @@ def parse_command(
             # Merge global and local (local overrides global)
             local_vocab = vocabulary.merge_vocabularies(global_vocab, local_vocab)
 
-            # Determine language for SKOS lookups
-            skos_lang = lang or "en"
-
             # Build vocabulary from inventory categories
             category_mappings = None
-            if use_skos or hierarchy_mode:
-                lang_info = f"lang={skos_lang}"
-                if languages and len(languages) > 1:
-                    lang_info += f", translations={languages}"
-
-                # Check if hierarchy mode is enabled (expand labels to full SKOS paths)
-                if hierarchy_mode:
-                    print(f"   Using SKOS hierarchy mode ({lang_info})...")
-
-                    def _print_progress(phase: str, detail: str) -> None:
-                        print(f"   {detail}", flush=True)
-
-                    vocab, category_mappings = vocabulary.build_vocabulary_with_skos_hierarchy(
-                        data,
-                        local_vocab=local_vocab,
-                        lang=skos_lang,
-                        languages=languages,
-                        enabled_sources=enabled_sources,
-                        progress=_print_progress,
-                        tingbok_url=tingbok_url,
-                    )
-                else:
-                    print(f"   Using SKOS lookups ({lang_info})...")
-                    vocab = vocabulary.build_vocabulary_from_inventory(
-                        data, local_vocab=local_vocab, use_skos=use_skos, lang=skos_lang, languages=languages
-                    )
-            else:
-                vocab = vocabulary.build_vocabulary_from_inventory(
-                    data, local_vocab=local_vocab, use_skos=False, lang=skos_lang, languages=languages
-                )
+            vocab = vocabulary.build_vocabulary_from_inventory(data, local_vocab=local_vocab)
             category_counts = vocabulary.count_items_per_category(data)
 
             if vocab:
@@ -785,13 +749,6 @@ Examples:
         action="store_true",
         help="Auto-detect files: inventory.md and wanted-items.md in current directory",
     )
-    parse_parser.add_argument(
-        "--skos", action="store_true", help="Enrich categories with SKOS vocabulary lookups (AGROVOC/DBpedia)"
-    )
-    parse_parser.add_argument(
-        "--hierarchy", action="store_true", help="Expand category labels to full SKOS hierarchy paths (implies --skos)"
-    )
-
     # Update-template command
     update_parser = subparsers.add_parser("update-template", help="Update search.html to latest version")
     update_parser.add_argument("directory", type=Path, nargs="?", help="Target directory (default: current directory)")
@@ -891,46 +848,6 @@ Examples:
     labels_prev.add_argument("--start", type=str, help="Starting ID (e.g., AB5)")
     labels_prev.add_argument("--count", "-n", type=int, default=10, help="Number of IDs to show (default: 10)")
 
-    # SKOS command with subcommands
-    skos_parser = subparsers.add_parser("skos", help="SKOS vocabulary lookups for tag hierarchies")
-    skos_subparsers = skos_parser.add_subparsers(dest="skos_command", help="SKOS subcommand")
-
-    # skos expand
-    skos_expand = skos_subparsers.add_parser(
-        "expand",
-        help="Expand tags to hierarchical paths using SKOS vocabularies",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Queries AGROVOC and DBpedia SPARQL endpoints to find hierarchical paths
-for tags. Results are cached locally for faster subsequent lookups.
-
-Examples:
-  inventory-md skos expand potatoes
-  inventory-md skos expand --lang no poteter
-  inventory-md skos expand screwdriver hammer wrench
-        """,
-    )
-    skos_expand.add_argument("tags", nargs="+", help="Tags to expand")
-    skos_expand.add_argument("--lang", "-l", type=str, default="en", help="Language code (default: en)")
-    skos_expand.add_argument(
-        "--sources",
-        type=str,
-        default="agrovoc,dbpedia",
-        help="Comma-separated sources to query (default: agrovoc,dbpedia)",
-    )
-    skos_expand.add_argument("--json", "-j", action="store_true", help="Output as JSON")
-
-    # skos lookup
-    skos_lookup = skos_subparsers.add_parser("lookup", help="Look up a single concept with full details")
-    skos_lookup.add_argument("label", help="Label to look up")
-    skos_lookup.add_argument("--lang", "-l", type=str, default="en", help="Language code (default: en)")
-    skos_lookup.add_argument("--source", "-s", type=str, default="agrovoc", help="Source to query (default: agrovoc)")
-
-    # skos cache
-    skos_cache = skos_subparsers.add_parser("cache", help="Manage SKOS lookup cache")
-    skos_cache.add_argument("--clear", action="store_true", help="Clear all cached lookups")
-    skos_cache.add_argument("--path", action="store_true", help="Show cache directory path")
-
     # Vocabulary command with subcommands
     vocab_parser = subparsers.add_parser("vocabulary", help="Manage local category vocabulary")
     vocab_subparsers = vocab_parser.add_subparsers(dest="vocab_command", help="Vocabulary subcommand")
@@ -972,8 +889,6 @@ Examples:
     elif args.command == "parse":
         include_dated = not getattr(args, "no_dated", False)
         auto_mode = getattr(args, "auto", False)
-        skos_flag_provided = "--skos" in sys.argv
-        hierarchy_flag_provided = "--hierarchy" in sys.argv
 
         # Handle --auto mode
         if auto_mode:
@@ -985,18 +900,6 @@ Examples:
                 wanted_path = cwd / "wanted-items.md"
                 if wanted_path.exists():
                     wanted_items = wanted_path
-            # In auto mode, use config for SKOS settings if flags not explicitly provided
-            if hierarchy_flag_provided:
-                hierarchy_mode = True
-                use_skos = True  # --hierarchy implies --skos
-            elif skos_flag_provided:
-                use_skos = getattr(args, "skos", False)
-                hierarchy_mode = config.skos_hierarchy_mode
-            else:
-                use_skos = config.skos_enabled
-                hierarchy_mode = config.skos_hierarchy_mode if use_skos else False
-            lang = config.lang
-            languages = config.skos_languages if use_skos or hierarchy_mode else None
         else:
             # Try config values, then CLI args
             md_file = args.file
@@ -1010,24 +913,14 @@ Examples:
                     "Error: inventory file required (or use --auto, or set inventory_file in config)", file=sys.stderr
                 )
                 return 1
-            # --hierarchy implies --skos, config can also enable these
-            hierarchy_mode = getattr(args, "hierarchy", False) or config.skos_hierarchy_mode
-            use_skos = getattr(args, "skos", False) or hierarchy_mode or config.skos_enabled
-            lang = config.lang
-            languages = config.skos_languages if use_skos else None
 
-        enabled_sources = config.get("skos.enabled_sources", ["off", "agrovoc", "dbpedia", "wikidata"])
         return parse_command(
             md_file,
             args.output,
             args.validate,
             wanted_items,
             include_dated,
-            use_skos,
-            hierarchy_mode,
-            lang,
-            languages,
-            enabled_sources,
+            lang=config.lang,
             tingbok_url=config.tingbok_url,
         )
     elif args.command == "update-template":
@@ -1070,89 +963,10 @@ Examples:
         else:
             labels_parser.print_help()
             return 1
-    elif args.command == "skos":
-        return skos_command(args, config)
     elif args.command == "vocabulary":
         return vocabulary_command(args, config)
     else:
         parser_cli.print_help()
-        return 1
-
-
-def skos_command(args, config: Config) -> int:
-    """Handle SKOS subcommands."""
-    try:
-        from . import skos
-    except ImportError as e:
-        print(f"Missing required package: {e}")
-        print("\nInstall SKOS dependencies:")
-        print('  pip install "inventory-md[skos]"')
-        return 1
-
-    skos_config = config.get("skos", {})
-    default_lang = skos_config.get("default_lang", "en")
-
-    if args.skos_command == "expand":
-        lang = getattr(args, "lang", default_lang)
-        sources = getattr(args, "sources", "agrovoc,dbpedia").split(",")
-        output_json = getattr(args, "json", False)
-
-        client = skos.SKOSClient(enabled_sources=sources)
-        result = client.expand_tags(args.tags, lang=lang)
-
-        if output_json:
-            print(json.dumps(result, indent=2, ensure_ascii=False))
-        else:
-            for tag, paths in result.items():
-                print(f"{tag}:")
-                for path in paths:
-                    print(f"  → {path}")
-
-        return 0
-
-    elif args.skos_command == "lookup":
-        lang = getattr(args, "lang", default_lang)
-        source = getattr(args, "source", "agrovoc")
-
-        client = skos.SKOSClient(enabled_sources=[source])
-        concept = client.lookup_concept(args.label, lang=lang, source=source)
-
-        if concept and concept.get("uri"):
-            print(json.dumps(concept, indent=2, ensure_ascii=False))
-        else:
-            print(f"No concept found for '{args.label}' in {source}")
-            return 1
-
-        return 0
-
-    elif args.skos_command == "cache":
-        if getattr(args, "clear", False):
-            client = skos.SKOSClient()
-            count = client.clear_cache()
-            print(f"Cleared {count} cached lookups")
-            return 0
-        elif getattr(args, "path", False):
-            print(skos.get_default_cache_dir())
-            return 0
-        else:
-            # Show cache stats
-            cache_dir = skos.get_default_cache_dir()
-            if cache_dir.exists():
-                cache_files = list(cache_dir.glob("*.json"))
-                print(f"Cache directory: {cache_dir}")
-                print(f"Cached lookups: {len(cache_files)}")
-            else:
-                print(f"Cache directory: {cache_dir} (not created yet)")
-            return 0
-
-    else:
-        # No subcommand - show help
-        print("SKOS vocabulary lookups for tag hierarchies")
-        print("\nSubcommands:")
-        print("  expand  Expand tags to hierarchical paths")
-        print("  lookup  Look up a single concept with full details")
-        print("  cache   Manage SKOS lookup cache")
-        print("\nUse 'inventory-md skos <command> --help' for more info")
         return 1
 
 
