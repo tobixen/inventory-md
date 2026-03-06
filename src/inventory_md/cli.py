@@ -265,9 +265,22 @@ def parse_command(
             local_vocab = vocabulary.merge_vocabularies(global_vocab, local_vocab)
 
             # Build vocabulary from inventory categories
-            category_mappings = None
             vocab = vocabulary.build_vocabulary_from_inventory(data, local_vocab=local_vocab)
             category_counts = vocabulary.count_items_per_category(data)
+
+            # Resolve orphaned (non-path) category labels via tingbok hierarchy
+            category_mappings = None
+            if tingbok_url:
+                orphaned = [
+                    c.prefLabel
+                    for cid, c in vocab.items()
+                    if c.source == "inventory" and "/" not in cid and cid not in global_vocab
+                ]
+                if orphaned:
+                    resolved, category_mappings = vocabulary.resolve_categories_via_tingbok(orphaned, tingbok_url)
+                    if resolved:
+                        vocab.update(resolved)
+                        print(f"   Resolved {len(category_mappings)}/{len(orphaned)} orphaned categories via tingbok")
 
             if vocab:
                 vocab_output = md_file.parent / "vocabulary.json"

@@ -1272,6 +1272,94 @@ class TestLoadGlobalVocabularyTingbok:
         assert "food" in result
 
 
+class TestResolveCategoriesViaTingbok:
+    """Tests for resolve_categories_via_tingbok()."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    def _mock_response(self, data: dict, status_code: int = 200) -> MagicMock:
+        r = MagicMock()
+        r.status_code = status_code
+        r.json.return_value = data
+        r.raise_for_status = MagicMock()
+        if status_code >= 400:
+            import niquests
+
+            r.raise_for_status.side_effect = niquests.HTTPError()
+        return r
+
+    def test_found_concept_creates_hierarchy_concepts(self):
+        """A resolved concept should add all path segments to new_concepts."""
+        hierarchy_response = {
+            "label": "cumin",
+            "found": True,
+            "paths": ["food/spices/cumin"],
+            "source": "agrovoc",
+            "uri_map": {"food/spices/cumin": "http://aims.fao.org/aos/agrovoc/c_1"},
+        }
+        with patch("niquests.get", return_value=self._mock_response(hierarchy_response)):
+            new_concepts, mappings = vocabulary.resolve_categories_via_tingbok(["cumin"], self.TINGBOK_URL)
+
+        assert "food" in new_concepts
+        assert "food/spices" in new_concepts
+        assert "food/spices/cumin" in new_concepts
+        assert mappings["cumin"] == ["food/spices/cumin"]
+
+    def test_not_found_returns_empty(self):
+        """When the hierarchy endpoint returns found=False, nothing is added."""
+        hierarchy_response = {
+            "label": "xyzzy",
+            "found": False,
+            "paths": [],
+            "source": "agrovoc",
+            "uri_map": {},
+        }
+        with patch("niquests.get", return_value=self._mock_response(hierarchy_response)):
+            new_concepts, mappings = vocabulary.resolve_categories_via_tingbok(["xyzzy"], self.TINGBOK_URL)
+
+        assert new_concepts == {}
+        assert mappings == {}
+
+    def test_network_error_is_ignored(self):
+        """Network errors are caught and the label is skipped silently."""
+        import niquests
+
+        with patch("niquests.get", side_effect=niquests.ConnectionError("refused")):
+            new_concepts, mappings = vocabulary.resolve_categories_via_tingbok(["cumin"], self.TINGBOK_URL)
+
+        assert new_concepts == {}
+        assert mappings == {}
+
+    def test_empty_labels_returns_empty(self):
+        """Passing an empty label list returns empty results."""
+        new_concepts, mappings = vocabulary.resolve_categories_via_tingbok([], self.TINGBOK_URL)
+        assert new_concepts == {}
+        assert mappings == {}
+
+    def test_stops_after_first_source_finds_concept(self):
+        """Once a concept is found in one source, other sources are not queried."""
+        found_response = {
+            "label": "cumin",
+            "found": True,
+            "paths": ["food/spices/cumin"],
+            "source": "agrovoc",
+            "uri_map": {},
+        }
+        call_count = 0
+
+        def fake_get(url: str, **kwargs: object) -> MagicMock:
+            nonlocal call_count
+            call_count += 1
+            return self._mock_response(found_response)
+
+        with patch("niquests.get", side_effect=fake_get):
+            vocabulary.resolve_categories_via_tingbok(
+                ["cumin"], self.TINGBOK_URL, sources=["agrovoc", "dbpedia", "wikidata"]
+            )
+
+        assert call_count == 1, "Should stop after first source finds the concept"
+
+
 class TestFindVocabularyFiles:
     """Tests for find_vocabulary_files — file discovery and exclusion rules."""
 

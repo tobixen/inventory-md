@@ -798,6 +798,65 @@ def count_items_per_category(inventory_data: dict[str, Any]) -> dict[str, int]:
     return counts
 
 
+def resolve_categories_via_tingbok(
+    unknown_labels: list[str],
+    tingbok_url: str,
+    lang: str = "en",
+    sources: list[str] | None = None,
+) -> tuple[dict[str, Concept], dict[str, list[str]]]:
+    """Resolve unknown category labels to hierarchy paths via tingbok.
+
+    For each label, queries tingbok's ``/api/skos/hierarchy`` endpoint across
+    multiple SKOS sources.  Stops at the first source that finds the concept.
+
+    Args:
+        unknown_labels: Category labels to resolve (e.g. ``["cumin", "bouillon"]``).
+        tingbok_url:    Base URL of the tingbok service.
+        lang:           BCP-47 language code for label matching.
+        sources:        SKOS sources to try, in order.  Defaults to
+                        ``["agrovoc", "dbpedia", "wikidata"]``.
+
+    Returns:
+        Tuple of:
+
+        * *new_concepts* — ``dict[str, Concept]`` for all resolved path
+          segments (including intermediate paths like ``"food/spices"``).
+        * *category_mappings* — ``{label_lower: [path, ...]}`` for each
+          successfully resolved label.
+    """
+    import niquests
+
+    if sources is None:
+        sources = ["agrovoc", "dbpedia", "wikidata"]
+
+    base = tingbok_url.rstrip("/")
+    new_concepts: dict[str, Concept] = {}
+    category_mappings: dict[str, list[str]] = {}
+
+    for label in unknown_labels:
+        for source in sources:
+            try:
+                response = niquests.get(
+                    f"{base}/api/skos/hierarchy",
+                    params={"label": label, "lang": lang, "source": source},
+                    timeout=5.0,
+                )
+                response.raise_for_status()
+                data: dict = response.json()
+            except Exception as exc:
+                logger.debug("Category resolution failed for '%s' via %s: %s", label, source, exc)
+                continue
+
+            if data.get("found") and data.get("paths"):
+                paths: list[str] = data["paths"]
+                category_mappings[label.lower()] = paths
+                for path in paths:
+                    _add_category_path(new_concepts, path)
+                break  # Found in this source — skip remaining sources
+
+    return new_concepts, category_mappings
+
+
 def _uri_to_source(uri: str) -> str | None:
     """Determine the source name from a URI prefix."""
     if uri.startswith("off:"):
