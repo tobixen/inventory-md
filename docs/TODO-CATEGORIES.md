@@ -37,9 +37,11 @@ Recently a prune-vocabulary command was introduced to tingbok to remove redundan
 Some notes I made while investigating the solveig inventory:
 
 * https://tingbok.plann.no/api/skos/lookup?label=clothing should probably not default to only showing agrovoc it should probably do a lookup in all sources. (this may be moot, do we need the lookup api call at all?)
-* (in solveig-inventory / tingbok vocabulary) "clothing" is missing quite some altlabels, including "costume".  I can see that this is missing from https://tingbok.plann.no/api/vocabulary as well.  Probably the altlabels hard-coded in the file is shown rather than the full list fetched from all sources?
-* (in solveig-inventory) the cumin category was previously (v0.7.0) recognized as a subcategory of spice - now it's not.  What happened?  Probably the hierarchy is no longer built after the code was removed from inventory-md?
-* (in solveig-inventory) buillion is a subcategory of spice - but when doing a lookup on spices, it's not found (earlier it would show 23 items under spices - now it shows only 18 - the cumin and billion is gone)
+* ~~(in solveig-inventory / tingbok vocabulary) "clothing" is missing quite some altlabels, including "costume".~~
+  **Fixed**: `GET /api/vocabulary` now merges `altLabel` from DBpedia (skos:altLabel), Wikidata (aliases), AGROVOC (altLabel), and OFF (synonyms).
+* ~~(in solveig-inventory) the cumin category was previously (v0.7.0) recognized as a subcategory of spice - now it's not.~~
+  **Fixed**: `parse --auto` now calls `resolve_categories_via_tingbok()` for orphaned labels, querying `/api/skos/hierarchy` across AGROVOC/DBpedia/Wikidata.
+* (in solveig-inventory) buillion is a subcategory of spice - needs verification after the above fix.
 * "Categories by source" in the inventory UI — should be dynamically generated from tingbok data rather than hardcoded in inventory-md.
 
 ## Tingbok cache gracetime
