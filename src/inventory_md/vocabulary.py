@@ -184,6 +184,7 @@ def fetch_vocabulary_from_tingbok(url: str, session: niquests.Session | None = N
 
     concepts: dict[str, Concept] = {}
     for concept_id, raw in data.items():
+        raw = dict(raw)  # shallow copy — avoid mutating the parsed response dict
         # tingbok uses "altLabel" (SKOS convention); Concept.from_dict expects "altLabels"
         raw["altLabels"] = raw.pop("altLabel", {})
         raw["id"] = concept_id
@@ -979,6 +980,52 @@ def lookup_ean_via_tingbok(ean: str, tingbok_url: str, session: niquests.Session
     except Exception as exc:
         logger.debug("EAN lookup failed for %s: %s", ean, exc)
         return None
+
+
+def report_ean_to_tingbok(
+    ean: str,
+    categories: list[str],
+    name: str | None,
+    tingbok_url: str,
+    session: niquests.Session | None = None,
+    quantity: str | None = None,
+    prices: list[dict] | None = None,
+) -> None:
+    """PUT inventory-sourced observations for *ean* to tingbok.
+
+    Sends ``PUT {tingbok_url}/api/ean/{ean}`` with category, name, quantity
+    and price data from the inventory.  Failures are silently ignored.
+
+    Args:
+        ean:         EAN/UPC barcode string.
+        categories:  Category paths as classified in the inventory.
+        name:        Clean product name from the inventory item text.
+        tingbok_url: Base URL of the tingbok service.
+        session:     Optional niquests.Session to reuse.
+        quantity:    Weight or volume string (e.g. ``"140g"``).
+        prices:      List of price dicts (``{currency, price, unit, date}``).
+    """
+    import niquests
+
+    if not categories and not name and not quantity and not prices:
+        return
+    putter = session.put if session is not None else niquests.put
+    base = tingbok_url.rstrip("/")
+    payload: dict = {}
+    if categories:
+        payload["categories"] = categories
+    if name:
+        payload["name"] = name
+    if quantity:
+        payload["quantity"] = quantity
+    if prices:
+        payload["prices"] = prices
+    try:
+        response = putter(f"{base}/api/ean/{ean}", json=payload, timeout=5.0)
+        response.raise_for_status()
+        logger.debug("Reported EAN %s to tingbok: %s", ean, payload)
+    except Exception as exc:
+        logger.debug("Failed to report EAN %s to tingbok: %s", ean, exc)
 
 
 def _uri_to_source(uri: str) -> str | None:

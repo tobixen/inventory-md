@@ -10,6 +10,7 @@ import argparse
 import json
 import shutil
 import sys
+from datetime import date as _date
 from pathlib import Path
 
 import argcomplete
@@ -17,6 +18,31 @@ import argcomplete
 from . import parser, shopping_list, vocabulary
 from ._version import __version__
 from .config import Config
+
+
+def _parse_inventory_price(price_str: str | None, shop: str | None = None) -> dict | None:
+    """Parse an inventory ``price:`` tag value into a PriceObservation dict.
+
+    Handles format ``CURRENCY:VALUE/UNIT`` (e.g. ``EUR:0.78/piece``).
+    Returns ``None`` if the string cannot be parsed.
+    """
+    if not price_str:
+        return None
+    try:
+        currency, rest = price_str.split(":", 1)
+        if "/" in rest:
+            value_str, unit = rest.rsplit("/", 1)
+        else:
+            value_str, unit = rest, "pcs"
+        return {
+            "currency": currency.upper(),
+            "price": float(value_str),
+            "unit": unit,
+            "date": _date.today().isoformat(),
+            "shop": shop or None,
+        }
+    except (ValueError, AttributeError):
+        return None
 
 
 def init_inventory(directory: Path, name: str = "My Inventory") -> int:
@@ -300,6 +326,29 @@ def parse_command(
                                 print(f"   EAN:{ean} → {desc} (no category)")
                         else:
                             print(f"   EAN:{ean} → not found in tingbok")
+
+                    # Report inventory observations back to tingbok for each EAN item
+                    print(f"\n📤 Reporting inventory observations for {len(eans_found)} EAN(s) to tingbok...")
+                    reported = 0
+                    for ean, item in eans_found.items():
+                        meta = item.get("metadata", {})
+                        cats: list[str] = meta.get("categories") or []
+                        name: str | None = item.get("name") or None
+                        quantity: str | None = meta.get("mass") or meta.get("volume") or None
+                        price_dict = _parse_inventory_price(meta.get("price"))
+                        prices = [price_dict] if price_dict else []
+                        if cats or name or quantity or prices:
+                            vocabulary.report_ean_to_tingbok(
+                                ean,
+                                cats,
+                                name,
+                                tingbok_url,
+                                session=tingbok_session,
+                                quantity=quantity,
+                                prices=prices,
+                            )
+                            reported += 1
+                    print(f"   Reported observations for {reported} EAN(s)")
 
             # Enrich all inventory categories not already in global vocab via /api/lookup
             category_mappings = None

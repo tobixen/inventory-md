@@ -242,6 +242,7 @@ class TestParseCommandEanLookup:
         stack = ExitStack()
         stack.enter_context(patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}))
         stack.enter_context(patch.object(vocabulary, "enrich_categories_via_lookup", return_value=({}, {})))
+        stack.enter_context(patch.object(vocabulary, "report_ean_to_tingbok", return_value=None))
         return stack
 
     def test_ean_items_queried_via_tingbok(self, tmp_path, monkeypatch) -> None:
