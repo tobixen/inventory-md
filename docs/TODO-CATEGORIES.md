@@ -20,6 +20,14 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 * Every category should have at least one path, but may have several paths.  food/vegetables/potato snd food/staples/potato is the same category, but with two paths.
 * Tingbok should query multiple sources to find the relevant paths, translations, alternative lables and a good description of every category.
 
+## inventory-md: caching
+
+The inventory-md should cache ean and category lookups from tingbok, with a one-week TTL.  The vocabulary should not be cached.
+
+## tingbok PUT error handling
+
+When receiving data from the client, tingbok sometimes logs "422 Unprocessable Content" without any more information.  It's needed with a bit more logging here so we can pinpoint the problem.
+
 ## Tingbok hard-coded vocabulary vs other concepts
 
 * ~~Document in details the workflow when some category present in `inventory.md` is looked up.~~
