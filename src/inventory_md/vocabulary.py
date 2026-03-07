@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -903,9 +904,11 @@ def enrich_categories_via_lookup(
     total = len(labels)
     for i, label in enumerate(labels, 1):
         print(f"   [{i}/{total}] Looking up {label!r} ...", end=" ", flush=True)
-        # Normalize the query label for SKOS sources: use the leaf node of a path
-        # and replace hyphens with spaces so "bag/dry-bag" → lookup "dry bag".
+        # Normalize the query label for SKOS sources: use the leaf node of a path,
+        # replace hyphens with spaces, and strip OFF-style language tag prefixes
+        # (e.g. "en:mashed-vegetables" → "mashed vegetables", "sk:džem" → "džem").
         query_label = label.split("/")[-1].replace("-", " ").replace("_", " ").strip()
+        query_label = re.sub(r"^[a-z]{2,3}:", "", query_label)
         if not query_label:
             query_label = label
         try:
