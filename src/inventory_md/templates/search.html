@@ -1686,6 +1686,19 @@
         }
 
         // Build category counts from inventory
+        // Walk broader links upward from conceptId and increment counts, avoiding cycles.
+        function _propagateBroaderCounts(conceptId, visited) {
+            if (visited.has(conceptId)) return;
+            visited.add(conceptId);
+            const concept = vocabularyData && vocabularyData.concepts && vocabularyData.concepts[conceptId];
+            if (!concept || !concept.broader) return;
+            const broaderList = Array.isArray(concept.broader) ? concept.broader : [concept.broader];
+            broaderList.forEach(broaderId => {
+                categoryCounts.set(broaderId, (categoryCounts.get(broaderId) || 0) + 1);
+                _propagateBroaderCounts(broaderId, visited);
+            });
+        }
+
         function buildCategoryCounts() {
             categoryCounts.clear();
             if (!inventoryData) return;
@@ -1700,12 +1713,16 @@
                             expandedPaths.forEach(expandedCategory => {
                                 // Count the category itself
                                 categoryCounts.set(expandedCategory, (categoryCounts.get(expandedCategory) || 0) + 1);
-                                // Also count parent categories
+                                // Count path-prefix parents (e.g. food/spices/cumin → food/spices → food)
                                 const parts = expandedCategory.split('/');
                                 for (let i = 0; i < parts.length - 1; i++) {
                                     const parent = parts.slice(0, i + 1).join('/');
                                     categoryCounts.set(parent, (categoryCounts.get(parent) || 0) + 1);
                                 }
+                                // Also propagate via SKOS broader links so single-segment
+                                // concepts (e.g. "bouillon", "salt") count toward their
+                                // parent concept (e.g. "food/spices").
+                                _propagateBroaderCounts(expandedCategory, new Set());
                             });
                         });
                     }
