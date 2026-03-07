@@ -224,3 +224,91 @@ class TestUpdateTemplate:
         assert result.returncode == 0
         output_json = json.loads((tmp_path / "inventory.json").read_text())
         assert "lang" not in output_json
+
+
+class TestParseCommandEanLookup:
+    """Tests for EAN lookup integration in parse_command."""
+
+    def _write_inventory(self, tmp_path, content: str) -> "Path":
+        f = tmp_path / "inventory.md"
+        f.write_text(content)
+        return f
+
+    def _tingbok_patches(self, vocabulary):
+        """Return a context manager that patches all tingbok network calls."""
+        from contextlib import ExitStack
+        from unittest.mock import patch
+
+        stack = ExitStack()
+        stack.enter_context(patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}))
+        stack.enter_context(patch.object(vocabulary, "resolve_categories_via_tingbok", return_value=({}, {})))
+        return stack
+
+    def test_ean_items_queried_via_tingbok(self, tmp_path, monkeypatch) -> None:
+        """Items with EAN metadata trigger a lookup via lookup_ean_via_tingbok."""
+        from unittest.mock import patch
+
+        from inventory_md import cli, vocabulary
+
+        inventory_md = self._write_inventory(
+            tmp_path,
+            "## ID:Box1 Test\n\n* EAN:7310865004703 Kalles Kaviar\n",
+        )
+        monkeypatch.chdir(tmp_path)
+
+        product = {
+            "ean": "7310865004703",
+            "name": "Kalles Kaviar",
+            "brand": "Abba",
+            "quantity": "300g",
+            "categories": ["spreads", "caviar spreads"],
+            "image_url": None,
+            "source": "openfoodfacts",
+        }
+
+        with self._tingbok_patches(vocabulary):
+            with patch.object(vocabulary, "lookup_ean_via_tingbok", return_value=product) as mock_lookup:
+                cli.parse_command(
+                    inventory_md,
+                    tingbok_url="https://tingbok.plann.no",
+                )
+
+        mock_lookup.assert_called_once_with("7310865004703", "https://tingbok.plann.no")
+
+    def test_ean_lookup_skipped_without_tingbok_url(self, tmp_path, monkeypatch) -> None:
+        """When no tingbok_url is configured, EAN lookup is skipped."""
+        from unittest.mock import patch
+
+        from inventory_md import cli, vocabulary
+
+        inventory_md = self._write_inventory(
+            tmp_path,
+            "## ID:Box1 Test\n\n* EAN:7310865004703 Kalles Kaviar\n",
+        )
+        monkeypatch.chdir(tmp_path)
+
+        with patch.object(vocabulary, "lookup_ean_via_tingbok") as mock_lookup:
+            cli.parse_command(inventory_md, tingbok_url=None)
+
+        mock_lookup.assert_not_called()
+
+    def test_ean_not_found_does_not_crash(self, tmp_path, monkeypatch) -> None:
+        """A 404 from tingbok EAN endpoint is handled gracefully."""
+        from inventory_md import cli, vocabulary
+
+        inventory_md = self._write_inventory(
+            tmp_path,
+            "## ID:Box1 Test\n\n* EAN:0000000000000 Unknown item\n",
+        )
+        monkeypatch.chdir(tmp_path)
+
+        with self._tingbok_patches(vocabulary):
+            from unittest.mock import patch
+
+            with patch.object(vocabulary, "lookup_ean_via_tingbok", return_value=None):
+                result = cli.parse_command(
+                    inventory_md,
+                    tingbok_url="https://tingbok.plann.no",
+                )
+
+        assert result == 0

@@ -1422,3 +1422,65 @@ class TestFindVocabularyFiles:
 
         local_files = [f for f in files if f.parent == tmp_path]
         assert vocab_yaml in local_files
+
+
+class TestLookupEanViaTingbok:
+    """Tests for lookup_ean_via_tingbok()."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    def test_found_product_returns_dict(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        product_data = {
+            "ean": "7310865004703",
+            "name": "Kalles Kaviar",
+            "brand": "Abba",
+            "quantity": "300g",
+            "categories": ["spreads", "caviar spreads"],
+            "image_url": None,
+            "source": "openfoodfacts",
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = product_data
+
+        with patch("niquests.get", return_value=mock_response):
+            result = vocabulary.lookup_ean_via_tingbok("7310865004703", self.TINGBOK_URL)
+
+        assert result is not None
+        assert result["ean"] == "7310865004703"
+        assert result["name"] == "Kalles Kaviar"
+        assert "caviar spreads" in result["categories"]
+
+    def test_not_found_returns_none(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        with patch("niquests.get", return_value=mock_response):
+            result = vocabulary.lookup_ean_via_tingbok("0000000000000", self.TINGBOK_URL)
+
+        assert result is None
+
+    def test_network_error_returns_none(self) -> None:
+        from unittest.mock import patch
+
+        with patch("niquests.get", side_effect=Exception("connection refused")):
+            result = vocabulary.lookup_ean_via_tingbok("7310865004703", self.TINGBOK_URL)
+
+        assert result is None
+
+    def test_url_constructed_correctly(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        with patch("niquests.get", return_value=mock_response) as mock_get:
+            vocabulary.lookup_ean_via_tingbok("7310865004703", "https://tingbok.plann.no/")
+
+        mock_get.assert_called_once()
+        url = mock_get.call_args[0][0]
+        assert url == "https://tingbok.plann.no/api/ean/7310865004703"

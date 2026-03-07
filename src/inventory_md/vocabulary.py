@@ -857,6 +857,35 @@ def resolve_categories_via_tingbok(
     return new_concepts, category_mappings
 
 
+def lookup_ean_via_tingbok(ean: str, tingbok_url: str) -> dict | None:
+    """Look up a product by EAN via the tingbok service.
+
+    Queries ``GET {tingbok_url}/api/ean/{ean}`` and returns the parsed JSON
+    response dict (compatible with ``tingbok.models.ProductResponse``) or
+    ``None`` on 404 or network failure.
+
+    Args:
+        ean:         EAN/UPC barcode string.
+        tingbok_url: Base URL of the tingbok service.
+
+    Returns:
+        Product dict with keys ``ean``, ``name``, ``brand``, ``quantity``,
+        ``categories``, ``image_url``, ``source`` — or ``None``.
+    """
+    import niquests
+
+    base = tingbok_url.rstrip("/")
+    try:
+        response = niquests.get(f"{base}/api/ean/{ean}", timeout=5.0)
+        if response.status_code == 404:
+            return None
+        response.raise_for_status()
+        return response.json()
+    except Exception as exc:
+        logger.debug("EAN lookup failed for %s: %s", ean, exc)
+        return None
+
+
 def _uri_to_source(uri: str) -> str | None:
     """Determine the source name from a URI prefix."""
     if uri.startswith("off:"):

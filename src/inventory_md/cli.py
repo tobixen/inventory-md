@@ -268,6 +268,33 @@ def parse_command(
             vocab = vocabulary.build_vocabulary_from_inventory(data, local_vocab=local_vocab)
             category_counts = vocabulary.count_items_per_category(data)
 
+            # EAN lookup: query tingbok for each item with an EAN barcode
+            ean_category_labels: list[str] = []
+            if tingbok_url:
+                eans_found = {
+                    item["metadata"]["ean"]: item
+                    for container in data["containers"]
+                    for item in container["items"]
+                    if item.get("metadata", {}).get("ean")
+                }
+                if eans_found:
+                    print(f"\n🔖 Looking up {len(eans_found)} EAN barcode(s) via tingbok...")
+                    for ean in eans_found:
+                        product = vocabulary.lookup_ean_via_tingbok(ean, tingbok_url)
+                        if product:
+                            name = product.get("name") or "(unknown name)"
+                            brand = product.get("brand") or ""
+                            cats = product.get("categories") or []
+                            desc = f"{brand} {name}".strip() if brand else name
+                            if cats:
+                                # Queue the most specific category for hierarchy resolution
+                                ean_category_labels.append(cats[-1])
+                                print(f"   EAN:{ean} → {desc} (category: {cats[-1]})")
+                            else:
+                                print(f"   EAN:{ean} → {desc} (no category)")
+                        else:
+                            print(f"   EAN:{ean} → not found in tingbok")
+
             # Resolve orphaned (non-path) category labels via tingbok hierarchy
             category_mappings = None
             if tingbok_url:
@@ -276,6 +303,10 @@ def parse_command(
                     for cid, c in vocab.items()
                     if c.source == "inventory" and "/" not in cid and cid not in global_vocab
                 ]
+                # Add EAN-derived category labels (de-duplicated)
+                for label in ean_category_labels:
+                    if label not in orphaned:
+                        orphaned.append(label)
                 if orphaned:
                     resolved, category_mappings = vocabulary.resolve_categories_via_tingbok(orphaned, tingbok_url)
                     if resolved:

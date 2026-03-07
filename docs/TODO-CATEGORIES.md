@@ -20,6 +20,31 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 * Every category should have at least one path, but may have several paths.  food/vegetables/potato snd food/staples/potato is the same category, but with two paths.
 * Tingbok should query multiple sources to find the relevant paths, translations, alternative lables and a good description of every category.
 
+## Tingbok hard-coded vocabulary vs other concepts
+
+* Document in details the workflow when some category present in `inventory.md` is looked up.  The document may be placed under `inventory-md/docs`.  It's important that the same lookup API apply regardless if the concept exists in `vocabulary.yaml` or not.
+
+URLs like https://tingbok.plann.no/api/vocabulary/food works for concepts (categories) present in `vocabulary.yaml`, but not for concepts that aren't present in the vocabulary.  This makes sense as the URL is a canonical URL for concepts existing in the Tingbok vocabulary.
+
+* Consider if this makes sense:
+
+A new URL like `https://tingbok.plann.no/api/lookup/{concept}` or  `https://tingbok.plann.no/api/vocabulary/{lang}:{concept}` which will return data in the same format as the vocabulary URL However, I'd like a single lookup methods that returns the same data format regardless if the thing exists in the vocabulary or not.
+
+I think the output will be a document that is ideal for caching.  Those documents should probably exist in a directory separated from all the other skos cache files, it will make the cache content more easily available for inspection.
+
+For the words in the vocabulary there are checks in place (under the `prune-vocabulary` cli functionality) to get warnings if some translations are off.  Differing translations may indicate that the search has discovered two different categories (i.e. "bedding" for humans vs "bedding" for animals in agrovoc).  I think those warnngs should be generated when doing lookups, and presented both in the json output, in the logs and in a yaml or json file on the server.  The latter file can be checked manually when there is time for it.
+
+## EAN-support from the parse script
+
+* ~~Whenever an inventory line with EAN:xxx is discovered during parsing, tingbok should be queried about the EAN, and the category should be set or verified depending on the feedback from tingbok.~~
+  **Implemented**: `parse --auto` now queries `GET /api/ean/{ean}` for each item with an `EAN:` tag.
+  Tingbok's EAN service dispatches by code type: ISBNs (978/979 prefix) → Open Library → nb.no;
+  other EAN/UPC → Open Food Facts → UPCitemdb.  Results are cached 60 days.
+  The most specific English category is fed into `resolve_categories_via_tingbok` so
+  EAN-derived categories appear in the vocabulary hierarchy.  Product name and inferred
+  category are printed during the parse run.
+  **Remaining**: auto-write `category:xxx` back into the inventory markdown file.
+
 ## Multiple-sources (important!)
 
 There are still some remaining work here and quite some regressions after the latest rounds of work on tingbok and inventory-md.  Possibly the tingbok API needs to be changed a bit to reflect that tingbok is now supposed to do the full work of looking up categories?
