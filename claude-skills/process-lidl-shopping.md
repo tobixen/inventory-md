@@ -101,34 +101,41 @@ Best-before - check photos or estimate:
 
 If estimated, the best before should be postfixed with `:EST`.  `bb:2026-12-13:EST`
 
-### 7. Update EAN cache
+### 7. Report EAN observations to tingbok
 
-Add new products to `~/solveig-inventory/ean_cache.json` with `lidl_receipt_name` field and price history:
-```json
-{
-  "EAN_CODE": {
-    "ean": "EAN_CODE",
+Send product observations (name, category, price, receipt name) to tingbok via PUT.
+Do **not** update `ean_cache.json` — that file is no longer used for this purpose.
+
+```bash
+curl -s -X PUT https://tingbok.plann.no/api/ean/EAN_CODE \
+  -H "Content-Type: application/json" \
+  -d '{
     "name": "Product name",
-    "brand": "Brand",
-    "quantity": "amount",
-    "categories": "Category",
-    "lidl_receipt_name": "BULGARIAN RECEIPT NAME",
-    "source": "manual",
+    "categories": ["food/dairy"],
+    "quantity": "1l",
     "prices": [
       {"date": "2026-01-24", "shop": "Lidl Varna", "price": 1.02, "currency": "EUR", "unit": "pcs"}
+    ],
+    "receipt_names": [
+      {"name": "BULGARIAN RECEIPT NAME", "shop": "Lidl Varna", "first_seen": "2026-01-24", "last_seen": "2026-01-24"}
     ]
-  }
-}
+  }'
 ```
 
-**Price history format:**
-- `date`: Purchase date (YYYY-MM-DD)
-- `shop`: Store name/location
-- `price`: Unit price (per piece or per kg depending on `unit`)
-- `currency`: Currency code (EUR, BGN, etc.)
-- `unit`: "pcs" for per-piece, "kg" for per-kilogram
+All fields are optional — only include what is known. For products already in tingbok,
+the PUT merges in the new data (prices and receipt_names are appended, not replaced).
 
-Add new price entries to existing products to track price changes over time.
+**Price format:**
+- `date`: Purchase date (YYYY-MM-DD)
+- `shop`: Store name/location (e.g. `"Lidl Varna"`)
+- `price`: Unit price
+- `currency`: Currency code (`"EUR"`, `"BGN"`, etc.)
+- `unit`: `"pcs"` for per-piece, `"kg"` for per-kilogram
+
+**Receipt name format:**
+- `name`: Receipt text exactly as printed (e.g. `"БОНИ Сушеница"`)
+- `shop`: Store where the receipt came from
+- `first_seen` / `last_seen`: Purchase date (ISO format, both set to the same date initially)
 
 ### 8. Update diary with expenses
 
@@ -175,7 +182,7 @@ Create the directory if it doesn't exist: `mkdir -p ~/solveig-inventory/photos/L
 Commit to solveig-inventory (diary is committed separately via update-diary --commit):
 ```bash
 cd ~/solveig-inventory
-git add inventory.md ean_cache.json photo-registry.md
+git add inventory.md photo-registry.md
 git commit -m "Add Lidl shopping YYYY-MM-DD to inventory"
 ```
 
