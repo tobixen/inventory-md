@@ -899,19 +899,29 @@ def enrich_categories_via_lookup(
     new_concepts: dict[str, Concept] = {}
     category_mappings: dict[str, list[str]] = {}
 
-    for label in labels:
+    total = len(labels)
+    for i, label in enumerate(labels, 1):
+        print(f"   [{i}/{total}] Looking up {label!r} ...", end=" ", flush=True)
+        # Normalize the query label for SKOS sources: use the leaf node of a path
+        # and replace hyphens with spaces so "bag/dry-bag" → lookup "dry bag".
+        query_label = label.split("/")[-1].replace("-", " ").replace("_", " ").strip()
+        if not query_label:
+            query_label = label
         try:
-            response = getter(f"{base}/api/lookup/{label}", params={"lang": lang}, timeout=10.0)
+            response = getter(f"{base}/api/lookup/{query_label}", params={"lang": lang}, timeout=120.0)
             if response.status_code == 404:
+                print("not found")
                 logger.debug("No lookup result for %r", label)
                 continue
             response.raise_for_status()
             data: dict = response.json()
         except Exception as exc:
+            print(f"error: {exc}")
             logger.debug("Concept lookup failed for %r: %s", label, exc)
             continue
 
         concept_id: str = data.get("id", label)
+        print(f"→ {concept_id}")
 
         # Convert VocabularyConcept format → Concept (same as fetch_vocabulary_from_tingbok)
         data["altLabels"] = data.pop("altLabel", {})

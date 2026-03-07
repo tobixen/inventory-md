@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`enrich_categories_via_lookup`** now normalises labels before sending to
+  `/api/lookup`: path-like labels (e.g. `bag/dry-bag`, `electronics/solar-panel`)
+  use only the leaf node, and hyphens/underscores are replaced with spaces.
+  Previously the raw path was sent verbatim, causing DBpedia to match wildly wrong
+  concepts (e.g. `electronics/solar-panel` → `south_african_standard_time`).
+
 ### Removed
 - **`skos.py`** module (SKOSClient, SPARQL queries to AGROVOC/DBpedia/Wikidata) — all
   source-specific lookups are now handled exclusively by tingbok.
