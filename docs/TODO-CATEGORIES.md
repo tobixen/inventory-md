@@ -20,9 +20,63 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 * Every category should have at least one path, but may have several paths.  food/vegetables/potato snd food/staples/potato is the same category, but with two paths.
 * Tingbok should query multiple sources to find the relevant paths, translations, alternative lables and a good description of every category.
 
+## ~~Potatoes regression~~ **Resolved**
+
+Translations disappeared transiently after adding `food/staples` as a second broader —
+self-resolved after server restart (startup label fetch re-populated altLabels).
+Also fixed: wrong Wikidata entity Q135021431 (a 2022 video game) → Q16587531 (potato as food).
+
+<details><summary>Historical JSON snapshots</summary>
+
+30c05aa627ad3340191d151eb63ce896d96c8eb3:
+
+```json
+{"id":"potatoes","prefLabel":"Potatoes","altLabel":{"en":["potato"],"bg":["картофи"]},"broader":["food/vegetables","food/staples"],"narrower":[],"uri":"https://tingbok.plann.no/api/vocabulary/potatoes","source_uris":["https://tingbok.plann.no/api/vocabulary/potatoes","http://dbpedia.org/resource/Potato","http://www.wikidata.org/entity/Q135021431","http://aims.fao.org/aos/agrovoc/c_13551","gpt:6586","off:en:potatoes"],"excluded_sources":[],"labels":{"en":"Potatoes"},"description":null,"wikipediaUrl":null}
+```
+
+41fbcc884bb04bccf1ca43d0059af001e17e235a:
+
+```json
+{"id":"potatoes","prefLabel":"Potatoes","altLabel":{"fi":["perunat"],"sv":["Potatisar","potatis"],"nl":["Aardappelen"],"ru":["Картофель"],"it":["Patate"],"es":["Patatas","Papas"],"da":["Kartofler"],"en":["potato"],"fr":["Pommes de terre","patates","Solanum tuberosum"],"de":["Kartoffeln"],"bg":["картофи","Картофи"]},"broader":["food/vegetables"],"narrower":[],"uri":"https://tingbok.plann.no/api/vocabulary/potatoes","source_uris":["https://tingbok.plann.no/api/vocabulary/potatoes","http://dbpedia.org/resource/Potato","http://www.wikidata.org/entity/Q135021431","http://aims.fao.org/aos/agrovoc/c_13551","gpt:6586","off:en:potatoes"],"excluded_sources":[],"labels":{"sv":"Potatis","de":"Kartoffel","fr":"Pomme de terre","es":"Solanum tuberosum","it":"Solanum tuberosum","nl":"Aardappel","pl":"Ziemniak","ru":"Картофель","uk":"Картопля","nb":"poteter","fi":"peruna","en":"Potatoes","da":"Kartofler","bg":"Картофи"},"description":null,"wikipediaUrl":null}
+```
+
+</details>
+
+## ~~Missing data / descriptions~~ **Fixed**
+
+~~https://tingbok.plann.no/api/vocabulary/potatoes comes without any description.  Same with spices and many others.~~
+**Root cause**: Wikidata description API was on `wikibase/v0` endpoint (now 404); updated to `v1`.
+Delete description cache files on server and restart to repopulate.
+
+https://tingbok.plann.no/api/lookup/long_underwear comes without any altlabels, despite quite some altlabels are given by the only source.  One of the altlabels matches up with GPT.  Perhaps it's needed with some algorithms to search via altlabels when nothing is found in the other sources?
+
+## Clothing
+
+Clothing is listed with only an "inventory" source in solveig, despite having children.  It also lacks translations.  How come?
+
+## Spices
+
+~~https://tingbok.plann.no/api/vocabulary/food/spices returns 404~~
+**Fixed**: `{concept_id}` path parameter changed to `{concept_id:path}` to capture slashes.
+
+~~The tingbok URI is included in the "source uris", that's redundant, it should only be in the uri field.~~
+**Fixed**: `_build_source_uris` no longer prepends the tingbok self-URI to `source_uris`.
+
+food/spices have a junk DBpedia source (List_of_culinary_herbs_and_spices) — replaced with better source URIs in vocabulary.yaml.  The sources for the `spice` concept all seem sane, still at least the Danish translation seems a bit off.
+
 ## inventory-md: caching
 
 The inventory-md should cache ean and category lookups from tingbok, with a one-week TTL.  The vocabulary should not be cached.
+
+## inventory-md: category-by-source missing
+
+It disappeared after the latest rounds of update
+
+## User interface
+
+When clicking on dbpedia, wikidata or agrovoc one gets to the source URI, and that's fine.  However, off and gpt does not have any URL.  For GPT I'd like to show the full category line in a mouseover.  For OFF, some OFF data should be shown in a mouseover.  (this may need some additional information to be sent from tingbok).
+
+When clicking on the information sign and an information box pops up and one chooses one of the broader or narrower from the information box, the new category should be displayed in the information box.  Today the information box disappears.
 
 ## tingbok PUT error handling
 
