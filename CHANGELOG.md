@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **EAN observations pushed to tingbok** — after each parse run, `inventory-md` PUTs
+  EAN observations (categories, name, quantity, price) to `PUT /api/ean/{ean}` on the
+  configured tingbok server.  This feeds locally-observed product data back into the
+  shared EAN database without requiring git-tracked JSON files.
+- **`report_ean_to_tingbok()`** in `vocabulary.py` — helper that PUTs a single EAN
+  observation to tingbok; silently ignores network failures so parse runs are never blocked.
+- **`receipt_names` support in EAN observations** — the Lidl shopping skill now PUTs
+  receipt name observations (Bulgarian/local receipt text) to tingbok via `curl -X PUT`
+  instead of writing to the local `ean_cache.json`.
+
 ### Fixed
 - **`enrich_categories_via_lookup`** now normalises labels before sending to
   `/api/lookup`: path-like labels (e.g. `bag/dry-bag`, `electronics/solar-panel`)
