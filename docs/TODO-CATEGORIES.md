@@ -22,17 +22,26 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 
 ## Tingbok hard-coded vocabulary vs other concepts
 
-* Document in details the workflow when some category present in `inventory.md` is looked up.  The document may be placed under `inventory-md/docs`.  It's important that the same lookup API apply regardless if the concept exists in `vocabulary.yaml` or not.
+* ~~Document in details the workflow when some category present in `inventory.md` is looked up.~~
+  **Done**: see `docs/category-lookup-workflow.md`.
 
-URLs like https://tingbok.plann.no/api/vocabulary/food works for concepts (categories) present in `vocabulary.yaml`, but not for concepts that aren't present in the vocabulary.  This makes sense as the URL is a canonical URL for concepts existing in the Tingbok vocabulary.
+* ~~Consider a new URL like `https://tingbok.plann.no/api/lookup/{concept}` that returns
+  `VocabularyConcept` format regardless of whether the concept is in `vocabulary.yaml`.~~
+  **Implemented**: `GET /api/lookup/{label}` in tingbok.  Checks vocabulary by ID and
+  prefLabel/altLabel first; if not found, queries **all** SKOS sources (AGROVOC, DBpedia,
+  Wikidata) in parallel and merges labels, altLabels, descriptions (longest wins) and
+  source URIs.  Returns `VocabularyConcept` with hierarchy-derived `id`.
+  See `docs/category-lookup-workflow.md` for the full design rationale.
 
-* Consider if this makes sense:
+URLs like `https://tingbok.plann.no/api/vocabulary/food` remain the canonical URL for concepts
+present in `vocabulary.yaml`.  `GET /api/lookup/{label}` extends this to all concepts.
 
-A new URL like `https://tingbok.plann.no/api/lookup/{concept}` or  `https://tingbok.plann.no/api/vocabulary/{lang}:{concept}` which will return data in the same format as the vocabulary URL However, I'd like a single lookup methods that returns the same data format regardless if the thing exists in the vocabulary or not.
-
-I think the output will be a document that is ideal for caching.  Those documents should probably exist in a directory separated from all the other skos cache files, it will make the cache content more easily available for inspection.
-
-For the words in the vocabulary there are checks in place (under the `prune-vocabulary` cli functionality) to get warnings if some translations are off.  Differing translations may indicate that the search has discovered two different categories (i.e. "bedding" for humans vs "bedding" for animals in agrovoc).  I think those warnngs should be generated when doing lookups, and presented both in the json output, in the logs and in a yaml or json file on the server.  The latter file can be checked manually when there is time for it.
+**Remaining**:
+* The caching for `/api/lookup` results is currently done by the underlying SKOS service
+  (per concept/label files in `~/.cache/tingbok/skos/`).  Separating lookup results into
+  their own cache directory for easier inspection was requested but not yet done.
+* Translation warnings ("bedding" = animal litter vs. household bedding) should be
+  generated at lookup time and written to a separate YAML/JSON file on the server.
 
 ## EAN-support from the parse script
 
@@ -44,6 +53,10 @@ For the words in the vocabulary there are checks in place (under the `prune-voca
   EAN-derived categories appear in the vocabulary hierarchy.  Product name and inferred
   category are printed during the parse run.
   **Remaining**: auto-write `category:xxx` back into the inventory markdown file.
+
+## EAN update support
+
+Currently price and other information on receipts is correlated with photos of bar-codes, this is at the moment a Claude-based effort (see inventory-md/claude-skills).  Now that the database should stay at Tingbok, we need an interface for updating Tingbok.  The skill should be updated to reflect this (is it "cheapest" to do those updates via REST or MCP?).
 
 ## Multiple-sources (important!)
 

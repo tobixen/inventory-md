@@ -149,7 +149,7 @@ to `vocabulary.json` for the `search.html` category browser.
 `food/spices/cumin`) cannot be fetched in `VocabularyConcept` format after the
 parse run.
 
-### Proposed: `GET /api/lookup/{label}`
+### `GET /api/lookup/{label}` (implemented)
 
 A unified endpoint that returns `VocabularyConcept` format **regardless of
 whether the concept is in `vocabulary.yaml`**:
@@ -158,11 +158,12 @@ whether the concept is in `vocabulary.yaml`**:
    `GET /api/vocabulary/{label}`.
 2. If `label` matches a `prefLabel` or `altLabel` in `vocabulary.yaml` → return
    that concept.
-3. Otherwise → query all SKOS sources (agrovoc, dbpedia, wikidata), merge labels,
-   altLabels, descriptions (longest wins) and source URIs, and derive the canonical
-   concept ID from the hierarchy path (e.g. `food/spices/cumin`).
+3. Otherwise → query **all** SKOS sources (agrovoc, dbpedia, wikidata) **in
+   parallel** via `asyncio.gather`, merge labels (first-per-language), altLabels
+   (union), descriptions (longest wins) and source URIs (union), and derive the
+   canonical concept ID from the hierarchy path (e.g. `food/spices/cumin`).
 4. Return 404 only if all sources miss.
 
-Response documents from this endpoint are cacheable in their own directory,
-separate from the raw SKOS concept/label cache files, making them easy to
-inspect.
+Caching is currently handled by the underlying SKOS service (per-concept/label
+files in `~/.cache/tingbok/skos/`).  Separating lookup results into their own
+cache directory for easier inspection is a future improvement.
