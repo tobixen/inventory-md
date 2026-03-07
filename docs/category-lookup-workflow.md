@@ -50,7 +50,7 @@ inventory.md
 ```
 
 The `category:` value may be:
-- A full path like `food/spices/cumin` (already resolved, stored as-is).
+- A full path like `food/spices/cumin` (already resolved, stored as-is). COMMENT: it has a path, but it's not fully "resolved", it needs information from tingbok to present translations, altlabels, description, sources and alternative paths.  It also defines not only one category, but three catgories that has to be properly resolved.
 - A bare label like `cumin` (orphaned — needs resolution in stage 5a).
 
 ## Stage 2 — Load global vocabulary
@@ -67,7 +67,7 @@ that anchor the hierarchy.
 
 `GET /api/vocabulary/{concept_id}` returns a single concept from the vocabulary
 and 404 for unknown IDs.  **This means non-vocabulary concepts cannot currently
-be fetched in the same format.**  See [Gap](#gap) below.
+be fetched in the same format.**  See [Gap](#gap) below.  COMMENT: but this has been resolved now, hasn't it?
 
 ## Stage 3 — Load local vocabulary
 
@@ -81,6 +81,8 @@ instance-specific overrides the highest priority.
 `category:` value, and creates `Concept` objects for each.  Items with full
 paths (`food/spices/cumin`) populate the hierarchy directly.  Items with bare
 labels (`cumin`) produce orphaned concepts (`source="inventory"`) awaiting stage 5a.
+
+COMMENT: for efficiency, it probably makes sense to download the full vocabulary at first, but for every category not present in the vocabulary, I think it makes sense to call on `/api/lookup/{label}` regardless of weather it has a path or not?
 
 ## Stage 5a — Resolve orphaned labels
 
@@ -163,6 +165,8 @@ whether the concept is in `vocabulary.yaml`**:
    (union), descriptions (longest wins) and source URIs (union), and derive the
    canonical concept ID from the hierarchy path (e.g. `food/spices/cumin`).
 4. Return 404 only if all sources miss.
+
+COMMENT: make sure http/2 and multiplexing is enabled (use niquests library rather than httpx).  Still, we should take some care not to send too many requests at once to the upstream APIs
 
 Caching is currently handled by the underlying SKOS service (per-concept/label
 files in `~/.cache/tingbok/skos/`).  Separating lookup results into their own
