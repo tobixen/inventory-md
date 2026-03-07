@@ -241,7 +241,7 @@ class TestParseCommandEanLookup:
 
         stack = ExitStack()
         stack.enter_context(patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}))
-        stack.enter_context(patch.object(vocabulary, "resolve_categories_via_tingbok", return_value=({}, {})))
+        stack.enter_context(patch.object(vocabulary, "enrich_categories_via_lookup", return_value=({}, {})))
         return stack
 
     def test_ean_items_queried_via_tingbok(self, tmp_path, monkeypatch) -> None:
@@ -273,7 +273,9 @@ class TestParseCommandEanLookup:
                     tingbok_url="https://tingbok.plann.no",
                 )
 
-        mock_lookup.assert_called_once_with("7310865004703", "https://tingbok.plann.no")
+        args, kwargs = mock_lookup.call_args
+        assert args == ("7310865004703", "https://tingbok.plann.no")
+        assert "session" in kwargs
 
     def test_ean_lookup_skipped_without_tingbok_url(self, tmp_path, monkeypatch) -> None:
         """When no tingbok_url is configured, EAN lookup is skipped."""

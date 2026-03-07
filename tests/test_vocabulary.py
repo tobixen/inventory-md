@@ -1230,7 +1230,7 @@ class TestLoadGlobalVocabularyTingbok:
         ):
             result = vocabulary.load_global_vocabulary(tingbok_url="https://tingbok.plann.no")
 
-        mock_fetch.assert_called_once_with("https://tingbok.plann.no")
+        mock_fetch.assert_called_once_with("https://tingbok.plann.no", session=None)
         assert "food" in result
         assert result["food"].source == "tingbok"
 
@@ -1484,3 +1484,180 @@ class TestLookupEanViaTingbok:
         mock_get.assert_called_once()
         url = mock_get.call_args[0][0]
         assert url == "https://tingbok.plann.no/api/ean/7310865004703"
+
+    def test_uses_session_get_when_provided(self) -> None:
+        """When a session is passed, session.get() is used instead of niquests.get()."""
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_response
+
+        result = vocabulary.lookup_ean_via_tingbok("0000000000000", self.TINGBOK_URL, session=mock_session)
+
+        mock_session.get.assert_called_once()
+        assert result is None
+
+
+class TestFetchVocabularySession:
+    """Tests that session parameter is forwarded in fetch_vocabulary_from_tingbok()."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    def test_uses_session_get_when_provided(self) -> None:
+        """When a session is passed, session.get() is used instead of niquests.get()."""
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {}
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_response
+
+        vocabulary.fetch_vocabulary_from_tingbok(self.TINGBOK_URL, session=mock_session)
+
+        mock_session.get.assert_called_once()
+        url = mock_session.get.call_args[0][0]
+        assert url == f"{self.TINGBOK_URL}/api/vocabulary"
+
+
+class TestResolveCategoriesSession:
+    """Tests that session parameter is forwarded in resolve_categories_via_tingbok()."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    def test_uses_session_get_when_provided(self) -> None:
+        """When a session is passed, session.get() is used instead of niquests.get()."""
+        from unittest.mock import MagicMock
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"found": False, "paths": []}
+        mock_session = MagicMock()
+        mock_session.get.return_value = mock_response
+
+        vocabulary.resolve_categories_via_tingbok(["cumin"], self.TINGBOK_URL, session=mock_session)
+
+        mock_session.get.assert_called()
+
+
+class TestLoadGlobalVocabularySession:
+    """Tests that session is passed through load_global_vocabulary()."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    def test_passes_session_to_fetch(self) -> None:
+        """Session passed to load_global_vocabulary() is forwarded to fetch_vocabulary_from_tingbok()."""
+        from unittest.mock import MagicMock, patch
+
+        mock_session = MagicMock()
+
+        with patch.object(vocabulary, "fetch_vocabulary_from_tingbok", return_value={}) as mock_fetch:
+            vocabulary.load_global_vocabulary(tingbok_url=self.TINGBOK_URL, session=mock_session)
+
+        mock_fetch.assert_called_once_with(self.TINGBOK_URL, session=mock_session)
+
+
+class TestEnrichCategoriesViaLookup:
+    """Tests for enrich_categories_via_lookup()."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    def _make_response(self, data: dict, status_code: int = 200):
+        from unittest.mock import MagicMock
+
+        r = MagicMock()
+        r.status_code = status_code
+        r.json.return_value = data
+        return r
+
+    def _vocab_concept(self, concept_id: str, pref_label: str = "", labels: dict | None = None) -> dict:
+        return {
+            "id": concept_id,
+            "prefLabel": pref_label or concept_id.split("/")[-1].title(),
+            "altLabel": {"en": ["alt"]},
+            "labels": labels or {"en": pref_label or concept_id.split("/")[-1].title(), "nb": "Norsk"},
+            "description": "A description",
+            "source_uris": ["http://aims.fao.org/aos/agrovoc/c_12851"],
+            "broader": [],
+            "narrower": [],
+        }
+
+    def test_bare_label_resolves_to_path(self) -> None:
+        """Bare label 'cumin' resolved to 'food/spices/cumin' recorded in category_mappings."""
+        from unittest.mock import patch
+
+        with patch("niquests.get", return_value=self._make_response(self._vocab_concept("food/spices/cumin", "Cumin"))):
+            new_concepts, mappings = vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL)
+
+        assert "food/spices/cumin" in new_concepts
+        assert mappings.get("cumin") == ["food/spices/cumin"]
+
+    def test_path_label_gets_enriched(self) -> None:
+        """Full path 'food/spices/cumin' → enriched concept, no mapping entry."""
+        from unittest.mock import patch
+
+        with patch("niquests.get", return_value=self._make_response(self._vocab_concept("food/spices/cumin", "Cumin"))):
+            new_concepts, mappings = vocabulary.enrich_categories_via_lookup(["food/spices/cumin"], self.TINGBOK_URL)
+
+        c = new_concepts["food/spices/cumin"]
+        assert c.prefLabel == "Cumin"
+        assert c.labels.get("nb") == "Norsk"
+        assert c.source == "tingbok"
+        assert "cumin" not in mappings  # no mapping — input already was the path
+
+    def test_parent_paths_added(self) -> None:
+        """All path segments of resolved concept are present in new_concepts."""
+        from unittest.mock import patch
+
+        with patch("niquests.get", return_value=self._make_response(self._vocab_concept("food/spices/cumin", "Cumin"))):
+            new_concepts, _ = vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL)
+
+        assert "food" in new_concepts
+        assert "food/spices" in new_concepts
+        assert "food/spices/cumin" in new_concepts
+
+    def test_404_skips_label(self) -> None:
+        """404 response → label absent from new_concepts."""
+        from unittest.mock import patch
+
+        with patch("niquests.get", return_value=self._make_response({}, status_code=404)):
+            new_concepts, mappings = vocabulary.enrich_categories_via_lookup(["xyzzy"], self.TINGBOK_URL)
+
+        assert new_concepts == {}
+        assert mappings == {}
+
+    def test_network_error_skips_label(self) -> None:
+        """Network exception → graceful skip."""
+        from unittest.mock import patch
+
+        with patch("niquests.get", side_effect=Exception("connection refused")):
+            new_concepts, mappings = vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL)
+
+        assert new_concepts == {}
+        assert mappings == {}
+
+    def test_uses_session_get_when_provided(self) -> None:
+        """session.get() is used instead of niquests.get() when session is passed."""
+        from unittest.mock import MagicMock
+
+        mock_session = MagicMock()
+        mock_session.get.return_value = self._make_response(self._vocab_concept("food/spices/cumin", "Cumin"))
+
+        vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL, session=mock_session)
+
+        mock_session.get.assert_called_once()
+        url = mock_session.get.call_args[0][0]
+        assert url.endswith("/api/lookup/cumin")
+
+    def test_altlabels_converted(self) -> None:
+        """altLabel from VocabularyConcept (SKOS key) is stored in Concept.altLabels."""
+        from unittest.mock import patch
+
+        data = self._vocab_concept("food/spices/cumin", "Cumin")
+        data["altLabel"] = {"en": ["cummin", "jeera"]}
+        with patch("niquests.get", return_value=self._make_response(data)):
+            new_concepts, _ = vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL)
+
+        assert new_concepts["food/spices/cumin"].altLabels == {"en": ["cummin", "jeera"]}

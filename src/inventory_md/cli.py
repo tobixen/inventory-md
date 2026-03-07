@@ -241,11 +241,17 @@ def parse_command(
             # Generate vocabulary.json for category browser
             print("\n🏷️  Generating category vocabulary...")
 
+            # Single multiplexed session for all tingbok HTTP calls this run.
+            import niquests
+
+            tingbok_session: niquests.Session | None = niquests.Session(multiplexed=True) if tingbok_url else None
+
             # Load global vocabulary: tingbok (if configured) plus local overrides.
             # Raises TingbokUnavailableError if tingbok is configured but unreachable.
             global_vocab = vocabulary.load_global_vocabulary(
                 tingbok_url=tingbok_url,
                 skip_cwd=True,  # local vocab is handled separately based on md_file.parent
+                session=tingbok_session,
             )
             if global_vocab:
                 print(f"   Loaded {len(global_vocab)} concepts from global vocabulary")
@@ -280,7 +286,7 @@ def parse_command(
                 if eans_found:
                     print(f"\n🔖 Looking up {len(eans_found)} EAN barcode(s) via tingbok...")
                     for ean in eans_found:
-                        product = vocabulary.lookup_ean_via_tingbok(ean, tingbok_url)
+                        product = vocabulary.lookup_ean_via_tingbok(ean, tingbok_url, session=tingbok_session)
                         if product:
                             name = product.get("name") or "(unknown name)"
                             brand = product.get("brand") or ""
@@ -295,23 +301,25 @@ def parse_command(
                         else:
                             print(f"   EAN:{ean} → not found in tingbok")
 
-            # Resolve orphaned (non-path) category labels via tingbok hierarchy
+            # Enrich all inventory categories not already in global vocab via /api/lookup
             category_mappings = None
             if tingbok_url:
-                orphaned = [
-                    c.prefLabel
-                    for cid, c in vocab.items()
-                    if c.source == "inventory" and "/" not in cid and cid not in global_vocab
+                # All inventory-sourced concepts not covered by the global vocab need enrichment,
+                # regardless of whether they are bare labels or full paths.
+                to_enrich: list[str] = [
+                    cid for cid, c in vocab.items() if c.source == "inventory" and cid not in global_vocab
                 ]
                 # Add EAN-derived category labels (de-duplicated)
                 for label in ean_category_labels:
-                    if label not in orphaned:
-                        orphaned.append(label)
-                if orphaned:
-                    resolved, category_mappings = vocabulary.resolve_categories_via_tingbok(orphaned, tingbok_url)
+                    if label not in to_enrich:
+                        to_enrich.append(label)
+                if to_enrich:
+                    resolved, category_mappings = vocabulary.enrich_categories_via_lookup(
+                        to_enrich, tingbok_url, session=tingbok_session
+                    )
                     if resolved:
                         vocab.update(resolved)
-                        print(f"   Resolved {len(category_mappings)}/{len(orphaned)} orphaned categories via tingbok")
+                        print(f"   Enriched {len(resolved)} categories via tingbok lookup")
 
             if vocab:
                 vocab_output = md_file.parent / "vocabulary.json"

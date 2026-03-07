@@ -37,7 +37,10 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import niquests
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +117,7 @@ def find_vocabulary_files() -> list[Path]:
 def load_global_vocabulary(
     tingbok_url: str | None = None,
     skip_cwd: bool = False,
+    session: niquests.Session | None = None,
 ) -> dict[str, Concept]:
     """Load and merge vocabulary from all standard locations.
 
@@ -135,7 +139,7 @@ def load_global_vocabulary(
 
     # Fetch package vocabulary from tingbok (lowest priority)
     if tingbok_url:
-        pkg_vocab = fetch_vocabulary_from_tingbok(tingbok_url)
+        pkg_vocab = fetch_vocabulary_from_tingbok(tingbok_url, session=session)
         if pkg_vocab:
             logger.info("Loaded %d concepts from tingbok (%s)", len(pkg_vocab), tingbok_url)
             merged.update(pkg_vocab)
@@ -155,11 +159,12 @@ def load_global_vocabulary(
     return merged
 
 
-def fetch_vocabulary_from_tingbok(url: str) -> dict[str, Concept]:
+def fetch_vocabulary_from_tingbok(url: str, session: niquests.Session | None = None) -> dict[str, Concept]:
     """Fetch the package vocabulary from a running tingbok service.
 
     Args:
-        url: Base URL of the tingbok service (e.g. "https://tingbok.plann.no").
+        url:     Base URL of the tingbok service (e.g. "https://tingbok.plann.no").
+        session: Optional niquests.Session to reuse (enables HTTP/2 multiplexing).
 
     Returns:
         Dictionary mapping concept IDs to Concept objects with source="tingbok",
@@ -167,10 +172,11 @@ def fetch_vocabulary_from_tingbok(url: str) -> dict[str, Concept]:
     """
     import niquests
 
+    getter = session.get if session is not None else niquests.get
     base = url.rstrip("/")
     endpoint = f"{base}/api/vocabulary"
     try:
-        response = niquests.get(endpoint, timeout=5.0)
+        response = getter(endpoint, timeout=5.0)
         response.raise_for_status()
         data: dict[str, Any] = response.json()
     except Exception as e:
@@ -803,6 +809,7 @@ def resolve_categories_via_tingbok(
     tingbok_url: str,
     lang: str = "en",
     sources: list[str] | None = None,
+    session: niquests.Session | None = None,
 ) -> tuple[dict[str, Concept], dict[str, list[str]]]:
     """Resolve unknown category labels to hierarchy paths via tingbok.
 
@@ -826,6 +833,7 @@ def resolve_categories_via_tingbok(
     """
     import niquests
 
+    getter = session.get if session is not None else niquests.get
     if sources is None:
         sources = ["agrovoc", "dbpedia", "wikidata"]
 
@@ -836,7 +844,7 @@ def resolve_categories_via_tingbok(
     for label in unknown_labels:
         for source in sources:
             try:
-                response = niquests.get(
+                response = getter(
                     f"{base}/api/skos/hierarchy",
                     params={"label": label, "lang": lang, "source": source},
                     timeout=5.0,
@@ -857,7 +865,82 @@ def resolve_categories_via_tingbok(
     return new_concepts, category_mappings
 
 
-def lookup_ean_via_tingbok(ean: str, tingbok_url: str) -> dict | None:
+def enrich_categories_via_lookup(
+    labels: list[str],
+    tingbok_url: str,
+    lang: str = "en",
+    session: niquests.Session | None = None,
+) -> tuple[dict[str, Concept], dict[str, list[str]]]:
+    """Enrich category concepts via ``GET /api/lookup/{label}``.
+
+    Works for both bare labels (e.g. ``"cumin"``) and full paths (e.g.
+    ``"food/spices/cumin"``).  All SKOS sources are queried in parallel by
+    tingbok and the results merged, so the returned concepts carry translations,
+    altLabels, descriptions, and source URIs from every available source.
+
+    Args:
+        labels:      Category IDs or bare labels to look up.
+        tingbok_url: Base URL of the tingbok service.
+        lang:        Preferred language for the lookup request.
+        session:     Optional niquests.Session to reuse (enables HTTP/2 multiplexing).
+
+    Returns:
+        Tuple of:
+
+        * *new_concepts* — enriched ``dict[str, Concept]`` for all resolved labels
+          and their path segments (e.g. ``"food"``, ``"food/spices"``, ``"food/spices/cumin"``).
+        * *category_mappings* — ``{label_lower: [path]}`` for bare labels that
+          resolved to a different concept ID (used for search expansion).
+    """
+    import niquests
+
+    getter = session.get if session is not None else niquests.get
+    base = tingbok_url.rstrip("/")
+    new_concepts: dict[str, Concept] = {}
+    category_mappings: dict[str, list[str]] = {}
+
+    for label in labels:
+        try:
+            response = getter(f"{base}/api/lookup/{label}", params={"lang": lang}, timeout=10.0)
+            if response.status_code == 404:
+                logger.debug("No lookup result for %r", label)
+                continue
+            response.raise_for_status()
+            data: dict = response.json()
+        except Exception as exc:
+            logger.debug("Concept lookup failed for %r: %s", label, exc)
+            continue
+
+        concept_id: str = data.get("id", label)
+
+        # Convert VocabularyConcept format → Concept (same as fetch_vocabulary_from_tingbok)
+        data["altLabels"] = data.pop("altLabel", {})
+        data["id"] = concept_id
+        data["source"] = "tingbok"
+        raw_source_uris: list[str] = data.pop("source_uris", [])
+        try:
+            concept = Concept.from_dict(data)
+        except Exception as exc:
+            logger.warning("Skipping malformed lookup response for %r: %s", label, exc)
+            continue
+        for u in raw_source_uris:
+            src = _uri_to_source(u)
+            if src and src not in concept.source_uris:
+                concept.source_uris[src] = u
+
+        # Ensure all path segments exist (unenriched stubs for intermediates)
+        _add_category_path(new_concepts, concept_id)
+        # Overwrite the leaf with the fully enriched concept
+        new_concepts[concept_id] = concept
+
+        # Record mapping if a bare label resolved to a different (path-based) ID
+        if label.lower() != concept_id.lower() and "/" not in label:
+            category_mappings[label.lower()] = [concept_id]
+
+    return new_concepts, category_mappings
+
+
+def lookup_ean_via_tingbok(ean: str, tingbok_url: str, session: niquests.Session | None = None) -> dict | None:
     """Look up a product by EAN via the tingbok service.
 
     Queries ``GET {tingbok_url}/api/ean/{ean}`` and returns the parsed JSON
@@ -867,6 +950,7 @@ def lookup_ean_via_tingbok(ean: str, tingbok_url: str) -> dict | None:
     Args:
         ean:         EAN/UPC barcode string.
         tingbok_url: Base URL of the tingbok service.
+        session:     Optional niquests.Session to reuse (enables HTTP/2 multiplexing).
 
     Returns:
         Product dict with keys ``ean``, ``name``, ``brand``, ``quantity``,
@@ -874,9 +958,10 @@ def lookup_ean_via_tingbok(ean: str, tingbok_url: str) -> dict | None:
     """
     import niquests
 
+    getter = session.get if session is not None else niquests.get
     base = tingbok_url.rstrip("/")
     try:
-        response = niquests.get(f"{base}/api/ean/{ean}", timeout=5.0)
+        response = getter(f"{base}/api/ean/{ean}", timeout=5.0)
         if response.status_code == 404:
             return None
         response.raise_for_status()

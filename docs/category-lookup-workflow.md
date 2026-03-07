@@ -21,7 +21,7 @@ inventory.md
 1. Parse items   ── extract category: labels, tag: labels, EAN: barcodes
     │
     ▼
-2. Load global vocabulary ── GET /api/vocabulary
+2. Load global vocabulary ── GET /api/vocabulary  (shared HTTP/2 session)
     │
     ▼
 3. Load local-vocabulary.yaml (highest priority, overrides global)
@@ -29,11 +29,12 @@ inventory.md
     ▼
 4. Build vocabulary from inventory ── merge all known concepts
     │
-    ├─ 5a. Orphaned labels (not yet a path) ── GET /api/skos/hierarchy per source
-    │
-    └─ 5b. EAN barcodes ── GET /api/ean/{ean}
-                           │
-                           └── category label from product ── GET /api/skos/hierarchy
+    ├─ 5a. EAN barcodes ── GET /api/ean/{ean}
+    │                      │
+    │                      └── category label from product ──┐
+    │                                                        │
+    └─ 5b. Enrich all inventory categories not in global    ─┘
+           vocab ── GET /api/lookup/{label} (all sources merged)
     │
     ▼
 6. Save vocabulary.json ── used by search.html category browser
@@ -50,8 +51,10 @@ inventory.md
 ```
 
 The `category:` value may be:
-- A full path like `food/spices/cumin` (already resolved, stored as-is). COMMENT: it has a path, but it's not fully "resolved", it needs information from tingbok to present translations, altlabels, description, sources and alternative paths.  It also defines not only one category, but three catgories that has to be properly resolved.
-- A bare label like `cumin` (orphaned — needs resolution in stage 5a).
+- A full path like `food/spices/cumin` — each path segment (`food`, `food/spices`,
+  `food/spices/cumin`) becomes a concept that may need enrichment from tingbok (translations,
+  altLabels, description, source URIs, alternative paths).
+- A bare label like `cumin` — needs resolution to a canonical path via stage 5b.
 
 ## Stage 2 — Load global vocabulary
 
@@ -66,8 +69,8 @@ These concepts form the "linking layer" — root nodes and structural categories
 that anchor the hierarchy.
 
 `GET /api/vocabulary/{concept_id}` returns a single concept from the vocabulary
-and 404 for unknown IDs.  **This means non-vocabulary concepts cannot currently
-be fetched in the same format.**  See [Gap](#gap) below.  COMMENT: but this has been resolved now, hasn't it?
+and 404 for unknown IDs.  For concepts not in `vocabulary.yaml`, use
+`GET /api/lookup/{label}` instead — see [below](#get-apilookuplabel-implemented).
 
 ## Stage 3 — Load local vocabulary
 
@@ -78,42 +81,11 @@ instance-specific overrides the highest priority.
 ## Stage 4 — Build vocabulary from inventory
 
 `vocabulary.build_vocabulary_from_inventory` walks all items, collects every
-`category:` value, and creates `Concept` objects for each.  Items with full
-paths (`food/spices/cumin`) populate the hierarchy directly.  Items with bare
-labels (`cumin`) produce orphaned concepts (`source="inventory"`) awaiting stage 5a.
+`category:` value, and creates `Concept` objects for each.  Both full paths and
+bare labels produce concepts with `source="inventory"` awaiting enrichment in
+stage 5.
 
-COMMENT: for efficiency, it probably makes sense to download the full vocabulary at first, but for every category not present in the vocabulary, I think it makes sense to call on `/api/lookup/{label}` regardless of weather it has a path or not?
-
-## Stage 5a — Resolve orphaned labels
-
-```python
-vocabulary.resolve_categories_via_tingbok(orphaned_labels, tingbok_url)
-```
-
-For each orphaned label (e.g. `"cumin"`):
-
-```
-GET /api/skos/hierarchy?label=cumin&source=agrovoc
-GET /api/skos/hierarchy?label=cumin&source=dbpedia  (if agrovoc misses)
-GET /api/skos/hierarchy?label=cumin&source=wikidata  (if dbpedia misses)
-```
-
-The first source that returns `found=true` wins.  The response includes:
-
-```json
-{
-  "label": "cumin",
-  "paths": ["food/spices/cumin"],
-  "found": true,
-  "source": "agrovoc",
-  "uri_map": {"food/spices/cumin": "http://aims.fao.org/aos/agrovoc/c_12851"}
-}
-```
-
-All path segments are added to the vocabulary (e.g. `food`, `food/spices`,
-`food/spices/cumin`).
-
-## Stage 5b — EAN barcode lookup
+## Stage 5a — EAN barcode lookup
 
 ```python
 vocabulary.lookup_ean_via_tingbok(ean, tingbok_url)
@@ -134,8 +106,31 @@ nb.no (for ISBNs / books).  The response is a `ProductResponse`:
 }
 ```
 
-The most specific category (`"cumin seeds"`) is added to the orphaned-label
-list and resolved via stage 5a.
+The most specific category (`"cumin seeds"`) is queued for enrichment in stage 5b.
+
+## Stage 5b — Enrich all inventory categories
+
+```python
+vocabulary.enrich_categories_via_lookup(labels, tingbok_url, session=session)
+    → GET {tingbok_url}/api/lookup/{label}  (for each label)
+```
+
+Every concept with `source="inventory"` that is **not** already in the global
+vocabulary is enriched via `GET /api/lookup/{label}`.  This covers both:
+
+- **Full paths** like `food/spices/cumin` — gains translations, altLabels,
+  description, source URIs, and alternative hierarchy paths.
+- **Bare labels** like `cumin` (or EAN-derived labels like `"cumin seeds"`) —
+  resolved to a canonical path and fully enriched.
+
+All HTTP calls share a single `niquests.Session(multiplexed=True)` so that
+multiple requests to the same tingbok host are sent over one HTTP/2 connection.
+
+The response is a `VocabularyConcept` (same format as `GET /api/vocabulary/{id}`),
+with all SKOS sources already merged by tingbok.  All path segments are added to
+the vocabulary.  For bare labels that resolved to a different concept ID, a
+`categoryMappings` entry is recorded so the search UI can expand the label to
+its canonical path.
 
 ## Stage 6 — Save vocabulary.json
 
@@ -144,14 +139,7 @@ to `vocabulary.json` for the `search.html` category browser.
 
 ---
 
-## Gap
-
-`GET /api/vocabulary/{concept_id}` only works for concepts **already in
-`vocabulary.yaml`**.  Concepts resolved dynamically from SKOS sources (e.g.
-`food/spices/cumin`) cannot be fetched in `VocabularyConcept` format after the
-parse run.
-
-### `GET /api/lookup/{label}` (implemented)
+## `GET /api/lookup/{label}` (implemented)
 
 A unified endpoint that returns `VocabularyConcept` format **regardless of
 whether the concept is in `vocabulary.yaml`**:
@@ -166,7 +154,8 @@ whether the concept is in `vocabulary.yaml`**:
    canonical concept ID from the hierarchy path (e.g. `food/spices/cumin`).
 4. Return 404 only if all sources miss.
 
-COMMENT: make sure http/2 and multiplexing is enabled (use niquests library rather than httpx).  Still, we should take some care not to send too many requests at once to the upstream APIs
+inventory-md uses `niquests.Session(multiplexed=True)` for all requests to
+tingbok, enabling HTTP/2 connection reuse across multiple `/api/lookup` calls.
 
 Caching is currently handled by the underlying SKOS service (per-concept/label
 files in `~/.cache/tingbok/skos/`).  Separating lookup results into their own
