@@ -227,12 +227,14 @@ def fetch_vocabulary_from_tingbok(url: str, session: niquests.Session | None = N
         raw["source"] = "tingbok"
         # Convert source_uris from list[str] → dict[str, str] (source name → URI)
         raw_source_uris: list[str] = raw.pop("source_uris", [])
+        raw_source_paths: dict[str, str] = raw.pop("source_paths", {})
         try:
             concept = Concept.from_dict(raw)
             for u in raw_source_uris:
                 src = _uri_to_source(u)
                 if src and src not in concept.source_uris:
                     concept.source_uris[src] = u
+            concept.source_paths = raw_source_paths
             concepts[concept_id] = concept
         except Exception as e:
             logger.warning("Skipping malformed concept '%s' from tingbok: %s", concept_id, e)
@@ -372,6 +374,7 @@ class Concept:
     wikipediaUrl: str | None = None  # Link to Wikipedia article
     descriptions: dict[str, str] = field(default_factory=dict)  # lang -> description
     source_uris: dict[str, str] = field(default_factory=dict)  # source name -> URI
+    source_paths: dict[str, str] = field(default_factory=dict)  # source name -> tingbok-normalised path
     excluded_sources: list[str] = field(default_factory=list)  # sources checked and rejected
 
     def to_dict(self) -> dict[str, Any]:
@@ -680,45 +683,93 @@ def _infer_hierarchy(concepts: dict[str, Concept]) -> None:
                     parent.narrower.append(concept_id)
 
 
+def _ensure_source_path_node(
+    node_id: str,
+    concepts: dict[str, Concept],
+    label: str,
+    broader: str,
+) -> None:
+    """Ensure a virtual intermediate node exists, creating it if needed."""
+    if node_id not in concepts:
+        concepts[node_id] = Concept(
+            id=node_id,
+            prefLabel=label,
+            narrower=[],
+            broader=[broader],
+            source="inventory",
+        )
+
+
 def _add_category_by_source_nodes(concepts: dict[str, Concept]) -> None:
     """Dynamically add ``category_by_source`` virtual nodes to *concepts* in-place.
 
-    Scans every concept's ``source_uris`` and creates one virtual node per source
-    (e.g. ``category_by_source/off``) whose ``narrower`` list contains the IDs of
-    all concepts that carry a URI for that source.  A top-level
-    ``category_by_source`` node is also added with the source nodes as children.
+    For sources that provide a ``source_paths`` path (e.g. GPT), proper
+    intermediate nodes are created so the concept appears at the right depth
+    in the source subtree rather than as a spurious root-level child.
+    For sources without path information, the concept is added directly under
+    the source node (flat list, as before).
 
     Concepts whose ID already starts with ``category_by_source`` are skipped so
     that repeated calls are idempotent.
     """
-    # Collect: source → [concept_id, ...]
-    source_children: dict[str, list[str]] = {}
-    for cid, concept in concepts.items():
+    source_node_ids: set[str] = set()
+
+    for cid, concept in list(concepts.items()):
         if cid.startswith(CATEGORY_BY_SOURCE_ID):
             continue
         for src in concept.source_uris:
-            source_children.setdefault(src, []).append(cid)
+            src_root = f"{CATEGORY_BY_SOURCE_ID}/{src}"
+            source_node_ids.add(src_root)
+            src_path = concept.source_paths.get(src)
 
-    if not source_children:
+            if src_path and "/" in src_path:
+                # Build intermediate virtual nodes along the source path.
+                # Prefix all nodes with category_by_source/{src}/ so they
+                # don't collide with the main vocabulary tree.
+                parts = src_path.split("/")
+                for depth in range(1, len(parts)):
+                    segment = parts[depth - 1]
+                    node_id = src_root + "/" + "/".join(parts[:depth])
+                    parent_id = src_root if depth == 1 else src_root + "/" + "/".join(parts[: depth - 1])
+                    _ensure_source_path_node(node_id, concepts, segment.replace("_", " ").title(), parent_id)
+                    source_node_ids.add(node_id)
+
+                # The leaf: place cid under the deepest intermediate node
+                leaf_parent_id = src_root + "/" + "/".join(parts[:-1])
+                parent_node = concepts[leaf_parent_id]
+                if cid not in parent_node.narrower:
+                    parent_node.narrower.append(cid)
+            else:
+                # No path info — fall back to flat list directly under source node
+                _ensure_source_path_node(
+                    src_root,
+                    concepts,
+                    _SOURCE_LABELS.get(src, src.title()),
+                    CATEGORY_BY_SOURCE_ID,
+                )
+                src_node = concepts[src_root]
+                if cid not in src_node.narrower:
+                    src_node.narrower.append(cid)
+
+    if not source_node_ids:
         return
 
-    source_node_ids: list[str] = []
-    for src, children in sorted(source_children.items()):
-        node_id = f"{CATEGORY_BY_SOURCE_ID}/{src}"
-        label = _SOURCE_LABELS.get(src, src.title())
-        concepts[node_id] = Concept(
-            id=node_id,
-            prefLabel=label,
-            narrower=sorted(children),
-            broader=[CATEGORY_BY_SOURCE_ID],
-            source="inventory",
-        )
-        source_node_ids.append(node_id)
+    # Ensure top-level source nodes have correct label/broader
+    for src_root in source_node_ids:
+        if src_root.count("/") == 1:  # direct child of category_by_source
+            src = src_root.split("/", 1)[1]
+            _ensure_source_path_node(
+                src_root,
+                concepts,
+                _SOURCE_LABELS.get(src, src.title()),
+                CATEGORY_BY_SOURCE_ID,
+            )
 
+    direct_source_roots = sorted(n for n in source_node_ids if n.count("/") == 1)
     concepts[CATEGORY_BY_SOURCE_ID] = Concept(
         id=CATEGORY_BY_SOURCE_ID,
         prefLabel="Category by Source",
-        narrower=source_node_ids,
+        narrower=direct_source_roots,
         source="inventory",
     )
 
@@ -748,6 +799,7 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
             wikipediaUrl=v.wikipediaUrl,
             descriptions=v.descriptions.copy() if v.descriptions else {},
             source_uris=v.source_uris.copy() if v.source_uris else {},
+            source_paths=v.source_paths.copy() if v.source_paths else {},
         )
         for k, v in vocabulary.items()
     }

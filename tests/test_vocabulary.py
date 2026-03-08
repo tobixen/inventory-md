@@ -656,6 +656,67 @@ class TestCategoryBySource:
 
         assert "category_by_source" not in tree.concepts
 
+    def test_source_paths_creates_intermediate_nodes(self):
+        """A concept with source_paths gets proper intermediate nodes in category_by_source."""
+        vocab = {
+            "food/fruit/bananas": vocabulary.Concept(
+                id="food/fruit/bananas",
+                prefLabel="Bananas",
+                source_uris={"gpt": "gpt:1234"},
+                source_paths={"gpt": "food/food_items/fruit/bananas"},
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        # Intermediate nodes must exist
+        assert "category_by_source/gpt/food" in tree.concepts
+        assert "category_by_source/gpt/food/food_items" in tree.concepts
+        assert "category_by_source/gpt/food/food_items/fruit" in tree.concepts
+
+        # Bananas should be a child of the deepest intermediate node
+        leaf_parent = tree.concepts["category_by_source/gpt/food/food_items/fruit"]
+        assert "food/fruit/bananas" in leaf_parent.narrower
+
+        # Bananas must NOT appear directly under category_by_source/gpt
+        gpt_node = tree.concepts["category_by_source/gpt"]
+        assert "food/fruit/bananas" not in gpt_node.narrower
+
+    def test_source_paths_intermediate_nodes_chained_correctly(self):
+        """Each intermediate node has the right parent in the chain."""
+        vocab = {
+            "food/fruit/bananas": vocabulary.Concept(
+                id="food/fruit/bananas",
+                prefLabel="Bananas",
+                source_uris={"gpt": "gpt:1234"},
+                source_paths={"gpt": "food/food_items/fruit/bananas"},
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        food_node = tree.concepts["category_by_source/gpt/food"]
+        assert food_node.broader == ["category_by_source/gpt"]
+
+        food_items_node = tree.concepts["category_by_source/gpt/food/food_items"]
+        assert food_items_node.broader == ["category_by_source/gpt/food"]
+
+        fruit_node = tree.concepts["category_by_source/gpt/food/food_items/fruit"]
+        assert fruit_node.broader == ["category_by_source/gpt/food/food_items"]
+
+    def test_source_without_path_falls_back_to_flat(self):
+        """Source without source_paths entry adds concept directly under source node."""
+        vocab = {
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes",
+                prefLabel="Potatoes",
+                source_uris={"off": "off:en:potatoes"},
+                source_paths={},  # no path for off
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        off_node = tree.concepts["category_by_source/off"]
+        assert "food/potatoes" in off_node.narrower
+
 
 class TestBuildVocabularyFromInventory:
     """Tests for build_vocabulary_from_inventory function."""
