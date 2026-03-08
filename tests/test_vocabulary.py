@@ -1661,3 +1661,176 @@ class TestEnrichCategoriesViaLookup:
             new_concepts, _ = vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL)
 
         assert new_concepts["food/spices/cumin"].altLabels == {"en": ["cummin", "jeera"]}
+
+
+class TestEanCache:
+    """Tests for client-side EAN caching in lookup_ean_via_tingbok and report_ean_to_tingbok."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+    EAN = "7310865004703"
+
+    def _product(self) -> dict:
+        return {
+            "ean": self.EAN,
+            "name": "Kalles Kaviar",
+            "brand": "Abba",
+            "quantity": "300g",
+            "categories": ["spreads"],
+            "source": "openfoodfacts",
+        }
+
+    def test_cache_miss_calls_network_and_saves(self, tmp_path) -> None:
+        """On cache miss, network is called and result is saved to cache."""
+        from unittest.mock import MagicMock, patch
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = self._product()
+
+        with patch("niquests.get", return_value=mock_response) as mock_get:
+            result = vocabulary.lookup_ean_via_tingbok(self.EAN, self.TINGBOK_URL, cache_dir=tmp_path)
+
+        mock_get.assert_called_once()
+        assert result is not None
+        assert result["name"] == "Kalles Kaviar"
+        # Cache file should exist after the call
+        cache_files = list(tmp_path.glob("*.json"))
+        assert cache_files, "Cache file should be written after a network call"
+
+    def test_cache_hit_skips_network(self, tmp_path) -> None:
+        """On cache hit (within TTL), network is not called."""
+        from unittest.mock import MagicMock, patch
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = self._product()
+
+        # First call populates cache
+        with patch("niquests.get", return_value=mock_response):
+            vocabulary.lookup_ean_via_tingbok(self.EAN, self.TINGBOK_URL, cache_dir=tmp_path)
+
+        # Second call should use cache
+        with patch("niquests.get") as mock_get2:
+            result = vocabulary.lookup_ean_via_tingbok(self.EAN, self.TINGBOK_URL, cache_dir=tmp_path)
+
+        mock_get2.assert_not_called()
+        assert result is not None
+        assert result["name"] == "Kalles Kaviar"
+
+    def test_no_cache_dir_always_calls_network(self, tmp_path) -> None:
+        """When cache_dir is None, network is always called (backwards-compatible)."""
+        from unittest.mock import MagicMock, patch
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = self._product()
+
+        with patch("niquests.get", return_value=mock_response) as mock_get:
+            vocabulary.lookup_ean_via_tingbok(self.EAN, self.TINGBOK_URL, cache_dir=None)
+            vocabulary.lookup_ean_via_tingbok(self.EAN, self.TINGBOK_URL, cache_dir=None)
+
+        assert mock_get.call_count == 2
+
+    def test_report_skipped_when_already_reported(self, tmp_path) -> None:
+        """PUT is skipped when the EAN was already reported to tingbok within the TTL."""
+        from unittest.mock import MagicMock, patch
+
+        product_response = MagicMock()
+        product_response.status_code = 200
+        product_response.json.return_value = self._product()
+
+        put_response = MagicMock()
+        put_response.status_code = 200
+        put_response.json.return_value = self._product()
+
+        # First call to GET populates cache
+        with patch("niquests.get", return_value=product_response):
+            vocabulary.lookup_ean_via_tingbok(self.EAN, self.TINGBOK_URL, cache_dir=tmp_path)
+
+        # First PUT reports and marks as reported in cache
+        with patch("niquests.put", return_value=put_response):
+            vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL, cache_dir=tmp_path)
+
+        # Second PUT should be skipped
+        with patch("niquests.put") as mock_put2:
+            vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL, cache_dir=tmp_path)
+
+        mock_put2.assert_not_called()
+
+    def test_report_without_cache_dir_always_sends(self) -> None:
+        """Without cache_dir, PUT is always sent (backwards-compatible)."""
+        from unittest.mock import MagicMock, patch
+
+        put_response = MagicMock()
+        put_response.status_code = 200
+        put_response.json.return_value = self._product()
+
+        with patch("niquests.put", return_value=put_response) as mock_put:
+            vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL, cache_dir=None)
+            vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL, cache_dir=None)
+
+        assert mock_put.call_count == 2
+
+
+class TestLookupCache:
+    """Tests for client-side caching in enrich_categories_via_lookup."""
+
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    def _make_response(self, data: dict, status_code: int = 200):
+        from unittest.mock import MagicMock
+
+        r = MagicMock()
+        r.status_code = status_code
+        r.json.return_value = data
+        return r
+
+    def _vocab_concept(self, concept_id: str) -> dict:
+        return {
+            "id": concept_id,
+            "prefLabel": concept_id.split("/")[-1].title(),
+            "altLabel": {},
+            "labels": {"en": concept_id.split("/")[-1].title()},
+            "description": None,
+            "source_uris": [],
+            "broader": [],
+            "narrower": [],
+        }
+
+    def test_cache_miss_calls_network_and_saves(self, tmp_path) -> None:
+        """On cache miss, network is called and result is cached."""
+        from unittest.mock import patch
+
+        with patch(
+            "niquests.get", return_value=self._make_response(self._vocab_concept("food/spices/cumin"))
+        ) as mock_get:
+            vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL, cache_dir=tmp_path)
+
+        mock_get.assert_called_once()
+        cache_files = list(tmp_path.glob("*.json"))
+        assert cache_files, "Cache file should be written after a network call"
+
+    def test_cache_hit_skips_network(self, tmp_path) -> None:
+        """On cache hit, network is not called."""
+        from unittest.mock import patch
+
+        response = self._make_response(self._vocab_concept("food/spices/cumin"))
+        with patch("niquests.get", return_value=response):
+            vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL, cache_dir=tmp_path)
+
+        with patch("niquests.get") as mock_get2:
+            new_concepts, _ = vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL, cache_dir=tmp_path)
+
+        mock_get2.assert_not_called()
+        assert "food/spices/cumin" in new_concepts
+
+    def test_no_cache_dir_always_calls_network(self) -> None:
+        """Without cache_dir, network is always called."""
+        from unittest.mock import patch
+
+        response = self._make_response(self._vocab_concept("food/spices/cumin"))
+        with patch("niquests.get", return_value=response) as mock_get:
+            vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL, cache_dir=None)
+            vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL, cache_dir=None)
+
+        assert mock_get.call_count == 2

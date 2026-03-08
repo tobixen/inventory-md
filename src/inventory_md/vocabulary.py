@@ -37,6 +37,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -46,6 +47,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 VIRTUAL_ROOT_ID = "_root"
+
+_EAN_CACHE_TTL_DAYS = 7
+_LOOKUP_CACHE_TTL_DAYS = 7
+
+
+def _cache_read(path: Path, ttl_days: int) -> dict | None:
+    """Read a JSON cache entry; return None if missing or expired."""
+    try:
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        cached_at = datetime.fromisoformat(entry["cached_at"])
+        age = datetime.now(timezone.utc) - cached_at.astimezone(timezone.utc)
+        if age.days < ttl_days:
+            return entry
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _cache_write(path: Path, **fields: Any) -> None:
+    """Write a JSON cache entry, adding a ``cached_at`` timestamp."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    entry = {"cached_at": datetime.now(timezone.utc).isoformat(), **fields}
+    path.write_text(json.dumps(entry, ensure_ascii=False), encoding="utf-8")
 
 
 class TingbokUnavailableError(RuntimeError):
@@ -872,6 +896,7 @@ def enrich_categories_via_lookup(
     tingbok_url: str,
     lang: str = "en",
     session: niquests.Session | None = None,
+    cache_dir: Path | None = None,
 ) -> tuple[dict[str, Concept], dict[str, list[str]]]:
     """Enrich category concepts via ``GET /api/lookup/{label}``.
 
@@ -885,6 +910,9 @@ def enrich_categories_via_lookup(
         tingbok_url: Base URL of the tingbok service.
         lang:        Preferred language for the lookup request.
         session:     Optional niquests.Session to reuse (enables HTTP/2 multiplexing).
+        cache_dir:   Directory for the client-side lookup cache.  Successful
+                     results are cached for :data:`_LOOKUP_CACHE_TTL_DAYS` days.
+                     Pass ``None`` to disable (default).
 
     Returns:
         Tuple of:
@@ -911,18 +939,33 @@ def enrich_categories_via_lookup(
         query_label = re.sub(r"^[a-z]{2,3}:", "", query_label)
         if not query_label:
             query_label = label
-        try:
-            response = getter(f"{base}/api/lookup/{query_label}", params={"lang": lang}, timeout=120.0)
-            if response.status_code == 404:
-                print("not found")
-                logger.debug("No lookup result for %r", label)
+
+        data: dict | None = None
+        if cache_dir is not None:
+            cache_key = re.sub(r"[^\w.-]", "_", query_label)
+            cache_path = cache_dir / f"lookup_{cache_key}.json"
+            entry = _cache_read(cache_path, _LOOKUP_CACHE_TTL_DAYS)
+            if entry is not None:
+                data = entry.get("data")
+                print("(cached)", end=" ", flush=True)
+
+        if data is None:
+            try:
+                response = getter(f"{base}/api/lookup/{query_label}", params={"lang": lang}, timeout=120.0)
+                if response.status_code == 404:
+                    print("not found")
+                    logger.debug("No lookup result for %r", label)
+                    if cache_dir is not None:
+                        _cache_write(cache_path, data=None)
+                    continue
+                response.raise_for_status()
+                data = response.json()
+                if cache_dir is not None:
+                    _cache_write(cache_path, data=data)
+            except Exception as exc:
+                print(f"error: {exc}")
+                logger.debug("Concept lookup failed for %r: %s", label, exc)
                 continue
-            response.raise_for_status()
-            data: dict = response.json()
-        except Exception as exc:
-            print(f"error: {exc}")
-            logger.debug("Concept lookup failed for %r: %s", label, exc)
-            continue
 
         concept_id: str = data.get("id", label)
         print(f"→ {concept_id}")
@@ -954,17 +997,28 @@ def enrich_categories_via_lookup(
     return new_concepts, category_mappings
 
 
-def lookup_ean_via_tingbok(ean: str, tingbok_url: str, session: niquests.Session | None = None) -> dict | None:
+def lookup_ean_via_tingbok(
+    ean: str,
+    tingbok_url: str,
+    session: niquests.Session | None = None,
+    cache_dir: Path | None = None,
+) -> dict | None:
     """Look up a product by EAN via the tingbok service.
 
     Queries ``GET {tingbok_url}/api/ean/{ean}`` and returns the parsed JSON
     response dict (compatible with ``tingbok.models.ProductResponse``) or
     ``None`` on 404 or network failure.
 
+    When *cache_dir* is provided, successful responses are cached for
+    :data:`_EAN_CACHE_TTL_DAYS` days so repeat runs avoid unnecessary network
+    calls.
+
     Args:
         ean:         EAN/UPC barcode string.
         tingbok_url: Base URL of the tingbok service.
         session:     Optional niquests.Session to reuse (enables HTTP/2 multiplexing).
+        cache_dir:   Directory for the client-side EAN cache.  Pass ``None``
+                     to disable caching (default).
 
     Returns:
         Product dict with keys ``ean``, ``name``, ``brand``, ``quantity``,
@@ -972,17 +1026,29 @@ def lookup_ean_via_tingbok(ean: str, tingbok_url: str, session: niquests.Session
     """
     import niquests
 
+    if cache_dir is not None:
+        cache_path = cache_dir / f"{ean}.json"
+        entry = _cache_read(cache_path, _EAN_CACHE_TTL_DAYS)
+        if entry is not None:
+            return entry.get("data")  # None means 404 was cached
+
     getter = session.get if session is not None else niquests.get
     base = tingbok_url.rstrip("/")
     try:
         response = getter(f"{base}/api/ean/{ean}", timeout=5.0)
         if response.status_code == 404:
+            if cache_dir is not None:
+                _cache_write(cache_dir / f"{ean}.json", data=None, reported=False)
             return None
         response.raise_for_status()
-        return response.json()
+        data = response.json()
     except Exception as exc:
         logger.debug("EAN lookup failed for %s: %s", ean, exc)
         return None
+
+    if cache_dir is not None:
+        _cache_write(cache_dir / f"{ean}.json", data=data, reported=False)
+    return data
 
 
 def report_ean_to_tingbok(
@@ -993,11 +1059,16 @@ def report_ean_to_tingbok(
     session: niquests.Session | None = None,
     quantity: str | None = None,
     prices: list[dict] | None = None,
+    cache_dir: Path | None = None,
 ) -> None:
     """PUT inventory-sourced observations for *ean* to tingbok.
 
     Sends ``PUT {tingbok_url}/api/ean/{ean}`` with category, name, quantity
     and price data from the inventory.  Failures are silently ignored.
+
+    When *cache_dir* is provided and the EAN was already successfully reported
+    within :data:`_EAN_CACHE_TTL_DAYS` days, the PUT is skipped to avoid
+    sending duplicate observations on every parse run.
 
     Args:
         ean:         EAN/UPC barcode string.
@@ -1007,11 +1078,21 @@ def report_ean_to_tingbok(
         session:     Optional niquests.Session to reuse.
         quantity:    Weight or volume string (e.g. ``"140g"``).
         prices:      List of price dicts (``{currency, price, unit, date}``).
+        cache_dir:   Directory for the client-side EAN cache.  Pass ``None``
+                     to disable (default).
     """
     import niquests
 
     if not categories and not name and not quantity and not prices:
         return
+
+    if cache_dir is not None:
+        cache_path = cache_dir / f"{ean}.json"
+        entry = _cache_read(cache_path, _EAN_CACHE_TTL_DAYS)
+        if entry is not None and entry.get("reported"):
+            logger.debug("Skipping EAN report for %s: already reported within TTL", ean)
+            return
+
     putter = session.put if session is not None else niquests.put
     base = tingbok_url.rstrip("/")
     payload: dict = {}
@@ -1027,6 +1108,10 @@ def report_ean_to_tingbok(
         response = putter(f"{base}/api/ean/{ean}", json=payload, timeout=5.0)
         response.raise_for_status()
         logger.debug("Reported EAN %s to tingbok: %s", ean, payload)
+        if cache_dir is not None:
+            cache_path = cache_dir / f"{ean}.json"
+            entry = _cache_read(cache_path, _EAN_CACHE_TTL_DAYS) or {}
+            _cache_write(cache_path, data=entry.get("data"), reported=True)
     except Exception as exc:
         logger.debug("Failed to report EAN %s to tingbok: %s", ean, exc)
 

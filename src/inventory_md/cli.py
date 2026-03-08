@@ -272,6 +272,11 @@ def parse_command(
 
             tingbok_session: niquests.Session | None = niquests.Session(multiplexed=True) if tingbok_url else None
 
+            # Client-side cache for EAN and category lookups (one-week TTL).
+            from pathlib import Path as _Path
+
+            _tingbok_cache = _Path.home() / ".cache" / "inventory-md" / "tingbok" if tingbok_url else None
+
             # Load global vocabulary: tingbok (if configured) plus local overrides.
             # Raises TingbokUnavailableError if tingbok is configured but unreachable.
             global_vocab = vocabulary.load_global_vocabulary(
@@ -312,7 +317,9 @@ def parse_command(
                 if eans_found:
                     print(f"\n🔖 Looking up {len(eans_found)} EAN barcode(s) via tingbok...")
                     for ean in eans_found:
-                        product = vocabulary.lookup_ean_via_tingbok(ean, tingbok_url, session=tingbok_session)
+                        product = vocabulary.lookup_ean_via_tingbok(
+                            ean, tingbok_url, session=tingbok_session, cache_dir=_tingbok_cache
+                        )
                         if product:
                             name = product.get("name") or "(unknown name)"
                             brand = product.get("brand") or ""
@@ -346,6 +353,7 @@ def parse_command(
                                 session=tingbok_session,
                                 quantity=quantity,
                                 prices=prices,
+                                cache_dir=_tingbok_cache,
                             )
                             reported += 1
                     print(f"   Reported observations for {reported} EAN(s)")
@@ -364,7 +372,7 @@ def parse_command(
                         to_enrich.append(label)
                 if to_enrich:
                     resolved, category_mappings = vocabulary.enrich_categories_via_lookup(
-                        to_enrich, tingbok_url, session=tingbok_session
+                        to_enrich, tingbok_url, session=tingbok_session, cache_dir=_tingbok_cache
                     )
                     if resolved:
                         vocab.update(resolved)
