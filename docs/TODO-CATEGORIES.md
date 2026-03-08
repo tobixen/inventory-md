@@ -22,6 +22,25 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 
 ## EAN problems
 
+The EAN-problem is not properly fixed.  The client is still pushing content to the server on every run.
+
+```
+$ sudo journalctl -u tingbok --since '10 minutes ago' | grep 20529772
+Mar 08 19:07:10 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "GET /api/ean/20529772 HTTP/1.0" 200 OK
+Mar 08 19:07:11 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "PUT /api/ean/20529772 HTTP/1.0" 200 OK
+Mar 08 19:09:58 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "GET /api/ean/20529772 HTTP/1.0" 200 OK
+Mar 08 19:09:59 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "PUT /api/ean/20529772 HTTP/1.0" 200 OK
+Mar 08 19:10:07 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "GET /api/ean/20529772 HTTP/1.0" 200 OK
+Mar 08 19:10:08 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "PUT /api/ean/20529772 HTTP/1.0" 200 OK
+```
+
+and
+
+```
+📤 Checking 83 EAN observation(s) ...
+   Pushed 8 observation(s), 75 already up-to-date
+```
+
 ~~It's not needed to push EAN data if the server already have the data.  So if pushing EANs on one inventory parsing, it should not be pushed on the next inventory parsing (because the EANs should already have correct category and price information).~~
 **Fixed**: `ean_observation_needed()` compares GET response against what we'd PUT; skips PUT when all data is already present.
 
@@ -30,19 +49,15 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 
 Perhaps that's the reason why quite many EANs give 404 even on the second and third run — needs observation after the above fixes are deployed.
 
-## Potatoes regression **Not resolved?**
+## Long johns
 
-Translations disappeared transiently after adding `food/staples` as a second broader —
-self-resolved after server restart (startup label fetch re-populated altLabels).
-Also fixed: wrong Wikidata entity Q135021431 (a 2022 video game) → Q16587531 (potato as food).
+This altlabel seems to be missing on https://tingbok.plann.no/api/lookup/long_underwear
 
-## ~~Missing data / descriptions~~ **Fixed**
+comes without any altlabels, despite quite some altlabels are given by the only source.  One of the altlabels matches up with GPT.  Perhaps it's needed with some algorithms to search via altlabels when nothing is found in the other sources?
 
-~~https://tingbok.plann.no/api/vocabulary/potatoes comes without any description.  Same with spices and many others.~~
-**Root cause**: Wikidata description API was on `wikibase/v0` endpoint (now 404); updated to `v1`.
-Delete description cache files on server and restart to repopulate.
+## Split/combine source concepts?
 
-https://tingbok.plann.no/api/lookup/long_underwear comes without any altlabels, despite quite some altlabels are given by the only source.  One of the altlabels matches up with GPT.  Perhaps it's needed with some algorithms to search via altlabels when nothing is found in the other sources?
+Some sources lump together things (spices + herbs, underwear and socks), while others keep it separated.  Sometimes such a combination is just for the category tree (in GPT, "Underwear and socks" have subcategories socks and underwear).  Sometimes we want the Tingbok vocabulary category to combine multiple source URIs from the same source.  Specifically, I want "long johns" (Q2472769) and "longs" (Q56303142 in wikidata) to be combined into one category in Tingbok.  The other cases can probably be handled in the vocabulary as it is - if two different Tingbok vocabulary categories references the same source URI, we probably want to create a parent category referencing the source.  If we want to create an "underwear and socks" node in the hierarchy, we can define that in vocabulary, exclude other sources than GPT, and let socks and underwear be children of it.
 
 ## Clothing
 
@@ -146,18 +161,16 @@ Some notes I made while investigating the solveig inventory:
 * (in solveig-inventory) buillion is a subcategory of spice - needs verification after the above fix.
 * "Categories by source" in the inventory UI — should be dynamically generated from tingbok data rather than hardcoded in inventory-md.
 
-## Tingbok cache gracetime
+## ~~Tingbok cache gracetime~~ **Fixed**
 
-The items in the cache currently has a 60 day time to live.
+**Done**: TTL check removed from `_load_from_cache` — stale data is always served immediately (no cold misses).  Freshness maintained by a background `cache_refresh_loop` task inside the FastAPI process:
+- Finds the oldest cache entry (`_find_oldest_cache_entry`)
+- Sleeps `max(0, (max_age - age) / divisor)` seconds
+- Refreshes via `_refresh_entry`, preserving `_last_accessed` so the access clock is not reset
+- Loops forever
 
-I think we should also have a quite long - maybe a years grace time - meaning that items passed the time to live should not be deleted from the cache.
-
-The ideal logic goes like this:
-
-0. We get some request from an end user
-1. A lookup finds that the cache content is old
-2. We try fetching an update from the upstream source
-3. If we get a quick response from the upstream source, everything is fine.  If not, we deliver old data from the cache and continue trying to update the cache in the background.
+Configurable: `TINGBOK_CACHE_MAX_AGE_DAYS` (default 60), `TINGBOK_CACHE_REFRESH_DIVISOR` (default 100).
+`tingbok prune-cache` deletes entries not accessed within the retention window (`--max-age DAYS`, default 60).
 
 ## Google Product Taxonomy (GPT) as a future source
 
