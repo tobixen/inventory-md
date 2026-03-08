@@ -22,9 +22,13 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 
 ## EAN problems
 
-It's not needed to push EAN data if the server already have the data.  So if pushing EANs on one inventory parsing, it should not be pushed on the next inventory parsing (because the EANs should already have correct category and price information).
+~~It's not needed to push EAN data if the server already have the data.  So if pushing EANs on one inventory parsing, it should not be pushed on the next inventory parsing (because the EANs should already have correct category and price information).~~
+**Fixed**: `ean_observation_needed()` compares GET response against what we'd PUT; skips PUT when all data is already present.
 
-Quite many PUTs causes tingbok to log "422 Unprocessable Content" without any more information.  It's needed with a bit more logging here so we can pinpoint the problem.  Perhaps that's the reason why quite many EANs give 404 even on the second and third run.
+~~Quite many PUTs causes tingbok to log "422 Unprocessable Content" without any more information.~~
+**Fixed**: tingbok has `_log_validation_error` exception handler that logs 422 details; inventory-md now logs failed PUTs as `logger.warning` (was debug) with the response body.
+
+Perhaps that's the reason why quite many EANs give 404 even on the second and third run — needs observation after the above fixes are deployed.
 
 ## Potatoes regression **Not resolved?**
 
@@ -44,7 +48,7 @@ https://tingbok.plann.no/api/lookup/long_underwear comes without any altlabels, 
 
 Clothing is listed with only an "inventory" source in solveig, despite having children.  It also lacks translations.  How come?
 
-## Spices - probably fixed
+## Spices
 
 Entering "spice" in the category search box in the UI, I find:
 
@@ -57,19 +61,27 @@ Bouillon is also a child of spices, but does not show up.
 
 This is bewildering, and does not fit with the "one category, multiple path"-concept.  (bouillon is arguably a spice, but is not a plant_product.  Some "wrong" paths are acceptable)
 
-## inventory-md: caching
+The root cause of `/api/lookup/spices` returning `food/plant_products/spices` instead of `food/spices`: tingbok's step-2 vocabulary match only checked static `altLabel` entries from vocabulary.yaml, not runtime-fetched altLabels from Wikidata/DBpedia.  `food/spices` has `altLabel: en: ["spice", ...]` but not "spices".
+**Fixed** in tingbok: `GET /api/lookup/{label}` now also searches `_fetched_alt_labels` and `_fetched_labels` before falling through to SKOS sources.  Once Wikidata fetches "Spices" as an alias for Q42527 (food/spices), subsequent `/api/lookup/spices` calls will return `food/spices`.
+Needs server restart or cache warm-up to take effect.
 
-The inventory-md should cache ean and category lookups from tingbok, with a one-week TTL.  The vocabulary should not be cached.
+## ~~inventory-md: caching~~ **Fixed**
 
-## inventory-md: category-by-source missing
+~~The inventory-md should cache ean and category lookups from tingbok, with a one-week TTL.  The vocabulary should not be cached.~~
+**Done**: client-side cache under `~/.cache/inventory-md/tingbok/` with 7-day TTL for both EAN lookups and `/api/lookup` results.
 
-It disappeared after the latest rounds of update
+## ~~inventory-md: category-by-source missing~~ **Fixed**
+
+~~It disappeared after the latest rounds of update~~
+**Fixed**: `build_category_tree` now dynamically generates `category_by_source` and `category_by_source/{source}` virtual nodes from each concept's `source_uris` dict — no hardcoded source names.  `buildCategoryCounts()` in search.html aggregates item counts upward so source nodes appear in the category browser.
 
 ## User interface
 
-When clicking on dbpedia, wikidata or agrovoc one gets to the source URI, and that's fine.  However, off and gpt does not have any URL.  For GPT I'd like to show the full category line in a mouseover.  For OFF, some OFF data should be shown in a mouseover.  (this may need some additional information to be sent from tingbok).
+~~When clicking on dbpedia, wikidata or agrovoc one gets to the source URI, and that's fine.  However, off and gpt does not have any URL.  For GPT I'd like to show the full category line in a mouseover.  For OFF, some OFF data should be shown in a mouseover.~~
+**Fixed**: OFF and GPT badges now show a `title` tooltip — "OpenFoodFacts: potatoes" or "Google Product Taxonomy #455".  GPT also gets its own colour (blue).  `gpt:` and `off:` URIs no longer produce broken hyperlinks.
 
-When clicking on the information sign and an information box pops up and one chooses one of the broader or narrower from the information box, the new category should be displayed in the information box.  Today the information box disappears.
+~~When clicking on the information sign and an information box pops up and one chooses one of the broader or narrower from the information box, the new category should be displayed in the information box.  Today the information box disappears.~~
+**Fixed**: clicking broader/narrower in the detail modal now calls `navigateCategoryInModal()` which updates both the modal content and the selected category in the tree, keeping the modal open.
 
 ## Tingbok hard-coded vocabulary vs other concepts
 
