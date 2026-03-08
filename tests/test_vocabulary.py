@@ -718,6 +718,72 @@ class TestCategoryBySource:
         assert "food/potatoes" in off_node.narrower
 
 
+class TestPathAliases:
+    """Tests for language-specific category path aliases."""
+
+    def test_path_alias_redirects_to_canonical(self):
+        """An aliased category path is redirected to the canonical concept."""
+        vocab = {
+            "clothing/thermal": vocabulary.Concept(
+                id="clothing/thermal",
+                prefLabel="Thermal clothing",
+                path_aliases={"nb": ["klær/vinter", "klær/vinterklær"]},
+            ),
+        }
+        inventory = {"containers": [{"items": [{"metadata": {"categories": ["klær/vinter"]}}]}]}
+        result = vocabulary.build_vocabulary_from_inventory(inventory, local_vocab=vocab, lang="nb")
+
+        # Canonical path must exist (either from vocab or created)
+        assert "clothing/thermal" in result
+        # Alias path must NOT be added as a separate inventory concept
+        assert "klær/vinter" not in result
+        assert "klær" not in result
+
+    def test_path_alias_wrong_lang_not_applied(self):
+        """Path aliases for nb are not applied when lang=en."""
+        vocab = {
+            "clothing/thermal": vocabulary.Concept(
+                id="clothing/thermal",
+                prefLabel="Thermal clothing",
+                path_aliases={"nb": ["klær/vinter"]},
+            ),
+        }
+        inventory = {"containers": [{"items": [{"metadata": {"categories": ["klær/vinter"]}}]}]}
+        result = vocabulary.build_vocabulary_from_inventory(inventory, local_vocab=vocab, lang="en")
+
+        # Without alias matching, the inventory concept is created verbatim
+        assert "klær/vinter" in result
+        assert result["klær/vinter"].source == "inventory"
+
+    def test_path_alias_no_lang_treats_as_nb(self):
+        """lang='no' is treated the same as 'nb' for alias matching."""
+        vocab = {
+            "clothing/thermal": vocabulary.Concept(
+                id="clothing/thermal",
+                prefLabel="Thermal clothing",
+                path_aliases={"nb": ["klær/vinter"]},
+            ),
+        }
+        inventory = {"containers": [{"items": [{"metadata": {"categories": ["klær/vinter"]}}]}]}
+        result = vocabulary.build_vocabulary_from_inventory(inventory, local_vocab=vocab, lang="no")
+        assert "klær/vinter" not in result
+
+    def test_path_alias_build_alias_map(self):
+        """_build_path_alias_map returns correct reverse mapping."""
+        vocab = {
+            "clothing/thermal": vocabulary.Concept(
+                id="clothing/thermal",
+                prefLabel="Thermal clothing",
+                path_aliases={"nb": ["klær/vinter", "klær/vinterklær"]},
+            ),
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+        }
+        alias_map = vocabulary._build_path_alias_map(vocab, "nb")
+        assert alias_map["klær/vinter"] == "clothing/thermal"
+        assert alias_map["klær/vinterklær"] == "clothing/thermal"
+        assert "food" not in alias_map
+
+
 class TestBuildVocabularyFromInventory:
     """Tests for build_vocabulary_from_inventory function."""
 

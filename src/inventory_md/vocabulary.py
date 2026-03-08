@@ -228,6 +228,7 @@ def fetch_vocabulary_from_tingbok(url: str, session: niquests.Session | None = N
         # Convert source_uris from list[str] → dict[str, str] (source name → URI)
         raw_source_uris: list[str] = raw.pop("source_uris", [])
         raw_source_paths: dict[str, str] = raw.pop("source_paths", {})
+        raw_path_aliases: dict[str, list[str]] = raw.pop("path_aliases", {})
         try:
             concept = Concept.from_dict(raw)
             for u in raw_source_uris:
@@ -235,6 +236,7 @@ def fetch_vocabulary_from_tingbok(url: str, session: niquests.Session | None = N
                 if src and src not in concept.source_uris:
                     concept.source_uris[src] = u
             concept.source_paths = raw_source_paths
+            concept.path_aliases = raw_path_aliases
             concepts[concept_id] = concept
         except Exception as e:
             logger.warning("Skipping malformed concept '%s' from tingbok: %s", concept_id, e)
@@ -376,6 +378,7 @@ class Concept:
     source_uris: dict[str, str] = field(default_factory=dict)  # source name -> URI
     source_paths: dict[str, str] = field(default_factory=dict)  # source name -> tingbok-normalised path
     excluded_sources: list[str] = field(default_factory=list)  # sources checked and rejected
+    path_aliases: dict[str, list[str]] = field(default_factory=dict)  # lang -> [alias paths]
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -800,6 +803,7 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
             descriptions=v.descriptions.copy() if v.descriptions else {},
             source_uris=v.source_uris.copy() if v.source_uris else {},
             source_paths=v.source_paths.copy() if v.source_paths else {},
+            path_aliases={lang: list(aliases) for lang, aliases in v.path_aliases.items()},
         )
         for k, v in vocabulary.items()
     }
@@ -832,18 +836,45 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
     )
 
 
+def _build_path_alias_map(vocab: dict[str, Concept], lang: str) -> dict[str, str]:
+    """Build a reverse map from alias path (lower) to canonical concept ID.
+
+    Considers only aliases for the given language (treating 'no'/'nb'/'nn' as
+    equivalent since they all refer to varieties of Norwegian).
+    """
+    _nb_langs = {"nb", "no", "nn"}
+
+    def _matches(alias_lang: str) -> bool:
+        if alias_lang == lang:
+            return True
+        return alias_lang in _nb_langs and lang in _nb_langs
+
+    result: dict[str, str] = {}
+    for concept_id, concept in vocab.items():
+        for alias_lang, aliases in concept.path_aliases.items():
+            if _matches(alias_lang):
+                for alias in aliases:
+                    result[alias.lower()] = concept_id
+    return result
+
+
 def build_vocabulary_from_inventory(
     inventory_data: dict[str, Any],
     local_vocab: dict[str, Concept] | None = None,
+    lang: str = "en",
 ) -> dict[str, Concept]:
     """Build vocabulary from categories used in inventory data.
 
     Scans all items in inventory for category: metadata and creates
-    concepts for each unique category path found.
+    concepts for each unique category path found.  Category paths that match
+    a language-specific path alias defined in the vocabulary are silently
+    redirected to the canonical concept path (e.g. ``klær/vinter`` with
+    ``lang="nb"`` becomes ``clothing/thermal``).
 
     Args:
         inventory_data: Parsed inventory JSON data.
         local_vocab: Optional local vocabulary to merge with.
+        lang: Inventory language used to match path aliases.
 
     Returns:
         Dictionary of concepts from inventory categories.
@@ -854,11 +885,15 @@ def build_vocabulary_from_inventory(
     if local_vocab:
         concepts.update(local_vocab)
 
+    # Build reverse alias map for the inventory language
+    alias_map = _build_path_alias_map(concepts, lang)
+
     # Add all category paths from inventory items
     for container in inventory_data.get("containers", []):
         for item in container.get("items", []):
             for category_path in item.get("metadata", {}).get("categories", []):
-                _add_category_path(concepts, category_path)
+                canonical = alias_map.get(category_path.lower())
+                _add_category_path(concepts, canonical if canonical else category_path)
 
     return concepts
 

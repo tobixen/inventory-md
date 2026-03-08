@@ -300,7 +300,7 @@ def parse_command(
             local_vocab = vocabulary.merge_vocabularies(global_vocab, local_vocab)
 
             # Build vocabulary from inventory categories
-            vocab = vocabulary.build_vocabulary_from_inventory(data, local_vocab=local_vocab)
+            vocab = vocabulary.build_vocabulary_from_inventory(data, local_vocab=local_vocab, lang=lang or "en")
             category_counts = vocabulary.count_items_per_category(data)
 
             # EAN lookup: query tingbok for each item with an EAN barcode
@@ -1118,7 +1118,7 @@ def vocabulary_command(args, config: Config) -> int:
     if inventory_json.exists():
         with open(inventory_json, encoding="utf-8") as f:
             inventory_data = json.load(f)
-        vocab = vocabulary.build_vocabulary_from_inventory(inventory_data, local_vocab=local_vocab)
+        vocab = vocabulary.build_vocabulary_from_inventory(inventory_data, local_vocab=local_vocab, lang=config.lang)
     else:
         vocab = local_vocab
 
