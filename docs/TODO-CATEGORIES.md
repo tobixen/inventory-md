@@ -20,40 +20,9 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 * Every category should have at least one path, but may have several paths.  food/vegetables/potato snd food/staples/potato is the same category, but with two paths.
 * Tingbok should query multiple sources to find the relevant paths, translations, alternative lables and a good description of every category.
 
-## EAN problems
-
-The EAN-problem is not properly fixed.  The client is still pushing content to the server on every run.
-
-```
-$ sudo journalctl -u tingbok --since '10 minutes ago' | grep 20529772
-Mar 08 19:07:10 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "GET /api/ean/20529772 HTTP/1.0" 200 OK
-Mar 08 19:07:11 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "PUT /api/ean/20529772 HTTP/1.0" 200 OK
-Mar 08 19:09:58 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "GET /api/ean/20529772 HTTP/1.0" 200 OK
-Mar 08 19:09:59 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "PUT /api/ean/20529772 HTTP/1.0" 200 OK
-Mar 08 19:10:07 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "GET /api/ean/20529772 HTTP/1.0" 200 OK
-Mar 08 19:10:08 srv4.rl-tobias.c.bitbit.net uvicorn[720671]: INFO:     2a02:c0:1001:ae00:f816:3eff:fec9:9f13:0 - "PUT /api/ean/20529772 HTTP/1.0" 200 OK
-```
-
-and
-
-```
-📤 Checking 83 EAN observation(s) ...
-   Pushed 8 observation(s), 75 already up-to-date
-```
-
-~~It's not needed to push EAN data if the server already have the data.  So if pushing EANs on one inventory parsing, it should not be pushed on the next inventory parsing (because the EANs should already have correct category and price information).~~
-**Fixed**: `ean_observation_needed()` compares GET response against what we'd PUT; skips PUT when all data is already present.
-
-~~Quite many PUTs causes tingbok to log "422 Unprocessable Content" without any more information.~~
-**Fixed**: tingbok has `_log_validation_error` exception handler that logs 422 details; inventory-md now logs failed PUTs as `logger.warning` (was debug) with the response body.
-
-Perhaps that's the reason why quite many EANs give 404 even on the second and third run — needs observation after the above fixes are deployed.
-
 ## Long johns
 
 This altlabel seems to be missing on https://tingbok.plann.no/api/lookup/long_underwear
-
-comes without any altlabels, despite quite some altlabels are given by the only source.  One of the altlabels matches up with GPT.  Perhaps it's needed with some algorithms to search via altlabels when nothing is found in the other sources?
 
 ## Split/combine source concepts?
 
@@ -65,20 +34,11 @@ Clothing is listed with only an "inventory" source in solveig, despite having ch
 
 ## Spices
 
-Entering "spice" in the category search box in the UI, I find:
+Quite some work has been done on this, but the issue hasn't been resolved yet.  https://tingbok.plann.no/api/lookup/food/spices and https://tingbok.plann.no/api/lookup/spices is still two different categories.  Can we make a unit test in the tingbok that fails if those two lookups gives different results?
 
-* Spices & herbs (food/spices) - 25 items
-* Spice - 18 items
-* Spices (food/plant_products/spices) - 4 items
-* cumin - 2 items
+## Furuset
 
-Bouillon is also a child of spices, but does not show up.
-
-This is bewildering, and does not fit with the "one category, multiple path"-concept.  (bouillon is arguably a spice, but is not a plant_product.  Some "wrong" paths are acceptable)
-
-The root cause of `/api/lookup/spices` returning `food/plant_products/spices` instead of `food/spices`: tingbok's step-2 vocabulary match only checked static `altLabel` entries from vocabulary.yaml, not runtime-fetched altLabels from Wikidata/DBpedia.  `food/spices` has `altLabel: en: ["spice", ...]` but not "spices".
-**Fixed** in tingbok: `GET /api/lookup/{label}` now also searches `_fetched_alt_labels` and `_fetched_labels` before falling through to SKOS sources.  Once Wikidata fetches "Spices" as an alias for Q42527 (food/spices), subsequent `/api/lookup/spices` calls will return `food/spices`.
-Needs server restart or cache warm-up to take effect.
+Under ~/furusetalle9-inventory/inventory.md I have a Norwegian inventory.  It has categories like "klær/vinter", "jul/belysning", etc - it could be redone into "klær/vinterklær" (I already changed that one), "jul/julebelysning", etc, but I like it as it was.  Perhaps it should be possible to enter aliases for categories in the vocabulary.yaml file?
 
 ## ~~inventory-md: caching~~ **Fixed**
 
