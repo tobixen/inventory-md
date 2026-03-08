@@ -1728,6 +1728,28 @@
                     }
                 });
             });
+
+            // Aggregate counts for category_by_source/* nodes from their children.
+            // Items are never tagged category_by_source/... directly, so we sum up
+            // the counts of each real concept that belongs to a source group.
+            if (vocabularyData && vocabularyData.concepts) {
+                const cbs = vocabularyData.concepts['category_by_source'];
+                if (cbs && cbs.narrower) {
+                    let total = 0;
+                    cbs.narrower.forEach(sourceNodeId => {
+                        const sourceNode = vocabularyData.concepts[sourceNodeId];
+                        if (!sourceNode || !sourceNode.narrower) return;
+                        const sourceCount = sourceNode.narrower.reduce(
+                            (sum, childId) => sum + (categoryCounts.get(childId) || 0), 0
+                        );
+                        if (sourceCount > 0) {
+                            categoryCounts.set(sourceNodeId, sourceCount);
+                            total += sourceCount;
+                        }
+                    });
+                    if (total > 0) categoryCounts.set('category_by_source', total);
+                }
+            }
         }
 
         // Toggle category browser collapse
@@ -1834,16 +1856,18 @@
             let sourceHtml = '';
             if (concept.source_uris && Object.keys(concept.source_uris).length > 0) {
                 for (const [src, uri] of Object.entries(concept.source_uris)) {
-                    let badge = `<span style="background: ${getSourceColor(src)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">${src}</span>`;
-                    if (uri && !uri.startsWith('off:')) {
-                        badge = `<a href="${uri}" target="_blank" style="text-decoration: none;">${badge}</a>`;
+                    const title = getSourceTitle(src, uri);
+                    let badge = `<span style="background: ${getSourceColor(src)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;" title="${title}">${src}</span>`;
+                    if (uri && !uri.startsWith('off:') && !uri.startsWith('gpt:')) {
+                        badge = `<a href="${uri}" target="_blank" style="text-decoration: none;" title="${title}">${badge}</a>`;
                     }
                     sourceHtml += badge + ' ';
                 }
             } else {
-                let badge = `<span style="background: ${getSourceColor(concept.source)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;">${concept.source}</span>`;
+                const title = getSourceTitle(concept.source, concept.uri);
+                let badge = `<span style="background: ${getSourceColor(concept.source)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px;" title="${title}">${concept.source}</span>`;
                 if (concept.uri) {
-                    badge = `<a href="${concept.uri}" target="_blank" style="text-decoration: none;">${badge}</a>`;
+                    badge = `<a href="${concept.uri}" target="_blank" style="text-decoration: none;" title="${title}">${badge}</a>`;
                 }
                 sourceHtml = badge;
             }
@@ -1916,12 +1940,27 @@
                 case 'dbpedia': return '#2196f3';
                 case 'wikidata': return '#e91e63';
                 case 'off': return '#ff5722';
+                case 'gpt': return '#1565c0';
                 case 'local': return '#9c27b0';
                 case 'package': return '#795548';
                 case 'tingbok': return '#795548';
                 case 'skos': return '#ff9800';
                 default: return '#757575';
             }
+        }
+
+        function getSourceTitle(source, uri) {
+            if (!uri) return source;
+            if (uri.startsWith('gpt:')) {
+                return `Google Product Taxonomy #${uri.slice(4)}`;
+            }
+            if (uri.startsWith('off:')) {
+                // e.g. "off:en:potatoes" or "off:en:food/plant-based-foods"
+                const parts = uri.split(':');
+                const category = parts.slice(2).join(':').replace(/-/g, ' ');
+                return `OpenFoodFacts: ${category}`;
+            }
+            return uri;
         }
 
         // Get available languages from vocabulary
@@ -1992,16 +2031,18 @@
             let sourceHtml = '';
             if (concept.source_uris && Object.keys(concept.source_uris).length > 0) {
                 for (const [src, uri] of Object.entries(concept.source_uris)) {
-                    let badge = `<span style="background: ${getSourceColor(src)}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px; display: inline-block;">${src}</span>`;
-                    if (uri && !uri.startsWith('off:')) {
-                        badge = `<a href="${uri}" target="_blank" style="text-decoration: none;">${badge}</a>`;
+                    const title = getSourceTitle(src, uri);
+                    let badge = `<span style="background: ${getSourceColor(src)}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px; display: inline-block;" title="${title}">${src}</span>`;
+                    if (uri && !uri.startsWith('off:') && !uri.startsWith('gpt:')) {
+                        badge = `<a href="${uri}" target="_blank" style="text-decoration: none;" title="${title}">${badge}</a>`;
                     }
                     sourceHtml += badge + ' ';
                 }
             } else {
-                let badge = `<span style="background: ${getSourceColor(concept.source)}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px; display: inline-block;">${concept.source}</span>`;
+                const title = getSourceTitle(concept.source, concept.uri);
+                let badge = `<span style="background: ${getSourceColor(concept.source)}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 12px; display: inline-block;" title="${title}">${concept.source}</span>`;
                 if (concept.uri) {
-                    badge = `<a href="${concept.uri}" target="_blank" style="text-decoration: none;">${badge}</a>`;
+                    badge = `<a href="${concept.uri}" target="_blank" style="text-decoration: none;" title="${title}">${badge}</a>`;
                 }
                 sourceHtml = badge;
             }
@@ -2049,7 +2090,7 @@
                     const bc = vocabularyData.concepts[b];
                     const label = bc ? getConceptLabel(bc) : b;
                     if (bc) {
-                        return `<a href="#" onclick="closeCategoryModal(); selectCategory('${b}', event); return false;">${label}</a>`;
+                        return `<a href="#" onclick="return navigateCategoryInModal('${b}', event);">${label}</a>`;
                     } else if (b.startsWith('http')) {
                         return `<a href="${b}" target="_blank">${label}</a>`;
                     }
@@ -2071,7 +2112,7 @@
                 const links = sorted.map(n => {
                     const nc = vocabularyData.concepts[n];
                     const label = nc ? getConceptLabel(nc) : n;
-                    return `<a href="#" onclick="closeCategoryModal(); selectCategory('${n}', event); return false;">${label}</a>`;
+                    return `<a href="#" onclick="return navigateCategoryInModal('${n}', event);">${label}</a>`;
                 });
                 html += `<div class="category-modal-section">
                     <div class="category-modal-section-title">Children (${concept.narrower.length})</div>
@@ -2085,6 +2126,15 @@
 
         function closeCategoryModal() {
             document.getElementById('categoryModal').classList.remove('active');
+        }
+
+        // Navigate to a category while keeping the modal open.
+        // Selects the category in the tree/filter and updates the modal contents.
+        function navigateCategoryInModal(categoryId, event) {
+            if (event) event.stopPropagation();
+            selectCategory(categoryId, null);
+            showCategoryModal(categoryId);
+            return false;
         }
 
         // Change display language

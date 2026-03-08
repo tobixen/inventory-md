@@ -47,9 +47,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 VIRTUAL_ROOT_ID = "_root"
+CATEGORY_BY_SOURCE_ID = "category_by_source"
 
 _EAN_CACHE_TTL_DAYS = 7
 _LOOKUP_CACHE_TTL_DAYS = 7
+
+# Human-friendly labels for known source identifiers
+_SOURCE_LABELS: dict[str, str] = {
+    "off": "OpenFoodFacts",
+    "agrovoc": "AGROVOC",
+    "dbpedia": "DBpedia",
+    "wikidata": "Wikidata",
+    "gpt": "Google Product Taxonomy",
+    "tingbok": "Tingbok",
+}
 
 
 def _cache_read(path: Path, ttl_days: int) -> dict | None:
@@ -669,6 +680,49 @@ def _infer_hierarchy(concepts: dict[str, Concept]) -> None:
                     parent.narrower.append(concept_id)
 
 
+def _add_category_by_source_nodes(concepts: dict[str, Concept]) -> None:
+    """Dynamically add ``category_by_source`` virtual nodes to *concepts* in-place.
+
+    Scans every concept's ``source_uris`` and creates one virtual node per source
+    (e.g. ``category_by_source/off``) whose ``narrower`` list contains the IDs of
+    all concepts that carry a URI for that source.  A top-level
+    ``category_by_source`` node is also added with the source nodes as children.
+
+    Concepts whose ID already starts with ``category_by_source`` are skipped so
+    that repeated calls are idempotent.
+    """
+    # Collect: source → [concept_id, ...]
+    source_children: dict[str, list[str]] = {}
+    for cid, concept in concepts.items():
+        if cid.startswith(CATEGORY_BY_SOURCE_ID):
+            continue
+        for src in concept.source_uris:
+            source_children.setdefault(src, []).append(cid)
+
+    if not source_children:
+        return
+
+    source_node_ids: list[str] = []
+    for src, children in sorted(source_children.items()):
+        node_id = f"{CATEGORY_BY_SOURCE_ID}/{src}"
+        label = _SOURCE_LABELS.get(src, src.title())
+        concepts[node_id] = Concept(
+            id=node_id,
+            prefLabel=label,
+            narrower=sorted(children),
+            broader=[CATEGORY_BY_SOURCE_ID],
+            source="inventory",
+        )
+        source_node_ids.append(node_id)
+
+    concepts[CATEGORY_BY_SOURCE_ID] = Concept(
+        id=CATEGORY_BY_SOURCE_ID,
+        prefLabel="Category by Source",
+        narrower=source_node_ids,
+        source="inventory",
+    )
+
+
 def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = True) -> CategoryTree:
     """Build a category tree structure for the UI.
 
@@ -700,6 +754,8 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
 
     if infer_hierarchy:
         _infer_hierarchy(concepts)
+
+    _add_category_by_source_nodes(concepts)
 
     # Find roots - concepts that should appear at the top level of the tree
     if VIRTUAL_ROOT_ID in concepts:
@@ -1144,14 +1200,16 @@ def report_ean_to_tingbok(
         payload["prices"] = prices
     try:
         response = putter(f"{base}/api/ean/{ean}", json=payload, timeout=5.0)
-        response.raise_for_status()
+        if not response.ok:
+            logger.warning("EAN PUT %s → HTTP %s: %s", ean, response.status_code, response.text[:500])
+            return
         logger.debug("Reported EAN %s to tingbok: %s", ean, payload)
         if cache_dir is not None:
             cache_path = cache_dir / f"{ean}.json"
             if cache_path.exists():
                 cache_path.unlink()
     except Exception as exc:
-        logger.debug("Failed to report EAN %s to tingbok: %s", ean, exc)
+        logger.warning("Failed to report EAN %s to tingbok: %s", ean, exc)
 
 
 def _uri_to_source(uri: str) -> str | None:

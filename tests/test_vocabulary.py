@@ -553,6 +553,110 @@ class TestBuildCategoryTree:
         }
 
 
+class TestCategoryBySource:
+    """Tests for the dynamic category_by_source virtual node generation."""
+
+    def test_category_by_source_nodes_added(self):
+        """build_category_tree must generate category_by_source virtual nodes."""
+        vocab = {
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes",
+                prefLabel="Potatoes",
+                broader=["food"],
+                source_uris={"off": "off:en:potatoes", "wikidata": "http://www.wikidata.org/entity/Q16587531"},
+            ),
+            "food/cumin": vocabulary.Concept(
+                id="food/cumin",
+                prefLabel="Cumin",
+                broader=["food"],
+                source_uris={"agrovoc": "http://aims.fao.org/aos/agrovoc/c_2046"},
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert "category_by_source" in tree.concepts
+        assert "category_by_source/off" in tree.concepts
+        assert "category_by_source/wikidata" in tree.concepts
+        assert "category_by_source/agrovoc" in tree.concepts
+
+    def test_category_by_source_children(self):
+        """Source nodes must list the concepts that have that source."""
+        vocab = {
+            "food/potatoes": vocabulary.Concept(
+                id="food/potatoes",
+                prefLabel="Potatoes",
+                source_uris={"off": "off:en:potatoes", "wikidata": "http://www.wikidata.org/entity/Q16587531"},
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        off_node = tree.concepts["category_by_source/off"]
+        assert "food/potatoes" in off_node.narrower
+        wikidata_node = tree.concepts["category_by_source/wikidata"]
+        assert "food/potatoes" in wikidata_node.narrower
+
+    def test_category_by_source_root_excluded_from_trees_roots(self):
+        """category_by_source must not appear as a regular root when _root is used."""
+        vocab = {
+            "_root": vocabulary.Concept(id="_root", prefLabel="Root", narrower=["food"]),
+            "food": vocabulary.Concept(
+                id="food",
+                prefLabel="Food",
+                source_uris={"off": "off:en:food"},
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert "category_by_source" not in tree.roots
+        assert "category_by_source" in tree.concepts
+
+    def test_category_by_source_fallback_roots(self):
+        """Without _root, category_by_source appears in roots."""
+        vocab = {
+            "food": vocabulary.Concept(
+                id="food",
+                prefLabel="Food",
+                source_uris={"off": "off:en:food"},
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert "category_by_source" in tree.roots
+
+    def test_category_by_source_preflabels(self):
+        """Known sources must have human-friendly prefLabels."""
+        vocab = {
+            "food": vocabulary.Concept(
+                id="food",
+                prefLabel="Food",
+                source_uris={
+                    "off": "off:en:food",
+                    "agrovoc": "http://aims.fao.org/aos/agrovoc/c_2",
+                    "dbpedia": "http://dbpedia.org/resource/Food",
+                    "wikidata": "http://www.wikidata.org/entity/Q2",
+                    "gpt": "gpt:1234",
+                },
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert tree.concepts["category_by_source/off"].prefLabel == "OpenFoodFacts"
+        assert tree.concepts["category_by_source/agrovoc"].prefLabel == "AGROVOC"
+        assert tree.concepts["category_by_source/dbpedia"].prefLabel == "DBpedia"
+        assert tree.concepts["category_by_source/wikidata"].prefLabel == "Wikidata"
+        assert tree.concepts["category_by_source/gpt"].prefLabel == "Google Product Taxonomy"
+
+    def test_no_category_by_source_when_no_source_uris(self):
+        """No category_by_source nodes when no concept has source_uris."""
+        vocab = {
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert "category_by_source" not in tree.concepts
+
+
 class TestBuildVocabularyFromInventory:
     """Tests for build_vocabulary_from_inventory function."""
 
