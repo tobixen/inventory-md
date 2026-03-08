@@ -27,7 +27,7 @@ Local vocabulary format (local-vocabulary.yaml):
       seal:
         prefLabel: "Seal"
         altLabel: ["rubber seal", "gasket", "o-ring"]
-        uri: "http://dbpedia.org/resource/Hermetic_seal"
+        uri: "https://dbpedia.org/resource/Hermetic_seal"
         # source is always "local" unless explicitly overridden
 """
 
@@ -1273,11 +1273,11 @@ def _uri_to_source(uri: str) -> str | None:
         return "off"
     if uri.startswith("gpt:"):
         return "gpt"
-    if uri.startswith("http://aims.fao.org/"):
+    if "aims.fao.org/" in uri:
         return "agrovoc"
-    if uri.startswith("http://dbpedia.org/") or uri.startswith("https://dbpedia.org/"):
+    if "dbpedia.org/" in uri:
         return "dbpedia"
-    if uri.startswith("http://www.wikidata.org/") or uri.startswith("https://www.wikidata.org/"):
+    if "wikidata.org/" in uri:
         return "wikidata"
     if uri.startswith("https://tingbok.plann.no/"):
         return "tingbok"

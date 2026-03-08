@@ -20,10 +20,6 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 * Every category should have at least one path, but may have several paths.  food/vegetables/potato snd food/staples/potato is the same category, but with two paths.
 * Tingbok should query multiple sources to find the relevant paths, translations, alternative lables and a good description of every category.
 
-## Long johns
-
-This altlabel seems to be missing on https://tingbok.plann.no/api/lookup/long_underwear
-
 ## Split/combine source concepts?
 
 Some sources lump together things (spices + herbs, underwear and socks), while others keep it separated.  Sometimes such a combination is just for the category tree (in GPT, "Underwear and socks" have subcategories socks and underwear).  Sometimes we want the Tingbok vocabulary category to combine multiple source URIs from the same source.  Specifically, I want "long johns" (Q2472769) and "longs" (Q56303142 in wikidata) to be combined into one category in Tingbok.  The other cases can probably be handled in the vocabulary as it is - if two different Tingbok vocabulary categories references the same source URI, we probably want to create a parent category referencing the source.  If we want to create an "underwear and socks" node in the hierarchy, we can define that in vocabulary, exclude other sources than GPT, and let socks and underwear be children of it.
@@ -31,10 +27,6 @@ Some sources lump together things (spices + herbs, underwear and socks), while o
 ## Clothing
 
 Clothing is listed with only an "inventory" source in solveig, despite having children.  It also lacks translations.  How come?
-
-## Spices
-
-Quite some work has been done on this, but the issue hasn't been resolved yet.  https://tingbok.plann.no/api/lookup/food/spices and https://tingbok.plann.no/api/lookup/spices is still two different categories.  Can we make a unit test in the tingbok that fails if those two lookups gives different results?
 
 ## Furuset
 
