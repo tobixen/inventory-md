@@ -1731,31 +1731,28 @@ class TestEanCache:
 
         assert mock_get.call_count == 2
 
-    def test_report_skipped_when_already_reported(self, tmp_path) -> None:
-        """PUT is skipped when the EAN was already reported to tingbok within the TTL."""
+    def test_put_invalidates_get_cache(self, tmp_path) -> None:
+        """A successful PUT removes the GET cache so next lookup fetches fresh data."""
         from unittest.mock import MagicMock, patch
 
-        product_response = MagicMock()
-        product_response.status_code = 200
-        product_response.json.return_value = self._product()
+        get_response = MagicMock()
+        get_response.status_code = 200
+        get_response.json.return_value = self._product()
 
         put_response = MagicMock()
         put_response.status_code = 200
         put_response.json.return_value = self._product()
 
-        # First call to GET populates cache
-        with patch("niquests.get", return_value=product_response):
+        # Populate GET cache
+        with patch("niquests.get", return_value=get_response):
             vocabulary.lookup_ean_via_tingbok(self.EAN, self.TINGBOK_URL, cache_dir=tmp_path)
+        assert (tmp_path / f"{self.EAN}.json").exists()
 
-        # First PUT reports and marks as reported in cache
+        # PUT should delete the cache file
         with patch("niquests.put", return_value=put_response):
             vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL, cache_dir=tmp_path)
 
-        # Second PUT should be skipped
-        with patch("niquests.put") as mock_put2:
-            vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL, cache_dir=tmp_path)
-
-        mock_put2.assert_not_called()
+        assert not (tmp_path / f"{self.EAN}.json").exists(), "Cache should be invalidated after PUT"
 
     def test_report_without_cache_dir_always_sends(self) -> None:
         """Without cache_dir, PUT is always sent (backwards-compatible)."""
@@ -1770,6 +1767,50 @@ class TestEanCache:
             vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL, cache_dir=None)
 
         assert mock_put.call_count == 2
+
+
+class TestEanObservationNeeded:
+    """Tests for ean_observation_needed() comparison helper."""
+
+    def _product(self, categories=("spreads",), prices=()) -> dict:
+        return {
+            "ean": "1234",
+            "name": "Kaviar",
+            "quantity": "300g",
+            "categories": list(categories),
+            "prices": list(prices),
+            "source": "openfoodfacts",
+        }
+
+    def test_nothing_to_push_returns_false(self) -> None:
+        assert not vocabulary.ean_observation_needed(self._product(), [], None, None, None)
+
+    def test_category_already_present_returns_false(self) -> None:
+        assert not vocabulary.ean_observation_needed(self._product(categories=["food"]), ["food"], None, None, None)
+
+    def test_category_missing_returns_true(self) -> None:
+        assert vocabulary.ean_observation_needed(self._product(categories=[]), ["food"], None, None, None)
+
+    def test_quantity_already_matches_returns_false(self) -> None:
+        assert not vocabulary.ean_observation_needed(self._product(), [], None, "300g", None)
+
+    def test_quantity_differs_returns_true(self) -> None:
+        assert vocabulary.ean_observation_needed(self._product(), [], None, "250g", None)
+
+    def test_price_already_present_returns_false(self) -> None:
+        price = {"date": "2026-03-08", "currency": "NOK", "price": 9.9, "unit": "pcs"}
+        product = self._product(prices=[price])
+        assert not vocabulary.ean_observation_needed(product, [], None, None, [price])
+
+    def test_price_missing_returns_true(self) -> None:
+        price = {"date": "2026-03-08", "currency": "NOK", "price": 9.9, "unit": "pcs"}
+        assert vocabulary.ean_observation_needed(self._product(prices=[]), [], None, None, [price])
+
+    def test_none_product_with_data_returns_true(self) -> None:
+        assert vocabulary.ean_observation_needed(None, ["food"], None, None, None)
+
+    def test_none_product_no_data_returns_false(self) -> None:
+        assert not vocabulary.ean_observation_needed(None, [], None, None, None)
 
 
 class TestLookupCache:

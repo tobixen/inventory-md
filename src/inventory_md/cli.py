@@ -316,10 +316,11 @@ def parse_command(
                 }
                 if eans_found:
                     print(f"\n🔖 Looking up {len(eans_found)} EAN barcode(s) via tingbok...")
-                    for ean in eans_found:
+                    for ean, item in eans_found.items():
                         product = vocabulary.lookup_ean_via_tingbok(
                             ean, tingbok_url, session=tingbok_session, cache_dir=_tingbok_cache
                         )
+                        item["_product"] = product  # stash for observation-needed check below
                         if product:
                             name = product.get("name") or "(unknown name)"
                             brand = product.get("brand") or ""
@@ -334,9 +335,11 @@ def parse_command(
                         else:
                             print(f"   EAN:{ean} → not found in tingbok")
 
-                    # Report inventory observations back to tingbok for each EAN item
-                    print(f"\n📤 Reporting inventory observations for {len(eans_found)} EAN(s) to tingbok...")
-                    reported = 0
+                    # Report inventory observations back to tingbok for EANs that need it.
+                    # Skip EANs whose GET response already contains our observations
+                    # (meaning a previous run pushed successfully).
+                    print(f"\n📤 Checking {len(eans_found)} EAN observation(s) ...")
+                    reported = skipped = 0
                     for ean, item in eans_found.items():
                         meta = item.get("metadata", {})
                         cats: list[str] = meta.get("categories") or []
@@ -344,19 +347,22 @@ def parse_command(
                         quantity: str | None = meta.get("mass") or meta.get("volume") or None
                         price_dict = _parse_inventory_price(meta.get("price"))
                         prices = [price_dict] if price_dict else []
-                        if cats or name or quantity or prices:
-                            vocabulary.report_ean_to_tingbok(
-                                ean,
-                                cats,
-                                name,
-                                tingbok_url,
-                                session=tingbok_session,
-                                quantity=quantity,
-                                prices=prices,
-                                cache_dir=_tingbok_cache,
-                            )
-                            reported += 1
-                    print(f"   Reported observations for {reported} EAN(s)")
+                        product = item.get("_product")  # stashed during the GET loop above
+                        if not vocabulary.ean_observation_needed(product, cats, name, quantity, prices):
+                            skipped += 1
+                            continue
+                        vocabulary.report_ean_to_tingbok(
+                            ean,
+                            cats,
+                            name,
+                            tingbok_url,
+                            session=tingbok_session,
+                            quantity=quantity,
+                            prices=prices,
+                            cache_dir=_tingbok_cache,
+                        )
+                        reported += 1
+                    print(f"   Pushed {reported} observation(s), {skipped} already up-to-date")
 
             # Enrich all inventory categories not already in global vocab via /api/lookup
             category_mappings = None

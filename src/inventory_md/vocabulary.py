@@ -1038,7 +1038,7 @@ def lookup_ean_via_tingbok(
         response = getter(f"{base}/api/ean/{ean}", timeout=5.0)
         if response.status_code == 404:
             if cache_dir is not None:
-                _cache_write(cache_dir / f"{ean}.json", data=None, reported=False)
+                _cache_write(cache_dir / f"{ean}.json", data=None)
             return None
         response.raise_for_status()
         data = response.json()
@@ -1047,8 +1047,52 @@ def lookup_ean_via_tingbok(
         return None
 
     if cache_dir is not None:
-        _cache_write(cache_dir / f"{ean}.json", data=data, reported=False)
+        _cache_write(cache_dir / f"{ean}.json", data=data)
     return data
+
+
+def ean_observation_needed(
+    product: dict | None,
+    categories: list[str],
+    name: str | None,
+    quantity: str | None,
+    prices: list[dict] | None,
+) -> bool:
+    """Return True if a PUT is needed because *product* does not already reflect our observations.
+
+    Compares the GET response from tingbok with what we would push.  A PUT is
+    skipped when every piece of our inventory data is already present in the
+    response — meaning a previous run already pushed it successfully.
+
+    Args:
+        product:    Result of :func:`lookup_ean_via_tingbok` (may be ``None``).
+        categories: Category paths from the inventory.
+        name:       Product name from the inventory (``None`` = unknown).
+        quantity:   Weight/volume string (``None`` = unknown).
+        prices:     Price observations to push (``None`` or empty = none).
+    """
+    if not categories and not name and not quantity and not prices:
+        return False
+    if product is None:
+        return bool(categories or name or quantity or prices)
+
+    existing_cats: list[str] = product.get("categories") or []
+    if any(c not in existing_cats for c in categories):
+        return True
+
+    if quantity and quantity != product.get("quantity"):
+        return True
+
+    existing_prices: list[dict] = product.get("prices") or []
+
+    def _price_key(p: dict) -> tuple:
+        return (p.get("date"), p.get("currency"), p.get("price"), p.get("unit"))
+
+    existing_keys = {_price_key(p) for p in existing_prices}
+    if prices and any(_price_key(p) not in existing_keys for p in prices):
+        return True
+
+    return False
 
 
 def report_ean_to_tingbok(
@@ -1066,9 +1110,10 @@ def report_ean_to_tingbok(
     Sends ``PUT {tingbok_url}/api/ean/{ean}`` with category, name, quantity
     and price data from the inventory.  Failures are silently ignored.
 
-    When *cache_dir* is provided and the EAN was already successfully reported
-    within :data:`_EAN_CACHE_TTL_DAYS` days, the PUT is skipped to avoid
-    sending duplicate observations on every parse run.
+    When *cache_dir* is provided, the EAN GET cache is invalidated after a
+    successful PUT so the next :func:`lookup_ean_via_tingbok` call fetches
+    fresh data (which will reflect the PUT and suppress future pushes via
+    :func:`ean_observation_needed`).
 
     Args:
         ean:         EAN/UPC barcode string.
@@ -1078,20 +1123,13 @@ def report_ean_to_tingbok(
         session:     Optional niquests.Session to reuse.
         quantity:    Weight or volume string (e.g. ``"140g"``).
         prices:      List of price dicts (``{currency, price, unit, date}``).
-        cache_dir:   Directory for the client-side EAN cache.  Pass ``None``
-                     to disable (default).
+        cache_dir:   EAN cache directory.  On successful PUT the cache entry
+                     for *ean* is deleted so the next GET is always fresh.
     """
     import niquests
 
     if not categories and not name and not quantity and not prices:
         return
-
-    if cache_dir is not None:
-        cache_path = cache_dir / f"{ean}.json"
-        entry = _cache_read(cache_path, _EAN_CACHE_TTL_DAYS)
-        if entry is not None and entry.get("reported"):
-            logger.debug("Skipping EAN report for %s: already reported within TTL", ean)
-            return
 
     putter = session.put if session is not None else niquests.put
     base = tingbok_url.rstrip("/")
@@ -1110,8 +1148,8 @@ def report_ean_to_tingbok(
         logger.debug("Reported EAN %s to tingbok: %s", ean, payload)
         if cache_dir is not None:
             cache_path = cache_dir / f"{ean}.json"
-            entry = _cache_read(cache_path, _EAN_CACHE_TTL_DAYS) or {}
-            _cache_write(cache_path, data=entry.get("data"), reported=True)
+            if cache_path.exists():
+                cache_path.unlink()
     except Exception as exc:
         logger.debug("Failed to report EAN %s to tingbok: %s", ean, exc)
 
