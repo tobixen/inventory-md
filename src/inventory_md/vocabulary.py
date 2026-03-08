@@ -1141,8 +1141,11 @@ def ean_observation_needed(
 
     existing_prices: list[dict] = product.get("prices") or []
 
+    # Compare on (currency, price, unit) only — date is omitted because inventory
+    # rows are not new observations, and the date may differ from what the server
+    # stored on a previous push.
     def _price_key(p: dict) -> tuple:
-        return (p.get("date"), p.get("currency"), p.get("price"), p.get("unit"))
+        return (p.get("currency"), p.get("price"), p.get("unit"))
 
     existing_keys = {_price_key(p) for p in existing_prices}
     if prices and any(_price_key(p) not in existing_keys for p in prices):

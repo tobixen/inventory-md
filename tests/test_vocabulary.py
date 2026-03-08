@@ -1916,6 +1916,20 @@ class TestEanObservationNeeded:
     def test_none_product_no_data_returns_false(self) -> None:
         assert not vocabulary.ean_observation_needed(None, [], None, None, None)
 
+    def test_price_same_currency_price_unit_different_date_returns_false(self) -> None:
+        """Inventory rows are not new observations — same price must not re-trigger a push just because dates differ."""
+        server_price = {"date": "2025-12-01", "currency": "NOK", "price": 9.9, "unit": "pcs"}
+        client_price = {"date": "2026-03-08", "currency": "NOK", "price": 9.9, "unit": "pcs"}
+        product = self._product(prices=[server_price])
+        assert not vocabulary.ean_observation_needed(product, [], None, None, [client_price])
+
+    def test_price_with_no_date_matches_server_price_with_date(self) -> None:
+        """Client prices from inventory may lack a date; server prices from a previous push may have one."""
+        server_price = {"date": "2025-12-01", "currency": "NOK", "price": 9.9, "unit": "pcs"}
+        client_price = {"currency": "NOK", "price": 9.9, "unit": "pcs"}
+        product = self._product(prices=[server_price])
+        assert not vocabulary.ean_observation_needed(product, [], None, None, [client_price])
+
 
 class TestLookupCache:
     """Tests for client-side caching in enrich_categories_via_lookup."""

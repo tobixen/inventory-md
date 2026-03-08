@@ -10,7 +10,6 @@ import argparse
 import json
 import shutil
 import sys
-from datetime import date as _date
 from pathlib import Path
 
 import argcomplete
@@ -38,7 +37,6 @@ def _parse_inventory_price(price_str: str | None, shop: str | None = None) -> di
             "currency": currency.upper(),
             "price": float(value_str),
             "unit": unit,
-            "date": _date.today().isoformat(),
             "shop": shop or None,
         }
     except (ValueError, AttributeError):
