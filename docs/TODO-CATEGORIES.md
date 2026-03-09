@@ -24,9 +24,27 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 
 Some sources lump together things (spices + herbs, underwear and socks), while others keep it separated.  Sometimes such a combination is just for the category tree (in GPT, "Underwear and socks" have subcategories socks and underwear).  Sometimes we want the Tingbok vocabulary category to combine multiple source URIs from the same source.  Specifically, I want "long johns" (Q2472769) and "longs" (Q56303142 in wikidata) to be combined into one category in Tingbok.  The other cases can probably be handled in the vocabulary as it is - if two different Tingbok vocabulary categories references the same source URI, we probably want to create a parent category referencing the source.  If we want to create an "underwear and socks" node in the hierarchy, we can define that in vocabulary, exclude other sources than GPT, and let socks and underwear be children of it.
 
-## Clothing
+## ~~Clothing~~ **Fixed**
 
-Clothing is listed with only an "inventory" source in solveig, despite having children.  It also lacks translations.  How come?
+~~Clothing is listed with only an "inventory" source in solveig, despite having children.  It also lacks translations.~~
+
+**Root cause**: `enrich_categories_via_lookup` creates inventory-sourced stub nodes for every path segment of an enriched concept (e.g. a `clothing` stub when enriching `clothing/outdoor_clothing`).  These stubs were then merged back into the main vocab via `vocab.update(resolved)`, silently overwriting the tingbok-sourced `clothing` concept.
+
+**Fixed**: after `vocab.update(resolved)` in `parse_command`, global-vocab (tingbok) concepts that were overwritten by inventory-sourced stubs are restored.  Also added `nb: "Klær"` label to the vocabulary entry.
+
+**Note**: the fix only takes effect after re-running `inventory-md parse --auto` against a tingbok server that returns 200 for `/api/vocabulary` (the server must have completed its background label-fetch before the parse runs).
+
+## Nuts
+
+Two separate "nut" problems:
+
+1. **Food nuts hierarchy was flat**: `peanuts` and `cashews` had `food/snacks` as their broader instead of being children of `nuts`.  The `nuts` concept had ID `nuts` instead of `food/nuts`, causing an orphan `food/nuts` stub to appear in vocabulary.json whenever coconut/coconut-milk enrichment returned a path like `food/nuts/coconuts`.
+
+   **Fixed**: renamed concept `nuts` → `food/nuts`, moved peanuts/cashews/coconut under it, added `coconut` to vocabulary, updated `food/snacks.narrower`.
+
+2. **Hardware nuts miscategorised**: inventory.md uses `category:nut` (singular) for hex nuts, wing nuts, lock nuts — these were showing up as an unmatched `nut` stub with no parents.
+
+   **Fixed**: added `hardware/nut` concept under `fasteners`, and added `"nut"/"nuts"` to fasteners' altLabel so the bare `category:nut` label enriches to the right place.
 
 ## Furuset
 
