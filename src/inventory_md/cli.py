@@ -380,6 +380,14 @@ def parse_command(
                     )
                     if resolved:
                         vocab.update(resolved)
+                        # Restore any tingbok concepts that were overwritten by
+                        # inventory-sourced path-segment stubs created during
+                        # enrichment (e.g. a "clothing" stub created while
+                        # enriching "clothing/outdoor-clothing").
+                        for cid, c in global_vocab.items():
+                            existing = vocab.get(cid)
+                            if existing is not None and existing.source == "inventory":
+                                vocab[cid] = c
                         print(f"   Enriched {len(resolved)} categories via tingbok lookup")
 
             if vocab:

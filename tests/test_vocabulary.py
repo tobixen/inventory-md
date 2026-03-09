@@ -1869,6 +1869,27 @@ class TestEnrichCategoriesViaLookup:
         assert new_concepts == {}
         assert mappings == {}
 
+    def test_parent_stub_has_inventory_source(self) -> None:
+        """Intermediate path segments added by enrichment have source='inventory'.
+
+        This documents the known behaviour: callers must restore any global-vocab
+        concepts that were overwritten by these stubs (as parse_command does after
+        calling enrich_categories_via_lookup).
+        """
+        from unittest.mock import patch
+
+        with patch(
+            "niquests.get",
+            return_value=self._make_response(self._vocab_concept("clothing/outdoor_clothing", "Outdoor Clothing")),
+        ):
+            new_concepts, _ = vocabulary.enrich_categories_via_lookup(["outdoor-clothing"], self.TINGBOK_URL)
+
+        # The leaf is enriched
+        assert new_concepts["clothing/outdoor_clothing"].source == "tingbok"
+        # The parent stub is inventory-sourced — callers must guard against this
+        # overwriting a previously loaded tingbok "clothing" concept.
+        assert new_concepts["clothing"].source == "inventory"
+
     def test_uses_session_get_when_provided(self) -> None:
         """session.get() is used instead of niquests.get() when session is passed."""
         from unittest.mock import MagicMock
