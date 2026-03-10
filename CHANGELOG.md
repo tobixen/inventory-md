@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [v0.13.0] - 2026-03-10
+
+Lots of changes - still trying to get the category system to work reasonably well.
+
+(version number jump to match the verisoning in Tingbok)
 
 ### Added
 - **EAN observations pushed to tingbok** — after each parse run, `inventory-md` PUTs
@@ -17,6 +21,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`receipt_names` support in EAN observations** — the Lidl shopping skill now PUTs
   receipt name observations (Bulgarian/local receipt text) to tingbok via `curl -X PUT`
   instead of writing to the local `ean_cache.json`.
+- **Client-side caching for EAN and category lookups** — `lookup_ean_via_tingbok()`,
+  `enrich_categories_via_lookup()`, and `report_ean_to_tingbok()` accept an optional
+  `cache_dir`; successful responses are cached under `~/.cache/inventory-md/tingbok/`
+  with a 7-day TTL.  `parse --auto` wires all three to this cache automatically.
+- **`ean_observation_needed()`** helper — encapsulates comparison of a would-be PUT
+  payload against the current GET response from tingbok to decide whether a re-push
+  is needed.
+- **`source_paths` field on `Concept`** — tracks the normalised path for each source
+  (e.g. GPT).  `_add_category_by_source_nodes()` now builds proper intermediate virtual
+  nodes for sources that supply `source_paths`, with a flat-list fallback for others.
+- **Path alias support in vocabulary building** — new `path_aliases` field on `Concept`
+  (parsed from tingbok); `build_vocabulary_from_inventory()` silently redirects aliased
+  paths (e.g. `klær/vinter` with `lang=nb`) to the canonical concept instead of
+  creating spurious inventory nodes.
+- **Dynamic `category_by_source/*` virtual nodes** — generated at runtime from
+  `concept.source_uris`; all sources present in the vocabulary appear automatically
+  (off, agrovoc, dbpedia, wikidata, gpt, …) without hardcoded names.
+- **Source badge tooltips** in search UI — OFF and GPT badges show the human-readable
+  category name (e.g. "OpenFoodFacts: potatoes" / "Google Product Taxonomy #455");
+  `gpt:` and `off:` URIs no longer produce dead hyperlinks.
+- **GPT source badge** (blue) added to the search UI.
+- **`navigateCategoryInModal()`** keeps the detail modal open when clicking
+  broader/narrower links — the modal updates in place instead of closing.
+
+### Changed
+- **EAN deduplication replaced** — TTL-based "already reported within N days" tracking
+  is replaced by comparison-based logic: the GET response from tingbok is compared with
+  what would be pushed, and the PUT is skipped when every field is already reflected.
+  After a successful PUT the local cache entry is invalidated so the next run re-fetches
+  fresh data.
 
 ### Fixed
 - **`enrich_categories_via_lookup`** now normalises labels before sending to
@@ -24,6 +58,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   use only the leaf node, and hyphens/underscores are replaced with spaces.
   Previously the raw path was sent verbatim, causing DBpedia to match wildly wrong
   concepts (e.g. `electronics/solar-panel` → `south_african_standard_time`).
+- **Category count propagation** now walks SKOS `broader` links recursively
+  (cycle-safe).  Single-segment concepts (e.g. `bouillon` with `broader: food/spices`)
+  previously never contributed to ancestor category counts and were invisible when
+  filtering by a parent category.
+- **OFF language tag prefixes** (`en:`, `sk:`, …) stripped from EAN category labels
+  before lookup — old cached tingbok entries with raw OFF tags (e.g. `en:mashed-vegetables`)
+  now normalise to `mashed vegetables` before the label lookup.
+- **EAN price comparison** no longer includes the observation date — prices are compared
+  on `(currency, price, unit)` only, so the same price does not trigger a redundant
+  re-push just because the stored date differs.  `_parse_inventory_price` no longer
+  auto-assigns today's date to inventory observations.
+- **`_uri_to_source()`** now recognises both `http://` and `https://` URI prefixes for
+  AGROVOC, DBpedia, and Wikidata.
+- **Clothing source=inventory bug** — `enrich_categories_via_lookup` creates
+  `source='inventory'` stub concepts for intermediate path segments (e.g. `clothing`
+  when enriching `clothing/outdoor_clothing`).  These stubs were overwriting
+  tingbok-sourced parent concepts.  The parse command now restores any global-vocab
+  (tingbok) concept overwritten by an inventory stub after merging resolved concepts.
+- **EAN PUT failures** logged at `WARNING` level (was `DEBUG`) so 4xx errors are
+  visible without enabling debug logging.
 
 ### Removed
 - **`skos.py`** module (SKOSClient, SPARQL queries to AGROVOC/DBpedia/Wikidata) — all
