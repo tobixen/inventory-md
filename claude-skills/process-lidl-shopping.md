@@ -1,13 +1,6 @@
-# Process Lidl Shopping
+# Process Shopping
 
-Process a Lidl shopping receipt and update the boat inventory.
-
-## When to use
-
-Use this skill when the user mentions:
-- Lidl shopping/receipt
-- Processing a shopping receipt
-- Adding groceries to inventory
+This file was originally written for processing Lidl shopping receipt.  When buying things from other shops, try to adopt.
 
 ## Workflow
 
@@ -20,7 +13,7 @@ jq '.[-1]' ~/shopping-analyzer/lidl_receipts.json
 
 Receipt fields:
 - `purchase_date`: Date in format "YYYY.MM.DD"
-- `total_price_no_saving`: Total amount in local currency. EUR for Bulgaria
+- `total_price_no_saving`: Total amount in local currency. EUR for Bulgaria.
 - `store`: Store location
 - `items`: Array of purchased items with `name`, `price`, `quantity`
 
@@ -67,20 +60,21 @@ Format for food items:
 * category:CONCEPT ID:ITEM-ID EAN:EANCODE bb:YYYY-MM qty:N mass:Xg volume:Xl price:EUR:XXX/YYY PRODUCT NAME
 ```
 
+
+**About qty and weight:**
+- Volume is typically used for liquids and mass for solid stuff.  They are rarely combined.
+- YYY is typically "pcs" or "kg"
+- The weight should normally be considered to be *per unit*.  If 5 packages of pasta was bought, each at 0.5kg, then write `qty:5 mass:500g`.
+- For fruits and vegetables, the full weight and a divisor must be used when qty > 1.  If the receipt says that 505g of onion was purchased, and the user says it's five onions, then write `qty:5 mass:505g/5`.  If there is only one item (qty:1 or no qty), do not use the divisor.
+- Otherwise, qty is typically not known and should not be specified for vegetables, fruits, etc.  The Lidl Bulgaria shopping receipt says "stk", but in the description it says "per kg", so then the unit is actually kilograms.
+- Do not round the weight.  In particularly, when buying 0.043kg of garlic, don't round it down to 0kg.
+
+
 **Category syntax:**
 - Use `category:` prefix for SKOS hierarchy expansion
 - Simple labels like `category:milk` get expanded to full paths (e.g., food/dairy/milk)
 - Open Food Facts (OFF) is the primary source for food categories (~14K nodes)
 
-Volume is typically used for liquids and mass for solid stuff.  They are rarely combined.
-
-YYY is typically "pcs" or "kg"
-
-Qty is typically not known and should not be specified for vegetables, fruits, etc.  The Lidl shopping receipt says "stk", but in the description it says "per kg", so then the unit is actually kilograms.
-
-If Qty is given on a line, then mass is considered to be "per piece".  So 2 packages @ 500 gram (total mass 1kg) should be specified as `mass:500g qty:2`.
-
-If the user is counting things and informing that he bought 4 onions and it says 521 grams on the receipt, then `qty:4 mass:521/4`
 
 **Category examples** (simple labels auto-expand via OFF/AGROVOC):
 - Dairy: `category:milk`, `category:cheese`, `category:yogurt`
@@ -95,7 +89,7 @@ Best-before - check photos or estimate:
 - Fresh milk: ~10 days from purchase
 - Potatoes (cool/dark): ~3 months
 - Chocolate: ~6-8 months
-- Frozen seafood: check package, usually 1-3 months in fridge
+- Frozen seafood: Usually some few days in the fridge.  Solveig does not have a freezer.
 - Fresh bread: 3-5 days
 - Bananas: 5-7 days
 
@@ -104,7 +98,6 @@ If estimated, the best before should be postfixed with `:EST`.  `bb:2026-12-13:E
 ### 7. Report EAN observations to tingbok
 
 Send product observations (name, category, price, receipt name) to tingbok via PUT.
-Do **not** update `ean_cache.json` — that file is no longer used for this purpose.
 
 ```bash
 curl -s -X PUT https://tingbok.plann.no/api/ean/EAN_CODE \
