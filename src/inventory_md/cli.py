@@ -415,7 +415,9 @@ def parse_command(
                     print(f"\n⚠️  wanted-items file not found: {wanted_path}")
                 else:
                     output_shopping = md_file.parent / "shopping-list.md"
-                    result = shopping_list.generate_shopping_list(wanted_path, md_file, include_dated=include_dated)
+                    result = shopping_list.generate_shopping_list(
+                        wanted_path, output, include_dated=include_dated, lang=lang or "en"
+                    )
                     output_shopping.write_text(result, encoding="utf-8")
                     dated_note = " (including dated files)" if include_dated else ""
                     print(f"\n🛒 Generated {output_shopping}{dated_note}")
@@ -870,6 +872,20 @@ Examples:
         action="store_true",
         help="Auto-detect files: inventory.md and wanted-items.md in current directory",
     )
+    # Shopping-list command
+    sl_parser = subparsers.add_parser(
+        "shopping-list", help="Regenerate shopping-list.md from wanted-items.md and inventory.json"
+    )
+    sl_parser.add_argument(
+        "--wanted-items", "-w", type=Path, help="Wanted items file (default: auto-detect wanted-items.md)"
+    )
+    sl_parser.add_argument(
+        "--no-dated", action="store_true", help="Exclude dated wanted-items files (wanted-items-YYYY-MM-DD.md)"
+    )
+    sl_parser.add_argument(
+        "--stdout", action="store_true", help="Print shopping list to stdout instead of writing file"
+    )
+
     # Update-template command
     update_parser = subparsers.add_parser("update-template", help="Update search.html to latest version")
     update_parser.add_argument("directory", type=Path, nargs="?", help="Target directory (default: current directory)")
@@ -1086,9 +1102,59 @@ Examples:
             return 1
     elif args.command == "vocabulary":
         return vocabulary_command(args, config)
+    elif args.command == "shopping-list":
+        return shopping_list_command(args, config)
     else:
         parser_cli.print_help()
         return 1
+
+
+def shopping_list_command(args, config: Config) -> int:
+    """Handle the shopping-list subcommand."""
+    # Resolve inventory directory from config or CWD
+    inventory_dir = Path.cwd()
+    if config.inventory_file:
+        inventory_dir = Path(config.inventory_file).resolve().parent
+
+    inventory_json = inventory_dir / "inventory.json"
+    if not inventory_json.exists():
+        print(f"❌ Error: {inventory_json} not found. Run 'inventory-md parse' first.")
+        return 1
+
+    wanted_path = getattr(args, "wanted_items", None)
+    if wanted_path is None:
+        wanted_path = config.wanted_file
+    if wanted_path is None:
+        wanted_path = inventory_dir / "wanted-items.md"
+
+    if not wanted_path.exists():
+        print(f"❌ Error: {wanted_path} not found.")
+        return 1
+
+    include_dated = not getattr(args, "no_dated", False)
+    lang = config.lang or "en"
+
+    result = shopping_list.generate_shopping_list(
+        wanted_path,
+        inventory_json,
+        include_dated=include_dated,
+        lang=lang,
+    )
+
+    if getattr(args, "stdout", False):
+        print(result)
+    else:
+        output_path = inventory_dir / "shopping-list.md"
+        output_path.write_text(result, encoding="utf-8")
+        # Print summary line from the result
+        for line in result.splitlines():
+            if line.startswith("**Summary:**"):
+                print(f"🛒 {output_path} — {line.strip('*').strip()}")
+                break
+        else:
+            print(f"🛒 Shopping list written to {output_path}")
+
+    return 0
 
 
 def vocabulary_command(args, config: Config) -> int:

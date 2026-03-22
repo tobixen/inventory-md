@@ -16,9 +16,31 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 ## Core ideas
 
 * The category system is hierarchical.  food/spices/cumin could be a node.
-* The tingbok has a vocabulary.yaml describing the root nodes and parts of the "inventory system" category tree.  This file should be slim, it shouldn't contain information available from other sources.  It's also not complete, it's just a starting point.
+* The tingbok has a vocabulary.yaml describing the root nodes and parts of the "inventory system" category tree.  This file should be slim, it shouldn't contain information available from other sources.  It's also not complete, it's just a starting point.  The concepts in the vocabulary should be identified by a cannonical Tingbook URL.  We should also consider to have a canonical, though not guaranteed persistent Tingbok-URL for cached concepts.
 * Every category should have at least one path, but may have several paths.  food/vegetables/potato snd food/staples/potato is the same category, but with two paths.
 * Tingbok should query multiple sources to find the relevant paths, translations, alternative lables and a good description of every category.
+
+## Shopping list category match problem, name conflicts and IDs
+
+**This is not an actionable TODO-task yet - it needs more thinking**
+
+The shopping list generator currently has some logic for resolving categories.  I think it belongs to a "higher level".
+
+One of the problems I'm having in the inventory project is to match up items on the "wanted" list with the items in the inventory to create shopping lists.  I've already established that the matching should be done on a category level (going beyond categories, i.e. on brands or specific EANs may or may not be a future feature, having a broad category like "fruit" on the wanted list should be supported today - then as long as there is enough apples OR bananas OR any other fruit in the house it will not appear on the shopping list).
+
+I don't want a lot of local algorithms in the shopping list generator - matching categories is a general problem.  We're doing it in the javascript too.
+
+A category may have many names, even when disregarding languages, even when disregarding aliases and synonyms ...
+
+* Potato - potatoes - food/vegetable/potatoes - food/staples/potatoes
+
+* Seal meat - food/meat/seal
+
+* Plush seal toy - toy/stuffed/seal - plush seal
+
+* hardware/plumbing/seal - oring
+
+We may consider to throw arbitrary IDs on the categories - like the GPT have numerical IDs, the Agrovoc and Wikidata also have unique identifiers on the concepts.  In any case, I think in the inventory and shopping list I don't want to use arbitrary-looking IDs, I do want to use a textual easy label.
 
 ## Split/combine source concepts?
 

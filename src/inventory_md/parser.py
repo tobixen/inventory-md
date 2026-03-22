@@ -7,6 +7,7 @@ Supports hierarchical organization, metadata tags, and automatic image discovery
 Automatically creates resized thumbnails when missing.
 """
 
+import calendar
 import json
 import re
 import sys
@@ -110,6 +111,29 @@ def discover_images(container_id: str, base_path: Path) -> list[dict[str, str]]:
     return images
 
 
+def _normalize_bb_date(date_str: str) -> str:
+    """Normalize a best-before date string to a full ISO date (YYYY-MM-DD).
+
+    - ``YYYY-MM-DD`` is returned unchanged.
+    - ``YYYY-MM`` is extended to the last day of that month.
+    - ``YYYY`` is extended to Dec 31.
+    - Anything else is returned unchanged.
+    """
+    try:
+        parts = date_str.split("-")
+        if len(parts) == 3:
+            return date_str
+        elif len(parts) == 2:
+            year, month = int(parts[0]), int(parts[1])
+            last_day = calendar.monthrange(year, month)[1]
+            return f"{year:04d}-{month:02d}-{last_day:02d}"
+        elif len(parts) == 1:
+            return f"{int(parts[0]):04d}-12-31"
+    except (ValueError, IndexError):
+        pass
+    return date_str
+
+
 def extract_metadata(text: str) -> dict[str, Any]:
     """
     Extract all key:value pairs from text.
@@ -147,10 +171,42 @@ def extract_metadata(text: str) -> dict[str, Any]:
             for cat in value.split(","):
                 cat = cat.strip()
                 if cat:
-                    # Normalize path: lowercase only (keep plural/singular as-is)
                     parts = cat.split("/")
-                    normalized_parts = [p.lower() for p in parts]
-                    categories.append("/".join(normalized_parts))
+                    categories.append("/".join(p.lower() for p in parts))
+        # Typed numeric fields
+        elif key == "qty":
+            try:
+                metadata["qty"] = float(value)
+            except ValueError:
+                metadata["qty"] = value
+        elif key == "mass":
+            v = value.lower()
+            try:
+                if v.endswith("kg"):
+                    metadata["mass_g"] = float(v[:-2]) * 1000
+                elif v.endswith("g"):
+                    metadata["mass_g"] = float(v[:-1])
+                else:
+                    metadata["mass"] = value  # unknown unit, keep as-is
+            except ValueError:
+                metadata["mass"] = value
+        elif key == "volume":
+            v = value.lower()
+            try:
+                if v.endswith("ml"):
+                    metadata["volume_l"] = float(v[:-2]) / 1000
+                elif v.endswith("cl"):
+                    metadata["volume_l"] = float(v[:-2]) / 100
+                elif v.endswith("dl"):
+                    metadata["volume_l"] = float(v[:-2]) / 10
+                elif v.endswith("l"):
+                    metadata["volume_l"] = float(v[:-1])
+                else:
+                    metadata["volume"] = value  # unknown unit, keep as-is
+            except ValueError:
+                metadata["volume"] = value
+        elif key == "bb":
+            metadata["bb"] = _normalize_bb_date(value)
         else:
             metadata[key] = value
         matches.append(match)
@@ -170,6 +226,14 @@ def extract_metadata(text: str) -> dict[str, Any]:
 
     # Clean up extra spaces
     remaining = re.sub(r"\s+", " ", remaining).strip()
+
+    # Detect EST flag: estimated best-before date (as opposed to printed label)
+    if "bb" in metadata:
+        est_match = re.search(r"\bEST\b", remaining, re.IGNORECASE)
+        if est_match:
+            metadata["bb_inferred"] = True
+            remaining = (remaining[: est_match.start()] + remaining[est_match.end() :]).strip()
+            remaining = re.sub(r"\s+", " ", remaining).strip()
 
     return {"metadata": metadata, "name": remaining}
 

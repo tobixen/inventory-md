@@ -315,3 +315,97 @@ class TestParseCommandEanLookup:
                 )
 
         assert result == 0
+
+
+class TestShoppingListCommand:
+    """Tests for the shopping-list subcommand."""
+
+    def _make_inventory_json(self, tmp_path, items_meta):
+        items = [
+            {
+                "id": m.get("id", f"item-{i}"),
+                "parent": None,
+                "name": m.get("name", "Test item"),
+                "raw_text": "",
+                "metadata": {k: v for k, v in m.items() if k not in ("id", "name")},
+                "indented": False,
+            }
+            for i, m in enumerate(items_meta)
+        ]
+        data = {"containers": [{"id": "test", "items": items, "images": [], "metadata": {}}]}
+        (tmp_path / "inventory.json").write_text(json.dumps(data))
+
+    def test_shopping_list_command_writes_output(self, tmp_path):
+        """shopping-list command writes shopping-list.md from inventory.json."""
+        self._make_inventory_json(tmp_path, [{"tags": ["food/pasta"], "qty": 3.0}])
+        (tmp_path / "wanted-items.md").write_text("## Pasta\n\n* tag:food/pasta - Pasta target:qty:2\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "shopping-list"],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        output = (tmp_path / "shopping-list.md").read_text()
+        assert "Shopping List" in output
+
+    def test_shopping_list_command_fails_without_inventory_json(self, tmp_path):
+        """shopping-list fails with clear error if inventory.json is missing."""
+        (tmp_path / "wanted-items.md").write_text("## Pasta\n\n* category:pasta - Pasta\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "shopping-list"],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode != 0
+        assert "inventory.json" in result.stdout or "inventory.json" in result.stderr
+
+    def test_shopping_list_command_fails_without_wanted_items(self, tmp_path):
+        """shopping-list fails with clear error if wanted-items.md is missing."""
+        self._make_inventory_json(tmp_path, [])
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "shopping-list"],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode != 0
+
+    def test_shopping_list_stdout_flag(self, tmp_path):
+        """--stdout prints to stdout without writing file."""
+        self._make_inventory_json(tmp_path, [{"tags": ["food/pasta"], "qty": 2.0}])
+        (tmp_path / "wanted-items.md").write_text("## Pasta\n\n* tag:food/pasta - Pasta target:qty:1\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "shopping-list", "--stdout"],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "Shopping List" in result.stdout
+        assert not (tmp_path / "shopping-list.md").exists()
+
+    def test_shopping_list_explicit_wanted_items(self, tmp_path):
+        """--wanted-items flag allows specifying an alternate file."""
+        self._make_inventory_json(tmp_path, [{"tags": ["food/pasta"], "qty": 2.0}])
+        wanted = tmp_path / "my-wanted.md"
+        wanted.write_text("## Pasta\n\n* tag:food/pasta - Pasta target:qty:1\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "shopping-list", "--wanted-items", str(wanted), "--stdout"],
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+        )
+
+        assert result.returncode == 0
+        assert "Shopping List" in result.stdout

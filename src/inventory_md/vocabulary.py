@@ -836,6 +836,43 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
     )
 
 
+def resolve_category(
+    category: str,
+    concepts: dict[str, Concept],
+    lang: str = "en",
+) -> str | None:
+    """Resolve a raw category string to a canonical concept ID.
+
+    Tries in order:
+    1. Direct match as a known concept ID path (e.g. ``food/vegetables/potatoes``)
+    2. Language-specific path alias (e.g. Norwegian ``klær/vinter`` → ``clothing/thermal``)
+    3. Leaf name match — last path component of any concept ID (e.g. ``potatoes``)
+
+    Does not do label/altLabel matching across languages; that belongs to
+    the Tingbok vocabulary project.  Returns ``None`` if no match is found;
+    the caller should fall back to using the raw category string.
+    """
+    cat_lower = category.lower()
+
+    # 1. Direct concept ID
+    if cat_lower in concepts:
+        return cat_lower
+
+    # 2. Language-specific path alias
+    alias_map = _build_path_alias_map(concepts, lang)
+    if cat_lower in alias_map:
+        return alias_map[cat_lower]
+
+    # 3. Leaf name lookup (last path component of concept ID)
+    for concept_id in concepts:
+        if concept_id.startswith(CATEGORY_BY_SOURCE_ID + "/"):
+            continue
+        if concept_id.split("/")[-1] == cat_lower:
+            return concept_id
+
+    return None
+
+
 def _build_path_alias_map(vocab: dict[str, Concept], lang: str) -> dict[str, str]:
     """Build a reverse map from alias path (lower) to canonical concept ID.
 

@@ -1,140 +1,310 @@
-"""Tests for shopping list generator, focusing on category: vs tag: handling."""
+"""Tests for shopping list generator."""
 
 import json
 
+import pytest
+
 from inventory_md.shopping_list import (
+    DesiredItem,
+    InventoryItem,
+    evaluate_item,
     generate_shopping_list,
     parse_inventory_for_shopping,
+    parse_wanted_items,
     tag_matches,
 )
 
 MINIMAL_VOCABULARY = {
     "concepts": {
-        "food": {"id": "food", "broader": [], "narrower": ["food/grains", "food/legumes"]},
+        "food": {"id": "food", "prefLabel": "Food", "broader": [], "narrower": ["food/grains", "food/legumes"]},
         "food/grains": {
             "id": "food/grains",
+            "prefLabel": "Grains",
             "broader": ["food"],
             "narrower": ["food/grains/pasta", "food/grains/flour"],
         },
-        "food/grains/pasta": {"id": "food/grains/pasta", "broader": ["food/grains"], "narrower": []},
-        "food/grains/flour": {"id": "food/grains/flour", "broader": ["food/grains"], "narrower": []},
+        "food/grains/pasta": {
+            "id": "food/grains/pasta",
+            "prefLabel": "Pasta",
+            "broader": ["food/grains"],
+            "narrower": [],
+        },
+        "food/grains/flour": {
+            "id": "food/grains/flour",
+            "prefLabel": "Flour",
+            "broader": ["food/grains"],
+            "narrower": [],
+        },
         "food/legumes": {
             "id": "food/legumes",
+            "prefLabel": "Legumes",
             "broader": ["food"],
             "narrower": ["food/legumes/lentils", "food/legumes/beans"],
         },
-        "food/legumes/lentils": {"id": "food/legumes/lentils", "broader": ["food/legumes"], "narrower": []},
-        "food/legumes/beans": {"id": "food/legumes/beans", "broader": ["food/legumes"], "narrower": []},
+        "food/legumes/lentils": {
+            "id": "food/legumes/lentils",
+            "prefLabel": "Lentils",
+            "broader": ["food/legumes"],
+            "narrower": [],
+        },
+        "food/legumes/beans": {
+            "id": "food/legumes/beans",
+            "prefLabel": "Beans",
+            "broader": ["food/legumes"],
+            "narrower": [],
+        },
     }
 }
 
 
-class TestParseInventoryForShoppingWithCategories:
-    """Test that category: items are parsed as well as tag: items."""
+def _make_inventory_json(items_meta: list[dict]) -> dict:
+    """Build a minimal inventory.json structure for testing."""
+    items = [
+        {
+            "id": m.get("id", f"item-{i}"),
+            "parent": None,
+            "name": m.get("name", "Test item"),
+            "raw_text": "",
+            "metadata": {k: v for k, v in m.items() if k not in ("id", "name")},
+            "indented": False,
+        }
+        for i, m in enumerate(items_meta)
+    ]
+    return {"containers": [{"id": "test", "items": items, "images": [], "metadata": {}}]}
+
+
+class TestParseInventoryForShopping:
+    """Test parse_inventory_for_shopping with JSON input."""
 
     def test_tag_items_are_found(self):
-        """Original tag: items still work."""
-        content = "* tag:food/grains/pasta ID:spaghetti qty:2 mass:500g Spaghetti\n"
-        items = parse_inventory_for_shopping(content)
+        data = _make_inventory_json([{"tags": ["food/grains/pasta"], "qty": 2.0, "mass_g": 500.0}])
+        items = parse_inventory_for_shopping(data)
         assert len(items) == 1
-        assert items[0].qty == 2
+        assert items[0].qty == 2.0
 
     def test_category_items_are_found(self):
-        """Items with category: are now included."""
-        content = "* category:pasta ID:spaghetti qty:2 mass:500g Spaghetti\n"
-        items = parse_inventory_for_shopping(content)
+        data = _make_inventory_json([{"categories": ["pasta"], "qty": 2.0}])
+        items = parse_inventory_for_shopping(data)
         assert len(items) == 1
-        assert items[0].qty == 2
 
-    def test_category_items_without_vocabulary_use_raw_category(self):
-        """Without vocabulary, category:pasta becomes tag 'pasta'."""
-        content = "* category:pasta ID:spaghetti qty:1 mass:500g Spaghetti\n"
-        items = parse_inventory_for_shopping(content)
-        assert len(items) == 1
+    def test_category_without_vocabulary_uses_raw(self):
+        data = _make_inventory_json([{"categories": ["pasta"]}])
+        items = parse_inventory_for_shopping(data)
         assert items[0].tag == "pasta"
 
-    def test_category_items_with_vocabulary_get_mapped_tag(self, tmp_path):
-        """With vocabulary.json present, category:pasta maps to food/grains/pasta."""
+    def test_category_with_vocabulary_resolves_to_canonical(self, tmp_path):
         vocab_path = tmp_path / "vocabulary.json"
         vocab_path.write_text(json.dumps(MINIMAL_VOCABULARY))
-        inventory_path = tmp_path / "inventory.md"
-        inventory_path.write_text("* category:pasta ID:spaghetti qty:1 mass:500g Spaghetti\n")
+        from inventory_md import vocabulary
 
-        items = parse_inventory_for_shopping(inventory_path.read_text(), vocab_path=vocab_path)
-        assert len(items) == 1
+        concepts = vocabulary.load_local_vocabulary(vocab_path)
+
+        data = _make_inventory_json([{"categories": ["pasta"]}])
+        items = parse_inventory_for_shopping(data, concepts=concepts)
         assert items[0].tag == "food/grains/pasta"
 
-    def test_multiple_categories_per_item(self, tmp_path):
-        """Items with multiple category: tokens produce comma-joined tag."""
-        vocab_path = tmp_path / "vocabulary.json"
-        vocab_path.write_text(json.dumps(MINIMAL_VOCABULARY))
-        content = "* category:lentils ID:lentils-red qty:1 mass:1kg Red lentils\n"
-
-        items = parse_inventory_for_shopping(content, vocab_path=vocab_path)
-        assert len(items) == 1
-        assert "food/legumes/lentils" in items[0].tag
-
-    def test_expired_marker_detected_in_category_items(self):
-        """EXPIRED marker is still detected for category: items."""
-        content = "* category:bouillon ID:bouillon-old qty:1 Chicken bouillon EXPIRED\n"
-        items = parse_inventory_for_shopping(content)
-        assert len(items) == 1
-        assert items[0].expired is True
-
-    def test_lines_without_tag_or_category_are_skipped(self):
-        """Lines with neither tag: nor category: are ignored."""
-        content = "* ID:weird-item qty:1 Something with no category\n"
-        items = parse_inventory_for_shopping(content)
+    def test_items_without_tags_or_categories_skipped(self):
+        data = _make_inventory_json([{"qty": 1.0}])
+        items = parse_inventory_for_shopping(data)
         assert len(items) == 0
 
+    def test_qty_as_float(self):
+        data = _make_inventory_json([{"categories": ["pasta"], "qty": 0.5}])
+        items = parse_inventory_for_shopping(data)
+        assert items[0].qty == 0.5
 
-class TestTagMatchesWithVocabularyMappedTags:
-    """Test that tag_matches correctly handles vocabulary-mapped tags."""
+    def test_qty_as_string_backward_compat(self):
+        """Old inventory.json stores qty as string."""
+        data = _make_inventory_json([{"categories": ["pasta"], "qty": "3"}])
+        items = parse_inventory_for_shopping(data)
+        assert items[0].qty == 3.0
+
+    def test_mass_g_new_format(self):
+        data = _make_inventory_json([{"categories": ["pasta"], "mass_g": 500.0}])
+        items = parse_inventory_for_shopping(data)
+        assert items[0].mass_g == 500.0
+
+    def test_mass_string_backward_compat(self):
+        """Old inventory.json stores mass as string like '500g'."""
+        data = _make_inventory_json([{"categories": ["pasta"], "mass": "500g"}])
+        items = parse_inventory_for_shopping(data)
+        assert items[0].mass_g == 500.0
+
+    def test_volume_l_new_format(self):
+        data = _make_inventory_json([{"categories": ["juice"], "volume_l": 1.5}])
+        items = parse_inventory_for_shopping(data)
+        assert items[0].volume_l == 1.5
+
+    def test_volume_string_backward_compat(self):
+        """Old inventory.json stores volume as string like '1.5l'."""
+        data = _make_inventory_json([{"categories": ["juice"], "volume": "1.5l"}])
+        items = parse_inventory_for_shopping(data)
+        assert items[0].volume_l == 1.5
+
+    def test_bb_stored(self):
+        data = _make_inventory_json([{"categories": ["pasta"], "bb": "2026-12-31"}])
+        items = parse_inventory_for_shopping(data)
+        assert items[0].bb == "2026-12-31"
+
+    def test_no_expired_field(self):
+        """InventoryItem has no expired field — expired items count toward stock."""
+        data = _make_inventory_json([{"categories": ["pasta"], "bb": "2020-01-01"}])
+        items = parse_inventory_for_shopping(data)
+        assert not hasattr(items[0], "expired")
+
+
+class TestTagMatches:
+    """Test hierarchical tag matching."""
 
     def test_exact_match(self):
         assert tag_matches("food/grains/pasta", "food/grains/pasta") is True
 
-    def test_wanted_is_ancestor_of_inventory(self):
-        """Desired tag food/pasta should match inventory tag food/grains/pasta."""
-        # Both 'food' and 'pasta' are in the parts of 'food/grains/pasta'
-        assert tag_matches("food/pasta", "food/grains/pasta") is True
+    def test_ancestor_matches_descendant(self):
+        assert tag_matches("food/grains", "food/grains/pasta") is True
 
-    def test_wanted_food_matches_any_food_item(self):
+    def test_root_matches_any_descendant(self):
         assert tag_matches("food", "food/grains/pasta") is True
 
     def test_unrelated_tags_dont_match(self):
         assert tag_matches("food/legumes/lentils", "food/grains/pasta") is False
 
+    def test_non_ancestor_path_does_not_match(self):
+        """food/pasta is not an ancestor of food/grains/pasta."""
+        assert tag_matches("food/pasta", "food/grains/pasta") is False
 
-class TestGenerateShoppingListWithCategories:
-    """Integration test: shopping list generated correctly with category: inventory."""
+    def test_comma_separated_desired_any_matches(self):
+        assert tag_matches("food/grains/flour,food/grains/pasta", "food/grains/pasta") is True
 
-    def test_category_items_appear_in_shopping_list_as_ok(self, tmp_path):
-        """An in-stock category: item should show as OK (not missing)."""
+    def test_comma_separated_inventory_any_matches(self):
+        assert tag_matches("food/grains", "food/grains/pasta,food/legumes/lentils") is True
+
+
+class TestEvaluateItem:
+    """Test evaluate_item stock status logic."""
+
+    def test_missing_when_no_matches(self):
+        desired = DesiredItem(tag="food/grains/pasta", description="Pasta", target_qty=2.0)
+        status, detail = evaluate_item(desired, [])
+        assert status == "missing"
+        assert "not in inventory" in detail
+
+    def test_ok_when_sufficient_qty(self):
+        desired = DesiredItem(tag="food/grains/pasta", description="Pasta", target_qty=2.0)
+        inv = [InventoryItem(tag="food/grains/pasta", item_id="p1", description="Spaghetti", qty=3.0)]
+        status, _ = evaluate_item(desired, inv)
+        assert status == "ok"
+
+    def test_low_when_insufficient_qty(self):
+        desired = DesiredItem(tag="food/grains/pasta", description="Pasta", target_qty=5.0)
+        inv = [InventoryItem(tag="food/grains/pasta", item_id="p1", description="Spaghetti", qty=2.0)]
+        status, detail = evaluate_item(desired, inv)
+        assert status == "low"
+        assert "have" in detail
+        assert "need" in detail
+
+    def test_ok_when_sufficient_mass(self):
+        desired = DesiredItem(tag="food/grains/pasta", description="Pasta", target_mass_g=500.0)
+        inv = [InventoryItem(tag="food/grains/pasta", item_id="p1", description="Spaghetti", qty=2.0, mass_g=300.0)]
+        status, _ = evaluate_item(desired, inv)
+        assert status == "ok"  # 2 * 300 = 600g >= 500g
+
+    def test_ok_when_sufficient_volume(self):
+        desired = DesiredItem(tag="juice", description="Juice", target_volume_l=1.0)
+        inv = [InventoryItem(tag="juice", item_id="j1", description="OJ", qty=2.0, volume_l=0.75)]
+        status, _ = evaluate_item(desired, inv)
+        assert status == "ok"  # 2 * 0.75 = 1.5l >= 1.0l
+
+    def test_expired_items_count_toward_stock(self):
+        """Items with past bb date still count — dispose separately."""
+        desired = DesiredItem(tag="food/grains/pasta", description="Pasta", target_qty=1.0)
+        inv = [InventoryItem(tag="food/grains/pasta", item_id="p1", description="Old pasta", qty=1.0, bb="2020-01-01")]
+        status, _ = evaluate_item(desired, inv)
+        assert status == "ok"
+
+    def test_float_qty(self):
+        desired = DesiredItem(tag="pasta", description="Pasta", target_qty=1.0)
+        inv = [InventoryItem(tag="pasta", item_id="p1", description="Pasta", qty=0.5)]
+        status, _ = evaluate_item(desired, inv)
+        assert status == "low"
+
+
+class TestGenerateShoppingList:
+    """Integration tests: shopping list from wanted-items.md + inventory.json."""
+
+    def test_in_stock_item_not_shown(self, tmp_path):
         vocab_path = tmp_path / "vocabulary.json"
         vocab_path.write_text(json.dumps(MINIMAL_VOCABULARY))
 
-        inventory_path = tmp_path / "inventory.md"
-        inventory_path.write_text("* category:pasta ID:spaghetti qty:4 mass:500g Spaghetti\n")
+        inv_data = _make_inventory_json([{"categories": ["pasta"], "qty": 4.0, "mass_g": 500.0}])
+        inv_json = tmp_path / "inventory.json"
+        inv_json.write_text(json.dumps(inv_data))
 
         wanted_path = tmp_path / "wanted-items.md"
-        wanted_path.write_text("## Dry goods\n\n* tag:food/pasta - Pasta target:qty:2 mass:1kg\n")
+        wanted_path.write_text("## Dry goods\n\n* category:pasta - Pasta target:qty:2\n")
 
-        result = generate_shopping_list(wanted_path, inventory_path, vocab_path=vocab_path)
-        # Should be fully stocked — no missing/low entries
-        assert "missing" not in result.lower() or "0 missing" in result.lower()
-        assert "not in inventory" not in result
+        result = generate_shopping_list(wanted_path, inv_json, vocab_path=vocab_path)
+        assert "0 missing" in result or "missing" not in result.lower() or "0 missing" in result
 
-    def test_missing_category_item_shows_as_not_in_inventory(self, tmp_path):
-        """An item only in wanted-items but not inventory shows as missing."""
+    def test_missing_item_shown(self, tmp_path):
         vocab_path = tmp_path / "vocabulary.json"
         vocab_path.write_text(json.dumps(MINIMAL_VOCABULARY))
 
-        inventory_path = tmp_path / "inventory.md"
-        inventory_path.write_text("* category:pasta ID:spaghetti qty:4 mass:500g Spaghetti\n")
+        inv_data = _make_inventory_json([{"categories": ["pasta"], "qty": 1.0}])
+        inv_json = tmp_path / "inventory.json"
+        inv_json.write_text(json.dumps(inv_data))
 
         wanted_path = tmp_path / "wanted-items.md"
-        wanted_path.write_text("## Dry goods\n\n* tag:food/legumes/lentils - Lentils target:qty:1\n")
+        wanted_path.write_text("## Legumes\n\n* category:lentils - Lentils target:qty:1\n")
 
-        result = generate_shopping_list(wanted_path, inventory_path, vocab_path=vocab_path)
+        result = generate_shopping_list(wanted_path, inv_json, vocab_path=vocab_path)
         assert "not in inventory" in result
+
+    def test_category_wanted_matches_category_inventory(self, tmp_path):
+        """category:pasta in wanted matches category:pasta in inventory via vocabulary."""
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(json.dumps(MINIMAL_VOCABULARY))
+
+        inv_data = _make_inventory_json([{"categories": ["pasta"], "qty": 5.0}])
+        inv_json = tmp_path / "inventory.json"
+        inv_json.write_text(json.dumps(inv_data))
+
+        wanted_path = tmp_path / "wanted-items.md"
+        wanted_path.write_text("## Dry goods\n\n* category:pasta - Pasta target:qty:2\n")
+
+        result = generate_shopping_list(wanted_path, inv_json, vocab_path=vocab_path)
+        assert "1 fully stocked" in result
+
+    def test_errors_without_inventory_json(self, tmp_path):
+        wanted_path = tmp_path / "wanted-items.md"
+        wanted_path.write_text("## Test\n\n* category:pasta - Pasta\n")
+        missing_json = tmp_path / "inventory.json"
+
+        with pytest.raises(FileNotFoundError):
+            generate_shopping_list(wanted_path, missing_json)
+
+
+class TestParseWantedItems:
+    """Test wanted-items.md parsing."""
+
+    def test_tag_syntax(self):
+        content = "## Section\n\n* tag:food/grains/pasta - Pasta target:qty:3\n"
+        sections = parse_wanted_items(content)
+        assert len(sections) == 1
+        assert sections[0].items[0].tag == "food/grains/pasta"
+        assert sections[0].items[0].target_qty == 3.0
+
+    def test_category_syntax(self):
+        content = "## Section\n\n* category:pasta - Pasta target:qty:2\n"
+        sections = parse_wanted_items(content)
+        assert sections[0].items[0].tag == "pasta"
+        assert sections[0].items[0].target_qty == 2.0
+
+    def test_volume_in_liters(self):
+        content = "## Section\n\n* category:juice - Juice volume:2l\n"
+        sections = parse_wanted_items(content)
+        assert sections[0].items[0].target_volume_l == 2.0
+
+    def test_volume_ml_converted_to_liters(self):
+        content = "## Section\n\n* category:juice - Juice volume:500ml\n"
+        sections = parse_wanted_items(content)
+        assert sections[0].items[0].target_volume_l == pytest.approx(0.5)

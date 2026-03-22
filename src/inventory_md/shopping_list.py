@@ -1,7 +1,7 @@
 """
 Shopping list generator for inventory system.
 
-Compares wanted-items.md (target stock levels) with inventory.md to generate
+Compares wanted-items.md (target stock levels) with inventory.json to generate
 a shopping list organized by section.
 
 Supports dated wanted-items files (wanted-items-YYYY-MM-DD.md) for temporary
@@ -15,9 +15,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from . import vocabulary as vocab_module
+
 
 def parse_amount(value: str | None) -> tuple[float | None, str | None]:
-    """Parse a mass/volume string into (amount, unit)."""
+    """Parse a mass/volume string into (amount, unit).
+
+    Volume is normalized to liters (``"l"``), mass to grams (``"g"``).
+    Returns ``(None, None)`` for invalid or missing input.
+    """
     if not value:
         return None, None
 
@@ -29,12 +35,15 @@ def parse_amount(value: str | None) -> tuple[float | None, str | None]:
     amount = float(match.group(1))
     unit = match.group(2) or None
 
-    # Normalize units
     if unit == "kg":
         return amount * 1000, "g"
-    elif unit == "l":
-        return amount * 1000, "ml"
-    elif unit in ("g", "ml"):
+    elif unit == "ml":
+        return amount / 1000, "l"
+    elif unit == "cl":
+        return amount / 100, "l"
+    elif unit == "dl":
+        return amount / 10, "l"
+    elif unit in ("g", "l"):
         return amount, unit
     elif unit is None:
         return amount, None
@@ -43,15 +52,19 @@ def parse_amount(value: str | None) -> tuple[float | None, str | None]:
 
 
 def format_amount(amount: float, unit: str | None) -> str:
-    """Format amount with appropriate unit (kg/l for large amounts)."""
+    """Format amount for human-readable display."""
     if unit == "g" and amount >= 1000:
         return f"{amount / 1000:.1f}kg"
-    elif unit == "ml" and amount >= 1000:
-        return f"{amount / 1000:.1f}l"
+    elif unit == "g":
+        return f"{amount:.0f}g"
+    elif unit == "l" and amount >= 1:
+        return f"{amount:.1f}l"
+    elif unit == "l":
+        return f"{amount * 1000:.0f}ml"
     elif unit:
-        return f"{amount:.0f}{unit}"
+        return f"{amount:.4g}{unit}"
     else:
-        return f"{amount:.0f}"
+        return f"{amount:.4g}"
 
 
 @dataclass
@@ -61,23 +74,22 @@ class DesiredItem:
     tag: str
     description: str
     section: str = ""
-    target_qty: int | None = None
+    target_qty: float | None = None
     target_mass_g: float | None = None
-    target_volume_ml: float | None = None
+    target_volume_l: float | None = None
 
 
 @dataclass
 class InventoryItem:
-    """An item from inventory.md."""
+    """An item from inventory.json."""
 
     tag: str
     item_id: str
     description: str
-    qty: int = 1
+    qty: float = 1.0
     mass_g: float | None = None
-    volume_ml: float | None = None
+    volume_l: float | None = None
     bb: str | None = None
-    expired: bool = False
 
 
 @dataclass
@@ -89,12 +101,16 @@ class Section:
 
 
 def parse_wanted_items(content: str) -> list[Section]:
-    """Extract desired items from wanted-items.md, organized by section."""
+    """Extract desired items from wanted-items.md, organized by section.
+
+    Accepts lines starting with ``* tag:`` (legacy) or ``* category:``
+    (preferred).  The value may be a full concept path
+    (``food/vegetables/potatoes``) or a leaf name (``potatoes``).
+    """
     sections = []
     current_section = Section(name="Uncategorized")
 
     for line in content.split("\n"):
-        # Check for section header (## heading)
         header_match = re.match(r"^##\s+(.+)$", line)
         if header_match:
             if current_section.items:
@@ -103,16 +119,14 @@ def parse_wanted_items(content: str) -> list[Section]:
             continue
 
         line = line.strip()
-        if not line.startswith("* tag:"):
+        if not (line.startswith("* tag:") or line.startswith("* category:")):
             continue
 
-        # Extract tag
-        tag_match = re.search(r"tag:(\S+)", line)
+        tag_match = re.search(r"(?:tag|category):(\S+)", line)
         if not tag_match:
             continue
         tag = tag_match.group(1)
 
-        # Extract description or use tag as fallback
         desc_match = re.search(r" - (.+?)(?:\s+target:|$)", line)
         if desc_match:
             description = desc_match.group(1).strip()
@@ -120,33 +134,31 @@ def parse_wanted_items(content: str) -> list[Section]:
             tag_parts = tag.split(",")[0].split("/")
             description = tag_parts[-1].replace("-", " ").replace("_", " ").title()
 
-        # Extract target quantities
         target_qty = None
         target_mass_g = None
-        target_volume_ml = None
+        target_volume_l = None
 
         qty_match = re.search(r"target:qty:(\S+)", line)
         if qty_match:
-            qty_str = qty_match.group(1)
-            amount, unit = parse_amount(qty_str)
+            amount, unit = parse_amount(qty_match.group(1))
             if unit == "g":
                 target_mass_g = amount
-            elif unit == "ml":
-                target_volume_ml = amount
+            elif unit == "l":
+                target_volume_l = amount
             elif amount is not None:
-                target_qty = int(amount)
+                target_qty = amount
 
         mass_match = re.search(r"mass:(\S+)", line)
         if mass_match:
             amount, unit = parse_amount(mass_match.group(1))
-            if amount is not None and target_mass_g is None:
+            if unit == "g" and amount is not None and target_mass_g is None:
                 target_mass_g = amount
 
         volume_match = re.search(r"volume:(\S+)", line)
         if volume_match:
             amount, unit = parse_amount(volume_match.group(1))
-            if amount is not None and target_volume_ml is None:
-                target_volume_ml = amount
+            if unit == "l" and amount is not None and target_volume_l is None:
+                target_volume_l = amount
 
         current_section.items.append(
             DesiredItem(
@@ -155,7 +167,7 @@ def parse_wanted_items(content: str) -> list[Section]:
                 section=current_section.name,
                 target_qty=target_qty,
                 target_mass_g=target_mass_g,
-                target_volume_ml=target_volume_ml,
+                target_volume_l=target_volume_l,
             )
         )
 
@@ -165,141 +177,108 @@ def parse_wanted_items(content: str) -> list[Section]:
     return sections
 
 
-def _build_category_to_tag(vocab_path: Path) -> dict[str, str]:
-    """Build a mapping from category leaf name to full vocabulary tag path.
-
-    Reads vocabulary.json and maps each leaf concept name to its full ID,
-    e.g. 'pasta' -> 'food/grains/pasta'. Only non-source concepts are included.
-    When multiple concepts share the same leaf name, the first found wins.
-    """
-    try:
-        with open(vocab_path, encoding="utf-8") as f:
-            vocab = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-    mapping: dict[str, str] = {}
-    for concept_id in vocab.get("concepts", {}):
-        if concept_id.startswith("category_by_source/"):
-            continue
-        if "/" in concept_id:
-            leaf = concept_id.split("/")[-1]
-            if leaf not in mapping:
-                mapping[leaf] = concept_id
-    return mapping
-
-
 def parse_inventory_for_shopping(
-    content: str,
-    vocab_path: Path | None = None,
+    inventory_data: dict,
+    concepts: dict | None = None,
+    lang: str = "en",
 ) -> list[InventoryItem]:
-    """Extract all tagged or categorised items from inventory.md.
+    """Extract tagged/categorised items from inventory.json data.
 
-    Items with ``tag:`` fields are used directly.  Items with only
-    ``category:`` fields are also included; when a ``vocab_path`` is
-    provided the category name is mapped to its full vocabulary tag path
-    (e.g. ``pasta`` -> ``food/grains/pasta``), otherwise the raw category
-    name is used as the tag.
+    ``inventory_data`` is the loaded inventory.json dict.
+    ``concepts`` is an optional vocabulary concepts dict; when provided,
+    category leaf names are resolved to canonical concept IDs.
+    ``lang`` is used for path-alias resolution.
+
+    Handles both new-format inventory.json (``mass_g``/``volume_l`` as floats,
+    ``qty`` as float) and old-format (``mass``/``volume`` as strings,
+    ``qty`` as string).
     """
-    category_to_tag = _build_category_to_tag(vocab_path) if vocab_path else {}
     items = []
+    for container in inventory_data.get("containers", []):
+        for item_data in container.get("items", []):
+            meta = item_data.get("metadata", {})
 
-    for line in content.split("\n"):
-        has_tag = "tag:" in line
-        has_category = "category:" in line
-        if not (has_tag or has_category):
-            continue
-        if not line.strip().startswith("*"):
-            continue
+            tags = meta.get("tags", [])
+            categories = meta.get("categories", [])
 
-        if has_tag:
-            tag_match = re.search(r"tag:(\S+)", line)
-            if not tag_match:
-                continue
-            tag = tag_match.group(1).lower()
-        else:
-            # Map all category: values on this line and join with comma
-            raw_cats = re.findall(r"category:(\S+)", line)
-            mapped = [category_to_tag.get(c.lower(), c.lower()) for c in raw_cats]
-            tag = ",".join(mapped) if mapped else ""
-            if not tag:
+            if not tags and not categories:
                 continue
 
-        id_match = re.search(r"ID:(\S+)", line)
-        item_id = id_match.group(1) if id_match else ""
+            if tags:
+                tag = ",".join(str(t).lower() for t in tags)
+            else:
+                resolved = []
+                for cat in categories:
+                    if concepts:
+                        canonical = vocab_module.resolve_category(cat, concepts, lang)
+                        resolved.append(canonical if canonical is not None else cat.lower())
+                    else:
+                        resolved.append(cat.lower())
+                tag = ",".join(resolved)
+                if not tag:
+                    continue
 
-        qty = 1
-        qty_match = re.search(r"qty:(\d+)", line)
-        if qty_match:
-            qty = int(qty_match.group(1))
+            qty_raw = meta.get("qty")
+            try:
+                qty = float(qty_raw) if qty_raw is not None else 1.0
+            except (TypeError, ValueError):
+                qty = 1.0
 
-        mass_g = None
-        mass_match = re.search(r"mass:(\S+)", line)
-        if mass_match:
-            amount, unit = parse_amount(mass_match.group(1))
-            if amount is not None:
-                mass_g = amount
+            # mass: new format has mass_g (float), old format has mass (string)
+            mass_g = None
+            if "mass_g" in meta:
+                try:
+                    mass_g = float(meta["mass_g"])
+                except (TypeError, ValueError):
+                    pass
+            elif "mass" in meta:
+                amount, unit = parse_amount(str(meta["mass"]))
+                if unit == "g" and amount is not None:
+                    mass_g = amount
 
-        volume_ml = None
-        volume_match = re.search(r"volume:(\S+)", line)
-        if volume_match:
-            amount, unit = parse_amount(volume_match.group(1))
-            if amount is not None:
-                volume_ml = amount
+            # volume: new format has volume_l (float), old format has volume (string)
+            volume_l = None
+            if "volume_l" in meta:
+                try:
+                    volume_l = float(meta["volume_l"])
+                except (TypeError, ValueError):
+                    pass
+            elif "volume" in meta:
+                amount, unit = parse_amount(str(meta["volume"]))
+                if unit == "l" and amount is not None:
+                    volume_l = amount
 
-        bb_match = re.search(r"bb:(\S+)", line)
-        bb = bb_match.group(1) if bb_match else None
+            bb = meta.get("bb")
 
-        expired = "expired" in line.lower()
-
-        desc = re.sub(r"\*\s*", "", line)
-        desc = re.sub(r"tag:\S+\s*", "", desc)
-        desc = re.sub(r"ID:\S+\s*", "", desc)
-        desc = re.sub(r"qty:\d+\s*", "", desc)
-        desc = re.sub(r"mass:\S+\s*", "", desc)
-        desc = re.sub(r"volume:\S+\s*", "", desc)
-        desc = re.sub(r"bb:\S+\s*", "", desc)
-        desc = re.sub(r"EAN:\S+\s*", "", desc)
-        desc = re.sub(r"price:\S+\s*", "", desc)
-        desc = desc.strip()
-
-        items.append(
-            InventoryItem(
-                tag=tag,
-                item_id=item_id,
-                description=desc,
-                qty=qty,
-                mass_g=mass_g,
-                volume_ml=volume_ml,
-                bb=bb,
-                expired=expired,
+            items.append(
+                InventoryItem(
+                    tag=tag,
+                    item_id=item_data.get("id") or "",
+                    description=item_data.get("name") or "",
+                    qty=qty,
+                    mass_g=mass_g,
+                    volume_l=volume_l,
+                    bb=bb,
+                )
             )
-        )
 
     return items
 
 
 def tag_matches(desired_tag: str, inventory_tag: str) -> bool:
-    """Check if inventory tag matches desired tag (hierarchical matching)."""
-    desired = desired_tag.lower()
-    inventory = inventory_tag.lower()
+    """Check if an inventory tag/category is matched by a desired tag.
 
-    if desired == inventory:
-        return True
-
-    if inventory.startswith(desired + "/"):
-        return True
-
-    desired_tags = [t.strip() for t in desired.split(",")]
-    inventory_tags = [t.strip() for t in inventory.split(",")]
+    Supports:
+    - Exact match: ``food/grains/pasta`` matches ``food/grains/pasta``
+    - Ancestor match: ``food/grains`` matches ``food/grains/pasta``
+    - Comma-separated tags on either side (any desired matches any inventory)
+    """
+    desired_tags = [t.strip().lower() for t in desired_tag.split(",")]
+    inventory_tags = [t.strip().lower() for t in inventory_tag.split(",")]
 
     for dt in desired_tags:
         for it in inventory_tags:
             if dt == it or it.startswith(dt + "/"):
-                return True
-            it_parts = it.replace(",", "/").split("/")
-            dt_parts = dt.split("/")
-            if all(p in it_parts for p in dt_parts):
                 return True
 
     return False
@@ -311,103 +290,114 @@ def find_matches(desired: DesiredItem, inventory: list[InventoryItem]) -> list[I
 
 
 def evaluate_item(desired: DesiredItem, inventory: list[InventoryItem]) -> tuple[str, str]:
-    """Evaluate an item's stock status. Returns (status, detail_text)."""
-    matches = find_matches(desired, inventory)
-    non_expired = [m for m in matches if not m.expired]
+    """Evaluate stock status for a desired item.
 
-    total_qty = sum(m.qty for m in non_expired)
-    total_mass_g = sum((m.mass_g or 0) * m.qty for m in non_expired)
-    total_volume_ml = sum((m.volume_ml or 0) * m.qty for m in non_expired)
+    Returns ``(status, detail_text)`` where status is ``"ok"``, ``"low"``,
+    or ``"missing"``.  Items past their best-before date still count toward
+    stock — inspecting and discarding expired items is a separate activity.
+    """
+    matches = find_matches(desired, inventory)
+
+    total_qty = sum(m.qty for m in matches)
+    total_mass_g = sum((m.mass_g or 0) * m.qty for m in matches)
+    total_volume_l = sum((m.volume_l or 0) * m.qty for m in matches)
 
     if desired.target_mass_g is not None:
         have, need, unit = total_mass_g, desired.target_mass_g, "g"
         is_satisfied = have >= need
-    elif desired.target_volume_ml is not None:
-        have, need, unit = total_volume_ml, desired.target_volume_ml, "ml"
+    elif desired.target_volume_l is not None:
+        have, need, unit = total_volume_l, desired.target_volume_l, "l"
         is_satisfied = have >= need
     else:
-        have, need, unit = total_qty, desired.target_qty or 1, None
+        have, need, unit = total_qty, desired.target_qty or 1.0, None
         is_satisfied = have >= need
 
     if not matches:
-        detail = f"need {format_amount(need, unit)}" if unit else (f"need {need}" if need > 1 else "")
+        if unit:
+            detail = f"need {format_amount(need, unit)}"
+        elif need > 1:
+            detail = f"need {need:.4g}"
+        else:
+            detail = ""
         return "missing", f"{detail} - not in inventory" if detail else "not in inventory"
-
-    if not non_expired:
-        return "missing", "all expired"
 
     if total_qty == 0:
         return "missing", "out of stock"
 
     if not is_satisfied:
-        have_str = format_amount(have, unit) if unit else str(int(have))
-        need_str = format_amount(need, unit) if unit else str(int(need))
+        have_str = format_amount(have, unit) if unit else f"{have:.4g}"
+        need_str = format_amount(need, unit) if unit else f"{need:.4g}"
         if unit and have == 0 and total_qty > 0:
-            have_str = f"{have_str} ({total_qty} items without {unit})"
+            have_str = f"{have_str} ({total_qty:.4g} items without {unit} data)"
         return "low", f"have {have_str}, need {need_str}"
 
     return "ok", ""
 
 
 def find_dated_wanted_files(base_path: Path) -> list[Path]:
-    """Find dated wanted-items files in same directory (wanted-items-YYYY-MM-DD.md)."""
+    """Find dated wanted-items files (``wanted-items-YYYY-MM-DD.md``), sorted oldest first."""
     directory = base_path.parent
-    pattern = directory / "wanted-items-*.md"
-
     dated_files = []
-    for filepath in glob.glob(str(pattern)):
+    for filepath in glob.glob(str(directory / "wanted-items-*.md")):
         path = Path(filepath)
         if re.match(r"wanted-items-\d{4}-\d{2}-\d{2}\.md$", path.name):
             dated_files.append(path)
-
     return sorted(dated_files)
 
 
 def merge_sections(all_sections: list[list[Section]]) -> list[Section]:
-    """Merge sections from multiple wanted-items files."""
+    """Merge sections from multiple wanted-items files; same-named sections are combined."""
     merged: dict[str, Section] = {}
-
     for sections in all_sections:
         for section in sections:
             if section.name in merged:
                 merged[section.name].items.extend(section.items)
             else:
                 merged[section.name] = Section(name=section.name, items=list(section.items))
-
     return list(merged.values())
 
 
 def generate_shopping_list(
     wanted_path: Path,
-    inventory_path: Path,
+    inventory_json_path: Path,
     include_dated: bool = False,
     vocab_path: Path | None = None,
+    lang: str = "en",
 ) -> str:
-    """Generate shopping list markdown from wanted-items.md and inventory.md.
+    """Generate shopping list markdown from wanted-items.md and inventory.json.
 
-    If include_dated=True, also includes any wanted-items-YYYY-MM-DD.md files.
-    vocab_path defaults to vocabulary.json in the same directory as inventory_path.
+    ``vocab_path`` defaults to ``vocabulary.json`` in the same directory as
+    ``inventory_json_path``.  ``lang`` is used for path-alias resolution.
     """
     if vocab_path is None:
-        candidate = inventory_path.parent / "vocabulary.json"
+        candidate = inventory_json_path.parent / "vocabulary.json"
         if candidate.exists():
             vocab_path = candidate
 
-    all_sections = [parse_wanted_items(wanted_path.read_text(encoding="utf-8"))]
+    concepts = None
+    if vocab_path is not None and vocab_path.exists():
+        concepts = vocab_module.load_local_vocabulary(vocab_path)
 
+    inventory_data = json.loads(inventory_json_path.read_text(encoding="utf-8"))
+    inv_items = parse_inventory_for_shopping(inventory_data, concepts=concepts, lang=lang)
+
+    all_sections = [parse_wanted_items(wanted_path.read_text(encoding="utf-8"))]
     if include_dated:
         for dated_path in find_dated_wanted_files(wanted_path):
             if dated_path.exists():
                 all_sections.append(parse_wanted_items(dated_path.read_text(encoding="utf-8")))
 
-    sections = merge_sections(all_sections) if include_dated else all_sections[0]
-    inventory = parse_inventory_for_shopping(inventory_path.read_text(encoding="utf-8"), vocab_path=vocab_path)
+    sections: list[Section] = merge_sections(all_sections) if include_dated else all_sections[0]
 
-    lines = []
-    lines.append("# Shopping List")
-    lines.append("")
-    lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    lines.append("")
+    # Resolve wanted-item categories/tags to canonical concept IDs
+    if concepts:
+        for section in sections:
+            for desired in section.items:
+                canonical = vocab_module.resolve_category(desired.tag, concepts, lang)
+                if canonical is not None:
+                    desired.tag = canonical
+
+    lines = ["# Shopping List", "", f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", ""]
 
     total_missing = 0
     total_low = 0
@@ -417,17 +407,15 @@ def generate_shopping_list(
         section_items = []
 
         for desired in section.items:
-            status, detail = evaluate_item(desired, inventory)
+            status, detail = evaluate_item(desired, inv_items)
 
             if status == "missing":
                 total_missing += 1
-                prefix = "[!]"
-                text = f"{prefix} {desired.description} ({detail})" if detail else f"{prefix} {desired.description}"
+                text = f"[!] {desired.description} ({detail})" if detail else f"[!] {desired.description}"
                 section_items.append((0, text))
             elif status == "low":
                 total_low += 1
-                text = f"[ ] {desired.description}: {detail}"
-                section_items.append((1, text))
+                section_items.append((1, f"[ ] {desired.description}: {detail}"))
             else:
                 total_ok += 1
 
@@ -439,28 +427,27 @@ def generate_shopping_list(
                 lines.append(text)
             lines.append("")
 
-    lines.append("---")
-    lines.append("")
-    lines.append(f"**Summary:** {total_missing} missing, {total_low} low stock, {total_ok} fully stocked")
+    lines += ["---", "", f"**Summary:** {total_missing} missing, {total_low} low stock, {total_ok} fully stocked"]
 
     return "\n".join(lines)
 
 
-def generate_shopping_list_if_needed(inventory_dir: Path, include_dated: bool = True) -> bool:
-    """Generate shopping list if wanted-items.md exists. Returns True if generated.
+def generate_shopping_list_if_needed(
+    inventory_dir: Path,
+    include_dated: bool = True,
+    lang: str = "en",
+) -> bool:
+    """Generate shopping list if ``wanted-items.md`` and ``inventory.json`` both exist.
 
-    By default, includes dated wanted-items files (wanted-items-YYYY-MM-DD.md).
+    Returns ``True`` if the shopping list was written.
     """
     wanted_path = inventory_dir / "wanted-items.md"
-    inventory_path = inventory_dir / "inventory.md"
+    inventory_json_path = inventory_dir / "inventory.json"
     output_path = inventory_dir / "shopping-list.md"
 
-    if not wanted_path.exists():
+    if not wanted_path.exists() or not inventory_json_path.exists():
         return False
 
-    if not inventory_path.exists():
-        return False
-
-    output = generate_shopping_list(wanted_path, inventory_path, include_dated=include_dated)
+    output = generate_shopping_list(wanted_path, inventory_json_path, include_dated=include_dated, lang=lang)
     output_path.write_text(output, encoding="utf-8")
     return True

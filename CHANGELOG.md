@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`shopping-list` CLI subcommand** — regenerates `shopping-list.md` without running a full parse. Reads from `inventory.json` (must exist) and `wanted-items.md`. Supports `--stdout` to print to stdout instead of writing the file, and `--no-dated` to skip dated wanted-items files. Auto-detects all paths from config/CWD.
+- **`vocabulary.resolve_category()`** — new public function that resolves a raw category string (leaf name, path alias, or full concept path) to a canonical concept ID. Used by the shopping list to normalise both inventory categories and wanted-item categories before matching.
+- **`category:` syntax in wanted-items.md** — wanted-items now accept `* category:potatoes` in addition to the legacy `* tag:food/grains/pasta` syntax.
+
+### Changed
+- **Shopping list reads `inventory.json`** instead of `inventory.md`. Category matching uses the vocabulary to resolve leaf names to canonical concept IDs; ancestor/prefix matching replaces the old "parts extraction" heuristic.
+- **Typed fields in `inventory.json`**: `qty` is now stored as a float (supports half-packages), `mass` is stored as `mass_g` (float, grams), `volume` is stored as `volume_l` (float, liters), `bb` is always a full ISO date string (`YYYY-MM-DD`; partial dates like `2026-03` are extended to the last day of the month/year). A new `bb_inferred: true` flag marks best-before dates estimated by the owner rather than read from the package label (`EST` token in markdown).
+- **Expired items count toward stock** — the shopping list no longer silently excludes items past their best-before date. Disposing of expired items is a separate activity from shopping.
+- **Volume unit standardised to liters** — `volume_l` replaces `volume_ml` throughout. `parse_amount()` normalises ml/cl/dl to liters.
+- **`tag_matches()` simplified** — uses strict ancestor/prefix matching on canonical concept ID paths. The old "all path parts present" heuristic is removed.
+
+### Removed
+- `scripts/generate_shopping_list.py` — deleted; it was a duplicate of `shopping_list.py` without vocabulary support.
+
 ## [v0.13.0] - 2026-03-10
 
 Lots of changes - still trying to get the category system to work reasonably well.

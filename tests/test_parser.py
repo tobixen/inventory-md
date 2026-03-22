@@ -1,5 +1,7 @@
 """Tests for parser module."""
 
+import pytest
+
 from inventory_md import parser
 
 
@@ -274,3 +276,73 @@ class TestExtractMetadata:
         assert result["metadata"].get("categories") is None
         assert result["metadata"].get("tags") == ["tools"]
         assert result["name"] == "Hammer"
+
+
+class TestExtractMetadataTypedFields:
+    """Tests for typed field parsing in extract_metadata."""
+
+    def test_qty_parsed_as_float(self):
+        result = parser.extract_metadata("qty:3 Spaghetti")
+        assert result["metadata"]["qty"] == 3.0
+        assert isinstance(result["metadata"]["qty"], float)
+
+    def test_qty_fractional(self):
+        result = parser.extract_metadata("qty:0.5 Pasta (opened)")
+        assert result["metadata"]["qty"] == 0.5
+
+    def test_mass_kg_normalized_to_grams(self):
+        result = parser.extract_metadata("mass:1.5kg Pasta")
+        assert result["metadata"]["mass_g"] == 1500.0
+        assert "mass" not in result["metadata"]
+
+    def test_mass_g_stored_as_float(self):
+        result = parser.extract_metadata("mass:500g Pasta")
+        assert result["metadata"]["mass_g"] == 500.0
+
+    def test_volume_ml_normalized_to_liters(self):
+        result = parser.extract_metadata("volume:500ml Juice")
+        assert result["metadata"]["volume_l"] == pytest.approx(0.5)
+        assert "volume" not in result["metadata"]
+
+    def test_volume_l_stored_as_float(self):
+        result = parser.extract_metadata("volume:1.5l Juice")
+        assert result["metadata"]["volume_l"] == 1.5
+
+    def test_volume_cl_normalized_to_liters(self):
+        result = parser.extract_metadata("volume:33cl Beer")
+        assert result["metadata"]["volume_l"] == pytest.approx(0.33)
+
+    def test_bb_full_date_unchanged(self):
+        result = parser.extract_metadata("bb:2026-03-15 Pasta")
+        assert result["metadata"]["bb"] == "2026-03-15"
+
+    def test_bb_year_month_extended_to_last_day(self):
+        result = parser.extract_metadata("bb:2026-03 Pasta")
+        assert result["metadata"]["bb"] == "2026-03-31"
+
+    def test_bb_year_only_extended_to_dec_31(self):
+        result = parser.extract_metadata("bb:2026 Pasta")
+        assert result["metadata"]["bb"] == "2026-12-31"
+
+    def test_bb_feb_last_day_non_leap(self):
+        result = parser.extract_metadata("bb:2025-02 Pasta")
+        assert result["metadata"]["bb"] == "2025-02-28"
+
+    def test_bb_feb_last_day_leap_year(self):
+        result = parser.extract_metadata("bb:2024-02 Pasta")
+        assert result["metadata"]["bb"] == "2024-02-29"
+
+    def test_bb_est_flag_sets_bb_inferred(self):
+        result = parser.extract_metadata("bb:2026-03 EST Pasta")
+        assert result["metadata"]["bb"] == "2026-03-31"
+        assert result["metadata"]["bb_inferred"] is True
+        assert "EST" not in result["name"]
+
+    def test_bb_without_est_has_no_bb_inferred(self):
+        result = parser.extract_metadata("bb:2026-03 Pasta")
+        assert "bb_inferred" not in result["metadata"]
+
+    def test_name_cleaned_of_typed_fields(self):
+        result = parser.extract_metadata("category:pasta qty:2 mass:500g bb:2026-03 EST Spaghetti")
+        assert result["name"] == "Spaghetti"
+        assert "EST" not in result["name"]
