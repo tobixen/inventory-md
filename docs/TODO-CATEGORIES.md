@@ -24,11 +24,18 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 
 **This is not an actionable TODO-task yet - it needs more thinking**
 
-The shopping list generator currently has some logic for resolving categories.  I think it belongs to a "higher level".
+### Problems we'd lke to solve
 
-One of the problems I'm having in the inventory project is to match up items on the "wanted" list with the items in the inventory to create shopping lists.  I've already established that the matching should be done on a category level (going beyond categories, i.e. on brands or specific EANs may or may not be a future feature, having a broad category like "fruit" on the wanted list should be supported today - then as long as there is enough apples OR bananas OR any other fruit in the house it will not appear on the shopping list).
+* The find-expired script is not able to understand that soybeans are food
+* The shopping list generator currently has some logic for resolving and matching categories.  I think it belongs to a "higher level".  I don't want a lot of local algorithms in the shopping list generator - matching categories is a general problem.  We're doing it in the javascript too.
+* There still seems to be some confusion that food/legumes/soy-beans is a different category than soy-beans - it shouldn't be
+* At the other hand, in the Norwegian inventory, jul/belysning is NOT the same as belysning.  (jul/julebelysning could be an option, but it looks a bit redundant.  Or perhaps just julebelysning)
 
-I don't want a lot of local algorithms in the shopping list generator - matching categories is a general problem.  We're doing it in the javascript too.
+### Having IDs on the categories
+
+GPT has numeric IDs on their product categories, Agrovoc and Wikidata has some kind of uid-scheme.  Do we need something similar for the categories that are in the vocabulary?  For the categories that are not in the vocabulary, it's not possible to have a persistent permanent ID, but we could possibly have temporary IDs on such categories.  Such categories are supposed to stay in cache as long as there are inventories using the category.
+
+### Having "canonical names" on the categories
 
 A category may have many names, even when disregarding languages, even when disregarding aliases and synonyms ...
 
@@ -40,7 +47,9 @@ A category may have many names, even when disregarding languages, even when disr
 
 * hardware/plumbing/seal - oring
 
-We may consider to throw arbitrary IDs on the categories - like the GPT have numerical IDs, the Agrovoc and Wikidata also have unique identifiers on the concepts.  In any case, I think in the inventory and shopping list I don't want to use arbitrary-looking IDs, I do want to use a textual easy label.
+Under ~/furusetalle9-inventory/inventory.md I have a Norwegian inventory.  It has categories like "klær/vinter", "jul/belysning", etc - it could be redone into "klær/vinterklær" (I already changed that one), "jul/julebelysning", etc, but I like it as it was.
+
+I don't want to use full path in the inventory list, and I also don't want to use some random-looking IDs - and the category should be localized - but it could be an idea to enforce some kind of "canonical names".  I think it could make sense to let the rule be "take the as many legs of the category tree as needed, starting from the end".  So soy-beans, potatoes, but meat/seal, toy/stuffed/seal, plumbing/seal, etc.
 
 ## Split/combine source concepts?
 
@@ -56,6 +65,8 @@ Some sources lump together things (spices + herbs, underwear and socks), while o
 
 **Note**: the fix only takes effect after re-running `inventory-md parse --auto` against a tingbok server that returns 200 for `/api/vocabulary` (the server must have completed its background label-fetch before the parse runs).
 
+**Still todo**: needs to be verified fixed.
+
 ## Nuts
 
 Two separate "nut" problems:
@@ -68,9 +79,8 @@ Two separate "nut" problems:
 
    **Fixed**: added `hardware/nut` concept under `fasteners`, and added `"nut"/"nuts"` to fasteners' altLabel so the bare `category:nut` label enriches to the right place.
 
-## Furuset
+**Still todo**: needs to be verified fixed.
 
-Under ~/furusetalle9-inventory/inventory.md I have a Norwegian inventory.  It has categories like "klær/vinter", "jul/belysning", etc - it could be redone into "klær/vinterklær" (I already changed that one), "jul/julebelysning", etc, but I like it as it was.  Perhaps it should be possible to enter aliases for categories in the vocabulary.yaml file?
 
 ## ~~inventory-md: caching~~ **Fixed**
 
