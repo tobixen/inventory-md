@@ -1,5 +1,5 @@
 # Inventory System Configuration for solveig instance
-# Copy to /etc/inventory-system/solveig.conf and edit
+# Copy to /etc/inventory-md/solveig.conf and edit
 
 # Path to inventory directory (containing inventory.json)
 INVENTORY_PATH=/home/tobias/solveig/inventory-web

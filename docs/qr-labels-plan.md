@@ -245,11 +245,11 @@ Example dimensions (48.5×25.4mm format):
 
 ## File Paths
 
-- `/home/tobias/inventory-system/src/inventory_md/labels.py` (new)
-- `/home/tobias/inventory-system/src/inventory_md/cli.py` (modify)
-- `/home/tobias/inventory-system/src/inventory_md/config.py` (modify)
-- `/home/tobias/inventory-system/pyproject.toml` (modify)
-- `/home/tobias/inventory-system/tests/test_labels.py` (new)
+- `/home/tobias/inventory-md/src/inventory_md/labels.py` (new)
+- `/home/tobias/inventory-md/src/inventory_md/cli.py` (modify)
+- `/home/tobias/inventory-md/src/inventory_md/config.py` (modify)
+- `/home/tobias/inventory-md/pyproject.toml` (modify)
+- `/home/tobias/inventory-md/tests/test_labels.py` (new)
 
 ## QR URL Format (Static File Compatible)
 

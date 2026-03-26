@@ -22,8 +22,6 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 
 ## Shopping list category match problem, name conflicts and IDs
 
-**This is not an actionable TODO-task yet - it needs more thinking**
-
 ### Problems we'd lke to solve
 
 * The find-expired script is not able to understand that soybeans are food
@@ -192,7 +190,7 @@ Configurable: `TINGBOK_CACHE_MAX_AGE_DAYS` (default 60), `TINGBOK_CACHE_REFRESH_
 
 ## Move "memory" information into docs
 
-There is a file ~/.claude/projects/-home-tobias-inventory-system/memory - useful information should exists in the docs (tingbok and inventory-md) rather than in the memory file.  It's needed to look through and check if the old file maps well with the current realities.  The list below contains my comments after looking through the file.  My opinions below may involve changes in the code, both tingbok and inventory-md - small changes can be done immediately, big changes should be added to this TODO-CATEGORIES-document.
+There is a file ~/.claude/projects/-home-tobias-inventory-md/memory - useful information should exists in the docs (tingbok and inventory-md) rather than in the memory file.  It's needed to look through and check if the old file maps well with the current realities.  The list below contains my comments after looking through the file.  My opinions below may involve changes in the code, both tingbok and inventory-md - small changes can be done immediately, big changes should be added to this TODO-CATEGORIES-document.
 
 * "source priority" - I think we should treat the sources more or less equally, rather than having them as a prioritized list.
 * There is no "package vocabulary" anymore, it's the Tingbok vocabulary

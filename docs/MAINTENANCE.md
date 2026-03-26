@@ -206,7 +206,7 @@ For each photo directory:
 
 ### AI-Assisted Photo Verification
 
-Claude Code can help with photo verification by viewing photos and comparing them against inventory entries. See `~/inventory-system/claude-skills/process-inventory-photos.md` for detailed instructions.
+Claude Code can help with photo verification by viewing photos and comparing them against inventory entries. See `~/inventory-md/claude-skills/process-inventory-photos.md` for detailed instructions.
 
 **Basic workflow:**
 

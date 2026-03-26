@@ -35,6 +35,7 @@ except ImportError:
 
 try:
     import niquests as requests
+
     HAS_REQUESTS = True
 except ImportError:
     try:
@@ -48,10 +49,7 @@ def extract_barcodes_from_image(image_path: Path) -> list[dict]:
     try:
         image = Image.open(image_path)
         decoded = decode(image)
-        return [
-            {'type': b.type, 'data': b.data.decode('utf-8')}
-            for b in decoded
-        ]
+        return [{"type": b.type, "data": b.data.decode("utf-8")} for b in decoded]
     except Exception as e:
         print(f"  Warning: Could not read {image_path.name}: {e}", file=sys.stderr)
         return []
@@ -62,12 +60,12 @@ def extract_barcodes_from_directory(photo_dir: Path) -> list[dict]:
     barcodes = []
     seen = set()
 
-    for ext in ('*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG'):
+    for ext in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
         for image_path in photo_dir.glob(ext):
             for barcode in extract_barcodes_from_image(image_path):
-                if barcode['data'] not in seen:
-                    seen.add(barcode['data'])
-                    barcode['source_file'] = str(image_path)
+                if barcode["data"] not in seen:
+                    seen.add(barcode["data"])
+                    barcode["source_file"] = str(image_path)
                     barcodes.append(barcode)
 
     return barcodes
@@ -75,9 +73,9 @@ def extract_barcodes_from_directory(photo_dir: Path) -> list[dict]:
 
 def is_ean(barcode_type: str, data: str) -> bool:
     """Check if barcode is a product EAN/UPC."""
-    if barcode_type in ('EAN13', 'EAN8', 'UPCA', 'UPCE'):
+    if barcode_type in ("EAN13", "EAN8", "UPCA", "UPCE"):
         return True
-    if barcode_type == 'CODE128' and data.isdigit() and len(data) in (8, 12, 13):
+    if barcode_type == "CODE128" and data.isdigit() and len(data) in (8, 12, 13):
         return True
     return False
 
@@ -89,20 +87,18 @@ def lookup_ean(ean: str) -> dict | None:
 
     url = f"https://world.openfoodfacts.org/api/v2/product/{ean}.json"
     try:
-        response = requests.get(url, timeout=10, headers={
-            'User-Agent': 'InventorySystem/1.0'
-        })
+        response = requests.get(url, timeout=10, headers={"User-Agent": "InventorySystem/1.0"})
         response.raise_for_status()
         data = response.json()
 
-        if data.get('status') != 1:
+        if data.get("status") != 1:
             return None
 
-        product = data.get('product', {})
+        product = data.get("product", {})
         return {
-            'name': product.get('product_name') or product.get('product_name_en'),
-            'brand': product.get('brands'),
-            'quantity': product.get('quantity'),
+            "name": product.get("product_name") or product.get("product_name_en"),
+            "brand": product.get("brands"),
+            "quantity": product.get("quantity"),
         }
     except Exception:
         return None
@@ -110,9 +106,9 @@ def lookup_ean(ean: str) -> dict | None:
 
 def load_inventory_json(inventory_dir: Path) -> dict:
     """Load inventory.json."""
-    json_path = inventory_dir / 'inventory.json'
+    json_path = inventory_dir / "inventory.json"
     if not json_path.exists():
-        print(f"Error: {json_path} not found. Run: inventory-system parse inventory.md", file=sys.stderr)
+        print(f"Error: {json_path} not found. Run: inventory-md parse inventory.md", file=sys.stderr)
         sys.exit(1)
 
     with open(json_path) as f:
@@ -123,17 +119,17 @@ def get_existing_eans(inventory_data: dict, container_id: str) -> set[str]:
     """Get all EANs already in a container."""
     eans = set()
 
-    for container in inventory_data.get('containers', []):
-        if container.get('id') == container_id:
-            for item in container.get('items', []):
+    for container in inventory_data.get("containers", []):
+        if container.get("id") == container_id:
+            for item in container.get("items", []):
                 # Check for EAN in metadata
-                ean = item.get('metadata', {}).get('ean')
+                ean = item.get("metadata", {}).get("ean")
                 if ean:
                     eans.add(str(ean))
 
                 # Also check raw_text for EAN: pattern
-                raw = item.get('raw_text', '')
-                match = re.search(r'EAN:(\d+)', raw)
+                raw = item.get("raw_text", "")
+                match = re.search(r"EAN:(\d+)", raw)
                 if match:
                     eans.add(match.group(1))
 
@@ -142,16 +138,17 @@ def get_existing_eans(inventory_data: dict, container_id: str) -> set[str]:
 
 def find_container_section(inventory_md: str, container_id: str) -> tuple[int, int] | None:
     """Find the line range for a container in inventory.md."""
-    lines = inventory_md.split('\n')
+    lines = inventory_md.split("\n")
     start_line = None
     end_line = None
 
     for i, line in enumerate(lines):
         # Match container header: ## ID:container-id or ## container-id
-        if re.match(rf'^##\s+.*\bID:{re.escape(container_id)}\b', line) or \
-           re.match(rf'^##\s+{re.escape(container_id)}\b', line):
+        if re.match(rf"^##\s+.*\bID:{re.escape(container_id)}\b", line) or re.match(
+            rf"^##\s+{re.escape(container_id)}\b", line
+        ):
             start_line = i
-        elif start_line is not None and line.startswith('## '):
+        elif start_line is not None and line.startswith("## "):
             end_line = i
             break
 
@@ -163,14 +160,14 @@ def find_container_section(inventory_md: str, container_id: str) -> tuple[int, i
 
 def format_inventory_line(ean: str, product: dict | None) -> str:
     """Format an inventory.md line for a new EAN."""
-    if product and product.get('name'):
+    if product and product.get("name"):
         parts = []
-        if product.get('brand'):
-            parts.append(product['brand'])
-        parts.append(product['name'])
-        if product.get('quantity'):
+        if product.get("brand"):
+            parts.append(product["brand"])
+        parts.append(product["name"])
+        if product.get("quantity"):
             parts.append(f"({product['quantity']})")
-        desc = ' '.join(parts)
+        desc = " ".join(parts)
         return f"* tag:food EAN:{ean} {desc}"
     else:
         return f"* tag:TODO EAN:{ean} (unknown product - identify from photo)"
@@ -179,17 +176,17 @@ def format_inventory_line(ean: str, product: dict | None) -> str:
 def main():
     args = sys.argv[1:]
 
-    if '-h' in args or '--help' in args:
+    if "-h" in args or "--help" in args:
         print(__doc__)
         sys.exit(0)
 
-    apply_changes = '--apply' in args
-    do_lookup = '--no-lookup' not in args
+    apply_changes = "--apply" in args
+    do_lookup = "--no-lookup" not in args
     target_container = None
 
     i = 0
     while i < len(args):
-        if args[i] == '--container' and i + 1 < len(args):
+        if args[i] == "--container" and i + 1 < len(args):
             target_container = args[i + 1]
             i += 2
         else:
@@ -197,8 +194,8 @@ def main():
 
     # Determine inventory directory (current directory)
     inventory_dir = Path.cwd()
-    photos_dir = inventory_dir / 'photos'
-    inventory_md_path = inventory_dir / 'inventory.md'
+    photos_dir = inventory_dir / "photos"
+    inventory_md_path = inventory_dir / "inventory.md"
 
     if not photos_dir.exists():
         print(f"Error: {photos_dir} not found", file=sys.stderr)
@@ -210,7 +207,7 @@ def main():
 
     # Load inventory data
     inventory_data = load_inventory_json(inventory_dir)
-    inventory_md = inventory_md_path.read_text(encoding='utf-8')
+    inventory_md = inventory_md_path.read_text(encoding="utf-8")
 
     # Track changes
     additions = []  # (container_id, line_to_add)
@@ -239,10 +236,10 @@ def main():
             continue
 
         for barcode in barcodes:
-            if not is_ean(barcode['type'], barcode['data']):
+            if not is_ean(barcode["type"], barcode["data"]):
                 continue
 
-            ean = barcode['data']
+            ean = barcode["data"]
 
             if ean in existing_eans:
                 print(f"  EAN:{ean} - already in inventory")
@@ -255,9 +252,9 @@ def main():
                 time.sleep(0.3)  # Rate limit
 
             line = format_inventory_line(ean, product)
-            additions.append((container_id, line, barcode.get('source_file', '')))
+            additions.append((container_id, line, barcode.get("source_file", "")))
 
-            status = product['name'] if product and product.get('name') else 'unknown'
+            status = product["name"] if product and product.get("name") else "unknown"
             print(f"  EAN:{ean} - NEW ({status})")
 
     # Summary
@@ -285,7 +282,7 @@ def main():
     print()
     print("Updating inventory.md...")
 
-    lines = inventory_md.split('\n')
+    lines = inventory_md.split("\n")
 
     # Group additions by container
     by_container = {}
@@ -296,7 +293,7 @@ def main():
 
     # Insert lines into each container section
     for container_id, new_lines in by_container.items():
-        section = find_container_section('\n'.join(lines), container_id)
+        section = find_container_section("\n".join(lines), container_id)
         if section is None:
             print(f"  Warning: Container {container_id} not found in inventory.md")
             continue
@@ -306,7 +303,7 @@ def main():
         # Find the last item line in the section (starts with *)
         insert_pos = start + 1
         for i in range(end - 1, start, -1):
-            if lines[i].strip().startswith('*'):
+            if lines[i].strip().startswith("*"):
                 insert_pos = i + 1
                 break
 
@@ -317,10 +314,10 @@ def main():
         print(f"  Added {len(new_lines)} item(s) to {container_id}")
 
     # Write updated inventory.md
-    inventory_md_path.write_text('\n'.join(lines), encoding='utf-8')
+    inventory_md_path.write_text("\n".join(lines), encoding="utf-8")
     print()
-    print("Done. Run 'inventory-system parse inventory.md' to update JSON.")
+    print("Done. Run 'inventory-md parse inventory.md' to update JSON.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

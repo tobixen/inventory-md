@@ -119,7 +119,7 @@ Beskrivelse av container...
     print(f"\n🎉 Inventory initialized in {directory}")
     print("\nNext steps:")
     print(f"1. Edit {directory / 'inventory.md'} to add your items")
-    print(f"2. Run: inventory-system parse {directory / 'inventory.md'}")
+    print(f"2. Run: inventory-md parse {directory / 'inventory.md'}")
     print(f"3. Open {directory / 'search.html'} in your browser")
 
     return 0
@@ -454,7 +454,7 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
     search_html = directory / "search.html"
     if not search_html.exists():
         print(f"❌ search.html not found in {directory}")
-        print(f"Run 'inventory-system init {directory}' first")
+        print(f"Run 'inventory-md init {directory}' first")
         return 1
 
     # Display the address - show 0.0.0.0 as "all interfaces"
@@ -605,7 +605,7 @@ def api_command(directory: Path = None, port: int = 8765, host: str = "127.0.0.1
     inventory_json = directory / "inventory.json"
     if not inventory_json.exists():
         print(f"❌ inventory.json not found in {directory}")
-        print("Run 'inventory-system parse inventory.md' first")
+        print("Run 'inventory-md parse inventory.md' first")
         return 1
 
     # Change to directory so API server can find inventory.json

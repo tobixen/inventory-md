@@ -126,7 +126,7 @@ clean:
 
 # Install Python package and dependencies
 install:
-	@echo "📦 Installing inventory-system Python package..."
+	@echo "📦 Installing inventory-md Python package..."
 	@python3 -m venv venv
 	@venv/bin/pip install --upgrade pip
 	@venv/bin/pip install .[chat]
@@ -137,7 +137,7 @@ install-templates:
 	@echo "📦 Installing systemd template services..."
 	@sudo cp systemd/inventory-web@.service /etc/systemd/system/
 	@sudo cp systemd/inventory-api@.service /etc/systemd/system/
-	@sudo mkdir -p /etc/inventory-system
+	@sudo mkdir -p /etc/inventory-md
 	@sudo systemctl daemon-reload
 	@echo "✅ Template services installed!"
 	@echo ""
@@ -155,10 +155,10 @@ create-instance:
 	@echo "📋 Creating instance: $(INSTANCE)"
 	@echo ""
 	@# Ensure config directory exists
-	@sudo mkdir -p /etc/inventory-system
+	@sudo mkdir -p /etc/inventory-md
 	@# Check if config already exists
-	@if [ -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
-		echo "⚠️  Config already exists: /etc/inventory-system/$(INSTANCE).conf"; \
+	@if [ -f "/etc/inventory-md/$(INSTANCE).conf" ]; then \
+		echo "⚠️  Config already exists: /etc/inventory-md/$(INSTANCE).conf"; \
 		read -p "Overwrite? [y/N] " answer; \
 		if [ "$$answer" != "y" ]; then \
 			echo "Aborted."; \
@@ -176,19 +176,19 @@ create-instance:
 	@# Create config from example
 	@if [ -f "systemd/$(INSTANCE).conf.example" ]; then \
 		echo "📝 Installing config from example..."; \
-		sudo cp systemd/$(INSTANCE).conf.example /etc/inventory-system/$(INSTANCE).conf; \
+		sudo cp systemd/$(INSTANCE).conf.example /etc/inventory-md/$(INSTANCE).conf; \
 	else \
 		echo "📝 Creating default config..."; \
-		echo "# Inventory System Configuration for $(INSTANCE)" | sudo tee /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
-		echo "INVENTORY_PATH=/path/to/$(INSTANCE)/inventory" | sudo tee -a /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
-		echo "WEB_PORT=8000" | sudo tee -a /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
-		echo "API_PORT=8765" | sudo tee -a /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
-		echo "ANTHROPIC_API_KEY=" | sudo tee -a /etc/inventory-system/$(INSTANCE).conf > /dev/null; \
+		echo "# Inventory System Configuration for $(INSTANCE)" | sudo tee /etc/inventory-md/$(INSTANCE).conf > /dev/null; \
+		echo "INVENTORY_PATH=/path/to/$(INSTANCE)/inventory" | sudo tee -a /etc/inventory-md/$(INSTANCE).conf > /dev/null; \
+		echo "WEB_PORT=8000" | sudo tee -a /etc/inventory-md/$(INSTANCE).conf > /dev/null; \
+		echo "API_PORT=8765" | sudo tee -a /etc/inventory-md/$(INSTANCE).conf > /dev/null; \
+		echo "ANTHROPIC_API_KEY=" | sudo tee -a /etc/inventory-md/$(INSTANCE).conf > /dev/null; \
 	fi
-	@echo "✅ Config created: /etc/inventory-system/$(INSTANCE).conf"
+	@echo "✅ Config created: /etc/inventory-md/$(INSTANCE).conf"
 	@echo ""
 	@echo "⚠️  IMPORTANT: Edit the config file:"
-	@echo "   sudo nano /etc/inventory-system/$(INSTANCE).conf"
+	@echo "   sudo nano /etc/inventory-md/$(INSTANCE).conf"
 	@echo ""
 	@echo "Then set permissions on inventory directory:"
 	@echo "   sudo chgrp -R inventory-$(INSTANCE) /path/to/inventory"
@@ -199,14 +199,14 @@ create-instance:
 
 # Set permissions for instance
 set-permissions:
-	@if [ ! -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
+	@if [ ! -f "/etc/inventory-md/$(INSTANCE).conf" ]; then \
 		echo "❌ Instance not found: $(INSTANCE)"; \
 		echo "   Run: make create-instance INSTANCE=$(INSTANCE)"; \
 		exit 1; \
 	fi
 	@echo "📂 Setting permissions for $(INSTANCE)..."
 	@# Source the config to get INVENTORY_PATH
-	@INVENTORY_PATH=$$(grep INVENTORY_PATH /etc/inventory-system/$(INSTANCE).conf | cut -d= -f2); \
+	@INVENTORY_PATH=$$(grep INVENTORY_PATH /etc/inventory-md/$(INSTANCE).conf | cut -d= -f2); \
 	if [ -z "$$INVENTORY_PATH" ]; then \
 		echo "❌ INVENTORY_PATH not set in config"; \
 		exit 1; \
@@ -276,8 +276,8 @@ status:
 	@sudo systemctl status inventory-api@$(INSTANCE).service --no-pager --lines=0 || true
 	@echo ""
 	@# Get ports from config
-	@if [ -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
-		WEB_PORT=$$(grep WEB_PORT /etc/inventory-system/$(INSTANCE).conf | cut -d= -f2); \
+	@if [ -f "/etc/inventory-md/$(INSTANCE).conf" ]; then \
+		WEB_PORT=$$(grep WEB_PORT /etc/inventory-md/$(INSTANCE).conf | cut -d= -f2); \
 		echo "Access at: http://localhost:$$WEB_PORT/search.html"; \
 	fi
 
@@ -336,7 +336,7 @@ status-all:
 list-instances:
 	@echo "📋 Configured instances:"
 	@echo ""
-	@for conf in /etc/inventory-system/*.conf; do \
+	@for conf in /etc/inventory-md/*.conf; do \
 		if [ -f "$$conf" ]; then \
 			instance=$$(basename $$conf .conf); \
 			echo "  $$instance"; \
@@ -365,8 +365,8 @@ quick-setup:
 		echo ""; \
 		echo "Next steps:"; \
 		echo "  1. Edit configs:"; \
-		echo "     sudo nano /etc/inventory-system/furuset.conf"; \
-		echo "     sudo nano /etc/inventory-system/solveig.conf"; \
+		echo "     sudo nano /etc/inventory-md/furuset.conf"; \
+		echo "     sudo nano /etc/inventory-md/solveig.conf"; \
 		echo "  2. Set permissions:"; \
 		echo "     make set-permissions INSTANCE=furuset"; \
 		echo "     make set-permissions INSTANCE=solveig"; \
@@ -378,12 +378,12 @@ quick-setup:
 # The hook template includes "unset GIT_DIR" which is REQUIRED for git pull to work
 install-hook:
 	@echo "Installing post-receive hook for $(INSTANCE)..."
-	@if [ ! -f "/etc/inventory-system/$(INSTANCE).conf" ]; then \
-		echo "Error: Instance config not found: /etc/inventory-system/$(INSTANCE).conf"; \
+	@if [ ! -f "/etc/inventory-md/$(INSTANCE).conf" ]; then \
+		echo "Error: Instance config not found: /etc/inventory-md/$(INSTANCE).conf"; \
 		exit 1; \
 	fi
 	@# Determine paths based on instance
-	@PROD_DIR=$$(grep INVENTORY_PATH /etc/inventory-system/$(INSTANCE).conf | cut -d= -f2); \
+	@PROD_DIR=$$(grep INVENTORY_PATH /etc/inventory-md/$(INSTANCE).conf | cut -d= -f2); \
 	if [ "$(INSTANCE)" = "furuset" ]; then \
 		BARE_REPO="/home/tobias/furusetalle9-inventory.git"; \
 	else \

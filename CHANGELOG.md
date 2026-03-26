@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - `scripts/generate_shopping_list.py` — deleted; it was a duplicate of `shopping_list.py` without vocabulary support.
 
+### Breaking Changes
+- **Config directory changed from `/etc/inventory-system/` to `/etc/inventory-md/`** — systemd service files and Makefile now reference `/etc/inventory-md/*.conf`. On existing deployments, copy or symlink the config directory and run `systemctl daemon-reload` (and restart services) after deploying updated service files.
+
 ## [v0.13.0] - 2026-03-10
 
 Lots of changes - still trying to get the category system to work reasonably well.

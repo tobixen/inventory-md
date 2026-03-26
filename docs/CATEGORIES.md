@@ -12,7 +12,7 @@ According to Wikipedia, "Simple Knowledge Organization System (SKOS) is a W3C re
 
 ### Categories vs tags vs ...
 
-SKOS is currently used for categories - while most things that does not fit into a category system should be put into tags.  Consider two worn out red cotton T-shirt owned by dad.  T-shirt is a category, while ownership, size, condition, quantity, color etc are other "dimensions".  For quantity etc the inventory-system supports qty, mass, volume ... the rest should go into tags.
+SKOS is currently used for categories - while most things that does not fit into a category system should be put into tags.  Consider two worn out red cotton T-shirt owned by dad.  T-shirt is a category, while ownership, size, condition, quantity, color etc are other "dimensions".  For quantity etc the inventory-md supports qty, mass, volume ... the rest should go into tags.
 
 ### Public databases
 

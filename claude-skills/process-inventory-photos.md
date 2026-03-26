@@ -27,7 +27,7 @@ ALL photos have to be processed.
 ### 2. Extract barcodes FIRST
 Before analyzing photos visually, extract any barcodes to get product info:
 ```bash
-~/inventory-system/scripts/extract_barcodes.py ~/s/photos.tobixen/newmi/PATTERN*.jpg
+~/inventory-md/scripts/extract_barcodes.py ~/s/photos.tobixen/newmi/PATTERN*.jpg
 ```
 
 This will:
@@ -138,7 +138,7 @@ git commit -m "Add BOX-ID items from photo session DATE"
 
 If you can see an EAN/barcode in a photo that wasn't automatically extracted, look it up manually:
 ```bash
-~/inventory-system/scripts/extract_barcodes.py --lookup 5701234567890
+~/inventory-md/scripts/extract_barcodes.py --lookup 5701234567890
 ```
 
 This queries Open Food Facts and returns the product name, brand, and quantity.
@@ -228,7 +228,7 @@ barn (children), kl√¶r (clothes), sko (shoes), elektronikk (electronics), verkt√
 **Cross-cutting modifiers:**
 barn (children's), elektronikk (electronic), TODO, pappas (dad's), mammas (mom's), personlig (personal)
 
-Reference: See `inventory-system/tag-mapping.json` for full Norwegian-English mappings.
+Reference: See `inventory-md/tag-mapping.json` for full Norwegian-English mappings.
 
 ## Item IDs for cross-referencing
 

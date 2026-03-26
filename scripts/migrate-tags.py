@@ -91,7 +91,7 @@ def migrate_line(line: str, mapping: dict) -> tuple[str, bool]:
     Returns (new_line, changed).
     """
     # Match tag:xxx pattern
-    match = re.search(r'\btag:(\S+)', line)
+    match = re.search(r"\btag:(\S+)", line)
     if not match:
         return line, False
 
@@ -101,7 +101,7 @@ def migrate_line(line: str, mapping: dict) -> tuple[str, bool]:
     if old_tag == new_tag:
         return line, False
 
-    new_line = line[:match.start(1)] + new_tag + line[match.end(1):]
+    new_line = line[: match.start(1)] + new_tag + line[match.end(1) :]
     return new_line, True
 
 
@@ -113,12 +113,7 @@ def migrate_file(inventory_path: Path, mapping: dict, dry_run: bool = False) -> 
     content = inventory_path.read_text(encoding="utf-8")
     lines = content.split("\n")
 
-    stats = {
-        "total_lines": len(lines),
-        "lines_with_tags": 0,
-        "lines_changed": 0,
-        "changes": []
-    }
+    stats = {"total_lines": len(lines), "lines_with_tags": 0, "lines_changed": 0, "changes": []}
 
     new_lines = []
     for i, line in enumerate(lines, 1):
@@ -127,11 +122,7 @@ def migrate_file(inventory_path: Path, mapping: dict, dry_run: bool = False) -> 
             new_line, changed = migrate_line(line, mapping)
             if changed:
                 stats["lines_changed"] += 1
-                stats["changes"].append({
-                    "line": i,
-                    "old": line.strip(),
-                    "new": new_line.strip()
-                })
+                stats["changes"].append({"line": i, "old": line.strip(), "new": new_line.strip()})
             new_lines.append(new_line)
         else:
             new_lines.append(line)
@@ -154,7 +145,7 @@ def main():
 
     inventory_path = Path(args[0])
 
-    # Find mapping file (in inventory-system directory)
+    # Find mapping file (in inventory-md directory)
     script_dir = Path(__file__).parent.parent  # Go up from scripts/
     mapping_path = script_dir / "tag-mapping.json"
 
