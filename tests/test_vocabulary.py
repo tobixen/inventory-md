@@ -783,6 +783,72 @@ class TestPathAliases:
         assert alias_map["klær/vinterklær"] == "clothing/thermal"
         assert "food" not in alias_map
 
+    def test_altlabel_root_resolution_subpath(self):
+        """When the root component is an nb altLabel of a canonical concept,
+        a sub-path is created with the Norwegian ID but wired under the canonical parent.
+
+        ``klær`` is an nb altLabel of ``clothing``.  ``klær/jakke`` in the
+        inventory should produce a concept ``klær/jakke`` with broader pointing
+        to ``clothing`` — not a spurious local ``klær`` root node.
+        """
+        vocab = {
+            "clothing": vocabulary.Concept(
+                id="clothing",
+                prefLabel="Clothing",
+                altLabels={"nb": ["klær"]},
+            ),
+        }
+        inventory = {"containers": [{"items": [{"metadata": {"categories": ["klær/jakke"]}}]}]}
+        result = vocabulary.build_vocabulary_from_inventory(inventory, local_vocab=vocab, lang="nb")
+
+        assert "klær/jakke" in result
+        assert result["klær/jakke"].broader == ["clothing"]
+        assert "klær" not in result
+        assert "clothing/jakke" not in result
+
+    def test_altlabel_root_resolution_single_segment(self):
+        """A single-segment category that is an nb altLabel maps to the canonical concept.
+
+        ``klær`` alone should resolve to existing ``clothing`` — no new node.
+        """
+        vocab = {
+            "clothing": vocabulary.Concept(
+                id="clothing",
+                prefLabel="Clothing",
+                altLabels={"nb": ["klær"]},
+            ),
+        }
+        inventory = {"containers": [{"items": [{"metadata": {"categories": ["klær"]}}]}]}
+        result = vocabulary.build_vocabulary_from_inventory(inventory, local_vocab=vocab, lang="nb")
+
+        assert "clothing" in result
+        assert "klær" not in result
+
+    def test_path_alias_beats_altlabel_root_resolution(self):
+        """An explicit full-path alias takes priority over altLabel root resolution.
+
+        ``klær/vinter`` has an explicit path_alias to ``clothing/thermal``, so
+        it should NOT be created as ``klær/vinter`` under ``clothing``.
+        """
+        vocab = {
+            "clothing": vocabulary.Concept(
+                id="clothing",
+                prefLabel="Clothing",
+                altLabels={"nb": ["klær"]},
+            ),
+            "clothing/thermal": vocabulary.Concept(
+                id="clothing/thermal",
+                prefLabel="Thermal clothing",
+                path_aliases={"nb": ["klær/vinter"]},
+            ),
+        }
+        inventory = {"containers": [{"items": [{"metadata": {"categories": ["klær/vinter"]}}]}]}
+        result = vocabulary.build_vocabulary_from_inventory(inventory, local_vocab=vocab, lang="nb")
+
+        assert "clothing/thermal" in result
+        assert "klær/vinter" not in result
+        assert "klær" not in result
+
 
 class TestBuildVocabularyFromInventory:
     """Tests for build_vocabulary_from_inventory function."""

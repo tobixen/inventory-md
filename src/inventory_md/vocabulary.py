@@ -895,6 +895,41 @@ def _build_path_alias_map(vocab: dict[str, Concept], lang: str) -> dict[str, str
     return result
 
 
+def _build_altlabel_index(vocab: dict[str, Concept], lang: str) -> dict[str, str]:
+    """Build an index mapping lowercased altLabels (and language prefLabels) to concept IDs.
+
+    Used to resolve inventory category root components written in a localised
+    language (e.g. Norwegian ``klær``) to their canonical concept IDs (e.g.
+    ``clothing``).
+
+    Considers ``altLabels`` for the given language and also ``labels`` (per-
+    language prefLabel translations).  Norwegian variants ``nb``/``no``/``nn``
+    are treated as equivalent.
+
+    Args:
+        vocab: Vocabulary to index.
+        lang: Target language code.
+
+    Returns:
+        Dictionary mapping lowercase label → concept ID.
+    """
+    _nb_langs = {"nb", "no", "nn"}
+
+    def _matches(lcode: str) -> bool:
+        return lcode == lang or (lcode in _nb_langs and lang in _nb_langs)
+
+    index: dict[str, str] = {}
+    for concept_id, concept in vocab.items():
+        for alt_lang, labels in concept.altLabels.items():
+            if _matches(alt_lang):
+                for label in labels:
+                    index[label.lower()] = concept_id
+        for lbl_lang, label in concept.labels.items():
+            if _matches(lbl_lang):
+                index[label.lower()] = concept_id
+    return index
+
+
 def build_vocabulary_from_inventory(
     inventory_data: dict[str, Any],
     local_vocab: dict[str, Concept] | None = None,
@@ -902,16 +937,24 @@ def build_vocabulary_from_inventory(
 ) -> dict[str, Concept]:
     """Build vocabulary from categories used in inventory data.
 
-    Scans all items in inventory for category: metadata and creates
-    concepts for each unique category path found.  Category paths that match
-    a language-specific path alias defined in the vocabulary are silently
-    redirected to the canonical concept path (e.g. ``klær/vinter`` with
-    ``lang="nb"`` becomes ``clothing/thermal``).
+    Scans all items in inventory for category: metadata and creates concepts
+    for each unique category path found.  Resolution order for each path:
+
+    1. **Full path_alias** — if the whole path matches a language-specific
+       ``path_aliases`` entry, redirect to the canonical concept (e.g.
+       ``klær/vinter`` → ``clothing/thermal``).
+    2. **Root altLabel** — if the *first* path component is a language-specific
+       altLabel or translated prefLabel of a known concept, the sub-path is
+       created as inventory-local concepts wired under that canonical parent
+       (e.g. ``klær/jakke`` with ``clothing.altLabels.nb = ["klær"]`` creates
+       concept ``klær/jakke`` with ``broader = ["clothing"]``, no ``klær``
+       node).
+    3. **Verbatim** — the path is added as-is, creating inventory-local concepts.
 
     Args:
         inventory_data: Parsed inventory JSON data.
         local_vocab: Optional local vocabulary to merge with.
-        lang: Inventory language used to match path aliases.
+        lang: Inventory language used to match path aliases and altLabels.
 
     Returns:
         Dictionary of concepts from inventory categories.
@@ -922,20 +965,40 @@ def build_vocabulary_from_inventory(
     if local_vocab:
         concepts.update(local_vocab)
 
-    # Build reverse alias map for the inventory language
+    # Build resolution maps for the inventory language
     alias_map = _build_path_alias_map(concepts, lang)
+    altlabel_index = _build_altlabel_index(concepts, lang)
 
     # Add all category paths from inventory items
     for container in inventory_data.get("containers", []):
         for item in container.get("items", []):
             for category_path in item.get("metadata", {}).get("categories", []):
-                canonical = alias_map.get(category_path.lower())
-                _add_category_path(concepts, canonical if canonical else category_path)
+                path_lower = category_path.lower()
+
+                # 1. Full path_alias wins
+                canonical = alias_map.get(path_lower)
+                if canonical:
+                    _add_category_path(concepts, canonical)
+                    continue
+
+                # 2. Root altLabel resolution
+                root = path_lower.split("/")[0]
+                canonical_root = altlabel_index.get(root)
+                if canonical_root:
+                    _add_category_path(concepts, category_path, root_alias=canonical_root)
+                    continue
+
+                # 3. Verbatim
+                _add_category_path(concepts, category_path)
 
     return concepts
 
 
-def _add_category_path(concepts: dict[str, Concept], path: str) -> None:
+def _add_category_path(
+    concepts: dict[str, Concept],
+    path: str,
+    root_alias: str | None = None,
+) -> None:
     """Add a category path and all its parent paths to concepts.
 
     For "food/vegetables/potatoes", adds:
@@ -943,13 +1006,27 @@ def _add_category_path(concepts: dict[str, Concept], path: str) -> None:
     - "food/vegetables"
     - "food/vegetables/potatoes"
 
+    When *root_alias* is given, the first path component is treated as an
+    alias for an existing canonical concept (e.g. ``klær`` → ``clothing``).
+    In that case:
+
+    - No concept is created for the first component (``klær``).
+    - The immediate child (``klær/jakke``) is created with
+      ``broader = [root_alias]`` and added to ``root_alias.narrower``.
+    - Deeper levels (``klær/jakke/barn``) follow normal path inference.
+
     Args:
         concepts: Dictionary to add concepts to.
         path: Category path to add.
+        root_alias: Canonical concept ID that the first path component aliases.
     """
     parts = path.split("/")
 
     for i in range(len(parts)):
+        # Skip creating a concept for the aliased root component
+        if i == 0 and root_alias is not None:
+            continue
+
         concept_id = "/".join(parts[: i + 1])
         if concept_id not in concepts:
             # Create a concept with default prefLabel from the last part
@@ -958,6 +1035,12 @@ def _add_category_path(concepts: dict[str, Concept], path: str) -> None:
                 prefLabel=parts[i].replace("-", " ").replace("_", " ").title(),
                 source="inventory",
             )
+
+            # Wire the direct child of the aliased root to the canonical parent
+            if i == 1 and root_alias is not None:
+                concepts[concept_id].broader = [root_alias]
+                if root_alias in concepts and concept_id not in concepts[root_alias].narrower:
+                    concepts[root_alias].narrower.append(concept_id)
 
 
 def save_vocabulary_json(
