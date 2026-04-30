@@ -88,8 +88,12 @@ def check_items_without_category(data: dict) -> list:
     return [f"Items without category: {count} items have no category"]
 
 
-def check_unresolvable_categories(data: dict, concepts: dict, tingbok_url: str | None) -> list:
-    """Find items whose category doesn't resolve locally or via tingbok lookup."""
+def check_unresolvable_categories(data: dict, concepts: dict, tingbok_url: str | None) -> tuple[list, list]:
+    """Find items whose category doesn't resolve locally or via tingbok lookup.
+
+    Returns (warnings, infos) where warnings are truly unresolvable categories
+    and infos suggest canonical replacements for non-canonical labels.
+    """
     import niquests
 
     containers = data.get("containers", [])
@@ -102,10 +106,11 @@ def check_unresolvable_categories(data: dict, concepts: dict, tingbok_url: str |
                     counts[cat] += 1
 
     if not counts:
-        return []
+        return [], []
 
-    # For each locally-unresolvable unique category, try the tingbok lookup endpoint
     unresolvable: Counter = Counter()
+    non_canonical: list[str] = []
+
     if tingbok_url:
         base = tingbok_url.rstrip("/")
         for cat, n in counts.items():
@@ -114,17 +119,22 @@ def check_unresolvable_categories(data: dict, concepts: dict, tingbok_url: str |
                 resp = niquests.get(f"{base}/api/lookup/{leaf}", timeout=10)
                 if resp.status_code == 404:
                     unresolvable[cat] = n
+                else:
+                    canonical_id = resp.json().get("id")
+                    if canonical_id and canonical_id.lower() != cat.lower():
+                        non_canonical.append(f"Non-canonical category {cat!r} ({n}×) → consider using {canonical_id!r}")
             except Exception:
                 unresolvable[cat] = n
     else:
         unresolvable = counts
 
-    if not unresolvable:
-        return []
+    warnings = []
+    if unresolvable:
+        total = sum(unresolvable.values())
+        top = ", ".join(f"{cat!r} ({n})" for cat, n in unresolvable.most_common(5))
+        warnings.append(f"Unresolvable categories: {total} items use unknown categories — top: {top}")
 
-    total = sum(unresolvable.values())
-    top = ", ".join(f"{cat!r} ({n})" for cat, n in unresolvable.most_common(5))
-    return [f"Unresolvable categories: {total} items use unknown categories — top: {top}"]
+    return warnings, non_canonical
 
 
 def check_empty_containers(data: dict) -> list:
@@ -179,15 +189,16 @@ def load_vocabulary(inventory_path: Path, tingbok_url: str | None) -> dict:
 def run_all_checks(data: dict, concepts: dict, tingbok_url: str | None) -> dict:
     """Run all quality checks and return categorized results."""
     warnings = list(check_todo_items(data)) + list(check_items_without_category(data))
+    infos = check_empty_containers(data) + check_missing_descriptions(data) + check_containers_without_images(data)
     if concepts:
-        warnings += check_unresolvable_categories(data, concepts, tingbok_url)
+        cat_warnings, cat_infos = check_unresolvable_categories(data, concepts, tingbok_url)
+        warnings += cat_warnings
+        infos += cat_infos
 
     return {
-        "errors": (check_duplicate_ids(data) + check_missing_parents(data)),
+        "errors": check_duplicate_ids(data) + check_missing_parents(data),
         "warnings": warnings,
-        "info": (
-            check_empty_containers(data) + check_missing_descriptions(data) + check_containers_without_images(data)
-        ),
+        "info": infos,
     }
 
 
