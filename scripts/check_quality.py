@@ -6,14 +6,16 @@ Checks an inventory.json file for data quality issues including:
 - Duplicate container IDs
 - Missing parent references
 - Items tagged TODO
-- Untagged items
+- Items without a category
+- Items whose category doesn't resolve in the vocabulary / tingbok
 - Empty containers
 - Missing descriptions
 
 Usage:
-    python check_quality.py [path/to/inventory.json]
+    python check_quality.py [--tingbok-url URL] [path/to/inventory.json]
 
 If no path is provided, looks for inventory.json in current directory.
+Tingbok URL defaults to https://tingbok.plann.no.
 
 Exit codes:
     0 - No issues found
@@ -25,6 +27,15 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
+
+try:
+    from inventory_md import vocabulary as _vocabulary
+
+    _VOCAB_AVAILABLE = True
+except ImportError:
+    _VOCAB_AVAILABLE = False
+
+DEFAULT_TINGBOK_URL = "https://tingbok.plann.no"
 
 
 def load_inventory(path: Path) -> dict:
@@ -68,23 +79,52 @@ def check_todo_items(data: dict) -> list:
     return issues
 
 
-def check_untagged_items(data: dict) -> list:
-    """Find items without any tags."""
+def check_items_without_category(data: dict) -> list:
+    """Find items without any category."""
     containers = data.get("containers", [])
-    untagged = []
+    count = sum(1 for c in containers for item in c.get("items", []) if not item.get("metadata", {}).get("categories"))
+    if not count:
+        return []
+    return [f"Items without category: {count} items have no category"]
+
+
+def check_unresolvable_categories(data: dict, concepts: dict, tingbok_url: str | None) -> list:
+    """Find items whose category doesn't resolve locally or via tingbok lookup."""
+    import niquests
+
+    containers = data.get("containers", [])
+    counts: Counter = Counter()
 
     for container in containers:
         for item in container.get("items", []):
-            tags = item.get("metadata", {}).get("tags", [])
-            if not tags:
-                name = item.get("name") or item.get("raw_text", "")
-                untagged.append((container["id"], name[:40]))
+            for cat in item.get("metadata", {}).get("categories", []):
+                if _vocabulary.resolve_category(cat, concepts) is None:
+                    counts[cat] += 1
 
-    if not untagged:
+    if not counts:
         return []
 
-    # Return summary, not individual items
-    return [f"Untagged items: {len(untagged)} items have no tags"]
+    # For each locally-unresolvable unique category, try the tingbok lookup endpoint
+    unresolvable: Counter = Counter()
+    if tingbok_url:
+        base = tingbok_url.rstrip("/")
+        for cat, n in counts.items():
+            leaf = cat.split("/")[-1]
+            try:
+                resp = niquests.get(f"{base}/api/lookup/{leaf}", timeout=10)
+                if resp.status_code == 404:
+                    unresolvable[cat] = n
+            except Exception:
+                unresolvable[cat] = n
+    else:
+        unresolvable = counts
+
+    if not unresolvable:
+        return []
+
+    total = sum(unresolvable.values())
+    top = ", ".join(f"{cat!r} ({n})" for cat, n in unresolvable.most_common(5))
+    return [f"Unresolvable categories: {total} items use unknown categories — top: {top}"]
 
 
 def check_empty_containers(data: dict) -> list:
@@ -120,21 +160,33 @@ def check_containers_without_images(data: dict) -> list:
     return [f"No images: {len(no_images)} containers have no photos"]
 
 
-def run_all_checks(data: dict) -> dict:
+def load_vocabulary(inventory_path: Path, tingbok_url: str | None) -> dict:
+    """Load vocabulary from tingbok and local files next to the inventory."""
+    if not _VOCAB_AVAILABLE:
+        return {}
+    try:
+        concepts = _vocabulary.load_global_vocabulary(tingbok_url=tingbok_url)
+        local_vocab_path = inventory_path.parent / "vocabulary.json"
+        if local_vocab_path.exists():
+            local = _vocabulary.load_local_vocabulary(local_vocab_path)
+            concepts.update(local)
+        return concepts
+    except Exception as e:
+        print(f"[WARN] Could not load vocabulary: {e}", file=sys.stderr)
+        return {}
+
+
+def run_all_checks(data: dict, concepts: dict, tingbok_url: str | None) -> dict:
     """Run all quality checks and return categorized results."""
+    warnings = list(check_todo_items(data)) + list(check_items_without_category(data))
+    if concepts:
+        warnings += check_unresolvable_categories(data, concepts, tingbok_url)
+
     return {
-        "errors": (
-            check_duplicate_ids(data) +
-            check_missing_parents(data)
-        ),
-        "warnings": (
-            check_todo_items(data)
-        ),
+        "errors": (check_duplicate_ids(data) + check_missing_parents(data)),
+        "warnings": warnings,
         "info": (
-            check_untagged_items(data) +
-            check_empty_containers(data) +
-            check_missing_descriptions(data) +
-            check_containers_without_images(data)
+            check_empty_containers(data) + check_missing_descriptions(data) + check_containers_without_images(data)
         ),
     }
 
@@ -170,30 +222,39 @@ def print_results(results: dict, verbose: bool = False):
 
 
 def main():
-    # Parse arguments
-    verbose = "-v" in sys.argv or "--verbose" in sys.argv
-    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    args = sys.argv[1:]
 
-    # Determine inventory path
-    if args:
-        inventory_path = Path(args[0])
-    else:
-        inventory_path = Path("inventory.json")
+    verbose = "-v" in args or "--verbose" in args
+    args = [a for a in args if a not in ("-v", "--verbose")]
+
+    tingbok_url: str | None = DEFAULT_TINGBOK_URL
+    if "--no-tingbok" in args:
+        tingbok_url = None
+        args = [a for a in args if a != "--no-tingbok"]
+    elif "--tingbok-url" in args:
+        idx = args.index("--tingbok-url")
+        tingbok_url = args[idx + 1]
+        args = args[:idx] + args[idx + 2 :]
+
+    inventory_path = Path(args[0]) if args else Path("inventory.json")
 
     if not inventory_path.exists():
         print(f"Error: {inventory_path} not found", file=sys.stderr)
-        print(f"Usage: {sys.argv[0]} [-v] [path/to/inventory.json]", file=sys.stderr)
+        print(f"Usage: {sys.argv[0]} [-v] [--tingbok-url URL] [--no-tingbok] [path/to/inventory.json]", file=sys.stderr)
         sys.exit(2)
 
-    # Load and check
     print(f"Checking: {inventory_path}")
+    if _VOCAB_AVAILABLE:
+        print(f"Vocabulary: {tingbok_url or 'local only'}")
+    else:
+        print("Vocabulary: unavailable (inventory_md not importable)")
     print()
 
     data = load_inventory(inventory_path)
-    results = run_all_checks(data)
+    concepts = load_vocabulary(inventory_path, tingbok_url)
+    results = run_all_checks(data, concepts, tingbok_url)
     print_results(results, verbose)
 
-    # Exit code
     sys.exit(1 if results["errors"] else 0)
 
 
