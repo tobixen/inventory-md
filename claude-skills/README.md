@@ -1,2 +1,19 @@
-2026-01-18: I do have some "skills" that are prompts that I personally use for getting the AI to help me maintaining my boat inventory.  I'v copied my personal setup here as for now - it for sure needs to be edited to make it suitable for the public, and you may need to edit it again to make it suitable for your setup.  TODO: work more on this.  There is also ../docs/MAINTENANCE.md, all the suggested work there is nearly impossible for a human to do (like, maintaining tagging and aliases for everything) - but an AI can do it easily!
+# Claude Skills for inventory-md
 
+These skill files describe workflows for using an AI assistant to maintain an inventory managed by this system. They are generic — they use `$INVENTORY_DIR` and `$PHOTO_DIR` as placeholders for your actual paths.
+
+Create personal skill files under `~/.claude/skills/` that reference these guides and add your instance-specific paths, tools, and conventions. See the [INSTALLATION guide](../docs/INSTALLATION.md) for setup instructions.
+
+## Available skills
+
+| File | Purpose |
+|------|---------|
+| `process-shopping.md` | Process a shopping receipt and update the inventory |
+| `process-inventory-photos.md` | Process photos of containers/locations and update the inventory |
+| `suggest-recipe.md` | Suggest recipes prioritising soon-to-expire inventory items |
+
+## Item format reference
+
+For categories, tags, quantities, best-before dates, and other field conventions, see [`docs/ADDING-ITEMS.md`](../docs/ADDING-ITEMS.md).
+
+For general maintenance tasks, see [`docs/MAINTENANCE.md`](../docs/MAINTENANCE.md).

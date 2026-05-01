@@ -10,8 +10,8 @@ Regular maintenance helps keep your inventory searchable, organized, and useful.
 | Full analysis | Monthly | `python scripts/analyze_inventory.py` |
 | Sync EANs from photos | Monthly | `scripts/sync_eans_to_inventory.py` |
 | Process TODO items | As needed | Review items tagged `TODO` |
-| Add missing categories | Monthly | See [Tagging Guidelines](#tagging-guidelines) |
-| Update aliases | Quarterly | Edit `aliases.json` |
+| Add missing categories | Monthly | See [ADDING-ITEMS.md](ADDING-ITEMS.md) |
+| Review category coverage | Quarterly | Check unresolved labels in quality report |
 | Manual photo check | Quarterly | See [Photo Guidelines](#photo-guidelines) |
 | AI photo verification | As needed | See [AI-Assisted Photo Verification](#ai-assisted-photo-verification) |
 | Backup photos | Monthly | Ensure photos are backed up |
@@ -64,81 +64,11 @@ python ~/inventory-md/scripts/export_tags.py --format csv > tags.csv
 
 ---
 
-## Tagging Guidelines
+## Item Format and Tagging
 
-As of 2026-06, those tags are in use:
+For the full reference on item fields, categories, tags, quantities, and best-before dates, see **[ADDING-ITEMS.md](ADDING-ITEMS.md)**.
 
-* category (at least one should be given)
-* bb (best before)
-* price (price at purchase point)
-* value ("subjective value" - which may be the replacement price for an important item, or the market value if selling some less important item on finn.  The real value may be lower and even negative as it takes a lot of effort selling or giving things away on finn as well as dumping it)
-* EAN
-* ISBN
-* id (one should be given)
-* qty
-* mass
-* volume
-* tag (multiple may be given)
-
-An item line may contain multiple items (six cans of beans, a box with various clothes, etc), but the taggings are supposed to apply for all the items.  If the cans of beans have different expiry date or different purchase price, they should be split on two item lines.
-
-The tag is the catch-all, and can be used for ownership, condition, color, size, +++
-
-The most important ones are ID and category.  Those should be present on every item line.  If missing, add something during the maintenance run.
-
-Every item in the inventory should be tagged with a category.  A category is what the item IS - like "milk", "trouser", "hammer", "multimeter", etc.  Usually an item has only one category, but multiple categories are allowed.
-
-The trouser may be old and worn out, it may be small or large, meant to be used by children, it may be blue, it may have an owner ... tags is to be used for such information.
-
-### Adding tags and categories
-
-In `inventory.md`, add tags to items using the `tag:` prefix, and categories with `category:`:
-
-```markdown
-* category:hammer tag:old Hammer
-* category:drill Drill with battery
-* category:clothes/winter tag:old tag:children Winter jacket, size 140
-```
-
-The categories should be *as specific as possible*.  In case of ambiguous categories, they should be referenced hierarchically - `hardware/nut` vs `food/nuts`.  It's also allowed to reference things like winter clothes through `clothes/winter`.
-
-All categories should be resolvable through Tingbok - like catogory "hammer" can be looked up at https://tingbok.plann.no/api/lookup/hammer
-
-It may be important to do a QA of the information yielded by Tingbok.  It looks up things from different sources.  Maybe one of the sources yields the tool hammer, while another one yields the artist MC Hammer.  In such cases it's needed to tweak Tingbok, for instance by putting the category into the tingbok core vocabulary.
-
-### Due dates
-
-Food items should have a `bb:YYYY-MM` or `bb:YYYY-MM-DD` field for best-before date.  Non-food items may also have a best-before date.
-
-If the best-before is estimated "on the spot", it should be suffixed with `:EST`.  Arguably, all best-before dates are estimated, but without the `:EST`-suffix it's presumed that the best-before was printed on the product.
-
-At least in Norway we have a difference between a soft "best before (but often good after)" and a hard "last day of consumption (may be unsafe to eat later)".  Physical items like a passport may also have a hard best-before date.  As for now, there is no convention to distinguish between hard and soft bb deadlines.
-
-Use the expiry script to find items that need to be used:
-
-```bash
-cd ~/solveig-inventory  # or ~/furusetalle9-inventory
-~/inventory-md/scripts/find_expiring_food.py inventory.json
-
-# Show top 10 items by expiry date (including not-yet-expired)
-~/inventory-md/scripts/find_expiring_food.py inventory.json --limit 10
-
-# Show items expiring before a specific date
-~/inventory-md/scripts/find_expiring_food.py inventory.json --before 2026-06
-
-# Show all food with expiry dates
-~/inventory-md/scripts/find_expiring_food.py inventory.json --all
-```
-
-By default, the script shows only items that have already expired. Use `--limit` or `--before` to see items expiring soon.
-
----
-
-## Quantities
-
-* `qty` is the quantity.
-* `mass` is the *net* mass *per item*, for items having uniform mass.  (TODO: tara or gross mass may also be relevant).  For items having non-uniform mass, the convention `mass:total/qty` may be used.  Example: 1.2 kilogram of onions bought, was counted to be six, and now it's four left: `qty:4 mass:1200g/6` meaning the average mass per onion is 100g and we probably have around 400g of onions left in the storage.
-* `volume` can be used instead or in addition to mass.  Liquid products are usually sold by volume rather than mass.
+During maintenance, ensure every item has at least a `category:` and an `ID:`. Items missing these should be the top priority when reviewing.
 
 ---
 
@@ -147,7 +77,7 @@ By default, the script shows only items that have already expired. Use `--limit`
 Photos may contain product barcodes (EAN/UPC/ISBN) that aren't yet recorded in inventory.md. The sync script scans all photo directories, extracts barcodes, and identifies missing EANs:
 
 ```bash
-cd ~/solveig-inventory  # or ~/furusetalle9-inventory
+cd $INVENTORY_DIR
 
 # Dry-run: see what would be added
 ~/inventory-md/scripts/sync_eans_to_inventory.py
@@ -385,7 +315,7 @@ grep -n "^## ID:" inventory.md | sort -t: -k3 | uniq -d -f2
 ### Items Not Appearing in Search
 
 1. Check if item is tagged
-2. Check `aliases.json` for missing search terms
+2. Check category spelling — use `inventory-md skos lookup LABEL` to verify resolution
 3. Regenerate JSON: `inventory-md parse inventory.md`
 
 ### Photos Not Showing
@@ -411,7 +341,7 @@ grep -n "^## ID:" inventory.md | sort -t: -k3 | uniq -d -f2
 - [ ] Verify backups are current
 
 ### Quarterly
-- [ ] Review and update `aliases.json`
+- [ ] Review category coverage (check unresolved labels in quality report)
 - [ ] Check photo coverage for important containers
 - [ ] Archive old reports
 - [ ] Review empty containers (consolidate or remove)
