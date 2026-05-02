@@ -57,6 +57,28 @@ MINIMAL_VOCABULARY = {
 }
 
 
+FLAT_VOCABULARY = {
+    "concepts": {
+        "food": {"id": "food", "prefLabel": "Food", "broader": [], "narrower": ["food/nuts", "food/grains"]},
+        "food/nuts": {
+            "id": "food/nuts",
+            "prefLabel": "Nuts",
+            "broader": ["food"],
+            "narrower": ["peanuts", "cashews"],
+        },
+        "food/grains": {
+            "id": "food/grains",
+            "prefLabel": "Grains",
+            "broader": ["food"],
+            "narrower": ["pasta"],
+        },
+        "peanuts": {"id": "peanuts", "prefLabel": "Peanuts", "broader": ["food/nuts"], "narrower": []},
+        "cashews": {"id": "cashews", "prefLabel": "Cashews", "broader": ["food/nuts"], "narrower": []},
+        "pasta": {"id": "pasta", "prefLabel": "Pasta", "broader": ["food/grains"], "narrower": []},
+    }
+}
+
+
 def _make_inventory_json(items_meta: list[dict]) -> dict:
     """Build a minimal inventory.json structure for testing."""
     items = [
@@ -76,11 +98,18 @@ def _make_inventory_json(items_meta: list[dict]) -> dict:
 class TestParseInventoryForShopping:
     """Test parse_inventory_for_shopping with JSON input."""
 
-    def test_tag_items_are_found(self):
+    def test_tags_are_ignored(self):
+        """Tags are legacy; shopping list uses only categories."""
         data = _make_inventory_json([{"tags": ["food/grains/pasta"], "qty": 2.0, "mass_g": 500.0}])
         items = parse_inventory_for_shopping(data)
+        assert len(items) == 0
+
+    def test_metadata_tags_do_not_override_categories(self):
+        """Metadata tags like 'expired' must not suppress category matching."""
+        data = _make_inventory_json([{"categories": ["pasta"], "tags": ["expired"], "qty": 1.0}])
+        items = parse_inventory_for_shopping(data)
         assert len(items) == 1
-        assert items[0].qty == 2.0
+        assert items[0].tag == "pasta"
 
     def test_category_items_are_found(self):
         data = _make_inventory_json([{"categories": ["pasta"], "qty": 2.0}])
@@ -177,6 +206,33 @@ class TestTagMatches:
 
     def test_comma_separated_inventory_any_matches(self):
         assert tag_matches("food/grains", "food/grains/pasta,food/legumes/lentils") is True
+
+    def test_flat_concept_matches_via_broader(self, tmp_path):
+        """peanuts (broader: food/nuts) should match desired food/nuts with vocabulary."""
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(json.dumps(FLAT_VOCABULARY))
+        from inventory_md import vocabulary
+
+        concepts = vocabulary.load_local_vocabulary(vocab_path)
+        assert tag_matches("food/nuts", "peanuts", concepts) is True
+
+    def test_flat_concept_does_not_match_wrong_parent(self, tmp_path):
+        """peanuts should not match food/grains even with vocabulary."""
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(json.dumps(FLAT_VOCABULARY))
+        from inventory_md import vocabulary
+
+        concepts = vocabulary.load_local_vocabulary(vocab_path)
+        assert tag_matches("food/grains", "peanuts", concepts) is False
+
+    def test_flat_concept_matches_transitive_ancestor(self, tmp_path):
+        """peanuts (broader: food/nuts, food/nuts broader: food) matches desired food."""
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(json.dumps(FLAT_VOCABULARY))
+        from inventory_md import vocabulary
+
+        concepts = vocabulary.load_local_vocabulary(vocab_path)
+        assert tag_matches("food", "peanuts", concepts) is True
 
 
 class TestEvaluateItem:

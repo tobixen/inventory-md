@@ -198,25 +198,21 @@ def parse_inventory_for_shopping(
         for item_data in container.get("items", []):
             meta = item_data.get("metadata", {})
 
-            tags = meta.get("tags", [])
             categories = meta.get("categories", [])
 
-            if not tags and not categories:
+            if not categories:
                 continue
 
-            if tags:
-                tag = ",".join(str(t).lower() for t in tags)
-            else:
-                resolved = []
-                for cat in categories:
-                    if concepts:
-                        canonical = vocab_module.resolve_category(cat, concepts, lang)
-                        resolved.append(canonical if canonical is not None else cat.lower())
-                    else:
-                        resolved.append(cat.lower())
-                tag = ",".join(resolved)
-                if not tag:
-                    continue
+            resolved = []
+            for cat in categories:
+                if concepts:
+                    canonical = vocab_module.resolve_category(cat, concepts, lang)
+                    resolved.append(canonical if canonical is not None else cat.lower())
+                else:
+                    resolved.append(cat.lower())
+            tag = ",".join(resolved)
+            if not tag:
+                continue
 
             qty_raw = meta.get("qty")
             try:
@@ -265,13 +261,39 @@ def parse_inventory_for_shopping(
     return items
 
 
-def tag_matches(desired_tag: str, inventory_tag: str) -> bool:
+def _is_descendant(
+    concept_id: str,
+    ancestor_id: str,
+    concepts: dict,
+    _visited: frozenset[str] | None = None,
+) -> bool:
+    """Return True if concept_id is the same as, or a transitive narrower of, ancestor_id."""
+    if concept_id == ancestor_id:
+        return True
+    visited = _visited or frozenset()
+    if concept_id in visited:
+        return False
+    concept = concepts.get(concept_id)
+    if not concept:
+        return False
+    visited = visited | {concept_id}
+    return any(_is_descendant(b, ancestor_id, concepts, visited) for b in concept.broader)
+
+
+def tag_matches(
+    desired_tag: str,
+    inventory_tag: str,
+    concepts: dict | None = None,
+) -> bool:
     """Check if an inventory tag/category is matched by a desired tag.
 
     Supports:
     - Exact match: ``food/grains/pasta`` matches ``food/grains/pasta``
     - Ancestor match: ``food/grains`` matches ``food/grains/pasta``
     - Comma-separated tags on either side (any desired matches any inventory)
+    - Vocabulary-aware narrower lookup: ``food/nuts`` matches ``peanuts`` when
+      concepts is provided and peanuts.broader includes food/nuts (directly or
+      transitively).
     """
     desired_tags = [t.strip().lower() for t in desired_tag.split(",")]
     inventory_tags = [t.strip().lower() for t in inventory_tag.split(",")]
@@ -280,23 +302,33 @@ def tag_matches(desired_tag: str, inventory_tag: str) -> bool:
         for it in inventory_tags:
             if dt == it or it.startswith(dt + "/"):
                 return True
+            if concepts and _is_descendant(it, dt, concepts):
+                return True
 
     return False
 
 
-def find_matches(desired: DesiredItem, inventory: list[InventoryItem]) -> list[InventoryItem]:
+def find_matches(
+    desired: DesiredItem,
+    inventory: list[InventoryItem],
+    concepts: dict | None = None,
+) -> list[InventoryItem]:
     """Find inventory items matching a desired item."""
-    return [item for item in inventory if tag_matches(desired.tag, item.tag)]
+    return [item for item in inventory if tag_matches(desired.tag, item.tag, concepts)]
 
 
-def evaluate_item(desired: DesiredItem, inventory: list[InventoryItem]) -> tuple[str, str]:
+def evaluate_item(
+    desired: DesiredItem,
+    inventory: list[InventoryItem],
+    concepts: dict | None = None,
+) -> tuple[str, str]:
     """Evaluate stock status for a desired item.
 
     Returns ``(status, detail_text)`` where status is ``"ok"``, ``"low"``,
     or ``"missing"``.  Items past their best-before date still count toward
     stock — inspecting and discarding expired items is a separate activity.
     """
-    matches = find_matches(desired, inventory)
+    matches = find_matches(desired, inventory, concepts)
 
     total_qty = sum(m.qty for m in matches)
     total_mass_g = sum((m.mass_g or 0) * m.qty for m in matches)
@@ -407,7 +439,7 @@ def generate_shopping_list(
         section_items = []
 
         for desired in section.items:
-            status, detail = evaluate_item(desired, inv_items)
+            status, detail = evaluate_item(desired, inv_items, concepts)
 
             if status == "missing":
                 total_missing += 1
