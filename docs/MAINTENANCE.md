@@ -32,7 +32,14 @@ python ~/inventory-md/scripts/check_quality.py
 This identifies:
 - **ERRORS**: Duplicate IDs, missing parent references (fix immediately)
 - **WARNINGS**: Items tagged `TODO` (review and resolve)
-- **INFO**: Untagged items, empty containers, missing descriptions
+- **INFO**: Untagged items, empty containers, missing descriptions, non-canonical categories
+
+To automatically fix non-canonical categories in `inventory.json`:
+```bash
+python ~/inventory-md/scripts/check_quality.py --fix-categories
+```
+Note: this only fixes `inventory.json` (the generated file). The source `inventory.md`
+must be fixed manually — edit categories directly, then re-run `inventory-md parse`.
 
 ### Full Analysis (Monthly)
 
