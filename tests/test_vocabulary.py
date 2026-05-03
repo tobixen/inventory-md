@@ -2207,3 +2207,103 @@ class TestLookupCache:
             vocabulary.enrich_categories_via_lookup(["cumin"], self.TINGBOK_URL, cache_dir=None)
 
         assert mock_get.call_count == 2
+
+
+class TestBroaderStubs:
+    """Tests for stub concept creation for dangling broader references."""
+
+    def test_stub_created_for_missing_broader(self):
+        """build_category_tree creates a stub for a broader ID that doesn't exist."""
+        vocab = {
+            "olive_oil": vocabulary.Concept(
+                id="olive_oil",
+                prefLabel="Olive Oil",
+                broader=["primary_commodity/raw_material/oil/cooking_oil"],
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert "primary_commodity/raw_material/oil/cooking_oil" in tree.concepts
+        assert "primary_commodity/raw_material/oil" in tree.concepts
+        assert "primary_commodity/raw_material" in tree.concepts
+        assert "primary_commodity" in tree.concepts
+
+    def test_stub_has_sensible_preflabel(self):
+        """Stubs derive prefLabel from path component (underscores → spaces, title case)."""
+        vocab = {
+            "olive_oil": vocabulary.Concept(
+                id="olive_oil",
+                prefLabel="Olive Oil",
+                broader=["primary_commodity/raw_material/oil/cooking_oil"],
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert tree.concepts["primary_commodity/raw_material/oil/cooking_oil"].prefLabel == "Cooking Oil"
+        assert tree.concepts["primary_commodity"].prefLabel == "Primary Commodity"
+
+    def test_stub_included_in_label_index(self):
+        """Stubs appear in the label index so they can be searched by name."""
+        vocab = {
+            "olive_oil": vocabulary.Concept(
+                id="olive_oil",
+                prefLabel="Olive Oil",
+                broader=["primary_commodity/raw_material/oil/cooking_oil"],
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert tree.label_index.get("cooking oil") == "primary_commodity/raw_material/oil/cooking_oil"
+        assert tree.label_index.get("primary commodity") == "primary_commodity"
+
+    def test_stub_narrower_links_original_concept(self):
+        """The stub's narrower list includes the concept that referenced it."""
+        vocab = {
+            "olive_oil": vocabulary.Concept(
+                id="olive_oil",
+                prefLabel="Olive Oil",
+                broader=["primary_commodity/raw_material/oil/cooking_oil"],
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        stub = tree.concepts["primary_commodity/raw_material/oil/cooking_oil"]
+        assert "olive_oil" in stub.narrower
+
+    def test_stub_hierarchy_linked_correctly(self):
+        """Ancestor stubs are linked: primary_commodity/raw_material is a child of primary_commodity."""
+        vocab = {
+            "olive_oil": vocabulary.Concept(
+                id="olive_oil",
+                prefLabel="Olive Oil",
+                broader=["primary_commodity/raw_material/oil/cooking_oil"],
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert tree.concepts["primary_commodity/raw_material"].broader == ["primary_commodity"]
+        assert "primary_commodity/raw_material" in tree.concepts["primary_commodity"].narrower
+
+    def test_resolve_category_finds_leaf_via_stub(self):
+        """resolve_category('cooking_oil') matches the stub via leaf-name lookup."""
+        vocab = {
+            "olive_oil": vocabulary.Concept(
+                id="olive_oil",
+                prefLabel="Olive Oil",
+                broader=["primary_commodity/raw_material/oil/cooking_oil"],
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        result = vocabulary.resolve_category("cooking_oil", tree.concepts)
+        assert result == "primary_commodity/raw_material/oil/cooking_oil"
+
+    def test_no_stub_when_broader_already_exists(self):
+        """No spurious stub is created when the broader concept already exists."""
+        vocab = {
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "food/oil": vocabulary.Concept(id="food/oil", prefLabel="Oil", broader=["food"]),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+
+        assert tree.concepts["food"].source != "inferred"

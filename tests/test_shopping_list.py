@@ -364,3 +364,50 @@ class TestParseWantedItems:
         content = "## Section\n\n* category:juice - Juice volume:500ml\n"
         sections = parse_wanted_items(content)
         assert sections[0].items[0].target_volume_l == pytest.approx(0.5)
+
+
+class TestBroaderStubMatching:
+    """Test that inventory items with wikidata-style broader paths can be matched."""
+
+    VOCAB_WITH_DANGLING_BROADER = {
+        "concepts": {
+            "food/olive_oil": {
+                "id": "food/olive_oil",
+                "prefLabel": "Olive Oil",
+                "broader": ["primary_commodity/raw_material/oil/cooking_oil"],
+                "narrower": [],
+                "source": "tingbok",
+            },
+        }
+    }
+
+    def test_generate_shopping_list_leaf_name_resolves_via_stub(self, tmp_path):
+        """category:cooking_oil in wanted-items resolves and matches olive_oil in inventory."""
+
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(json.dumps(self.VOCAB_WITH_DANGLING_BROADER))
+
+        inventory_json = tmp_path / "inventory.json"
+        inventory_json.write_text(
+            json.dumps(
+                {
+                    "containers": [
+                        {
+                            "id": "pantry",
+                            "items": [
+                                {
+                                    "id": "oo1",
+                                    "description": "Olive oil",
+                                    "metadata": {"categories": ["food/olive_oil"], "qty": "1"},
+                                }
+                            ],
+                        }
+                    ]
+                }
+            )
+        )
+        wanted = tmp_path / "wanted-items.md"
+        wanted.write_text("## Oils\n\n* category:cooking_oil - Cooking oil qty:1\n")
+
+        result = generate_shopping_list(wanted, inventory_json)
+        assert "[!]" not in result, "olive_oil should satisfy the cooking_oil desired item"

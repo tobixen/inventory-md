@@ -686,6 +686,44 @@ def _infer_hierarchy(concepts: dict[str, Concept]) -> None:
                     parent.narrower.append(concept_id)
 
 
+def _create_broader_stubs(concepts: dict[str, Concept]) -> None:
+    """Create stub Concept nodes for broader references pointing to non-existent IDs.
+
+    Handles Wikidata taxonomy paths (e.g. "primary_commodity/raw_material/oil/cooking_oil")
+    that appear in broader lists but have no corresponding concept entry.  All ancestor
+    segments of each missing path are also created so the hierarchy is fully traversable.
+
+    Modifies concepts in place.
+    """
+    to_create: set[str] = set()
+    for concept in concepts.values():
+        for broader_id in concept.broader:
+            if broader_id not in concepts:
+                to_create.add(broader_id)
+                parts = broader_id.split("/")
+                for i in range(1, len(parts)):
+                    anc = "/".join(parts[:i])
+                    if anc not in concepts:
+                        to_create.add(anc)
+
+    for stub_id in sorted(to_create, key=lambda x: x.count("/")):
+        label = stub_id.split("/")[-1].replace("_", " ").title()
+        broader = ["/".join(stub_id.split("/")[:-1])] if "/" in stub_id else []
+        concepts[stub_id] = Concept(
+            id=stub_id,
+            prefLabel=label,
+            broader=broader,
+            source="inferred",
+        )
+
+    # Link all narrower references so the hierarchy is navigable
+    for concept in list(concepts.values()):
+        for broader_id in concept.broader:
+            parent = concepts.get(broader_id)
+            if parent is not None and concept.id not in parent.narrower:
+                parent.narrower.append(concept.id)
+
+
 def _ensure_source_path_node(
     node_id: str,
     concepts: dict[str, Concept],
@@ -811,6 +849,7 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
     if infer_hierarchy:
         _infer_hierarchy(concepts)
 
+    _create_broader_stubs(concepts)
     _add_category_by_source_nodes(concepts)
 
     # Find roots - concepts that should appear at the top level of the tree

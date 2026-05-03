@@ -409,6 +409,7 @@ def generate_shopping_list(
     concepts = None
     if vocab_path is not None and vocab_path.exists():
         concepts = vocab_module.load_local_vocabulary(vocab_path)
+        vocab_module._create_broader_stubs(concepts)
 
     inventory_data = json.loads(inventory_json_path.read_text(encoding="utf-8"))
     inv_items = parse_inventory_for_shopping(inventory_data, concepts=concepts, lang=lang)
