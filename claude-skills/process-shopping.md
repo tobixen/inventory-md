@@ -75,7 +75,7 @@ All fields are optional — only include what is known. PUT merges new data (pri
 
 ### 8. Copy photos to storage location directories
 
-Organise photos by **storage location**, not by shopping trip. Only copy photos showing the product itself — not barcode scans or expiry date close-ups. Skip photos for items that will be consumed quickly (fresh produce, bread, etc.).
+Organise photos by **storage location**, not by shopping trip. Only copy photos that show the product packaging/label with the product name or image — **not** close-up barcode scans or expiry date shots (even if those helped identify the product). Skip photos for items that will be consumed quickly (fresh produce, bread, etc.).
 
 ```bash
 mkdir -p $INVENTORY_DIR/photos/LOCATION-ID/
