@@ -84,10 +84,16 @@ def find_expiring_items(inventory_path: Path, food_only: bool = False) -> list:
             bb = meta.get("bb")
             if not bb:
                 continue
+            if bb.endswith(":EST"):
+                bb = bb[:-4]
+            while len(bb) in (4, 7):
+                bb = bb + "-01"
 
             try:
                 exp_date = date.fromisoformat(bb)
             except ValueError:
+                ## TODO: use logging.warning ?
+                print(f"Warning: Item with ID {item.get('id')} has a malformed best-before date ({bb})")
                 continue
 
             days_until = (exp_date - today).days
