@@ -16,11 +16,9 @@ Suggest recipes that prioritize using items from the inventory, especially items
    ```
    ## Ingredients
 
-   **From inventory (use first - expired):**
-   - [ ] 💧 200g dried beans `ID:pinto-beans` (F-12, EXPIRED 2024-04)
-
    **From inventory:**
-   - [ ] 1 tsp cumin `ID:cumin-jar` (F-13)
+   - [ ] 💧 200g dried beans `ID:pinto-beans` (F-12, bb:2024-04) ⚠️ expired — quality check before use
+   - [ ] 1 tsp cumin `ID:cumin-jar` (F-13, bb:2026-08)
 
    **Needs shopping:**
    - [ ] 🛒 500g ground beef
@@ -29,7 +27,7 @@ Suggest recipes that prioritize using items from the inventory, especially items
    - [ ] 💧 Beans need overnight soaking
    ```
 
-3. **Include location and expiry**: For inventory items, always include the item ID, container, and expiry date (with EXPIRED marker if past).
+3. **Include location and expiry**: For inventory items, always include the item ID, container, and best-before date. Add `⚠️ expired — quality check before use` for expired items; do not sort expired items into a separate section.
 
 4. **Shopping mode**:
    - Default: Assume extra ingredients can be purchased (mark with 🛒)
@@ -58,10 +56,10 @@ inventory-md parse --auto   # regenerate inventory.json
 ### Find food items sorted by expiry date
 
 ```bash
-~/inventory-md/scripts/find_expiring_food.py inventory.json           # expired items
-~/inventory-md/scripts/find_expiring_food.py inventory.json --limit 10
-~/inventory-md/scripts/find_expiring_food.py inventory.json --before 2026-06
-~/inventory-md/scripts/find_expiring_food.py inventory.json --all
+~/inventory-md/scripts/find_expiring_items.py inventory.json           # expired items
+~/inventory-md/scripts/find_expiring_items.py inventory.json --limit 10
+~/inventory-md/scripts/find_expiring_items.py inventory.json --before 2026-06
+~/inventory-md/scripts/find_expiring_items.py inventory.json --all
 ```
 
 ### Using grep (fallback)
@@ -81,7 +79,7 @@ grep -in "beans\|cumin\|rice" inventory.md
 4. **Ask user which recipe(s) to make** using AskUserQuestion
 
 ### Step 2: After user approval
-1. Save full recipe to `$INVENTORY_DIR/recipes/`
+1. Save full recipe to `$INVENTORY_DIR/recipes/` with filename `YYYY-MM-DD-recipe-name.md` (date first)
 2. Create a dated wanted-items file for shopping needs:
    ```
    $INVENTORY_DIR/wanted-items-YYYY-MM-DD.md
@@ -101,18 +99,18 @@ Items needed for [recipe name].
 
 ## Recipe File Format
 
+Filename: `YYYY-MM-DD-recipe-name.md`
+
 ```markdown
 # Recipe Name
 
-Brief description mentioning which expired items it uses.
+Brief description.
 
 ## Ingredients
 
-**From inventory (use first - expired):**
-- [ ] ...
-
 **From inventory:**
-- [ ] ...
+- [ ] ... `ID:xxx` (location, bb:date) ⚠️ expired — quality check before use
+- [ ] ... `ID:xxx` (location, bb:date)
 
 **Needs shopping:**
 - [ ] 🛒 ...
