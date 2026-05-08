@@ -275,15 +275,46 @@ def parse_command(
 
             _tingbok_cache = _Path.home() / ".cache" / "inventory-md" / "tingbok" if tingbok_url else None
 
-            # Load global vocabulary: tingbok (if configured) plus local overrides.
-            # Raises TingbokUnavailableError if tingbok is configured but unreachable.
-            global_vocab = vocabulary.load_global_vocabulary(
-                tingbok_url=tingbok_url,
-                skip_cwd=True,  # local vocab is handled separately based on md_file.parent
-                session=tingbok_session,
+            # Collect all category labels used in this inventory (for batch resolve below).
+            inventory_labels: list[str] = list(
+                {
+                    cat
+                    for container in data.get("containers", [])
+                    for item in container.get("items", [])
+                    for cat in item.get("metadata", {}).get("categories", [])
+                }
             )
-            if global_vocab:
-                print(f"   Loaded {len(global_vocab)} concepts from global vocabulary")
+
+            # Load global vocabulary.
+            # Prefer the tailored batch-resolve endpoint (one round-trip, ancestors included).
+            # Fall back to the full vocabulary download when the endpoint is unavailable.
+            global_vocab: dict = {}
+            if tingbok_url and inventory_labels:
+                try:
+                    global_vocab = vocabulary.resolve_vocabulary_from_tingbok(
+                        inventory_labels, tingbok_url, lang=lang or "en", session=tingbok_session
+                    )
+                    tingbok_concepts = sum(1 for c in global_vocab.values() if c.source == "tingbok")
+                    print(f"   Resolved {len(inventory_labels)} label(s) → {len(global_vocab)} concepts from tingbok")
+                    if tingbok_concepts < len(global_vocab):
+                        print(f"   ({len(global_vocab) - tingbok_concepts} local stubs for unrecognised labels)")
+                except vocabulary.TingbokUnavailableError:
+                    # Fall back to full vocabulary download
+                    global_vocab = vocabulary.load_global_vocabulary(
+                        tingbok_url=tingbok_url,
+                        skip_cwd=True,
+                        session=tingbok_session,
+                    )
+                    if global_vocab:
+                        print(f"   Loaded {len(global_vocab)} concepts from global vocabulary (fallback)")
+            elif tingbok_url:
+                global_vocab = vocabulary.load_global_vocabulary(
+                    tingbok_url=tingbok_url,
+                    skip_cwd=True,
+                    session=tingbok_session,
+                )
+                if global_vocab:
+                    print(f"   Loaded {len(global_vocab)} concepts from global vocabulary")
 
             # Load local vocabulary if present (highest priority - overrides global)
             local_vocab_yaml = md_file.parent / "local-vocabulary.yaml"
@@ -362,33 +393,25 @@ def parse_command(
                         reported += 1
                     print(f"   Pushed {reported} observation(s), {skipped} already up-to-date")
 
-            # Enrich all inventory categories not already in global vocab via /api/lookup
+            # Enrich EAN-derived category labels not yet in vocab (via /api/lookup).
+            # Inventory categories were already resolved in the batch call above;
+            # only EAN-sourced labels that weren't in the inventory at parse time need this.
             category_mappings = None
-            if tingbok_url:
-                # All inventory-sourced concepts not covered by the global vocab need enrichment,
-                # regardless of whether they are bare labels or full paths.
+            if tingbok_url and ean_category_labels:
                 to_enrich: list[str] = [
-                    cid for cid, c in vocab.items() if c.source == "inventory" and cid not in global_vocab
+                    label for label in ean_category_labels if label not in vocab or vocab[label].source == "inventory"
                 ]
-                # Add EAN-derived category labels (de-duplicated)
-                for label in ean_category_labels:
-                    if label not in to_enrich:
-                        to_enrich.append(label)
                 if to_enrich:
                     resolved, category_mappings = vocabulary.enrich_categories_via_lookup(
                         to_enrich, tingbok_url, session=tingbok_session, cache_dir=_tingbok_cache
                     )
                     if resolved:
                         vocab.update(resolved)
-                        # Restore any tingbok concepts that were overwritten by
-                        # inventory-sourced path-segment stubs created during
-                        # enrichment (e.g. a "clothing" stub created while
-                        # enriching "clothing/outdoor-clothing").
                         for cid, c in global_vocab.items():
                             existing = vocab.get(cid)
                             if existing is not None and existing.source == "inventory":
                                 vocab[cid] = c
-                        print(f"   Enriched {len(resolved)} categories via tingbok lookup")
+                        print(f"   Enriched {len(resolved)} EAN-derived categories via tingbok lookup")
 
             if vocab:
                 vocab_output = md_file.parent / "vocabulary.json"

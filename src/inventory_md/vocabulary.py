@@ -244,6 +244,56 @@ def fetch_vocabulary_from_tingbok(url: str, session: niquests.Session | None = N
     return concepts
 
 
+def resolve_vocabulary_from_tingbok(
+    labels: list[str],
+    url: str,
+    lang: str = "en",
+    session: niquests.Session | None = None,
+) -> dict[str, Concept]:
+    """Resolve inventory category labels via POST /api/vocabulary/resolve.
+
+    Returns a vocabulary that covers all requested labels plus their ancestors.
+    Labels not found in tingbok's vocabulary come back as inventory-sourced stubs.
+    Prefer this over :func:`fetch_vocabulary_from_tingbok` when you already know
+    which labels the inventory uses: one round-trip, tailored result.
+    """
+    import niquests  # noqa: PLC0415
+
+    poster = session.post if session is not None else niquests.post
+    base = url.rstrip("/")
+    endpoint = f"{base}/api/vocabulary/resolve"
+    try:
+        response = poster(endpoint, json={"labels": labels, "lang": lang}, timeout=10.0)
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+    except Exception as e:
+        raise TingbokUnavailableError(f"Failed to resolve vocabulary from tingbok {endpoint}: {e}") from e
+
+    concepts: dict[str, Concept] = {}
+    for concept_id, raw in data.get("concepts", {}).items():
+        raw = dict(raw)
+        raw["altLabels"] = raw.pop("altLabel", {})
+        raw["id"] = concept_id
+        # Stubs returned for unknown labels have no source_uris → mark as inventory
+        raw_source_uris: list[str] = raw.pop("source_uris", [])
+        raw["source"] = "tingbok" if raw_source_uris else "inventory"
+        raw_source_paths: dict[str, str] = raw.pop("source_paths", {})
+        raw_path_aliases: dict[str, list[str]] = raw.pop("path_aliases", {})
+        try:
+            concept = Concept.from_dict(raw)
+            for u in raw_source_uris:
+                src = _uri_to_source(u)
+                if src and src not in concept.source_uris:
+                    concept.source_uris[src] = u
+            concept.source_paths = raw_source_paths
+            concept.path_aliases = raw_path_aliases
+            concepts[concept_id] = concept
+        except Exception as e:
+            logger.warning("Skipping malformed concept '%s' from tingbok resolve: %s", concept_id, e)
+
+    return concepts
+
+
 # =============================================================================
 # LANGUAGE FALLBACK SUPPORT
 # =============================================================================

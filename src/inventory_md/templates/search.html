@@ -1685,6 +1685,19 @@
             return [category];
         }
 
+        // Return true if conceptId equals ancestorId or has it as a transitive broader concept.
+        // Works offline using vocabularyData.concepts and handles multi-parent DAGs.
+        function _isDescendantOf(conceptId, ancestorId, visited) {
+            if (conceptId === ancestorId) return true;
+            if (!visited) visited = new Set();
+            if (visited.has(conceptId)) return false;
+            visited.add(conceptId);
+            const concept = vocabularyData && vocabularyData.concepts && vocabularyData.concepts[conceptId];
+            if (!concept || !concept.broader) return false;
+            const broaderList = Array.isArray(concept.broader) ? concept.broader : [concept.broader];
+            return broaderList.some(b => _isDescendantOf(b, ancestorId, visited));
+        }
+
         // Build category counts from inventory
         // Walk broader links upward from conceptId and increment counts, avoiding cycles.
         function _propagateBroaderCounts(conceptId, visited) {
@@ -2377,19 +2390,23 @@
             selectCategory(categoryId);
         }
 
-        // Check if item matches selected category (including children)
+        // Check if item matches selected category (including children via any path).
+        // Uses the vocabulary DAG so that e.g. 'potatoes' (broader: food/vegetables AND
+        // food/staples) matches when either parent is selected.  Works fully offline.
         function itemMatchesCategory(item) {
             if (!selectedCategory) return true;
             if (!item.metadata || !item.metadata.categories) return false;
 
-            // Check if any of the item's categories match or are children of the selected category
             return item.metadata.categories.some(cat => {
-                // Expand category to SKOS paths if categoryMappings available
+                // 1. String prefix match (fast path for path-based categories)
                 const expandedPaths = expandCategoryToSkosPaths(cat);
-
-                return expandedPaths.some(expandedCat => {
-                    return expandedCat === selectedCategory || expandedCat.startsWith(selectedCategory + '/');
-                });
+                if (expandedPaths.some(p => p === selectedCategory || p.startsWith(selectedCategory + '/'))) {
+                    return true;
+                }
+                // 2. Vocabulary DAG traversal (handles multi-parent concepts and flat IDs)
+                if (_isDescendantOf(cat, selectedCategory, new Set())) return true;
+                // 3. Try expanded paths through the DAG as well
+                return expandedPaths.some(p => _isDescendantOf(p, selectedCategory, new Set()));
             });
         }
 

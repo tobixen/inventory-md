@@ -161,3 +161,87 @@ class TestAllFlag:
         result = run_script(inventory_dir)
         assert result.returncode == 0
         assert "future-item" not in result.stdout
+
+
+class TestFoodFlagFlatConceptIds:
+    """--food must work when concept IDs are not prefixed with 'food/'."""
+
+    VOCAB = {
+        "concepts": {
+            "food": {"id": "food", "broader": [], "narrower": ["food/vegetables", "food/staples"]},
+            "food/vegetables": {"id": "food/vegetables", "broader": ["food"], "narrower": ["potatoes"]},
+            "food/staples": {"id": "food/staples", "broader": ["food"], "narrower": ["potatoes"]},
+            "potatoes": {"id": "potatoes", "broader": ["food/vegetables", "food/staples"], "narrower": []},
+            "fender": {"id": "fender", "broader": [], "narrower": []},
+        }
+    }
+
+    def test_flat_food_concept_shown(self, tmp_path):
+        """'potatoes' (broader: food/vegetables) must appear with --food even though
+        its concept ID does not start with 'food/'."""
+        inv = {
+            "containers": [
+                {
+                    "id": "p",
+                    "parent": "",
+                    "items": [
+                        {
+                            "id": "pot1",
+                            "name": "Potatoes",
+                            "metadata": {"bb": "2020-01-31", "categories": ["potatoes"]},
+                        }
+                    ],
+                }
+            ]
+        }
+        (tmp_path / "vocabulary.json").write_text(json.dumps(self.VOCAB))
+        (tmp_path / "inventory.json").write_text(json.dumps(inv))
+        result = run_script(tmp_path, "--food")
+        assert result.returncode == 0
+        assert "pot1" in result.stdout
+
+    def test_multi_parent_food_concept_shown(self, tmp_path):
+        """'potatoes' with two food parents (food/vegetables AND food/staples) is shown."""
+        inv = {
+            "containers": [
+                {
+                    "id": "p",
+                    "parent": "",
+                    "items": [
+                        {
+                            "id": "pot1",
+                            "name": "Potatoes",
+                            "metadata": {"bb": "2020-01-31", "categories": ["potatoes"]},
+                        }
+                    ],
+                }
+            ]
+        }
+        (tmp_path / "vocabulary.json").write_text(json.dumps(self.VOCAB))
+        (tmp_path / "inventory.json").write_text(json.dumps(inv))
+        result = run_script(tmp_path, "--food")
+        assert result.returncode == 0
+        assert "pot1" in result.stdout
+
+    def test_non_food_excluded(self, tmp_path):
+        """'fender' (no food ancestor) must be excluded with --food."""
+        inv = {
+            "containers": [
+                {
+                    "id": "p",
+                    "parent": "",
+                    "items": [
+                        {
+                            "id": "fen1",
+                            "name": "Old fender",
+                            "metadata": {"bb": "2020-01-31", "categories": ["fender"]},
+                        }
+                    ],
+                }
+            ]
+        }
+        (tmp_path / "vocabulary.json").write_text(json.dumps(self.VOCAB))
+        (tmp_path / "inventory.json").write_text(json.dumps(inv))
+        result = run_script(tmp_path, "--food")
+        assert result.returncode == 0
+        assert "fen1" not in result.stdout

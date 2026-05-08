@@ -143,6 +143,8 @@ There are still some remaining work here and quite some regressions after the la
 I think that instead of fetching https://tingbok.plann.no/api/vocabulary it should fetch categories by a canonical "tingbok URL", starting with the virtual _root category.
 
 I think there is no such thing as a canonical "tingbok URL" now.  This needs to be fixed.
+See `~/tingbok/docs/canonical-urls.md` for the proposed URL scheme and a redesigned
+batch-resolve vocabulary API.
 
 Some of the categories in the current tingbok vocabulary.yaml has an uri field with a value, this infomation may safely be overwritten by the canonical tingbok URL
 

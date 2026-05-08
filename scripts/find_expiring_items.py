@@ -32,8 +32,44 @@ from datetime import date
 from pathlib import Path
 
 
-def _build_food_categories(vocab_path: Path) -> set[str] | None:
-    """Return set of leaf category names that map to food/ concepts, or None if unavailable."""
+def _is_food_concept(concept_id: str, concepts: dict, _visited: frozenset | None = None) -> bool:
+    """Return True if concept_id is 'food' or a transitive descendant of it via broader links."""
+    if concept_id == "food":
+        return True
+    visited = _visited or frozenset()
+    if concept_id in visited:
+        return False
+    concept = concepts.get(concept_id)
+    if not concept:
+        return False
+    visited = visited | {concept_id}
+    broader = concept.get("broader", [])
+    if isinstance(broader, str):
+        broader = [broader]
+    return any(_is_food_concept(b, concepts, visited) for b in broader)
+
+
+def _resolve_category(category: str, concepts: dict, label_index: dict) -> str | None:
+    """Resolve a category tag to a concept ID.
+
+    Tries in order:
+    1. Direct concept ID match
+    2. Label index lookup (vocabulary.json labelIndex maps lowercase labels → concept IDs)
+    3. Leaf-name scan (last path segment of concept ID equals category)
+    """
+    if category in concepts:
+        return category
+    cid = label_index.get(category.lower())
+    if cid and cid in concepts:
+        return cid
+    for cid in concepts:
+        if cid.split("/")[-1] == category:
+            return cid
+    return None
+
+
+def _load_vocab_data(vocab_path: Path) -> tuple[dict, dict] | None:
+    """Load (concepts, labelIndex) from vocabulary.json, or None if unavailable."""
     if not vocab_path.exists():
         return None
     try:
@@ -41,12 +77,9 @@ def _build_food_categories(vocab_path: Path) -> set[str] | None:
             vocab = json.load(f)
     except (OSError, json.JSONDecodeError):
         return None
-
-    return {
-        concept_id.split("/")[-1]
-        for concept_id in vocab.get("concepts", {})
-        if concept_id.startswith("food/") and not concept_id.startswith("category_by_source/")
-    }
+    concepts = vocab.get("concepts") or {}
+    label_index = vocab.get("labelIndex") or {}
+    return concepts, label_index
 
 
 def find_expiring_items(inventory_path: Path, food_only: bool = False) -> list:
@@ -58,7 +91,7 @@ def find_expiring_items(inventory_path: Path, food_only: bool = False) -> list:
     with open(inventory_path) as f:
         data = json.load(f)
 
-    food_categories = _build_food_categories(inventory_path.parent / "vocabulary.json") if food_only else None
+    vocab_data = _load_vocab_data(inventory_path.parent / "vocabulary.json") if food_only else None
     today = date.today()
     items = []
 
@@ -70,14 +103,14 @@ def find_expiring_items(inventory_path: Path, food_only: bool = False) -> list:
             meta = item.get("metadata", {})
 
             if food_only:
-                tags = meta.get("tags", [])
                 categories = meta.get("categories", [])
-                is_food = any(t.startswith("food/") for t in tags)
-                if not is_food:
-                    if food_categories is not None:
-                        is_food = any(c in food_categories for c in categories)
-                    else:
-                        is_food = bool(categories)
+                if vocab_data is not None:
+                    concepts, label_index = vocab_data
+                    is_food = any(
+                        _is_food_concept(_resolve_category(c, concepts, label_index) or c, concepts) for c in categories
+                    )
+                else:
+                    is_food = bool(categories)
                 if not is_food:
                     continue
 

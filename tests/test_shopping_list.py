@@ -234,6 +234,29 @@ class TestTagMatches:
         concepts = vocabulary.load_local_vocabulary(vocab_path)
         assert tag_matches("food", "peanuts", concepts) is True
 
+    def test_multi_parent_matches_either_parent(self, tmp_path):
+        """potatoes (broader: food/vegetables AND food/staples) matches both parents."""
+        vocab = {
+            "concepts": {
+                "food": {"id": "food", "broader": [], "narrower": ["food/vegetables", "food/staples"]},
+                "food/vegetables": {"id": "food/vegetables", "broader": ["food"], "narrower": ["potatoes"]},
+                "food/staples": {"id": "food/staples", "broader": ["food"], "narrower": ["potatoes"]},
+                "potatoes": {
+                    "id": "potatoes",
+                    "broader": ["food/vegetables", "food/staples"],
+                    "narrower": [],
+                },
+            }
+        }
+        vocab_path = tmp_path / "vocabulary.json"
+        vocab_path.write_text(json.dumps(vocab))
+        from inventory_md import vocabulary
+
+        concepts = vocabulary.load_local_vocabulary(vocab_path)
+        assert tag_matches("food/vegetables", "potatoes", concepts) is True
+        assert tag_matches("food/staples", "potatoes", concepts) is True
+        assert tag_matches("food", "potatoes", concepts) is True
+
 
 class TestEvaluateItem:
     """Test evaluate_item stock status logic."""

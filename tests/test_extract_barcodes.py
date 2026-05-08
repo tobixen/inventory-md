@@ -216,10 +216,10 @@ class TestLookupCode:
     """Tests for code lookup routing."""
 
     def test_isbn_routes_to_lookup_isbn(self):
-        """Test that ISBNs are routed to lookup_isbn, not OpenFoodFacts."""
+        """Test that ISBNs are routed to lookup_isbn, not tingbok."""
         with (
             patch("extract_barcodes.lookup_isbn") as mock_isbn,
-            patch("extract_barcodes.lookup_ean_online") as mock_ean,
+            patch("extract_barcodes.lookup_tingbok") as mock_ean,
         ):
             mock_isbn.return_value = {"name": "Test Book", "type": "book"}
 
@@ -229,13 +229,13 @@ class TestLookupCode:
             mock_ean.assert_not_called()
             assert product["type"] == "book"
 
-    def test_ean_routes_to_openfoodfacts(self):
-        """Test that EANs are routed to OpenFoodFacts."""
+    def test_ean_routes_to_tingbok(self):
+        """Test that EANs are routed to tingbok."""
         with (
             patch("extract_barcodes.lookup_isbn") as mock_isbn,
-            patch("extract_barcodes.lookup_ean_online") as mock_ean,
+            patch("extract_barcodes.lookup_tingbok") as mock_ean,
         ):
-            mock_ean.return_value = {"name": "Test Product", "source": "openfoodfacts"}
+            mock_ean.return_value = {"name": "Test Product", "source": "tingbok"}
 
             product, cached = lookup_code("5901234123457", {}, use_cache=False)
 
@@ -253,15 +253,16 @@ class TestLookupCode:
             assert cached is True
             assert product["name"] == "Cached Book"
 
-    def test_cache_none_means_not_found(self):
-        """Test that None in cache means 'looked up but not found'."""
+    def test_ean_always_queries_tingbok(self):
+        """Test that EANs always query tingbok (no local cache for EANs)."""
         cache = {"5901234123457": None}
 
-        with patch("extract_barcodes.lookup_ean_online") as mock_ean:
+        with patch("extract_barcodes.lookup_tingbok") as mock_ean:
+            mock_ean.return_value = None
             product, cached = lookup_code("5901234123457", cache, use_cache=True)
 
-            mock_ean.assert_not_called()
-            assert cached is True
+            mock_ean.assert_called_once_with("5901234123457")
+            assert cached is False
             assert product is None
 
 
