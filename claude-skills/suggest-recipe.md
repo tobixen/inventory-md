@@ -10,7 +10,7 @@ Suggest recipes that prioritize using items from the inventory, especially items
 
 ## Rules
 
-1. **Prioritize expired items**: Always check inventory for EXPIRED items first and try to incorporate them.
+1. **Prioritize expiring items**: Always check inventory for items that have expired or will expire soon first and try to incorporate them.
 
 2. **Ingredient list format**: Every recipe must start with an ingredient list in this format:
    ```
@@ -62,18 +62,10 @@ inventory-md parse --auto   # regenerate inventory.json
 ~/inventory-md/scripts/find_expiring_items.py inventory.json --all
 ```
 
-### Using grep (fallback)
-
-```bash
-grep -n "EXPIRED" inventory.md
-grep -n "category:food/legumes" inventory.md
-grep -in "beans\|cumin\|rice" inventory.md
-```
-
 ## Workflow
 
 ### Step 1: Suggest recipes
-1. Search inventory for EXPIRED food items
+1. Search inventory for expiring food items
 2. Identify 2–3 recipes that use those items
 3. Present brief summaries
 4. **Ask user which recipe(s) to make** using AskUserQuestion
@@ -86,16 +78,17 @@ grep -in "beans\|cumin\|rice" inventory.md
    ```
 
 ### Dated wanted-items format
+
+Filename: `wanted-items-YYYY-MM-DD-receipe-name.md`
+
 ```markdown
-# Temporary Shopping Items - YYYY-MM-DD
-
-Items needed for [recipe name].
-
-## For [recipe name]
+# Items needed for [recipe name] [date].
 
 * category:yogurt - Yogurt (for curry topping)
 * category:coriander - Fresh coriander/cilantro
 ```
+
+The file should contain items needed to be purchased as well as items already in the inventory.
 
 ## Recipe File Format
 

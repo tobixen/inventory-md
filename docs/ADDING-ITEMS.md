@@ -26,11 +26,13 @@ Fields may appear in any order but the human-readable description should come la
 | `volume:` | Optional | Volume per unit (e.g. `volume:1l`, `volume:400ml`) |
 | `bb:` | Food/perishables | Best-before date (see [Best-before dates](#best-before-dates)) |
 | `price:` | Optional | Price at purchase point (e.g. `price:EUR:2.49/pcs`) |
-| `value:` | Optional | Replacement or resale value estimate |
+| `value:` | Optional | Sujective value estimate |
 | `EAN:` | When known | Product barcode |
 | `ISBN:` | When known | For books |
 
 An item line may cover multiple identical items (e.g. six cans of beans). If items on the same line differ in expiry date or purchase price, split them onto separate lines.
+
+Each line should have a unique ID.  If none is given, then use something readable (i.e. `id:dads-yellow-jacket`.  For food items, consider postfixing the ID with purchase/discovery date.  `id:carrots-2026-05-09`.
 
 ## Categories
 
@@ -88,7 +90,7 @@ Common cross-cutting tags: `tag:TODO` (needs review), `tag:condition:new`, `tag:
 - `mass:Xg` / `mass:Xkg` — **net mass per unit**. Use `mass:total/qty` for non-uniform items.
 - `volume:Xl` / `volume:Xml` — volume per unit. Use for liquids; rarely combined with mass.
 
-**Divisor convention** for non-uniform items: if 1.2 kg of onions were bought, counted as six, and four remain, write `qty:4 mass:1200g/6` — the average mass per onion is 200 g, giving ~800 g estimated total.
+**Divisor convention** for non-uniform items: if 1.2 kg of onions were bought, counted as six, and four remain, write `qty:4 mass:1200g/6` — the average mass per onion is 200 g, giving ~800 g estimated total.  If the quantity of onions is unknown, then use just `mass:1200g`.
 
 Do not round weights down to zero (e.g. 43 g of garlic → `mass:43g`, not omitted).
 
@@ -134,6 +136,9 @@ Or with the script directly:
 ## Price and Value
 
 - `price:CURRENCY:AMOUNT/UNIT` — what was paid (e.g. `price:EUR:2.49/pcs`, `price:NOK:49.90/kg`)
-- `value:CURRENCY:AMOUNT` — replacement or resale value estimate
+- `price:CURRENCY:AMOUNT` — The `/pcs` is optional.  It's informative if the avocadoes are sold per piece, but not so much if buying a bathtub, laptop or winter jacket.
+- `value:CURRENCY:AMOUNT` — a subjective value estimate
 
 When buying a bundle, record the **net per-unit price** (total paid ÷ quantity), not the list price.
+
+The value of an item is of course non-trivial.  The real value may even be negative if it's difficult to discard the item.  The subjective value may be higher than the market value, nobody may want to buy your old sleeping bag, but if you use it often it may be almost as valuable as a new sleeping bag, as the alternative to using the old one may be to buy a new one.
