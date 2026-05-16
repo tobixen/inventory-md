@@ -2284,6 +2284,15 @@ class TestBroaderStubs:
         assert tree.concepts["primary_commodity/raw_material"].broader == ["primary_commodity"]
         assert "primary_commodity/raw_material" in tree.concepts["primary_commodity"].narrower
 
+    def test_resolve_category_normalizes_dashes_to_underscores(self):
+        """resolve_category('toilet-paper') matches concept ID 'toilet_paper'."""
+        vocab = {
+            "toilet_paper": vocabulary.Concept(id="toilet_paper", prefLabel="Toilet Paper"),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+        result = vocabulary.resolve_category("toilet-paper", tree.concepts)
+        assert result == "toilet_paper"
+
     def test_resolve_category_finds_leaf_via_stub(self):
         """resolve_category('cooking_oil') matches the stub via leaf-name lookup."""
         vocab = {
