@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -200,6 +201,7 @@ class TestUpdateTemplate:
             capture_output=True,
             text=True,
             cwd=tmp_path,
+            env={**os.environ, "INVENTORY_MD_TINGBOK__URL": ""},
         )
 
         assert result.returncode == 0
@@ -219,6 +221,7 @@ class TestUpdateTemplate:
             capture_output=True,
             text=True,
             cwd=tmp_path,
+            env={**os.environ, "INVENTORY_MD_TINGBOK__URL": ""},
         )
 
         assert result.returncode == 0
