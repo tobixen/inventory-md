@@ -117,3 +117,6 @@ python_files = ["test_*.py"]
 filterwarnings = ["error"]
 # Don't collect from scripts/ which has optional dependencies
 norecursedirs = ["scripts"]
+markers = [
+    "integration: requires a live tingbok service — skipped automatically when unreachable",
+]
