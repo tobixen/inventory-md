@@ -941,27 +941,22 @@ def resolve_category(
     the Tingbok vocabulary project.  Returns ``None`` if no match is found;
     the caller should fall back to using the raw category string.
     """
-    cat_lower = category.lower()
-    cat_normalized = cat_lower.replace("-", "_")
+    cat_lower = category.lower().replace("-", "_")
 
-    # 1. Direct concept ID — prefer whichever form has richer hierarchy (non-empty broader)
-    candidates = [k for k in (cat_lower, cat_normalized) if k in concepts]
-    if candidates:
-        for key in candidates:
-            if concepts[key].broader:
-                return key
-        return candidates[0]
+    # 1. Direct concept ID
+    if cat_lower in concepts:
+        return cat_lower
 
     # 2. Language-specific path alias
     alias_map = _build_path_alias_map(concepts, lang)
-    if cat_normalized in alias_map:
-        return alias_map[cat_normalized]
+    if cat_lower in alias_map:
+        return alias_map[cat_lower]
 
     # 3. Leaf name lookup (last path component of concept ID)
     for concept_id in concepts:
         if concept_id.startswith(CATEGORY_BY_SOURCE_ID + "/"):
             continue
-        if concept_id.split("/")[-1] == cat_normalized:
+        if concept_id.split("/")[-1] == cat_lower:
             return concept_id
 
     return None
