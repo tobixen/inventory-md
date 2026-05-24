@@ -941,7 +941,7 @@ def resolve_category(
     the Tingbok vocabulary project.  Returns ``None`` if no match is found;
     the caller should fall back to using the raw category string.
     """
-    cat_lower = category.lower().replace("-", "_")
+    cat_lower = category.lower()
 
     # 1. Direct concept ID
     if cat_lower in concepts:
