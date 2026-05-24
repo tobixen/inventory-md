@@ -263,7 +263,7 @@ def resolve_vocabulary_from_tingbok(
     base = url.rstrip("/")
     endpoint = f"{base}/api/vocabulary/resolve"
     try:
-        response = poster(endpoint, json={"labels": labels, "lang": lang}, timeout=10.0)
+        response = poster(endpoint, json={"labels": labels, "lang": lang}, timeout=60.0)
         response.raise_for_status()
         data: dict[str, Any] = response.json()
     except Exception as e:
@@ -941,22 +941,27 @@ def resolve_category(
     the Tingbok vocabulary project.  Returns ``None`` if no match is found;
     the caller should fall back to using the raw category string.
     """
-    cat_lower = category.lower().replace("-", "_")
+    cat_lower = category.lower()
+    cat_normalized = cat_lower.replace("-", "_")
 
-    # 1. Direct concept ID
-    if cat_lower in concepts:
-        return cat_lower
+    # 1. Direct concept ID — prefer whichever form has richer hierarchy (non-empty broader)
+    candidates = [k for k in (cat_lower, cat_normalized) if k in concepts]
+    if candidates:
+        for key in candidates:
+            if concepts[key].broader:
+                return key
+        return candidates[0]
 
     # 2. Language-specific path alias
     alias_map = _build_path_alias_map(concepts, lang)
-    if cat_lower in alias_map:
-        return alias_map[cat_lower]
+    if cat_normalized in alias_map:
+        return alias_map[cat_normalized]
 
     # 3. Leaf name lookup (last path component of concept ID)
     for concept_id in concepts:
         if concept_id.startswith(CATEGORY_BY_SOURCE_ID + "/"):
             continue
-        if concept_id.split("/")[-1] == cat_lower:
+        if concept_id.split("/")[-1] == cat_normalized:
             return concept_id
 
     return None

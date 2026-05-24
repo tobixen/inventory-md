@@ -412,3 +412,215 @@ class TestShoppingListCommand:
 
         assert result.returncode == 0
         assert "Shopping List" in result.stdout
+
+
+class TestParseCommandWantedItemsLabels:
+    """Test that parse_command includes wanted-items labels in the tingbok resolve call."""
+
+    def _write_inventory(self, tmp_path, content: str) -> "Path":
+        f = tmp_path / "inventory.md"
+        f.write_text(content)
+        return f
+
+    def test_wanted_items_labels_included_in_resolve(self, tmp_path, monkeypatch) -> None:
+        """When wanted-items is given, its category labels are sent to resolve_vocabulary_from_tingbok."""
+        from unittest.mock import patch
+
+        from inventory_md import cli, vocabulary
+
+        inventory_md = self._write_inventory(
+            tmp_path,
+            "## ID:Pantry Pantry\n\n* category:olive-oil ID:oo1 volume:750ml Olive oil\n",
+        )
+        wanted = tmp_path / "wanted-items.md"
+        wanted.write_text("## Oils\n\n* category:cooking-oil - Cooking oil target:qty:1\n")
+        monkeypatch.chdir(tmp_path)
+
+        captured_labels = []
+
+        def mock_resolve(labels, url, lang="en", session=None):
+            captured_labels.extend(labels)
+            return {}
+
+        with patch.object(vocabulary, "resolve_vocabulary_from_tingbok", side_effect=mock_resolve):
+            with patch.object(vocabulary, "load_global_vocabulary", return_value={}):
+                with patch.object(vocabulary, "enrich_categories_via_lookup", return_value=({}, {})):
+                    cli.parse_command(
+                        inventory_md,
+                        wanted_items=wanted,
+                        tingbok_url="https://tingbok.plann.no",
+                    )
+
+        assert "olive-oil" in captured_labels, "inventory category should be in resolve labels"
+        assert "cooking-oil" in captured_labels, "wanted-items category should be in resolve labels"
+
+
+class TestVocabularySearch:
+    """Tests for 'vocabulary search' subcommand."""
+
+    def _make_vocab(self, tmp_path) -> None:
+        """Write a vocabulary.json and inventory.json with a spice hierarchy."""
+        vocab = {
+            "concepts": {
+                "food": {"id": "food", "prefLabel": "Food", "broader": [], "narrower": ["food/spices"]},
+                "food/spices": {
+                    "id": "food/spices",
+                    "prefLabel": "Spices",
+                    "broader": ["food"],
+                    "narrower": ["food/spices/cumin", "food/spices/pepper"],
+                },
+                "food/spices/cumin": {
+                    "id": "food/spices/cumin",
+                    "prefLabel": "Cumin",
+                    "broader": ["food/spices"],
+                    "narrower": [],
+                },
+                "food/spices/pepper": {
+                    "id": "food/spices/pepper",
+                    "prefLabel": "Pepper",
+                    "broader": ["food/spices"],
+                    "narrower": [],
+                },
+                "cooking-oil": {
+                    "id": "cooking-oil",
+                    "prefLabel": "Cooking Oil",
+                    "broader": [],
+                    "narrower": ["cooking-oil/olive-oil"],
+                },
+                "cooking-oil/olive-oil": {
+                    "id": "cooking-oil/olive-oil",
+                    "prefLabel": "Olive Oil",
+                    "broader": ["cooking-oil"],
+                    "narrower": [],
+                },
+            }
+        }
+        (tmp_path / "vocabulary.json").write_text(json.dumps(vocab))
+
+        inventory = {
+            "containers": [
+                {
+                    "id": "pantry",
+                    "items": [
+                        {
+                            "id": "cumin1",
+                            "name": "Ground cumin",
+                            "metadata": {"categories": ["food/spices/cumin"]},
+                            "indented": False,
+                            "parent": None,
+                            "raw_text": "",
+                        },
+                        {
+                            "id": "pepper1",
+                            "name": "Black pepper",
+                            "metadata": {"categories": ["food/spices/pepper"]},
+                            "indented": False,
+                            "parent": None,
+                            "raw_text": "",
+                        },
+                        {
+                            "id": "oil1",
+                            "name": "Olive oil 750ml",
+                            "metadata": {"categories": ["cooking-oil/olive-oil"], "volume_l": 0.75},
+                            "indented": False,
+                            "parent": None,
+                            "raw_text": "",
+                        },
+                        {
+                            "id": "book1",
+                            "name": "Cooking book",
+                            "metadata": {"categories": ["book"]},
+                            "indented": False,
+                            "parent": None,
+                            "raw_text": "",
+                        },
+                    ],
+                    "images": [],
+                    "metadata": {},
+                }
+            ]
+        }
+        (tmp_path / "inventory.json").write_text(json.dumps(inventory))
+
+    def test_search_finds_direct_category(self, tmp_path) -> None:
+        """vocabulary search <label> finds items with exactly that category."""
+        self._make_vocab(tmp_path)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "inventory_md.cli",
+                "vocabulary",
+                "search",
+                "food/spices/cumin",
+                "--directory",
+                str(tmp_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "cumin" in result.stdout.lower()
+        assert "pepper" not in result.stdout.lower()
+
+    def test_search_finds_children_of_category(self, tmp_path) -> None:
+        """vocabulary search for a parent category finds all child items."""
+        self._make_vocab(tmp_path)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "inventory_md.cli",
+                "vocabulary",
+                "search",
+                "food/spices",
+                "--directory",
+                str(tmp_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "cumin" in result.stdout.lower()
+        assert "pepper" in result.stdout.lower()
+        assert "book" not in result.stdout.lower()
+
+    def test_search_by_leaf_label(self, tmp_path) -> None:
+        """vocabulary search with a bare label (not full path) also works."""
+        self._make_vocab(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "vocabulary", "search", "spices", "--directory", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "cumin" in result.stdout.lower()
+        assert "pepper" in result.stdout.lower()
+
+    def test_search_no_matches(self, tmp_path) -> None:
+        """vocabulary search with unknown category returns clean no-results message."""
+        self._make_vocab(tmp_path)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "inventory_md.cli",
+                "vocabulary",
+                "search",
+                "nonexistent-category",
+                "--directory",
+                str(tmp_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "no items" in result.stdout.lower() or "not found" in result.stdout.lower()

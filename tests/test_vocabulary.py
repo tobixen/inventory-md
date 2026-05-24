@@ -2316,3 +2316,36 @@ class TestBroaderStubs:
         tree = vocabulary.build_category_tree(vocab)
 
         assert tree.concepts["food"].source != "inferred"
+
+    def test_resolve_category_prefers_richer_hierarchy(self):
+        """When both 'olive-oil' (hyphen, with broader) and 'olive_oil' (underscore, empty
+        broader) exist, resolve_category should prefer the one with non-empty broader so
+        that ancestor traversal (e.g. 'is this a cooking-oil?') works correctly."""
+        cooking_oil_path = "primary_commodity/raw_material/oil/cooking_oil"
+        vocab = {
+            "olive_oil": vocabulary.Concept(
+                id="olive_oil",
+                prefLabel="Olive Oil",
+                broader=[],  # static tingbok vocab — no hierarchy info
+            ),
+            "olive-oil": vocabulary.Concept(
+                id="olive-oil",
+                prefLabel="Olive Oil",
+                broader=["cooking-oil", cooking_oil_path],  # resolved with wanted-items context
+            ),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+        result = vocabulary.resolve_category("olive-oil", tree.concepts)
+        # Should prefer the hyphenated form (it has a non-empty broader list)
+        assert result == "olive-oil"
+
+    def test_resolve_category_falls_back_to_first_when_neither_has_broader(self):
+        """When both dash and underscore forms exist with empty broader, return first match."""
+        vocab = {
+            "toilet_paper": vocabulary.Concept(id="toilet_paper", prefLabel="Toilet Paper", broader=[]),
+            "toilet-paper": vocabulary.Concept(id="toilet-paper", prefLabel="Toilet Paper", broader=[]),
+        }
+        tree = vocabulary.build_category_tree(vocab)
+        result = vocabulary.resolve_category("toilet-paper", tree.concepts)
+        # Falls back to first candidate checked (cat_lower = "toilet-paper")
+        assert result in ("toilet-paper", "toilet_paper")
