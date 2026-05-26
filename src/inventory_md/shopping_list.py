@@ -90,6 +90,7 @@ class InventoryItem:
     mass_g: float | None = None
     volume_l: float | None = None
     bb: str | None = None
+    location: str | None = None
 
 
 @dataclass
@@ -193,8 +194,24 @@ def parse_inventory_for_shopping(
     ``qty`` as float) and old-format (``mass``/``volume`` as strings,
     ``qty`` as string).
     """
+    # Build a mapping from container id to container for location path resolution
+    containers_list = inventory_data.get("containers", [])
+    container_by_id: dict[str, dict] = {c["id"]: c for c in containers_list if c.get("id")}
+
+    def _container_path(container_id: str) -> str:
+        """Return a slash-joined path of container IDs from root to this container."""
+        parts = []
+        seen = set()
+        cid = container_id
+        while cid and cid not in seen:
+            seen.add(cid)
+            parts.append(cid)
+            parent = container_by_id.get(cid, {}).get("parent")
+            cid = parent
+        return " / ".join(reversed(parts))
+
     items = []
-    for container in inventory_data.get("containers", []):
+    for container in containers_list:
         for item_data in container.get("items", []):
             meta = item_data.get("metadata", {})
 
@@ -245,6 +262,8 @@ def parse_inventory_for_shopping(
                     volume_l = amount
 
             bb = meta.get("bb")
+            container_id = container.get("id")
+            location = _container_path(container_id) if container_id else None
 
             items.append(
                 InventoryItem(
@@ -255,6 +274,7 @@ def parse_inventory_for_shopping(
                     mass_g=mass_g,
                     volume_l=volume_l,
                     bb=bb,
+                    location=location,
                 )
             )
 

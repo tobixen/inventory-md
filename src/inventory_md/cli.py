@@ -1265,6 +1265,7 @@ def _vocabulary_search_command(args, config: Config, directory: Path) -> int:
                     "description": m.description,
                     "tag": m.tag,
                     "qty": m.qty,
+                    "location": m.location,
                 }
                 for m in matches
             ],
@@ -1276,7 +1277,8 @@ def _vocabulary_search_command(args, config: Config, directory: Path) -> int:
         print(f"Items matching '{label}' [{canonical}]: {len(matches)}\n")
         for m in matches:
             qty_str = f" (qty: {m.qty:.4g})" if m.qty != 1.0 else ""
-            print(f"  {m.item_id or '?':20} {m.description}{qty_str}")
+            loc_str = f"  @ {m.location}" if m.location else ""
+            print(f"  {m.item_id or '?':20} {m.description}{qty_str}{loc_str}")
 
     return 0
 
@@ -1295,8 +1297,8 @@ def vocabulary_command(args, config: Config) -> int:
             skip_cwd=True,  # local vocab is handled separately based on directory
         )
     except vocabulary.TingbokUnavailableError as e:
-        print(f"❌ {e}")
-        return 1
+        print(f"⚠️  Tingbok unavailable ({e}), falling back to local vocabulary.json")
+        global_vocab = {}
 
     # Load local vocabulary from directory (highest priority)
     local_vocab_yaml = directory / "local-vocabulary.yaml"

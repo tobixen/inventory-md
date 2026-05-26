@@ -624,3 +624,135 @@ class TestVocabularySearch:
 
         assert result.returncode == 0
         assert "no items" in result.stdout.lower() or "not found" in result.stdout.lower()
+
+    def _make_vocab_with_containers(self, tmp_path) -> None:
+        """Write vocabulary.json and inventory.json with nested containers."""
+        vocab = {
+            "concepts": {
+                "food/spices": {
+                    "id": "food/spices",
+                    "prefLabel": "Spices",
+                    "broader": [],
+                    "narrower": ["food/spices/cumin"],
+                },
+                "food/spices/cumin": {
+                    "id": "food/spices/cumin",
+                    "prefLabel": "Cumin",
+                    "broader": ["food/spices"],
+                    "narrower": [],
+                },
+            }
+        }
+        (tmp_path / "vocabulary.json").write_text(json.dumps(vocab))
+
+        inventory = {
+            "containers": [
+                {
+                    "id": "galley",
+                    "parent": None,
+                    "heading": "Galley",
+                    "items": [],
+                    "images": [],
+                    "metadata": {},
+                },
+                {
+                    "id": "spice-cabinet",
+                    "parent": "galley",
+                    "heading": "Spice Cabinet",
+                    "items": [
+                        {
+                            "id": "cumin1",
+                            "name": "Ground cumin",
+                            "metadata": {"categories": ["food/spices/cumin"]},
+                            "indented": False,
+                            "parent": None,
+                            "raw_text": "",
+                        },
+                    ],
+                    "images": [],
+                    "metadata": {},
+                },
+            ]
+        }
+        (tmp_path / "inventory.json").write_text(json.dumps(inventory))
+
+    def test_search_shows_location(self, tmp_path) -> None:
+        """vocabulary search output includes the container/location of each item."""
+        self._make_vocab_with_containers(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "vocabulary", "search", "spices", "--directory", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert "cumin" in result.stdout.lower()
+        # Location (container id or heading) should appear in output
+        assert "galley" in result.stdout.lower() or "spice-cabinet" in result.stdout.lower()
+
+
+class TestVocabularyOffline:
+    """Tests for vocabulary list/lookup/tree working without tingbok."""
+
+    def _make_vocab_json(self, tmp_path) -> None:
+        vocab = {
+            "concepts": {
+                "food": {"id": "food", "prefLabel": "Food", "broader": [], "narrower": ["food/spices"]},
+                "food/spices": {
+                    "id": "food/spices",
+                    "prefLabel": "Spices",
+                    "broader": ["food"],
+                    "narrower": [],
+                },
+            }
+        }
+        (tmp_path / "vocabulary.json").write_text(json.dumps(vocab))
+
+    def _env_with_fake_tingbok(self) -> dict:
+        """Return env with a fake tingbok URL that will always be unreachable."""
+        env = os.environ.copy()
+        env["INVENTORY_MD_TINGBOK__URL"] = "http://localhost:19999"
+        return env
+
+    def test_vocabulary_list_works_without_tingbok(self, tmp_path) -> None:
+        """vocabulary list uses vocabulary.json when tingbok is unavailable."""
+        self._make_vocab_json(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "vocabulary", "list", "--directory", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            env=self._env_with_fake_tingbok(),
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "spices" in result.stdout.lower() or "food" in result.stdout.lower()
+
+    def test_vocabulary_lookup_works_without_tingbok(self, tmp_path) -> None:
+        """vocabulary lookup uses vocabulary.json when tingbok is unavailable."""
+        self._make_vocab_json(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "vocabulary", "lookup", "spices", "--directory", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            env=self._env_with_fake_tingbok(),
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "spices" in result.stdout.lower()
+
+    def test_vocabulary_tree_works_without_tingbok(self, tmp_path) -> None:
+        """vocabulary tree uses vocabulary.json when tingbok is unavailable."""
+        self._make_vocab_json(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "vocabulary", "tree", "--directory", str(tmp_path)],
+            capture_output=True,
+            text=True,
+            env=self._env_with_fake_tingbok(),
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "food" in result.stdout.lower()
