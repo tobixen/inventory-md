@@ -693,7 +693,7 @@ class TestVocabularySearch:
 
 
 class TestVocabularyOffline:
-    """Tests for vocabulary list/lookup/tree working without tingbok."""
+    """Tests for vocabulary list/lookup/tree using only vocabulary.json (no tingbok)."""
 
     def _make_vocab_json(self, tmp_path) -> None:
         vocab = {
@@ -709,50 +709,66 @@ class TestVocabularyOffline:
         }
         (tmp_path / "vocabulary.json").write_text(json.dumps(vocab))
 
-    def _env_with_fake_tingbok(self) -> dict:
-        """Return env with a fake tingbok URL that will always be unreachable."""
-        env = os.environ.copy()
-        env["INVENTORY_MD_TINGBOK__URL"] = "http://localhost:19999"
-        return env
-
-    def test_vocabulary_list_works_without_tingbok(self, tmp_path) -> None:
-        """vocabulary list uses vocabulary.json when tingbok is unavailable."""
+    def test_vocabulary_list_from_vocab_json(self, tmp_path) -> None:
+        """vocabulary list reads directly from vocabulary.json without querying tingbok."""
         self._make_vocab_json(tmp_path)
 
         result = subprocess.run(
             [sys.executable, "-m", "inventory_md.cli", "vocabulary", "list", "--directory", str(tmp_path)],
             capture_output=True,
             text=True,
-            env=self._env_with_fake_tingbok(),
-        )
-
-        assert result.returncode == 0, result.stderr
-        assert "spices" in result.stdout.lower() or "food" in result.stdout.lower()
-
-    def test_vocabulary_lookup_works_without_tingbok(self, tmp_path) -> None:
-        """vocabulary lookup uses vocabulary.json when tingbok is unavailable."""
-        self._make_vocab_json(tmp_path)
-
-        result = subprocess.run(
-            [sys.executable, "-m", "inventory_md.cli", "vocabulary", "lookup", "spices", "--directory", str(tmp_path)],
-            capture_output=True,
-            text=True,
-            env=self._env_with_fake_tingbok(),
         )
 
         assert result.returncode == 0, result.stderr
         assert "spices" in result.stdout.lower()
+        assert "food" in result.stdout.lower()
 
-    def test_vocabulary_tree_works_without_tingbok(self, tmp_path) -> None:
-        """vocabulary tree uses vocabulary.json when tingbok is unavailable."""
+    def test_vocabulary_tree_from_vocab_json(self, tmp_path) -> None:
+        """vocabulary tree reads directly from vocabulary.json without querying tingbok."""
         self._make_vocab_json(tmp_path)
 
         result = subprocess.run(
             [sys.executable, "-m", "inventory_md.cli", "vocabulary", "tree", "--directory", str(tmp_path)],
             capture_output=True,
             text=True,
-            env=self._env_with_fake_tingbok(),
         )
 
         assert result.returncode == 0, result.stderr
         assert "food" in result.stdout.lower()
+
+    def test_vocabulary_lookup_found_in_vocab_json(self, tmp_path) -> None:
+        """vocabulary lookup returns exit 0 and shows concept when found in vocabulary.json."""
+        self._make_vocab_json(tmp_path)
+
+        result = subprocess.run(
+            [sys.executable, "-m", "inventory_md.cli", "vocabulary", "lookup", "spices", "--directory", str(tmp_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "spices" in result.stdout.lower()
+        assert "warning" not in result.stdout.lower()
+        assert "⚠" not in result.stdout
+
+    def test_vocabulary_lookup_warns_when_not_in_local_vocab(self, tmp_path) -> None:
+        """vocabulary lookup warns and exits non-zero when label not in vocabulary.json."""
+        self._make_vocab_json(tmp_path)
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "inventory_md.cli",
+                "vocabulary",
+                "lookup",
+                "nonexistent-thing",
+                "--directory",
+                str(tmp_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode != 0
+        assert "not found in local vocabulary" in result.stdout.lower() or "⚠" in result.stdout
