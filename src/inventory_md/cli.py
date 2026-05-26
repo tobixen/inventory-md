@@ -66,6 +66,12 @@ def init_inventory(directory: Path, name: str = "My Inventory") -> int:
         shutil.copy(search_html, directory / "search.html")
         print("✅ Created search.html")
 
+    # Copy Makefile template
+    makefile_template = templates_dir / "Makefile"
+    if makefile_template.exists():
+        shutil.copy(makefile_template, directory / "Makefile")
+        print("✅ Created Makefile")
+
     # Copy aliases.json template (if it exists)
     aliases_template = templates_dir / "aliases.json.template"
     if aliases_template.exists():
@@ -125,44 +131,45 @@ Beskrivelse av container...
     return 0
 
 
-def update_template(directory: Path = None, force: bool = False) -> int:
-    """Update search.html template to the latest version from the package.
+def _update_from_template(source: Path, target: Path) -> int:
+    """Copy source to target when content differs; silent no-op when already current.
 
-    Args:
-        directory: Target directory (default: current directory)
-        force: Overwrite without prompting
-
-    Returns:
-        0 on success, 1 on error
+    These files carry a 'do not edit' header — no prompts are needed.
     """
-    if directory is None:
-        directory = Path.cwd()
-    else:
-        directory = Path(directory).resolve()
-
-    templates_dir = Path(__file__).parent / "templates"
-    source = templates_dir / "search.html"
-    target = directory / "search.html"
-
     if not source.exists():
         print(f"❌ Template not found: {source}")
         return 1
 
-    if not directory.exists():
-        print(f"❌ Directory not found: {directory}")
+    if not target.parent.exists():
+        print(f"❌ Directory not found: {target.parent}")
         return 1
 
-    # Check if target exists and prompt if not forcing
-    if target.exists() and not force:
-        print(f"⚠️  {target} already exists")
-        response = input("Overwrite? [y/N] ")
-        if response.lower() != "y":
-            print("Aborted.")
-            return 1
+    if target.exists() and target.read_bytes() == source.read_bytes():
+        return 0
 
     shutil.copy(source, target)
     print(f"✅ Updated {target}")
     return 0
+
+
+def update_template(directory: Path = None, force: bool = False) -> int:
+    """Update search.html to the latest version from the package."""
+    if directory is None:
+        directory = Path.cwd()
+    else:
+        directory = Path(directory).resolve()
+    source = Path(__file__).parent / "templates" / "search.html"
+    return _update_from_template(source, directory / "search.html")
+
+
+def update_makefile(directory: Path = None, force: bool = False) -> int:
+    """Update inventory Makefile to the latest version from the package."""
+    if directory is None:
+        directory = Path.cwd()
+    else:
+        directory = Path(directory).resolve()
+    source = Path(__file__).parent / "templates" / "Makefile"
+    return _update_from_template(source, directory / "Makefile")
 
 
 def parse_command(
@@ -928,6 +935,12 @@ Examples:
     update_parser.add_argument("directory", type=Path, nargs="?", help="Target directory (default: current directory)")
     update_parser.add_argument("--force", "-f", action="store_true", help="Overwrite without prompting")
 
+    update_mk_parser = subparsers.add_parser("update-makefile", help="Update inventory Makefile to latest version")
+    update_mk_parser.add_argument(
+        "directory", type=Path, nargs="?", help="Target directory (default: current directory)"
+    )
+    update_mk_parser.add_argument("--force", "-f", action="store_true", help="Overwrite without prompting")
+
     # Serve command
     serve_parser = subparsers.add_parser("serve", help="Start local web server")
     serve_parser.add_argument("directory", type=Path, nargs="?", help="Directory to serve (default: current directory)")
@@ -1117,6 +1130,8 @@ Examples:
         )
     elif args.command == "update-template":
         return update_template(args.directory, args.force)
+    elif args.command == "update-makefile":
+        return update_makefile(args.directory, args.force)
     elif args.command == "serve":
         port = args.port if args.port is not None else config.serve_port
         host = args.host if args.host is not None else config.serve_host

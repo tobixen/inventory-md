@@ -141,36 +141,32 @@ class TestUpdateTemplate:
         assert result == 0
         assert (tmp_path / "search.html").exists()
 
-    def test_update_template_overwrites_with_force(self, tmp_path):
-        """Test that update_template overwrites with --force."""
+    def test_update_template_overwrites_stale_content(self, tmp_path):
+        """Test that update_template silently overwrites when content differs."""
         existing = tmp_path / "search.html"
         existing.write_text("old content")
 
-        result = cli.update_template(tmp_path, force=True)
+        result = cli.update_template(tmp_path)
 
         assert result == 0
         content = existing.read_text()
         assert "old content" not in content
-        assert "<!DOCTYPE html>" in content  # New template starts with this
+        assert "<!DOCTYPE html>" in content
 
-    def test_update_template_prompts_without_force(self, tmp_path):
-        """Test that update_template prompts when file exists."""
-        existing = tmp_path / "search.html"
-        existing.write_text("old content")
+    def test_update_template_skips_when_already_current(self, tmp_path):
+        """Test that update_template is a no-op when content already matches."""
+        from pathlib import Path as _Path
 
-        # User says no
-        with patch("builtins.input", return_value="n"):
-            result = cli.update_template(tmp_path, force=False)
+        source = _Path(cli.__file__).parent / "templates" / "search.html"
+        target = tmp_path / "search.html"
+        import shutil
 
-        assert result == 1
-        assert existing.read_text() == "old content"  # Not overwritten
+        shutil.copy(source, target)
 
-        # User says yes
-        with patch("builtins.input", return_value="y"):
-            result = cli.update_template(tmp_path, force=False)
+        result = cli.update_template(tmp_path)
 
         assert result == 0
-        assert "old content" not in existing.read_text()
+        assert target.stat().st_mtime == target.stat().st_mtime  # no rewrite
 
     def test_update_template_fails_for_nonexistent_directory(self, tmp_path):
         """Test that update_template fails if directory doesn't exist."""
