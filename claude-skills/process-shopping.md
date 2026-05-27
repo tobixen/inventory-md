@@ -28,6 +28,8 @@ Typically one photo will show the barcode; the next will show the best-before da
 
 Use the `ean_cache.json` in the inventory directory and any per-instance matching scripts to correlate receipt item names with EAN codes. The `lidl_receipt_name` field in `ean_cache.json` maps receipt names to EAN codes.
 
+**If the mapping between EAN and product is unclear, then ask the user**.  We don't want wrong information posted to Tingbok.
+
 ### 4. Ask user for storage locations
 
 Check if each item already exists in the inventory. Suggest suitable storage locations and confirm with the user.
@@ -81,8 +83,6 @@ Organise photos by **storage location**, not by shopping trip. Only copy photos 
 mkdir -p $INVENTORY_DIR/photos/LOCATION-ID/
 cp PRODUCT_PHOTOS $INVENTORY_DIR/photos/LOCATION-ID/
 ```
-
-Do **not** create shopping-date directories like `lidl-2026-01-24/`.
 
 ### 9. Commit changes
 

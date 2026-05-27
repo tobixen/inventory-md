@@ -2,47 +2,44 @@
 
 Suggest recipes that prioritize using items from the inventory, especially items nearing or past their best-before date.
 
-## Trigger
-- User asks for recipe suggestions
-- User asks "what can I make with..."
-- User wants to use up expired or soon-to-expire items
-- `/suggest-recipe` command
-
 ## Rules
 
-1. **Prioritize expiring items**: Always check inventory for items that have expired or will expire soon first and try to incorporate them.
+1. **Prioritize expiring items**: See below on how to sort out expired and soon-expiring food.  Priority spending food in this order:  food that has expired few days ago, food that will expire in some few days, food that expired long ago, food that will expire in the far future.
 
-2. **Ingredient list format**: Every recipe must start with an ingredient list in this format:
+2. **Consider a balanced meal**: A good meal should include vegetables, proteins (personal preferences matters - some are vegans, others crave meat in every meal) and staples (potatoes, bread, rice, pasta or other cheap fillers), sometimes a sauce may be needed.  Exceptions do apply (particularly if no shopping is possible).
+
+3. **Ingredient list format**: Every recipe must start with an ingredient list in this format:
    ```
    ## Ingredients
 
-   **From inventory:**
-   - [ ] 💧 200g dried beans `ID:pinto-beans` (F-12, bb:2024-04) ⚠️ expired — quality check before use
-   - [ ] 1 tsp cumin `ID:cumin-jar` (F-13, bb:2026-08)
-
-   **Needs shopping:**
-   - [ ] 🛒 500g ground beef
+   - [ ] 💧 200g dried beans `ID:pinto-beans` (location: F-12, bb:2024-04) ⚠️ expired — quality check before use
+   - [ ] 1 tsp cumin `ID:cumin-jar` (location: F-13, bb:2026-08)
+   - [ ] 🛒 500g ground beef (expected location: fridge)
 
    **Preparation needed:**
    - [ ] 💧 Beans need overnight soaking
    ```
 
-3. **Include location and expiry**: For inventory items, always include the item ID, container, and best-before date. Add `⚠️ expired — quality check before use` for expired items; do not sort expired items into a separate section.
+   Sort things by location (expected location for things that needs shopping).
 
-4. **Shopping mode**:
+4. **Include location and expiry**: For inventory items, always include the item ID, container, and best-before date. Add `⚠️ expired — quality check before use` for expired items; do not sort expired items into a separate section.  Validate the container/location, try to avoid hallucinating those things.
+
+5. **Shopping mode**:
    - Default: Assume extra ingredients can be purchased (mark with 🛒)
    - If user says "no shopping": Only use inventory items; suggest alternatives
 
-5. **Highlight preparation needs**:
+6. **Highlight preparation needs**:
    - 🛒 = needs to be purchased
    - 💧 = needs soaking
    - ❄️ = needs thawing
    - ⏰ = needs advance prep (marinating, etc.)
 
-6. **Mark deviations** from traditional recipes:
+7. **Mark deviations** from traditional recipes:
    ```
    > **Note:** Traditional Greek fava uses no garlic, but it adds depth — omit if you prefer authentic.
    ```
+
+8. **Consider timing**.  Avoid surprises like "Fry on strong heat for 30s while constantly stirring" followed with a point "add three finely chopped onions".  Sometimes it may be needed to chop vegetables and other things before frying things, other times the chopping can be done in parallell.
 
 ## Searching Inventory
 
