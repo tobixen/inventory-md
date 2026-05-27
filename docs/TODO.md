@@ -1,14 +1,11 @@
-* Getting the categories correct is the first pri - see TODO-CATEGORIES.md
-* The shopping list generator for solveig is currently quite broken, it needs to be mended (categories should be sufficiently specific in the inventory.md, and they need to match with the categories in the wanted list)
-* ~~`inventory-md.json` vs `inventory.json` is confusing - the first is the config file, the other is the parsed version of inventory.md.  Please rename inventory-md.json to config.json.  For backward compatibility, accept inventory-md.json as well.~~ DONE: `config.yaml`/`config.json` now supported in project directory (inventory-md.yaml/json still accepted for backward compatibility)
-* ~~The "quick start" in the installation guide should be made easier, and should rely on a Makefile~~ DONE
+* ~~Consider TODO-CATEGORIES.md - is there any tasks there that hasn't been processed?  Delete everything that is completed.~~ DONE 2026-05-26
+* ~~I'd like to be able to search for, look up, and browse categories and the category hiearchies from the CLI~~ DONE 2026-05-26: `vocabulary list/lookup/tree/search` all work offline from vocabulary.json; `lookup` falls back to tingbok for unknown categories.  `vocabulary search` now shows container location next to each item.
+* Getting the categories correct is quite high.  See TODO-CATEGORIES.md.
+* ~~I'd like a Makefile in the inventory repository for parsing the inventory, refreshing search.html if needed, and refreshing the Makefile as well if needed~~ DONE 2026-05-27: `inventory-md init` installs a Makefile; `inventory-md update-makefile` refreshes it.  `make` parses when inputs change, refreshes search.html and Makefile if package was updated.
 * System is currently used for "Solveig" (boat) and "Furuset" (home).  I don't want to go public with the database here, but it would be nice with a third demo site with demo data.  (Partly DONE - but it should be improved to "show off" all the features)
 * There are some things now that should be included in the inventory-md:
   * ~~at Solveig we have a shopping list generator script~~ DONE: integrated as `inventory-md parse --wanted-items`
-  * There are some files under ~/.claude/skills/ that should be included:
-    * `process-inventory-photos.md` - workflow for processing inventory photos with barcode extraction
-    * `process-lidl-shopping.md` - workflow for Lidl receipt processing
-    * `suggest-recipe.md` - recipe suggestions prioritizing expired items
+  * ~~Skills files~~ DONE 2026-05-27: `claude-skills/` contains process-inventory-photos.md, process-shopping.md, suggest-recipe.md
   * The integration with the Lidl+ shopping history downloader should also be scripted better and included in the inventory system.
   * ~~Make a public puppet-module for rolling out things, too~~ DONE: https://github.com/tobixen/puppet-inventory-md
 * QR label printing: Generate printable QR code labels with unique IDs for containers and items (this feature is available in the CLI now, but needs testing with physical labels)
