@@ -87,6 +87,49 @@ def _parse_discount(spec: str) -> tuple[str, float, str]:
     return ean.strip(), float(gross), (dtype.strip().upper() or "SALE")
 
 
+def _parse_category_price(spec: str) -> dict[str, Any]:
+    """Parse 'TAG=PRICE[,was=GROSS][,type=SALE][,per=UNIT|KILOGRAM]'.
+
+    e.g. 'en:baguettes=0.17,was=0.45,type=SALE' for barcodeless items.
+    """
+    items = [s.strip() for s in spec.split(",")]
+    tag, _, price = items[0].partition("=")
+    out: dict[str, Any] = {"category_tag": tag.strip(), "price": float(price), "price_per": "UNIT"}
+    for kv in items[1:]:
+        key, _, val = kv.partition("=")
+        key = key.strip().lower()
+        if key == "was":
+            out["price_without_discount"] = float(val)
+        elif key == "type":
+            out["discount_type"] = val.strip().upper()
+        elif key == "per":
+            out["price_per"] = val.strip().upper()
+    return out
+
+
+def build_category_price(
+    spec: dict[str, Any], *, proof_id: int, osm_type: str, osm_id: int, date: str, currency: str = "EUR"
+) -> dict[str, Any]:
+    """Build an Open Prices CATEGORY price (barcodeless item) from a parsed spec."""
+    payload = {
+        "proof_id": proof_id,
+        "type": "CATEGORY",
+        "category_tag": spec["category_tag"],
+        "price": spec["price"],
+        "currency": currency,
+        "date": date,
+        "price_per": spec.get("price_per", "UNIT"),
+        "location_osm_id": osm_id,
+        "location_osm_type": osm_type,
+    }
+    pwd = spec.get("price_without_discount")
+    if pwd is not None and float(pwd) > float(spec["price"]):
+        payload["price_is_discounted"] = True
+        payload["price_without_discount"] = float(pwd)
+        payload["discount_type"] = spec.get("discount_type", "SALE")
+    return payload
+
+
 def _osm_cache_key(lat: float, lon: float) -> str:
     return f"{round(lat, 4)},{round(lon, 4)}"
 
@@ -178,16 +221,31 @@ def main() -> None:  # pragma: no cover - network / CLI wiring
         metavar="EAN=GROSS[:TYPE]",
         help="Mark an EAN discounted: paid price stays, GROSS is the regular price (repeatable)",
     )
+    parser.add_argument(
+        "--category-price",
+        action="append",
+        default=[],
+        metavar="TAG=PRICE[,was=,type=,per=]",
+        help="Publish a barcodeless CATEGORY price, e.g. en:baguettes=0.17,was=0.45,type=SALE (repeatable)",
+    )
+    parser.add_argument(
+        "--no-products", action="store_true", help="Skip the EAN/PRODUCT prices (e.g. category-only run)"
+    )
     parser.add_argument("--env", choices=["org", "net"], default="org")
     parser.add_argument("--commit", action="store_true")
     args = parser.parse_args()
     discounts = {ean: (gross, dtype) for ean, gross, dtype in (_parse_discount(s) for s in args.discount)}
+    category_specs = [_parse_category_price(s) for s in args.category_price]
 
     base = BASES[args.env]
     rows = [json.loads(line) for line in args.ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
-    rows = [r for r in rows if r.get("shop") == args.shop and r.get("date") == args.date and r.get("ean")]
-    if not rows:
-        sys.exit(f"No ledger rows with an EAN for shop={args.shop!r} date={args.date!r}")
+    rows = (
+        []
+        if args.no_products
+        else [r for r in rows if r.get("shop") == args.shop and r.get("date") == args.date and r.get("ean")]
+    )
+    if not rows and not category_specs:
+        sys.exit(f"Nothing to publish for shop={args.shop!r} date={args.date!r} (no EAN rows, no --category-price)")
 
     # --suggest-from-photo: print an OSM hint from a photo's GPS, then stop.
     # (Unreliable: the photo may be taken away from the shop — confirm before use.)
@@ -237,13 +295,32 @@ def main() -> None:  # pragma: no cover - network / CLI wiring
         )
         if not args.commit:
             print(
-                f"  DRY-RUN {payload['product_code']}  {payload['price']} {payload['currency']}/{payload['price_per']}  {r.get('name', '')[:40]}{disc}"
+                f"  DRY-RUN {payload['product_code']}  {payload['price']} {payload['currency']}  {r.get('name', '')[:40]}{disc}"
             )
             continue
         resp = requests.post(f"{base}/api/v1/prices", json=payload, headers=headers, timeout=60)
         ok = resp.status_code in (200, 201)
         print(
             f"  {'OK ' if ok else 'FAIL'} {resp.status_code} {payload['product_code']}  {payload['price']} {payload['currency']}"
+            + ("" if ok else f"  {resp.text[:160]}")
+        )
+
+    for spec in category_specs:
+        payload = build_category_price(spec, proof_id=proof_id or 0, osm_type=osm_type, osm_id=osm_id, date=args.date)
+        disc = (
+            f"  [discounted from {payload['price_without_discount']} {payload['discount_type']}]"
+            if payload.get("price_is_discounted")
+            else ""
+        )
+        if not args.commit:
+            print(
+                f"  DRY-RUN [cat] {payload['category_tag']}  {payload['price']} {payload['currency']}/{payload['price_per']}{disc}"
+            )
+            continue
+        resp = requests.post(f"{base}/api/v1/prices", json=payload, headers=headers, timeout=60)
+        ok = resp.status_code in (200, 201)
+        print(
+            f"  {'OK ' if ok else 'FAIL'} {resp.status_code} [cat] {payload['category_tag']}  {payload['price']} {payload['currency']}"
             + ("" if ok else f"  {resp.text[:160]}")
         )
 

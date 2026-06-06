@@ -5,7 +5,45 @@ import sys
 import pytest
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
-from openprices_publish import _dms_to_deg, _parse_discount, _parse_osm, build_price  # noqa: E402
+from openprices_publish import (  # noqa: E402
+    _dms_to_deg,
+    _parse_category_price,
+    _parse_discount,
+    _parse_osm,
+    build_category_price,
+    build_price,
+)
+
+
+class TestCategoryPrice:
+    def test_parse_minimal(self):
+        assert _parse_category_price("en:baguettes=0.45") == {
+            "category_tag": "en:baguettes",
+            "price": 0.45,
+            "price_per": "UNIT",
+        }
+
+    def test_parse_full(self):
+        s = _parse_category_price("en:baguettes=0.17,was=0.45,type=SALE,per=UNIT")
+        assert s["category_tag"] == "en:baguettes"
+        assert s["price"] == 0.17
+        assert s["price_without_discount"] == 0.45
+        assert s["discount_type"] == "SALE"
+
+    def test_build_category_no_product_code(self):
+        p = build_category_price(
+            {"category_tag": "en:baguettes", "price": 0.17, "price_per": "UNIT", "price_without_discount": 0.45},
+            proof_id=9,
+            osm_type="WAY",
+            osm_id=2,
+            date="2026-06-06",
+        )
+        assert p["type"] == "CATEGORY"
+        assert "product_code" not in p
+        assert p["category_tag"] == "en:baguettes"
+        assert p["price_per"] == "UNIT"
+        assert p["price_is_discounted"] is True
+        assert p["price_without_discount"] == 0.45
 
 
 class TestDiscount:
