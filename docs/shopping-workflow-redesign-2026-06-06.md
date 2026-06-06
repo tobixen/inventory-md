@@ -126,6 +126,20 @@ line-item:
     and sum prices — **zero extra logging**. Caveat: removal-commit date ≈
     consumption date; bulk reorganizations blur it. Approximate but free.
 
+> **Implemented** in `scripts/ledger.py` (stage 2): importers for raw Lidl,
+> Decathlon (carries EAN), and reviewed staging files; `query` (category/date/
+> shop) and `consumed` (git-history join — verified: 239 removed IDs detected
+> across 215 revisions in ~1.3 s).
+>
+> **Append-or-enrich, not strict append-only** (per the owner's call): rows are
+> matched on the stable receipt fields (`date, shop, receipt_name, qty,
+> unit_price, total`); a re-import is a no-op, but importing the *reviewed*
+> staging file fills the enrichable fields (`ean, name, category, inventory_id`)
+> on the existing raw row in place — never duplicating, and nulls never overwrite
+> an existing value. So raw imports give spend totals by date/shop immediately,
+> and category + consumption queries resolve for each line once it's been reviewed
+> through the staging flow.
+
 ## The pipeline: ordered, resumable stages
 
 Each stage has a clear input/output file. Run stage 1 right after shopping; fix
