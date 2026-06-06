@@ -5,7 +5,7 @@ import sys
 import pytest
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
-from off_upload import build_body  # noqa: E402
+from off_upload import _images, build_body  # noqa: E402
 
 
 def test_code_required():
@@ -48,3 +48,16 @@ def test_empty_and_unknown_fields_dropped():
 
 def test_code_coerced_to_str_and_stripped():
     assert build_body({"code": " 123 "})["code"] == "123"
+
+
+def test_images_collects_all_roles():
+    imgs = _images({"images": {"front": "f.jpg", "ingredients": "i.jpg", "nutrition": "n.jpg", "packaging": "p.jpg"}})
+    assert imgs == {"front": "f.jpg", "ingredients": "i.jpg", "nutrition": "n.jpg", "packaging": "p.jpg"}
+
+
+def test_images_legacy_front_image_maps_to_front():
+    assert _images({"front_image": "f.jpg"}) == {"front": "f.jpg"}
+
+
+def test_images_empty_when_none():
+    assert _images({"code": "1"}) == {}

@@ -73,6 +73,23 @@ def build_body(product: dict[str, Any]) -> dict[str, Any]:
     return body
 
 
+_IMAGE_FIELDS = ("front", "ingredients", "nutrition", "packaging")
+
+
+def _images(product: dict[str, Any]) -> dict[str, str]:
+    """Collect {role: path} image uploads, merging legacy ``front_image``.
+
+    Roles are the OFF image fields: front, ingredients, nutrition, packaging.
+    """
+    images: dict[str, str] = {}
+    raw = product.get("images") or {}
+    for field in _IMAGE_FIELDS:
+        path = raw.get(field) or (product.get("front_image") if field == "front" else None)
+        if path:
+            images[field] = str(path)
+    return images
+
+
 def get_session_cookie() -> str | None:  # pragma: no cover - reads browser store
     """Read the logged-in OFF session cookie from the browser (browser_cookie3)."""
     try:
@@ -131,14 +148,15 @@ def main() -> None:  # pragma: no cover - thin CLI / network wiring
             continue
         resp = api.product.update(body)
         print(f"    update -> {resp}")
-        if front and not args.no_image:
+        lang = body.get("lang", "en")
+        for field, path in _images(p).items():
+            if args.no_image:
+                break
             try:
-                img = api.product.upload_image(
-                    body["code"], image_path=front, selected={"front": {body.get("lang", "en"): {}}}
-                )
-                print(f"    image  -> {getattr(img, 'status_code', img)}")
+                img = api.product.upload_image(body["code"], image_path=path, selected={field: {lang: {}}})
+                print(f"    image[{field}] -> {getattr(img, 'status_code', img)}")
             except Exception as exc:  # noqa: BLE001 - image upload is best-effort
-                print(f"    image  -> FAILED ({exc}); retry later with --image-only")
+                print(f"    image[{field}] -> FAILED ({exc}); retry later")
         check = api.product.get(body["code"], fields=["code", "product_name", "quantity", "categories_tags"])
         print(f"    verify -> name={check.get('product_name')!r} cats={check.get('categories_tags')}")
 
