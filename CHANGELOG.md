@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`scripts/shop_import.py`** — first stage of a staged shopping-import pipeline. Parses a Lidl receipt (JSON) into one row per line item, classifies barcode-extraction photos as barcode/expiry/label, and gathers candidate EANs per line via tingbok's reverse receipt-name lookup (`GET /api/ean/search`). Emits a human-correctable staging YAML; EAN matching and best-before reading are deferred to a later review step. See `docs/shopping-workflow-redesign-2026-06-06.md`.
 - **`shopping-list` CLI subcommand** — regenerates `shopping-list.md` without running a full parse. Reads from `inventory.json` (must exist) and `wanted-items.md`. Supports `--stdout` to print to stdout instead of writing the file, and `--no-dated` to skip dated wanted-items files. Auto-detects all paths from config/CWD.
 - **`vocabulary.resolve_category()`** — new public function that resolves a raw category string (leaf name, path alias, or full concept path) to a canonical concept ID. Used by the shopping list to normalise both inventory categories and wanted-item categories before matching.
 - **`category:` syntax in wanted-items.md** — wanted-items now accept `* category:potatoes` in addition to the legacy `* tag:food/grains/pasta` syntax.
