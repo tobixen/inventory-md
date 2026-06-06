@@ -147,6 +147,55 @@ def check_items_without_category(data: dict) -> list:
     return [f"Items without category: {count} items have no category"]
 
 
+def _is_food_concept(concept_data: dict | None) -> bool:
+    """True if a resolved concept is under the food hierarchy.
+
+    Food concepts have an id like ``food/...`` or a ``broader`` path rooted at
+    ``food`` (e.g. ``chickpeas`` → broader ``food/legumes``). Non-food (e.g.
+    ``dishwasher_detergent`` → ``product/chemical_product/...``) returns False.
+    """
+    if not concept_data:
+        return False
+    cid = concept_data.get("id") or ""
+    if cid == "food" or cid.startswith("food/"):
+        return True
+    return any(b == "food" or b.startswith("food/") for b in (concept_data.get("broader") or []))
+
+
+def check_food_without_bb(data: dict, is_food) -> list:
+    """Flag food items that have no best-before date.
+
+    ``is_food`` is a callable ``(category_leaf) -> bool``. An item is a food
+    product if any of its categories is food; every food product should carry a
+    best-before (``bb``) date.
+    """
+    offenders: list[str] = []
+    for container in data.get("containers", []):
+        for item in container.get("items", []):
+            md = item.get("metadata", {})
+            if md.get("bb"):
+                continue
+            if any(is_food(cat) for cat in md.get("categories", [])):
+                offenders.append(item.get("id") or (item.get("name") or "")[:30])
+    if not offenders:
+        return []
+    sample = ", ".join(offenders[:5])
+    more = "" if len(offenders) <= 5 else ", …"
+    return [f"Food items without best-before: {len(offenders)} items — e.g. {sample}{more}"]
+
+
+def _make_food_classifier(base: str | None):
+    """Return a cached ``is_food(category_leaf) -> bool`` backed by tingbok."""
+    cache: dict[str, bool] = {}
+
+    def is_food(cat: str) -> bool:
+        if cat not in cache:
+            cache[cat] = _is_food_concept(_lookup_tingbok(cat.split("/")[-1], base)) if base else False
+        return cache[cat]
+
+    return is_food
+
+
 def _lookup_tingbok(leaf: str, base: str) -> dict | None:
     """GET /api/lookup/{leaf}; return parsed JSON or None on 404/error."""
     import niquests
@@ -369,6 +418,10 @@ def run_all_checks(data: dict, concepts: dict, lang: str, tingbok_url: str | Non
         warnings += cat_warnings
         infos += cat_infos
         fix_map.update(cat_fixes)
+
+    if tingbok_url:
+        base = tingbok_url.rstrip("/")
+        warnings += check_food_without_bb(data, _make_food_classifier(base))
 
     results = {
         "errors": check_duplicate_ids(data) + check_missing_parents(data),
