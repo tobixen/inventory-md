@@ -5,7 +5,30 @@ import sys
 import pytest
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
-from openprices_publish import _dms_to_deg, _parse_osm, build_price  # noqa: E402
+from openprices_publish import _dms_to_deg, _parse_discount, _parse_osm, build_price  # noqa: E402
+
+
+class TestDiscount:
+    ROW = {"ean": "x", "unit_price": 0.79, "currency": "EUR", "date": "2026-06-06", "unit": "pcs"}
+
+    def test_parse_discount(self):
+        assert _parse_discount("3800050405919=1.15:SALE") == ("3800050405919", 1.15, "SALE")
+
+    def test_parse_discount_default_type(self):
+        assert _parse_discount("123=2.00") == ("123", 2.0, "SALE")
+
+    def test_build_price_discounted(self):
+        p = build_price(
+            {**self.ROW, "price_without_discount": 1.15, "discount_type": "SALE"}, proof_id=1, osm_type="WAY", osm_id=1
+        )
+        assert p["price"] == 0.79
+        assert p["price_is_discounted"] is True
+        assert p["price_without_discount"] == 1.15
+        assert p["discount_type"] == "SALE"
+
+    def test_no_discount_when_gross_not_higher(self):
+        p = build_price({**self.ROW, "price_without_discount": 0.79}, proof_id=1, osm_type="WAY", osm_id=1)
+        assert "price_is_discounted" not in p
 
 
 class TestParseOsm:
@@ -52,14 +75,15 @@ class TestBuildPrice:
         assert p["product_code"] == "3800856095703"
         assert p["price"] == 1.78
         assert p["currency"] == "EUR"
-        assert p["price_per"] == "UNIT"
+        assert "price_per" not in p  # PRODUCT prices omit price_per
         assert p["location_osm_id"] == 123
         assert p["location_osm_type"] == "NODE"
         assert p["product_name"] == "Billa rice"
 
-    def test_kg_item_price_per_kilogram(self):
+    def test_no_price_per_for_product(self):
+        # price_per is only for CATEGORY prices; PRODUCT (EAN) must omit it
         row = {**self.ROW, "unit": "kg"}
-        assert build_price(row, proof_id=1, osm_type="NODE", osm_id=1)["price_per"] == "KILOGRAM"
+        assert "price_per" not in build_price(row, proof_id=1, osm_type="NODE", osm_id=1)
 
     def test_ean_coerced_to_str(self):
         row = {**self.ROW, "ean": 3800856095703}

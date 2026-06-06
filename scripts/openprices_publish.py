@@ -58,6 +58,8 @@ def photo_latlon(path: str | Path) -> tuple[float, float] | None:
 
 def build_price(row: dict[str, Any], *, proof_id: int, osm_type: str, osm_id: int) -> dict[str, Any]:
     """Build an Open Prices PriceCreate payload for a ledger row with an EAN."""
+    # PRODUCT prices (EAN) must NOT carry price_per — that field is only for
+    # barcodeless CATEGORY prices (loose produce priced per kg).
     payload = {
         "proof_id": proof_id,
         "type": "PRODUCT",
@@ -65,13 +67,24 @@ def build_price(row: dict[str, Any], *, proof_id: int, osm_type: str, osm_id: in
         "price": row["unit_price"],
         "currency": row.get("currency", "EUR"),
         "date": row["date"],
-        "price_per": "KILOGRAM" if row.get("unit") == "kg" else "UNIT",
         "location_osm_id": osm_id,
         "location_osm_type": osm_type,
     }
     if row.get("name"):
         payload["product_name"] = row["name"]
+    pwd = row.get("price_without_discount")
+    if pwd is not None and float(pwd) > float(row["unit_price"]):
+        payload["price_is_discounted"] = True
+        payload["price_without_discount"] = float(pwd)
+        payload["discount_type"] = row.get("discount_type", "SALE")
     return payload
+
+
+def _parse_discount(spec: str) -> tuple[str, float, str]:
+    """Parse 'EAN=GROSS[:TYPE]', e.g. '3800050405919=1.15:SALE'."""
+    ean, _, rest = spec.partition("=")
+    gross, _, dtype = rest.partition(":")
+    return ean.strip(), float(gross), (dtype.strip().upper() or "SALE")
 
 
 def _osm_cache_key(lat: float, lon: float) -> str:
@@ -153,13 +166,22 @@ def main() -> None:  # pragma: no cover - network / CLI wiring
     parser.add_argument("--date", required=True, help="Ledger date YYYY-MM-DD")
     parser.add_argument("--proof", type=Path, required=True, help="Receipt image to upload as proof")
     parser.add_argument("--osm", help="Shop location as TYPE:ID (e.g. WAY:1016681733); confirmed & cached per shop")
+    parser.add_argument("--proof-id", type=int, default=None, help="Reuse an already-uploaded proof id (skip upload)")
     parser.add_argument(
         "--suggest-from-photo", type=Path, default=None, help="Print an OSM suggestion from a photo's GPS, then exit"
     )
     parser.add_argument("--ledger", type=Path, default=Path.home() / "regnskap" / "purchases.jsonl")
+    parser.add_argument(
+        "--discount",
+        action="append",
+        default=[],
+        metavar="EAN=GROSS[:TYPE]",
+        help="Mark an EAN discounted: paid price stays, GROSS is the regular price (repeatable)",
+    )
     parser.add_argument("--env", choices=["org", "net"], default="org")
     parser.add_argument("--commit", action="store_true")
     args = parser.parse_args()
+    discounts = {ean: (gross, dtype) for ean, gross, dtype in (_parse_discount(s) for s in args.discount)}
 
     base = BASES[args.env]
     rows = [json.loads(line) for line in args.ledger.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -188,8 +210,8 @@ def main() -> None:  # pragma: no cover - network / CLI wiring
     if args.commit and not _token():
         sys.exit("No token — run op_auth.py first (or set OPENPRICES_TOKEN).")
 
-    proof_id = None
-    if args.commit:
+    proof_id = args.proof_id
+    if args.commit and proof_id is None:
         with args.proof.open("rb") as f:
             up = requests.post(
                 f"{base}/api/v1/proofs/upload",
@@ -204,10 +226,18 @@ def main() -> None:  # pragma: no cover - network / CLI wiring
         print(f"proof uploaded -> id={proof_id}")
 
     for r in rows:
+        if r["ean"] in discounts:
+            gross, dtype = discounts[r["ean"]]
+            r = {**r, "price_without_discount": gross, "discount_type": dtype}
         payload = build_price(r, proof_id=proof_id or 0, osm_type=osm_type, osm_id=osm_id)
+        disc = (
+            f"  [discounted from {payload['price_without_discount']} {payload['discount_type']}]"
+            if payload.get("price_is_discounted")
+            else ""
+        )
         if not args.commit:
             print(
-                f"  DRY-RUN {payload['product_code']}  {payload['price']} {payload['currency']}/{payload['price_per']}  {r.get('name', '')[:40]}"
+                f"  DRY-RUN {payload['product_code']}  {payload['price']} {payload['currency']}/{payload['price_per']}  {r.get('name', '')[:40]}{disc}"
             )
             continue
         resp = requests.post(f"{base}/api/v1/prices", json=payload, headers=headers, timeout=60)
