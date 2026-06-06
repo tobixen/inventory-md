@@ -8,6 +8,7 @@ import sys
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
 from ledger import (  # noqa: E402
+    combine_duplicate_lines,
     consumed_rows,
     decathlon_purchase_to_rows,
     detect_removals,
@@ -141,6 +142,55 @@ class TestStagingToRows:
         assert row["category"] == "food/dairy"
         assert row["inventory_id"] == "milk-2026-05-28"
         assert row["total"] == 1.49
+
+
+class TestCombineDuplicateLines:
+    def test_repeated_line_becomes_qty_sum(self):
+        # A receipt that lists the same product on two separate qty-1 lines.
+        receipt = {
+            "purchase_date": "2026.06.06",
+            "store": "Billa",
+            "total_price_no_saving": "3,56",
+            "items": [
+                {"name": "ОРИЗ BILLA", "price": "1,78", "quantity": "1"},
+                {"name": "ОРИЗ BILLA", "price": "1,78", "quantity": "1"},
+            ],
+        }
+        rows = combine_duplicate_lines(lidl_receipt_to_rows(receipt))
+        assert len(rows) == 1
+        assert rows[0]["qty"] == 2
+        assert rows[0]["total"] == 3.56
+
+    def test_different_products_not_combined(self):
+        rows = combine_duplicate_lines(lidl_receipt_to_rows(LIDL_RECEIPT))
+        assert len(rows) == 2  # beer + nectarines stay separate
+
+    def test_same_name_different_price_not_combined(self):
+        receipt = {
+            "purchase_date": "2026.06.06",
+            "store": "X",
+            "total_price_no_saving": "3",
+            "items": [
+                {"name": "ITEM", "price": "1,00", "quantity": "1"},
+                {"name": "ITEM", "price": "2,00", "quantity": "1"},
+            ],
+        }
+        assert len(combine_duplicate_lines(lidl_receipt_to_rows(receipt))) == 2
+
+    def test_order_preserved(self):
+        receipt = {
+            "purchase_date": "2026.06.06",
+            "store": "X",
+            "total_price_no_saving": "5",
+            "items": [
+                {"name": "A", "price": "1,00", "quantity": "1"},
+                {"name": "B", "price": "2,00", "quantity": "1"},
+                {"name": "A", "price": "1,00", "quantity": "1"},
+            ],
+        }
+        rows = combine_duplicate_lines(lidl_receipt_to_rows(receipt))
+        assert [r["receipt_name"] for r in rows] == ["A", "B"]
+        assert rows[0]["qty"] == 2
 
 
 class TestUpsert:

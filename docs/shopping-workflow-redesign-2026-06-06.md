@@ -200,6 +200,27 @@ staging file in `$EDITOR` between stages.
   offline phone lookup.
 - Typo in `process-lidl-shopping.md` line 25: "breif" → "brief".
 
+## Follow-up ideas (raised during the first real-data run, 2026-06-06)
+
+- **Storage-location auto-discovery.** When adding an item, suggest *where it
+  goes* from history rather than asking each time. Search `inventory.json` (not
+  the markdown — easier) for the same category/EAN and propose the container(s)
+  where similar items already live. Retain location memory for used-up items by
+  setting `qty:0` instead of deleting lines (tombstones), and/or keep a
+  location-hint map in `wanted-items.md`. Note the owner's rule: bulk dry goods
+  are placed by *available space / expiry*, not category — so suggestions should
+  rank by "where similar items are" **and** "where there's room / by expiry",
+  not force a category bucket.
+- **Receipt duplicate-line handling** (done): repeated qty-1 lines are summed
+  into qty-N (`combine_duplicate_lines`).
+- **Resumable session tracker** (done, this run): one `staging/shopping-DATE.yaml`
+  with a `status:` block (ledger/diary/inventory/tingbok_qa/tingbok_push) so an
+  interrupted run resumes; ledger upsert is idempotent, diary/inventory/tingbok
+  are guarded by the status flags. tingbok push only after QA.
+- **bb capture gap.** Several items had no best-before photo, so dry-goods bb is
+  `:EST`. Worth prompting capture of the bb shot, or OCR-reading it when the
+  barcode+bb share a photo.
+
 ## Build order
 
 1. `shop-import` → `staging/shopping-YYYY-MM-DD.yaml` (**first**).

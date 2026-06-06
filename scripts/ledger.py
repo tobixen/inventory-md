@@ -102,6 +102,28 @@ def _row(
 # --------------------------------------------------------------------------- #
 # Importers
 # --------------------------------------------------------------------------- #
+def combine_duplicate_lines(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge receipt lines for the same product into one row with summed qty/total.
+
+    Receipts often print the same product on two separate qty-1 lines instead of
+    one qty-2 line. Without this, :func:`upsert_rows` would collapse them by
+    identity and silently drop the duplicate (undercount). Lines are merged when
+    ``(date, shop, receipt_name, ean, unit_price)`` match; first-seen order is
+    preserved.
+    """
+    combined: dict[tuple[Any, ...], dict[str, Any]] = {}
+    order: list[tuple[Any, ...]] = []
+    for r in rows:
+        key = (r.get("date"), r.get("shop"), r.get("receipt_name"), r.get("ean"), r.get("unit_price"))
+        if key in combined:
+            combined[key]["qty"] += r.get("qty") or 0
+            combined[key]["total"] = round((combined[key].get("total") or 0) + (r.get("total") or 0), 2)
+        else:
+            combined[key] = dict(r)
+            order.append(key)
+    return [combined[k] for k in order]
+
+
 def lidl_receipt_to_rows(
     receipt: dict[str, Any], shop: str = "Lidl Varna", source: str | None = None
 ) -> list[dict[str, Any]]:
@@ -127,7 +149,7 @@ def lidl_receipt_to_rows(
                 source=source,
             )
         )
-    return rows
+    return combine_duplicate_lines(rows)
 
 
 def _normalize_ean(serial: dict[str, Any]) -> str | None:
@@ -167,7 +189,7 @@ def decathlon_purchase_to_rows(purchase: dict[str, Any], source: str | None = No
                 source=source,
             )
         )
-    return rows
+    return combine_duplicate_lines(rows)
 
 
 def staging_to_rows(staging: dict[str, Any]) -> list[dict[str, Any]]:
