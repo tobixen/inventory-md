@@ -18,6 +18,8 @@ Options:
     --no-cache      Skip local ISBN cache, always query online
     --ocr           Enable OCR fallback when no barcode is detected
     --ocr-only      Only run OCR, skip barcode extraction
+    --best-before   OCR every image (barcode ones too) and attach best_before
+        --bb        date candidates — the date is usually on the barcode photo
     --json          Output as JSON
     -h, --help      Show this help message
 
@@ -69,6 +71,12 @@ except ImportError:
 
 # Default cache file location
 CACHE_FILE = Path("ean_cache.json")
+
+try:
+    # Same scripts/ dir; available when run as a script or imported with scripts on path.
+    from bb_dates import extract_best_before
+except ImportError:  # pragma: no cover
+    extract_best_before = None
 
 
 def load_cache(cache_path: Path) -> dict:
@@ -143,7 +151,12 @@ def get_ocr_reader(languages: list[str] | None = None) -> "easyocr.Reader | None
     return _ocr_reader
 
 
-def extract_text_ocr(image_path: Path, languages: list[str] | None = None, min_confidence: float = 0.3) -> list[dict]:
+def extract_text_ocr(
+    image_path: Path,
+    languages: list[str] | None = None,
+    min_confidence: float = 0.3,
+    rotation_info: list[int] | None = None,
+) -> list[dict]:
     """
     Extract text from an image using OCR.
 
@@ -160,20 +173,33 @@ def extract_text_ocr(image_path: Path, languages: list[str] | None = None, min_c
         return []
 
     try:
-        # easyocr.readtext returns list of (bbox, text, confidence)
-        results = reader.readtext(str(image_path))
+        import numpy as np
+        from PIL import ImageOps
 
+        # Honour the EXIF orientation tag — PIL/easyocr otherwise read the raw
+        # sensor orientation, so a photo that looks upright in the gallery is
+        # fed to OCR sideways/upside-down. This is the main orientation fix
+        # (assuming labels are shot roughly upright). Downscale big phone photos.
+        img = ImageOps.exif_transpose(Image.open(image_path).convert("RGB"))
+        if max(img.size) > 2600:
+            img.thumbnail((2600, 2600))
+
+        # Optional extra orientations (PIL-rotated ourselves; easyocr's own
+        # rotation_info crashes on some images).
+        angles = [0, *(rotation_info or [])]
         extracted = []
-        for bbox, text, confidence in results:
-            if confidence >= min_confidence:
-                extracted.append(
-                    {
-                        "text": text,
-                        "confidence": confidence,
-                        "bbox": bbox,
-                    }
-                )
-
+        for angle in angles:
+            arr = np.asarray(img.rotate(-angle, expand=True) if angle else img)
+            for bbox, text, confidence in reader.readtext(arr):
+                if confidence >= min_confidence:
+                    # Coerce numpy types (from array input) to JSON-serialisable natives.
+                    extracted.append(
+                        {
+                            "text": text,
+                            "confidence": float(confidence),
+                            "bbox": [[int(p[0]), int(p[1])] for p in bbox],
+                        }
+                    )
         return extracted
     except Exception as e:
         print(f"OCR failed for {image_path}: {e}", file=sys.stderr)
@@ -635,6 +661,7 @@ def main():
     single_lookup = None
     enable_ocr = False
     ocr_only = False
+    bb_mode = False
     image_paths = []
 
     i = 0
@@ -651,6 +678,9 @@ def main():
         elif arg == "--ocr-only":
             enable_ocr = True
             ocr_only = True
+        elif arg in ("--best-before", "--bb"):
+            bb_mode = True
+            enable_ocr = True  # best-before extraction needs OCR
         elif arg == "--lookup" and i + 1 < len(args):
             i += 1
             single_lookup = args[i]
@@ -711,6 +741,12 @@ def main():
         sys.exit(1)
 
     all_results = []
+    # easyocr forbids mixing Cyrillic with non-English Latin scripts; Bulgarian
+    # labels need bg+en. (The plain --ocr default stays as-is for Latin/book OCR.)
+    ocr_langs = ["bg", "en"] if bb_mode else None
+    # Orientation is handled via the EXIF tag (extract_text_ocr); shoot labels
+    # roughly upright. No brute-force rotation by default.
+    ocr_rot = None
 
     for image_path in image_paths:
         if not image_path.exists():
@@ -721,51 +757,65 @@ def main():
         if not ocr_only:
             barcodes = extract_barcodes(image_path)
 
-        # Try OCR if no barcodes found and OCR is enabled
+        image_results: list[dict] = []
+        ocr_results: list[dict] | None = None
+
         if not barcodes and enable_ocr:
             if not HAS_OCR:
                 print("Warning: OCR requested but easyocr not installed", file=sys.stderr)
                 print("Run: pip install easyocr", file=sys.stderr)
             else:
-                ocr_results = extract_text_ocr(image_path)
+                ocr_results = extract_text_ocr(image_path, languages=ocr_langs, rotation_info=ocr_rot)
                 if ocr_results:
-                    # Add OCR results as a special "barcode" type
                     title = extract_title_from_ocr(ocr_results)
                     all_text = " | ".join(r["text"] for r in ocr_results[:5])
-                    result = {
-                        "file": str(image_path),
-                        "type": "OCR",
-                        "data": title or all_text[:100],
-                        "product": None,
-                        "ocr_results": ocr_results,
-                        "ocr_title": title,
-                    }
-                    all_results.append(result)
-            continue
+                    image_results.append(
+                        {
+                            "file": str(image_path),
+                            "type": "OCR",
+                            "data": title or all_text[:100],
+                            "product": None,
+                            "ocr_results": ocr_results,
+                            "ocr_title": title,
+                        }
+                    )
+        elif barcodes:
+            for barcode in barcodes:
+                result = {
+                    "file": str(image_path),
+                    "type": barcode["type"],
+                    "data": barcode["data"],
+                    "product": None,
+                }
 
-        if not barcodes:
-            continue
+                # Look up EANs (always via tingbok, no local caching)
+                if do_lookup and is_ean(barcode["type"], barcode["data"]):
+                    ean = barcode["data"]
+                    product, was_cached = lookup_ean(ean, cache, use_cache)
+                    result["product"] = product
 
-        for barcode in barcodes:
-            result = {
-                "file": str(image_path),
-                "type": barcode["type"],
-                "data": barcode["data"],
-                "product": None,
-            }
+                    # Only cache ISBNs locally; EANs go through tingbok
+                    if not was_cached and use_cache and is_isbn(ean):
+                        cache[ean] = product
+                        cache_modified = True
 
-            # Look up EANs (always via tingbok, no local caching)
-            if do_lookup and is_ean(barcode["type"], barcode["data"]):
-                ean = barcode["data"]
-                product, was_cached = lookup_ean(ean, cache, use_cache)
-                result["product"] = product
+                image_results.append(result)
 
-                # Only cache ISBNs locally; EANs go through tingbok
-                if not was_cached and use_cache and is_isbn(ean):
-                    cache[ean] = product
-                    cache_modified = True
+        # Best-before pass: the date is usually on the SAME photo as the barcode,
+        # so OCR runs here even for barcode images (where the OCR fallback above
+        # didn't). Attaches best_before + candidates to every result for the image.
+        if bb_mode and image_results and extract_best_before is not None:
+            if not HAS_OCR:
+                print("Warning: --best-before needs easyocr (pip install easyocr)", file=sys.stderr)
+            else:
+                if ocr_results is None:
+                    ocr_results = extract_text_ocr(image_path, languages=ocr_langs, rotation_info=ocr_rot)
+                bb = extract_best_before(ocr_results or [])
+                for r in image_results:
+                    r["best_before"] = bb["best"]
+                    r["best_before_candidates"] = bb["candidates"]
 
-            all_results.append(result)
+        all_results.extend(image_results)
 
     # Save cache if modified
     if cache_modified:
