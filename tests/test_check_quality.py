@@ -3,7 +3,29 @@
 import sys
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
-from check_quality import _is_food_concept, check_food_without_bb  # noqa: E402
+from check_quality import _category_is_food, _is_food_concept, check_food_without_bb  # noqa: E402
+
+
+class TestCategoryIsFood:
+    @staticmethod
+    def _resolve(leaf):
+        return {
+            "rice": {"id": "rice", "broader": ["food/grains"]},
+            "nuts": {"id": "nuts", "broader": ["food/nuts"]},
+        }.get(leaf)
+
+    def test_explicit_food_path(self):
+        assert _category_is_food("food/spices", self._resolve)
+
+    def test_explicit_hardware_path_not_food(self):
+        # leaf 'nuts' resolves to food, but explicit hardware/ root wins
+        assert not _category_is_food("hardware/nuts", self._resolve)
+
+    def test_bare_leaf_resolved(self):
+        assert _category_is_food("rice", self._resolve)
+
+    def test_bare_unknown_leaf_not_food(self):
+        assert not _category_is_food("widget", self._resolve)
 
 
 class TestIsFoodConcept:

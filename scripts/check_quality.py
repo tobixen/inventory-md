@@ -184,13 +184,30 @@ def check_food_without_bb(data: dict, is_food) -> list:
     return [f"Food items without best-before: {len(offenders)} items — e.g. {sample}{more}"]
 
 
+def _category_is_food(cat: str, resolve) -> bool:
+    """Whether a category string denotes food.
+
+    An explicit path is trusted by its root: ``food/...`` is food, anything else
+    (``hardware/nuts``, ``product/...``) is not — this disambiguates leaves like
+    ``nuts`` that resolve to ``food/nuts`` but are written ``hardware/nuts`` for
+    fasteners. A bare leaf is resolved via *resolve* and checked for a food
+    ancestor.
+    """
+    if "/" in cat:
+        return cat.split("/", 1)[0] == "food"
+    return _is_food_concept(resolve(cat))
+
+
 def _make_food_classifier(base: str | None):
-    """Return a cached ``is_food(category_leaf) -> bool`` backed by tingbok."""
+    """Return a cached ``is_food(category) -> bool`` backed by tingbok."""
     cache: dict[str, bool] = {}
+
+    def resolve(leaf: str) -> dict | None:
+        return _lookup_tingbok(leaf, base) if base else None
 
     def is_food(cat: str) -> bool:
         if cat not in cache:
-            cache[cat] = _is_food_concept(_lookup_tingbok(cat.split("/")[-1], base)) if base else False
+            cache[cat] = _category_is_food(cat, resolve)
         return cache[cat]
 
     return is_food
