@@ -14,7 +14,7 @@ from pathlib import Path
 
 import argcomplete
 
-from . import parser, shopping_list, vocabulary
+from . import parser, queries, shopping_list, vocabulary
 from ._version import __version__
 from .config import Config
 
@@ -853,7 +853,7 @@ def config_command(show: bool = False, show_path: bool = False) -> int:
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main entry point for the CLI."""
     # Load configuration (used for defaults)
     config = Config()
@@ -928,6 +928,58 @@ Examples:
     )
     sl_parser.add_argument(
         "--stdout", action="store_true", help="Print shopping list to stdout instead of writing file"
+    )
+
+    # Expiring command
+    expiring_parser = subparsers.add_parser(
+        "expiring",
+        help="List inventory items by best-before date",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+By default (no options), shows only items that have already expired.
+
+Examples:
+  inventory-md expiring                    # already-expired items
+  inventory-md expiring --food             # expired food only (needs vocabulary.json)
+  inventory-md expiring --limit 10         # top 10 items by expiry date
+  inventory-md expiring --all              # all items with a best-before date
+  inventory-md expiring --before 2026-06   # items expiring before June 2026
+        """,
+    )
+    expiring_parser.add_argument(
+        "file", type=Path, nargs="?", help="inventory.json to read (default: ./inventory.json)"
+    )
+    expiring_parser.add_argument("--food", action="store_true", help="Only show food items (uses vocabulary.json)")
+    expiring_parser.add_argument("--limit", type=int, help="Show top N items sorted by expiry (no date filtering)")
+    expiring_parser.add_argument(
+        "--all", action="store_true", help="Show all items with expiry dates, not just expired"
+    )
+    expiring_parser.add_argument(
+        "--before", type=str, metavar="DATE", help="Show items expiring before DATE (YYYY-MM-DD or YYYY-MM)"
+    )
+
+    # Lookup command
+    lookup_parser = subparsers.add_parser(
+        "lookup",
+        help="Look up items by ID or text (includes items without a best-before date)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Unlike 'expiring', this also reports items with no best-before date (e.g. fresh
+produce), which is what you need when assembling a recipe ingredient list.
+
+Examples:
+  inventory-md lookup --id bacon-pikok --id asparagus-2026-06-06
+  inventory-md lookup --match onion --match tomato   # substring on id+name
+        """,
+    )
+    lookup_parser.add_argument("file", type=Path, nargs="?", help="inventory.json to read (default: ./inventory.json)")
+    lookup_parser.add_argument("--id", action="append", default=[], dest="ids", help="Exact item ID (repeatable)")
+    lookup_parser.add_argument(
+        "--match",
+        action="append",
+        default=[],
+        dest="matches",
+        help="Case-insensitive substring on id+name (repeatable)",
     )
 
     # Update-template command
@@ -1085,7 +1137,7 @@ Examples:
     # Enable shell tab completion
     argcomplete.autocomplete(parser_cli)
 
-    args = parser_cli.parse_args()
+    args = parser_cli.parse_args(argv)
 
     if args.command == "config":
         return config_command(show=getattr(args, "show", False), show_path=getattr(args, "path", False))
@@ -1174,6 +1226,17 @@ Examples:
         return vocabulary_command(args, config)
     elif args.command == "shopping-list":
         return shopping_list_command(args, config)
+    elif args.command == "expiring":
+        return queries.expiring_command(
+            args.file or Path("inventory.json"),
+            food_only=args.food,
+            limit=args.limit,
+            before=args.before,
+            show_all=args.all,
+            lang=config.lang or "en",
+        )
+    elif args.command == "lookup":
+        return queries.lookup_command(args.file or Path("inventory.json"), args.ids, args.matches)
     else:
         parser_cli.print_help()
         return 1

@@ -82,6 +82,50 @@ class TestCliArgumentParser:
         assert args.api_proxy is None
 
 
+class TestExpiringAndLookupCommands:
+    """Tests for the 'expiring' and 'lookup' subcommands (dispatch via cli.main)."""
+
+    INVENTORY = {
+        "containers": [
+            {
+                "id": "pantry",
+                "parent": "kitchen",
+                "items": [
+                    {"id": "old-rice", "name": "Rice", "metadata": {"bb": "2020-01-01"}},
+                    {"id": "fresh-onion", "name": "Onion", "metadata": {}},
+                ],
+            }
+        ]
+    }
+
+    def _write(self, tmp_path):
+        path = tmp_path / "inventory.json"
+        path.write_text(json.dumps(self.INVENTORY))
+        return path
+
+    def test_expiring_lists_expired_item(self, tmp_path, capsys):
+        path = self._write(tmp_path)
+        rc = cli.main(["expiring", str(path)])
+        assert rc == 0
+        assert "old-rice" in capsys.readouterr().out
+
+    def test_expiring_missing_file_returns_1(self, tmp_path):
+        rc = cli.main(["expiring", str(tmp_path / "nope.json")])
+        assert rc == 1
+
+    def test_lookup_by_match_includes_item_without_bb(self, tmp_path, capsys):
+        path = self._write(tmp_path)
+        rc = cli.main(["lookup", str(path), "--match", "onion"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "fresh-onion" in out
+        assert "no bb" in out
+
+    def test_lookup_without_selectors_returns_1(self, tmp_path):
+        path = self._write(tmp_path)
+        assert cli.main(["lookup", str(path)]) == 1
+
+
 class TestProxyHTTPHandler:
     """Tests for the proxy HTTP handler behavior."""
 

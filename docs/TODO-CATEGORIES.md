@@ -24,8 +24,6 @@ We're trying to keep the same version numbers on tingbok and plann.  The project
 
 ### Problems we'd like to solve
 
-* The find-expired script is not able to understand that soybeans are food
-* The shopping list generator currently has some logic for resolving and matching categories.  I think it belongs to a "higher level".  I don't want a lot of local algorithms in the shopping list generator - matching categories is a general problem.  We're doing it in the javascript too.
 * There still seems to be some confusion that food/legumes/soy-beans is a different category than soy-beans - it shouldn't be
 * At the other hand, in the Norwegian inventory, jul/belysning is NOT the same as belysning.  (jul/julebelysning could be an option, but it looks a bit redundant.  Or perhaps just julebelysning)
 

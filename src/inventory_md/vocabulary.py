@@ -687,6 +687,31 @@ def get_broader_concepts(concept: Concept, vocabulary: dict[str, Concept]) -> li
     return parents
 
 
+def is_descendant_of(
+    concept_id: str,
+    ancestor_id: str,
+    vocabulary: dict[str, Concept],
+    _visited: set[str] | None = None,
+) -> bool:
+    """Return True if ``concept_id`` is ``ancestor_id`` or a transitive descendant of it.
+
+    Walks ``broader`` links upward, following every parent (concepts may have
+    multiple broader parents). Used e.g. to decide whether a category is a kind
+    of ``food``. Category matching is a general problem, so it lives here rather
+    than in individual consumers (shopping list, expiry report, ...).
+    """
+    if concept_id == ancestor_id:
+        return True
+    visited = _visited if _visited is not None else set()
+    if concept_id in visited:
+        return False
+    visited.add(concept_id)
+    concept = vocabulary.get(concept_id)
+    if not concept:
+        return False
+    return any(is_descendant_of(b, ancestor_id, vocabulary, visited) for b in concept.broader)
+
+
 def get_narrower_concepts(concept: Concept, vocabulary: dict[str, Concept]) -> list[Concept]:
     """Get all narrower (child) concepts.
 

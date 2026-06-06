@@ -123,15 +123,18 @@ inventory-md parse --auto
 inventory-md expiring             # items already expired
 inventory-md expiring --limit 10  # top 10 soonest to expire
 inventory-md expiring --before 2026-06
+inventory-md expiring --food      # food only (uses vocabulary.json)
+inventory-md expiring --all       # everything with a best-before date
 ```
 
-Or with the script directly:
+To resolve specific items (including fresh produce with no best-before date yet),
+use `inventory-md lookup`:
 ```bash
-~/inventory-md/scripts/find_expiring_food.py inventory.json
-~/inventory-md/scripts/find_expiring_food.py inventory.json --limit 10
-~/inventory-md/scripts/find_expiring_food.py inventory.json --before 2026-06
-~/inventory-md/scripts/find_expiring_food.py inventory.json --all
+inventory-md lookup --id bacon-pikok --match onion --match tomato
 ```
+
+The `scripts/find_expiring_items.py` and `scripts/lookup_items.py` wrappers accept
+the same arguments and call these subcommands.
 
 ## Price and Value
 

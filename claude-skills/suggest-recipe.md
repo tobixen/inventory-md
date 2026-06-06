@@ -22,7 +22,7 @@ Suggest recipes that prioritize using items from the inventory, especially items
 
    Sort things by location (expected location for things that needs shopping).
 
-4. **Include location and expiry**: For inventory items, always include the item ID, container, and best-before date. Add `⚠️ expired — quality check before use` for expired items; do not sort expired items into a separate section.  Validate the container/location, try to avoid hallucinating those things.
+4. **Include location and expiry**: For inventory items, always consult the json file and include the item ID, container, and best-before date (the `find_expiring_items.py` should present all this data).  Add `⚠️ expired — quality check before use` for expired items; do not sort expired items into a separate section.  Skip location for items that needs to be shopped.
 
 5. **Shopping mode**:
    - Default: Assume extra ingredients can be purchased (mark with 🛒)
@@ -53,11 +53,26 @@ inventory-md parse --auto   # regenerate inventory.json
 ### Find food items sorted by expiry date
 
 ```bash
-~/inventory-md/scripts/find_expiring_items.py inventory.json           # expired items
-~/inventory-md/scripts/find_expiring_items.py inventory.json --limit 10
-~/inventory-md/scripts/find_expiring_items.py inventory.json --before 2026-06
-~/inventory-md/scripts/find_expiring_items.py inventory.json --all
+inventory-md expiring inventory.json            # expired items
+inventory-md expiring inventory.json --limit 10
+inventory-md expiring inventory.json --before 2026-06
+inventory-md expiring inventory.json --all
+inventory-md expiring inventory.json --food     # food only (uses vocabulary.json)
 ```
+
+### Look up specific items (id, location, best-before)
+
+`expiring` only lists items that *have* a best-before date. To resolve the
+location/bb of the exact items you want in an ingredient list — including fresh
+produce with no bb yet (e.g. just-bought asparagus, onions, tomatoes) — use:
+
+```bash
+inventory-md lookup inventory.json --id bacon-pikok --id asparagus-2026-06-06
+inventory-md lookup inventory.json --match onion --match tomato   # substring on id+name
+```
+
+(`scripts/find_expiring_items.py` and `scripts/lookup_items.py` remain as thin
+wrappers around these subcommands and accept the same arguments.)
 
 ## Workflow
 
