@@ -1,97 +1,142 @@
 # Process Shopping
 
-Workflow for processing a shopping receipt and updating the inventory. Originally written for Lidl receipts; adapt as needed for other shops.
+Staged, resumable workflow for turning a shopping trip into: a spending **ledger**,
+**inventory** entries, a **diary** expense line, **tingbok** product observations,
+and (optionally) **Open Food Facts** product data + **Open Prices** prices.
 
-For item format details (categories, quantities, best-before, etc.) see `docs/ADDING-ITEMS.md`.
+Generic guide — uses `$INVENTORY_DIR`, `$PHOTO_DIR`, `$LEDGER` as placeholders;
+your personal skill fills in real paths, shops, and credentials. Item format:
+`docs/ADDING-ITEMS.md`. Design rationale: `docs/shopping-workflow-redesign-2026-06-06.md`
+and `docs/open-prices-integration.md`.
 
-## Workflow
+## Principles
 
-### 1. Read the receipt
+- **Deterministic work in scripts; judgement in a reviewable file.** Receipt
+  parsing, barcode/OCR extraction, EAN-candidate lookup, ledger writes,
+  validation — all scripted. Matching an EAN, reading a best-before, choosing a
+  storage location — done by you/AI editing the staging file, then committed.
+- **Gate the irreversible steps.** tingbok PUT, Open Prices/OFF publishing, and
+  git commits happen only after the staging file is reviewed and validated. If a
+  product↔EAN mapping is unclear, **ask** — never post wrong data to tingbok/OFF.
+- **Resumable.** The staging file carries a `status:` block; an interrupted run
+  resumes from it. The ledger import is idempotent; diary/inventory/publish steps
+  are guarded by the status flags.
 
-Obtain the receipt data — either from a JSON file produced by a receipt parser, or from a photo. Key fields to extract:
-- `purchase_date` — date of purchase (YYYY-MM-DD or YYYY.MM.DD)
-- `store` — store name and location
-- `total` — total amount with currency
-- `items` — list of items with name, price, quantity
+## Capture (at the shop)
 
-### 2. Extract barcodes and best-before dates from photos
+- Photograph the **receipt at the shop** so its EXIF GPS marks the location
+  (used for Open Prices). Photograph product labels **upright and legible** — the
+  best-before date is read by OCR, which honours EXIF orientation but can't read
+  faint/sideways print.
+- One photo usually carries **both** the barcode and the best-before date.
 
-If product photos were taken, run the barcode extraction script:
-
-```bash
-~/inventory-md/scripts/extract_barcodes.py PHOTO_FILES
-```
-
-Typically one photo will show the barcode; the next will show the best-before date.
-
-### 3. Match receipt items to EANs
-
-Use the `ean_cache.json` in the inventory directory and any per-instance matching scripts to correlate receipt item names with EAN codes. The `lidl_receipt_name` field in `ean_cache.json` maps receipt names to EAN codes.
-
-**If the mapping between EAN and product is unclear, then ask the user**.  We don't want wrong information posted to Tingbok.
-
-### 4. Ask user for storage locations
-
-Check if each item already exists in the inventory. Suggest suitable storage locations and confirm with the user.
-
-### 5. Check expiry dates
-
-Photos typically come in pairs: barcode photo + best-before photo. Try to read the date from the photo. Ask the user if it cannot be found. If no best-before is available at all, estimate one and append `:EST`.
-
-See `docs/ADDING-ITEMS.md` for typical shelf-life estimates.
-
-### 6. Update inventory.md
-
-Add items to the appropriate container sections. Format:
-
-```
-* category:CONCEPT ID:ITEM-ID EAN:EANCODE bb:YYYY-MM qty:N mass:Xg volume:Xl price:CURRENCY:XXX/YYY PRODUCT NAME
-```
-
-See `docs/ADDING-ITEMS.md` for full field reference, category syntax, and quantity conventions.
-
-### 7. Report EAN observations to tingbok
-
-Send product observations (name, category, price, receipt name) to tingbok via PUT:
+## Stage 1 — import (deterministic)
 
 ```bash
-curl -s -X PUT https://tingbok.plann.no/api/ean/EAN_CODE \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Product name",
-    "categories": ["food/dairy"],
-    "quantity": "1l",
-    "prices": [
-      {"date": "YYYY-MM-DD", "shop": "Store Name", "price": 1.02, "currency": "EUR", "unit": "pcs"}
-    ],
-    "receipt_names": [
-      {"name": "RECEIPT NAME AS PRINTED", "shop": "Store Name", "first_seen": "YYYY-MM-DD", "last_seen": "YYYY-MM-DD"}
-    ]
-  }'
+# Barcodes + best-before OCR on every photo (barcode shots included):
+~/inventory-md/scripts/extract_barcodes.py --best-before $PHOTO_DIR/IMG_*.jpg --json > barcodes.json
+
+# Receipt + photos -> human-correctable staging file (EAN candidates via tingbok
+# reverse receipt-name search; photos classified barcode/expiry/label):
+~/inventory-md/scripts/shop_import.py --receipt RECEIPT.json --barcodes-json barcodes.json \
+    --out $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml
 ```
 
-All fields are optional — only include what is known. PUT merges new data (prices and receipt_names are appended, not replaced).
+Receipt source: a JSON file from a receipt parser, or OCR/read a photographed
+receipt into the same shape (`date, shop, total, items[name,price,quantity]`).
+The importer emits one row per line item with `ean_candidates`, a classified
+`loose_photos` list (each may carry a `bb` from the OCR pass), and `needs_review`
+flags. It never decides a match or invents a date.
 
-**Price format:**
-- `unit`: `"pcs"` for per-piece, `"kg"` for per-kilogram
+## Stage 2 — review (you / AI, in an editor)
 
-### 8. Copy photos to storage location directories
+Edit the staging file: for each item pick the right `ean` from `ean_candidates`
+(or add one), set `name`, `category`, `bb` (from the photo's `bb` candidate, else
+`:EST`), `location`, and a unique `inventory_id`. Attach label `photos`. Clear
+`needs_review`. This is the checkpoint to fix mistakes **before** anything
+irreversible. Re-running stage 1 is safe (idempotent ledger; staging is yours).
 
-Organise photos by **storage location**, not by shopping trip. Only copy photos that show the product packaging/label with the product name or image — **not** close-up barcode scans or expiry date shots (even if those helped identify the product). Skip photos for items that will be consumed quickly (fresh produce, bread, etc.).
+## Stage 3 — commit (script + thin AI, gated)
+
+1. **Validate** — every item complete; every item has a unique `ID`; food items
+   have a `bb` (or `:EST`); no duplicate IDs.
+2. **Ledger** — append/enrich `$LEDGER` (one row per line item):
+   ```bash
+   ~/inventory-md/scripts/ledger.py import-staging $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml --ledger $LEDGER
+   ```
+   Append-or-enrich: a raw row from a receipt importer is later filled in place
+   with `ean`/`category`/`inventory_id` by the reviewed staging import (matched on
+   `date, shop, receipt_name, qty, unit_price, total`; nulls never overwrite).
+3. **Inventory** — add lines to the right container in `inventory.md`:
+   ```
+   * category:CONCEPT ID:ITEM-ID EAN:CODE bb:YYYY-MM[:EST] qty:N mass:Xg volume:Xl price:CUR:X/pcs NAME
+   ```
+   See `docs/ADDING-ITEMS.md`. **Every** item needs an `ID:`; food items need a
+   `bb:` (estimate with `:EST` if unknown).
+4. **Photos** — copy only **label** photos to `photos/LOCATION-ID/`; skip
+   barcode/expiry close-ups; skip fast-consumed items. Never `git add` photos.
+5. **tingbok** — PUT observations for reviewed EANs (merges; prices/receipt_names
+   appended):
+   ```bash
+   curl -s -X PUT https://tingbok.plann.no/api/ean/EAN -H 'Content-Type: application/json' -d '{
+     "name":"...","categories":["food/dairy"],"quantity":"1l",
+     "prices":[{"date":"YYYY-MM-DD","shop":"Shop","price":1.02,"currency":"EUR","unit":"pcs"}],
+     "receipt_names":[{"name":"AS PRINTED","shop":"Shop","first_seen":"YYYY-MM-DD","last_seen":"YYYY-MM-DD"}]}'
+   ```
+6. **Quality gate** — regenerate and check (flags food without best-before,
+   duplicate IDs, unresolvable categories):
+   ```bash
+   inventory-md parse inventory.md && ~/inventory-md/scripts/check_quality.py inventory.json
+   ```
+7. **Diary** — one expense line per shop (separate git repo):
+   ```bash
+   diary-update -d YYYY-MM-DD -a AMOUNT -c EUR -t food --description "Shop (items…)"
+   ```
+8. **Commit** `inventory.md` (+ staging file, + photo-registry.md if used). Diary
+   and ledger are committed in their own repos.
+
+## Stage 4 — contribute upstream (optional, gated)
+
+**Missing OFF products** (EANs that don't resolve in OFF) — create them from a
+curated YAML with front/ingredients/nutrition/packaging photos:
+```bash
+~/inventory-md/scripts/off_upload.py --products off-products.yaml          # dry run
+~/inventory-md/scripts/off_upload.py --products off-products.yaml --commit  # writes to OFF
+```
+
+**Open Prices** — publish receipt prices (auth once via `op_auth.py`):
+```bash
+~/inventory-md/scripts/openprices_publish.py --shop "Shop" --date YYYY-MM-DD \
+    --proof RECEIPT.jpg --osm WAY:NNN [--discount EAN=GROSS:SALE] [--commit]
+# barcodeless items as CATEGORY prices:
+    --no-products --category-price "en:baguettes=0.17,was=0.45,type=SALE"
+```
+Shop location is a **confirmed** OSM object (cached per shop), never auto-geocoded
+— receipt photos are often taken away from the shop. PRODUCT prices must not set
+`price_per`. Both OFF and Open Prices are **public** — treat as irreversible-ish
+(Open Prices rows are deletable; you own them).
+
+## Queries
 
 ```bash
-mkdir -p $INVENTORY_DIR/photos/LOCATION-ID/
-cp PRODUCT_PHOTOS $INVENTORY_DIR/photos/LOCATION-ID/
+~/inventory-md/scripts/ledger.py query --category food --since YYYY-MM-DD --until YYYY-MM-DD
+~/inventory-md/scripts/ledger.py consumed --inventory inventory.md --since … --until …
 ```
+`consumed` joins ledger rows to items removed from `inventory.md` (git history) to
+cost what was actually used in a period — only resolves for rows enriched (ean/
+category/inventory_id) through the reviewed staging flow.
 
-### 9. Commit changes
+## Tools
 
-```bash
-cd $INVENTORY_DIR
-git add inventory.md photo-registry.md
-git commit -m "Add shopping YYYY-MM-DD to inventory"
-```
+| Script (`~/inventory-md/scripts/`) | Role |
+|---|---|
+| `extract_barcodes.py --best-before` | barcodes + best-before OCR per photo |
+| `bb_dates.py` | OCR-text → best-before date candidates (library) |
+| `shop_import.py` | receipt + photos → staging YAML |
+| `ledger.py` | purchases.jsonl: import / query / consumed |
+| `check_quality.py` | validation gate (food-bb, dup IDs, categories) |
+| `off_upload.py` | create missing OFF products |
+| `openprices_publish.py` / `op_auth.py` | publish prices / mint token |
 
-## Scripts
-
-Per-instance matching scripts (e.g. `match_lidl_receipt.py`) live in the instance's `scripts/` directory. The barcode extraction script is at `~/inventory-md/scripts/extract_barcodes.py`.
+`tingbok` (`GET/PUT /api/ean/{ean}`, `GET /api/ean/search?receipt_name=`) is the
+EAN/category/price aggregator. There is **no `ean_cache.json`** — use tingbok.
