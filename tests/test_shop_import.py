@@ -124,6 +124,18 @@ class TestClassifyPhotoResult:
         assert photo["kind"] == "expiry"
         assert "2026-06-12" in photo["ocr_date_candidates"]
 
+    def test_barcode_photo_surfaces_best_before(self):
+        result = {
+            "file": "/p/IMG_1.jpg",
+            "type": "EAN13",
+            "data": "4056489693307",
+            "product": {"name": "Lukanka"},
+            "best_before": "2026-07-25",
+        }
+        photo = classify_photo_result(result)
+        assert photo["kind"] == "barcode"
+        assert photo["bb"] == "2026-07-25"
+
     def test_label_photo_without_date(self):
         result = {
             "file": "/p/IMG_3.jpg",

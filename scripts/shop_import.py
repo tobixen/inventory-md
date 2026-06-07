@@ -26,11 +26,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+
+from bb_dates import find_dates  # date parsing shared with extract_barcodes
 
 try:
     import niquests as requests
@@ -111,39 +112,27 @@ def parse_lidl_receipt(receipt: dict[str, Any], shop: str = "Lidl Varna") -> dic
     }
 
 
-# Date patterns, most specific first. Each maps a match to an ISO string.
-_DATE_PATTERNS: list[tuple[re.Pattern[str], Callable[[re.Match[str]], str]]] = [
-    (re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b"), lambda m: f"{m[1]}-{m[2]}-{m[3]}"),
-    (re.compile(r"\b(\d{2})[./](\d{2})[./](\d{4})\b"), lambda m: f"{m[3]}-{m[2]}-{m[1]}"),
-    (re.compile(r"\b(\d{2})[./](\d{4})\b"), lambda m: f"{m[2]}-{m[1]}"),
-]
-
-
 def find_date_candidates(text: str) -> list[str]:
-    """Extract ISO date candidates (``YYYY-MM-DD`` or ``YYYY-MM``) from free text."""
-    found: list[str] = []
-    for pattern, to_iso in _DATE_PATTERNS:
-        for match in pattern.finditer(text):
-            iso = to_iso(match)
-            if iso not in found:
-                found.append(iso)
-    return found
+    """Extract ISO date candidates from free text (shared bb_dates parser)."""
+    return find_dates(text)
 
 
 def classify_photo_result(result: dict[str, Any]) -> dict[str, Any]:
     """Classify one ``extract_barcodes.py`` result as barcode / expiry / label.
 
     This is a heuristic guess to help the reviewer; the AI step confirms it.
+    A photo-derived best-before (from ``extract_barcodes --best-before``) is
+    surfaced as ``bb`` regardless of kind, since it often rides the barcode shot.
     """
     filename = Path(result["file"]).name
+    bb = result.get("best_before")
+
     if result.get("type") != "OCR":
         product = result.get("product") or {}
-        return {
-            "file": filename,
-            "kind": "barcode",
-            "ean": result.get("data"),
-            "product": product.get("name"),
-        }
+        photo = {"file": filename, "kind": "barcode", "ean": result.get("data"), "product": product.get("name")}
+        if bb:
+            photo["bb"] = bb
+        return photo
 
     texts = [result.get("ocr_title") or "", result.get("data") or ""]
     texts += [r.get("text", "") for r in result.get("ocr_results", [])]
@@ -152,8 +141,11 @@ def classify_photo_result(result: dict[str, Any]) -> dict[str, Any]:
         for iso in find_date_candidates(text):
             if iso not in dates:
                 dates.append(iso)
-    if dates:
-        return {"file": filename, "kind": "expiry", "ocr_date_candidates": dates}
+    if bb or dates:
+        photo = {"file": filename, "kind": "expiry", "ocr_date_candidates": dates}
+        if bb:
+            photo["bb"] = bb
+        return photo
     return {"file": filename, "kind": "label", "ocr_title": result.get("ocr_title") or result.get("data")}
 
 
