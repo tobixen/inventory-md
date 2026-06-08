@@ -58,6 +58,16 @@ fixing. Ordered roughly by impact.
    because `line_total` is supplied). Document that `price` is the unit price in
    the receipt's `unit`, and prefer trusting `line_total` for weighed goods.
 
+## OFF upload
+
+O1. **`off_upload.py` dry-run misreports images as missing.** The dry-run prints
+   `front_image: (none)` even when images are fully configured via the modern
+   `images:` block — the summary line only reads the legacy `front_image` key
+   (`p.get("front_image")`), not `_images(p)`. The actual `--commit` then
+   uploaded all four roles (front/ingredients/nutrition/packaging → 200). The
+   dry-run should print the resolved `_images()` map so the reviewer can see
+   what will be uploaded; as-is it looks like nothing will be.
+
 ## tingbok (service — repo `~/tingbok`)
 
 T1. **`PUT /api/ean/{ean}` rejects observation-only updates.** Adding just a
