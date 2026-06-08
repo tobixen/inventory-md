@@ -28,7 +28,7 @@ and `docs/open-prices-integration.md`.
   (used for Open Prices). Photograph product labels **upright and legible** — the
   best-before date is read by OCR, which honours EXIF orientation but can't read
   faint/sideways print.
-- One photo usually carries **both** the barcode and the best-before date.
+- For products that exists in OFF, there should be one photo with the barcode and the next should be with the expiry date.  If both fits into the same photo, only one photo is taken.  For photos of products not existing in off, there should be photos of the front, ingrediences, nutrition information and package recycling information.
 
 ## Stage 1 — import (deterministic)
 
@@ -72,7 +72,15 @@ irreversible. Re-running stage 1 is safe (idempotent ledger; staging is yours).
    * category:CONCEPT ID:ITEM-ID EAN:CODE bb:YYYY-MM[:EST] qty:N mass:Xg volume:Xl price:CUR:X/pcs NAME
    ```
    See `docs/ADDING-ITEMS.md`. **Every** item needs an `ID:`; food items need a
-   `bb:` (estimate with `:EST` if unknown).
+   `bb:` (estimate with `:EST` if unknown). To inspect a container — its existing
+   items, the `category`/`ID` conventions in use, where to insert — query the
+   parsed `inventory.json`, do **not** grep/awk the markdown (section boundaries
+   are not regex-friendly and you'll miss items):
+   ```bash
+   inventory-md parse inventory.md   # refresh inventory.json
+   jq -r '.. | objects | select(.id?=="food4" and .items?) | .items[].raw_text' inventory.json
+   ```
+   Then anchor the `Edit` on the last existing item line in that container.
 4. **Photos** — copy only **label** photos to `photos/LOCATION-ID/`; skip
    barcode/expiry close-ups; skip fast-consumed items. Never `git add` photos.
 5. **tingbok** — PUT observations for reviewed EANs (merges; prices/receipt_names
