@@ -163,8 +163,65 @@ def _normalize_ean(serial: dict[str, Any]) -> str | None:
     return None
 
 
+def _decathlon_order_to_rows(order: dict[str, Any], source: str | None = None) -> list[dict[str, Any]]:
+    """Convert one Decathlon order-*detail* dict (the format written to
+    ``decathlon-history.jsonl`` by ``decathlon-history.py``) to ledger rows.
+
+    Products are nested under ``orderProducts[].products[]`` and carry no
+    barcode/gtin, so rows have ``ean=None``.
+    """
+    date = order.get("orderDate", "")[:10]
+    shop = f"Decathlon {order.get('orderOrigin', '')}".strip()
+    currency = order.get("orderCurrencyCode", "EUR")
+    if source is None:
+        source = f"decathlon#{order.get('orderTransactionId') or order.get('orderNumber') or date}"
+    rows = []
+    for parcel in order.get("orderProducts", []):
+        for item in parcel.get("products", []):
+            qty = item.get("productQuantity", 1)
+            unit_price = item.get("productCurrentPrice")
+            if unit_price is None:
+                unit_price = item.get("productUnitPrice")
+            rows.append(
+                _row(
+                    date=date,
+                    shop=shop,
+                    receipt_name=item.get("productName"),
+                    qty=qty,
+                    unit="pcs",
+                    unit_price=unit_price,
+                    total_=round((unit_price or 0) * qty, 2),
+                    currency=currency,
+                    name=item.get("productName"),
+                    source=source,
+                )
+            )
+    return combine_duplicate_lines(rows)
+
+
+def load_decathlon_records(path: Path) -> list[dict[str, Any]]:
+    """Read a Decathlon history file into a list of order/purchase dicts.
+
+    Accepts JSON Lines (one order per line, as written by
+    ``decathlon-history.py``), a single JSON object, or a JSON array.
+    """
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(text)
+        return data if isinstance(data, list) else [data]
+    except json.JSONDecodeError:
+        return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
 def decathlon_purchase_to_rows(purchase: dict[str, Any], source: str | None = None) -> list[dict[str, Any]]:
-    """Convert one Decathlon ``{purchase: {transaction: ...}}`` dict to ledger rows."""
+    """Convert one Decathlon purchase dict to ledger rows.
+
+    Dispatches between the current order-detail format (``orderProducts``, see
+    :func:`_decathlon_order_to_rows`) and the legacy
+    ``{purchase: {transaction: ...}}`` receipt format.
+    """
+    if "orderProducts" in purchase:
+        return _decathlon_order_to_rows(purchase, source)
     txn = purchase.get("purchase", purchase).get("transaction", {})
     date = txn.get("transaction_date_time_iso", "")[:10]
     shop = f"Decathlon {txn.get('business_unit_name', '')}".strip()
@@ -437,8 +494,7 @@ def main() -> None:  # pragma: no cover - thin CLI wiring
         receipts = data if (args.all and isinstance(data, list)) else [data[-1] if isinstance(data, list) else data]
         _report([r for rec in receipts for r in lidl_receipt_to_rows(rec, shop=args.shop)])
     elif args.cmd == "import-decathlon":
-        data = json.loads(args.file.read_text(encoding="utf-8"))
-        purchases = data if isinstance(data, list) else [data]
+        purchases = load_decathlon_records(args.file)
         _report([r for p in purchases for r in decathlon_purchase_to_rows(p)])
     elif args.cmd == "import-staging":
         if yaml is None:

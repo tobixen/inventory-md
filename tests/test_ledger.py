@@ -4,6 +4,7 @@ One line per receipt line-item, keyed by inventory_id so spending can be sliced
 by category/time and joined to consumption (items removed from inventory.md).
 """
 
+import json
 import sys
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
@@ -15,6 +16,7 @@ from ledger import (  # noqa: E402
     extract_ids,
     filter_rows,
     lidl_receipt_to_rows,
+    load_decathlon_records,
     load_rows,
     row_identity,
     staging_to_rows,
@@ -51,6 +53,38 @@ DECATHLON_PURCHASE = {
             ],
         }
     }
+}
+
+# New Decathlon format: the rich order *detail* written one-per-line to
+# decathlon-history.jsonl by ~/bin/decathlon-history.py. No barcode/gtin is
+# carried; products are nested under orderProducts[].products[].
+DECATHLON_ORDER = {
+    "orderNumber": "122-1040",
+    "orderTransactionId": "7-881-881-20260607175702-122-1040",
+    "orderDate": "2026-06-07T17:57:02+0300",
+    "orderOrigin": "VARNA",
+    "orderCurrencyCode": "EUR",
+    "orderTotalPrice": 33.73,
+    "orderProducts": [
+        {
+            "products": [
+                {
+                    "productSku": "2903903",
+                    "productQuantity": 1,
+                    "productUnitPrice": 3.06,
+                    "productCurrentPrice": 3.06,
+                    "productName": "КОМПЛЕКТ ЗА ЛЕПЕНЕ НА ВЪТРЕШНИ ГУМИ",
+                },
+                {
+                    "productSku": "5757667",
+                    "productQuantity": 1,
+                    "productUnitPrice": 30.67,
+                    "productCurrentPrice": 30.67,
+                    "productName": "ПОЛЯРИЗИРАНИ СЛЪНЧЕВИ ОЧИЛА EXPLORE 500 SQR, КАТЕГОРИЯ 3",
+                },
+            ],
+        }
+    ],
 }
 
 
@@ -114,6 +148,64 @@ class TestDecathlonPurchaseToRows:
             }
         }
         assert decathlon_purchase_to_rows(p)[0]["ean"] == "3583787174722"
+
+
+class TestDecathlonOrderToRows:
+    """The new order-detail format (orderProducts[].products[], no barcode)."""
+
+    def test_one_row_per_product(self):
+        rows = decathlon_purchase_to_rows(DECATHLON_ORDER)
+        assert len(rows) == 2
+
+    def test_row_fields(self):
+        row = decathlon_purchase_to_rows(DECATHLON_ORDER)[0]
+        assert row["date"] == "2026-06-07"
+        assert row["shop"] == "Decathlon VARNA"
+        assert row["receipt_name"] == "КОМПЛЕКТ ЗА ЛЕПЕНЕ НА ВЪТРЕШНИ ГУМИ"
+        assert row["name"] == "КОМПЛЕКТ ЗА ЛЕПЕНЕ НА ВЪТРЕШНИ ГУМИ"
+        assert row["qty"] == 1
+        assert row["unit"] == "pcs"
+        assert row["unit_price"] == 3.06
+        assert row["total"] == 3.06
+        assert row["currency"] == "EUR"
+        assert row["ean"] is None
+
+    def test_total_is_unit_price_times_qty(self):
+        order = {
+            "orderDate": "2026-06-07T00:00:00+0300",
+            "orderOrigin": "VARNA",
+            "orderCurrencyCode": "EUR",
+            "orderProducts": [{"products": [{"productName": "y", "productQuantity": 3, "productCurrentPrice": 2.5}]}],
+        }
+        assert decathlon_purchase_to_rows(order)[0]["total"] == 7.5
+
+    def test_source_from_transaction_id(self):
+        rows = decathlon_purchase_to_rows(DECATHLON_ORDER)
+        assert all(r["source"] == "decathlon#7-881-881-20260607175702-122-1040" for r in rows)
+
+
+class TestLoadDecathlonRecords:
+    def test_reads_jsonl(self, tmp_path):
+        f = tmp_path / "decathlon-history.jsonl"
+        f.write_text(
+            json.dumps({"orderNumber": "1"}, ensure_ascii=False)
+            + "\n"
+            + json.dumps({"orderNumber": "2"}, ensure_ascii=False)
+            + "\n",
+            encoding="utf-8",
+        )
+        records = load_decathlon_records(f)
+        assert [r["orderNumber"] for r in records] == ["1", "2"]
+
+    def test_reads_single_json_object(self, tmp_path):
+        f = tmp_path / "one.json"
+        f.write_text(json.dumps({"orderNumber": "1"}), encoding="utf-8")
+        assert load_decathlon_records(f) == [{"orderNumber": "1"}]
+
+    def test_reads_json_array(self, tmp_path):
+        f = tmp_path / "arr.json"
+        f.write_text(json.dumps([{"orderNumber": "1"}, {"orderNumber": "2"}]), encoding="utf-8")
+        assert len(load_decathlon_records(f)) == 2
 
 
 class TestStagingToRows:
