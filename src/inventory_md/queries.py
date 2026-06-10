@@ -167,6 +167,51 @@ def lookup_items(inventory_path: Path, ids: list[str], matches: list[str]) -> li
     return results
 
 
+def container_items(
+    inventory_path: Path,
+    container_id: str,
+    include_children: bool = True,
+) -> list[dict[str, Any]]:
+    """Return every item in container ``container_id``.
+
+    With ``include_children`` (default), items in direct sub-containers (those
+    whose ``parent`` is ``container_id``) are included too, so inspecting a
+    location group like ``pantry`` also surfaces what is in ``pantry-fridge``.
+
+    Each dict has: id, name, container, location, bb. Returns an empty list for an
+    unknown container id.
+    """
+    with open(inventory_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    results: list[dict[str, Any]] = []
+    for item, c_id, parent_id, location in iter_items(data):
+        if c_id == container_id or (include_children and parent_id == container_id):
+            name = item.get("name", "") or ""
+            results.append(
+                {
+                    "id": item.get("id") or name[:20],
+                    "name": name,
+                    "container": c_id,
+                    "location": location,
+                    "bb": item.get("metadata", {}).get("bb"),
+                }
+            )
+    return results
+
+
+def render_container(container_id: str, results: list[dict[str, Any]]) -> str:
+    """Render a container listing (mirrors the lookup report wording)."""
+    lines = [f"Items in container {container_id}:", ""]
+    for r in results:
+        lines.append(f"  {r['id']}")
+        lines.append(f"    {r['name']}")
+        lines.append(f"    Location: {r['location']}")
+        lines.append(f"    {bb_status(r['bb'])}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def filter_expiring(
     items: list[dict[str, Any]],
     before: str | None = None,
@@ -264,4 +309,31 @@ def lookup_command(inventory_path: Path, ids: list[str], matches: list[str]) -> 
         return 0
 
     print(render_lookup(results), end="")
+    return 0
+
+
+def container_command(
+    inventory_path: Path,
+    container_id: str,
+    include_children: bool = True,
+) -> int:
+    """Implement ``inventory-md container``."""
+    if not inventory_path.exists():
+        print(f"Error: {inventory_path} not found", file=sys.stderr)
+        print("Run: inventory-md parse inventory.md", file=sys.stderr)
+        return 1
+
+    with open(inventory_path, encoding="utf-8") as f:
+        data = json.load(f)
+    known = {c.get("id") for c in data.get("containers", [])}
+    if container_id not in known:
+        print(f"Error: no container with id {container_id!r}", file=sys.stderr)
+        return 1
+
+    results = container_items(inventory_path, container_id, include_children=include_children)
+    if not results:
+        print(f"Container {container_id} is empty.")
+        return 0
+
+    print(render_container(container_id, results), end="")
     return 0

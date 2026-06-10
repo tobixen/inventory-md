@@ -56,10 +56,14 @@ fixing. Ordered roughly by impact.
    + a `notes:` line, and split into two lines by hand in `inventory.md`.
    Consider `locations: [{location, qty}, ...]`.
 
-7. **`price` unit ambiguity for by-weight items.** Cabbage 1.768 kg @ 0.59/kg:
-   `price` is per-kg but `staging_to_rows` does `total = price*qty` (only correct
-   because `line_total` is supplied). Document that `price` is the unit price in
-   the receipt's `unit`, and prefer trusting `line_total` for weighed goods.
+7. **`price` unit ambiguity for by-weight items.** ✅ RESOLVED 2026-06-10.
+   Cabbage 1.768 kg @ 0.59/kg: `price` is per-kg but `staging_to_rows` does
+   `total = price*qty` (only correct because `line_total` is supplied).
+   Documented the per-item field semantics in `scripts/staging.py` (`price` is
+   the unit price in the line's `unit`; `line_total` is the receipt's printed
+   amount and is authoritative — `price*qty` is only a fallback and is wrong by a
+   cent on weighed goods). Cross-referenced from `shop_import._new_item_row` and
+   the `ledger.staging_to_rows` fallback.
 
 ## OFF upload
 
@@ -97,6 +101,11 @@ T2. **`inventory-md parse` pushes low-quality observations.** It upserts
    get placed in `pantry-fridge` with a note. Consider a freezer/coldest-spot
    sub-location. (On this boat "frozen" thaws fast — bb estimated at +3 days.)
 
-9. **Container lookup.** Confirmed good practice (now in the generic guide):
-   inspect containers via parsed `inventory.json` + `jq`, not by grepping the
-   markdown. Worth a one-liner helper script (`container-items <id>`).
+9. **Container lookup.** ✅ RESOLVED 2026-06-10.
+   Confirmed good practice (now in the generic guide): inspect containers via
+   parsed `inventory.json`, not by grepping the markdown. Added an
+   `inventory-md container <id>` subcommand (logic in `inventory_md.queries`,
+   unit-tested) that lists a container's items — and, by default, those of its
+   direct sub-containers (so `container pantry` also surfaces `pantry-fridge`).
+   No standalone wrapper script: unlike the legacy `find_expiring_items.py` /
+   `lookup_items.py`, this command has no pre-existing call sites to preserve.

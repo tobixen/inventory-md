@@ -982,6 +982,29 @@ Examples:
         help="Case-insensitive substring on id+name (repeatable)",
     )
 
+    # Container command
+    container_parser = subparsers.add_parser(
+        "container",
+        help="List the items in a container (and its direct sub-containers)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Inspect a container's contents from the parsed inventory.json, rather than
+grepping inventory.md. By default direct sub-containers are included, so e.g.
+'container pantry' also lists what is in 'pantry-fridge'.
+
+Examples:
+  inventory-md container pantry
+  inventory-md container pantry --no-children
+        """,
+    )
+    container_parser.add_argument("container_id", help="Container ID to list (e.g. pantry, fridge, food1)")
+    container_parser.add_argument(
+        "file", type=Path, nargs="?", help="inventory.json to read (default: ./inventory.json)"
+    )
+    container_parser.add_argument(
+        "--no-children", action="store_true", help="List only the named container, not its sub-containers"
+    )
+
     # Update-template command
     update_parser = subparsers.add_parser("update-template", help="Update search.html to latest version")
     update_parser.add_argument("directory", type=Path, nargs="?", help="Target directory (default: current directory)")
@@ -1237,6 +1260,12 @@ Examples:
         )
     elif args.command == "lookup":
         return queries.lookup_command(args.file or Path("inventory.json"), args.ids, args.matches)
+    elif args.command == "container":
+        return queries.container_command(
+            args.file or Path("inventory.json"),
+            args.container_id,
+            include_children=not args.no_children,
+        )
     else:
         parser_cli.print_help()
         return 1

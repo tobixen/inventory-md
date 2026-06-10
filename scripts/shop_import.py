@@ -67,7 +67,12 @@ def _iso_date(value: str) -> str:
 
 
 def _new_item_row(receipt_name: str, price: float, qty: float, unit: str) -> dict[str, Any]:
-    """A staging row with the review scaffold fields defaulted to unfilled."""
+    """A staging row with the review scaffold fields defaulted to unfilled.
+
+    ``price`` is the unit price in ``unit`` (per-kg for weighed lines); ``line_total``
+    is the receipt's printed line amount and is authoritative downstream. See
+    scripts/staging.py for the full field semantics.
+    """
     return {
         "receipt_name": receipt_name,
         "price": price,

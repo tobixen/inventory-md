@@ -271,6 +271,9 @@ def staging_to_rows(staging: dict[str, Any]) -> list[dict[str, Any]]:
                 qty=item.get("qty"),
                 unit=item.get("unit", "pcs"),
                 unit_price=item.get("price"),
+                # line_total (the receipt's printed amount) is authoritative; price*qty
+                # is only a fallback and re-derives from rounded inputs — wrong by a cent
+                # on weighed goods. See scripts/staging.py for the field semantics.
                 total_=item.get("line_total", round(item.get("price", 0) * item.get("qty", 0), 2)),
                 currency=currency,
                 ean=item.get("ean"),

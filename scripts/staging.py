@@ -10,6 +10,18 @@ retired — a shopping trip spanning two shops is two independent staging files.
 Feeding the old layout to a flat consumer used to import 0 rows *silently*
 (docs/shopping-pipeline-issues-2026-06-07.md, issue 1), so consumers now reject
 it loudly via :func:`require_flat`.
+
+Per-item money/quantity fields (each entry of ``items:``):
+
+* ``price``      — the **unit price in the line's ``unit``**. For ``pcs`` it is
+  the price of one piece; for a weighed line (``unit: kg``) it is the per-kg
+  price, *not* the price paid for the line.
+* ``qty``        — quantity in the same ``unit`` (e.g. ``1.768`` for 1.768 kg).
+* ``line_total`` — the amount actually paid for the line, as printed on the
+  receipt. **This is authoritative** and should be trusted over ``price * qty``:
+  for weighed goods ``price * qty`` re-derives the total from rounded inputs and
+  can be off by a cent. ``shop_import`` always emits ``line_total``; consumers
+  fall back to ``round(price * qty, 2)`` only when it is missing.
 """
 
 from __future__ import annotations

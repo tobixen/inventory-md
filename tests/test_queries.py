@@ -170,6 +170,65 @@ class TestLookupItems:
         assert ids == {"soy-old", "soy-soon"}
 
 
+@pytest.fixture
+def nested_inventory(tmp_path: Path) -> Path:
+    inv = {
+        "containers": [
+            {
+                "id": "pantry",
+                "parent": "kitchen",
+                "items": [{"id": "rice", "name": "Rice", "metadata": {"bb": _iso(100)}}],
+            },
+            {
+                "id": "pantry-fridge",
+                "parent": "pantry",
+                "items": [{"id": "milk", "name": "Milk", "metadata": {"bb": _iso(5)}}],
+            },
+            {
+                "id": "garage",
+                "parent": "",
+                "items": [{"id": "oil", "name": "Oil", "metadata": {}}],
+            },
+        ]
+    }
+    path = tmp_path / "inventory.json"
+    path.write_text(json.dumps(inv))
+    return path
+
+
+class TestContainerItems:
+    def test_lists_items_in_named_container(self, nested_inventory: Path):
+        results = queries.container_items(nested_inventory, "pantry", include_children=False)
+        assert {r["id"] for r in results} == {"rice"}
+
+    def test_includes_direct_children_by_default(self, nested_inventory: Path):
+        results = queries.container_items(nested_inventory, "pantry")
+        # milk lives in pantry-fridge, whose parent is pantry
+        assert {r["id"] for r in results} == {"rice", "milk"}
+
+    def test_unknown_container_is_empty(self, nested_inventory: Path):
+        assert queries.container_items(nested_inventory, "nope") == []
+
+    def test_result_fields(self, nested_inventory: Path):
+        rice = next(r for r in queries.container_items(nested_inventory, "pantry") if r["id"] == "rice")
+        assert rice["name"] == "Rice"
+        assert rice["container"] == "pantry"
+        assert rice["location"] == "pantry, kitchen"
+        assert rice["bb"]
+
+
+class TestContainerCommand:
+    def test_unknown_container_returns_1(self, nested_inventory: Path):
+        assert queries.container_command(nested_inventory, "nope") == 1
+
+    def test_known_container_returns_0_and_lists_items(self, nested_inventory: Path, capsys):
+        rc = queries.container_command(nested_inventory, "pantry")
+        out = capsys.readouterr().out
+        assert rc == 0
+        assert "rice" in out
+        assert "milk" in out  # direct child included
+
+
 class TestBBStatus:
     def test_no_bb(self):
         assert queries.bb_status(None) == "no bb"
