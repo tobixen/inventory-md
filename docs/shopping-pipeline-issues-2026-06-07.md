@@ -5,18 +5,20 @@ fixing. Ordered roughly by impact.
 
 ## Scripts
 
-1. **Staging schema mismatch (silent data loss).**
+1. **Staging schema mismatch (silent data loss).** ✅ RESOLVED 2026-06-10.
    `shop_import.py` emits a *flat single-shop* schema (top-level
    `session` / `shop` / `items:`). But the previously committed
    `shopping-2026-06-06.yaml` and the personal skill example use a `shops:`
-   list wrapper (multi-shop). `ledger.py import-staging` only understands the
-   flat schema and, given the `shops:` layout, imports **0 rows with no
-   warning** ("0 added (of 0 rows)"). Fixes:
-   - Pick one canonical schema (flat vs. `shops:`-list) and make every consumer
-     agree.
-   - If `import-staging` finds 0 items, or sees an unexpected top-level `shops:`
-     key, it should **warn/exit non-zero**, not succeed silently.
-   - Update the personal skill's example to the canonical schema.
+   list wrapper (multi-shop). `ledger.py import-staging` only understood the
+   flat schema and, given the `shops:` layout, imported **0 rows with no
+   warning** ("0 added (of 0 rows)").
+   - **Canonical schema decided: flat single-shop, one staging file per shop
+     visit.** A trip spanning two shops is two independent files. The multi-shop
+     `shops:` wrapper is retired.
+   - New shared `scripts/staging.py` `require_flat()` enforces this; both
+     `ledger.staging_to_rows` and `tingbok_push._shops` reject a top-level
+     `shops:` key with a clear message instead of silently dropping rows.
+   - `ledger.py import-staging` now **exits non-zero** when 0 rows are parsed.
 
 2. **`extract_barcodes.py` misses easily-readable barcodes and invents others.**
    Of the photographed barcodes it missed several a human read at a glance
@@ -40,10 +42,11 @@ fixing. Ordered roughly by impact.
    tingbok-resolved photo products to receipt lines (by resolved name/category,
    qty, price, order) and pre-fill `ean`, leaving only ambiguous lines for review.
 
-5. **`shop_import.py` not executable.** Direct `~/inventory-md/scripts/shop_import.py`
-   → "Permission denied"; had to call via `python scripts/...`.
-   `extract_barcodes.py` runs fine directly. Fix the exec bit / shebang
-   consistently across scripts.
+5. **`shop_import.py` not executable.** ✅ RESOLVED 2026-06-10.
+   Direct `~/inventory-md/scripts/shop_import.py` → "Permission denied"; had to
+   call via `python scripts/...`. Normalized exec bits across `scripts/`: every
+   CLI (has `__main__`) is now `755`, pure modules (`bb_dates.py`, `staging.py`)
+   are `644`.
 
 ## Data model
 
@@ -60,13 +63,12 @@ fixing. Ordered roughly by impact.
 
 ## OFF upload
 
-O1. **`off_upload.py` dry-run misreports images as missing.** The dry-run prints
-   `front_image: (none)` even when images are fully configured via the modern
-   `images:` block — the summary line only reads the legacy `front_image` key
-   (`p.get("front_image")`), not `_images(p)`. The actual `--commit` then
-   uploaded all four roles (front/ingredients/nutrition/packaging → 200). The
-   dry-run should print the resolved `_images()` map so the reviewer can see
-   what will be uploaded; as-is it looks like nothing will be.
+O1. **`off_upload.py` dry-run misreports images as missing.** ✅ RESOLVED 2026-06-10.
+   The dry-run printed `front_image: (none)` even when images were fully
+   configured via the modern `images:` block — the summary line only read the
+   legacy `front_image` key (`p.get("front_image")`), not `_images(p)`. The
+   dry-run now prints the resolved `_images()` map (`image[<role>]: <path>`), so
+   the reviewer sees every role that `--commit` will upload.
 
 ## tingbok (service — repo `~/tingbok`)
 

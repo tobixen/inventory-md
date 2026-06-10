@@ -5,8 +5,13 @@ by category/time and joined to consumption (items removed from inventory.md).
 """
 
 import json
+import subprocess
 import sys
+from pathlib import Path
 
+import pytest
+
+_SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
 from ledger import (  # noqa: E402
     combine_duplicate_lines,
@@ -234,6 +239,52 @@ class TestStagingToRows:
         assert row["category"] == "food/dairy"
         assert row["inventory_id"] == "milk-2026-05-28"
         assert row["total"] == 1.49
+
+    def test_retired_multishop_schema_raises(self):
+        # The multi-shop ``shops:`` wrapper used to import 0 rows silently.
+        staging = {
+            "session": "2026-06-07",
+            "shops": [
+                {"shop": "Lidl Varna", "currency": "EUR", "items": [{"receipt_name": "A", "price": 1.0, "qty": 1.0}]},
+            ],
+        }
+        with pytest.raises(ValueError, match="shops"):
+            staging_to_rows(staging)
+
+
+class TestImportStagingCli:
+    """The import-staging subcommand must fail loudly, never import 0 rows quietly."""
+
+    def _run(self, staging_text: str, tmp_path: Path) -> subprocess.CompletedProcess:
+        staging = tmp_path / "shopping.yaml"
+        staging.write_text(staging_text, encoding="utf-8")
+        return subprocess.run(
+            [
+                sys.executable,
+                str(_SCRIPTS / "ledger.py"),
+                "import-staging",
+                str(staging),
+                "--ledger",
+                str(tmp_path / "out.jsonl"),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+    def test_zero_rows_exits_nonzero(self, tmp_path):
+        result = self._run("session: '2026-06-07'\nshop: X\ncurrency: EUR\nitems: []\n", tmp_path)
+        assert result.returncode != 0
+        assert "0 rows" in (result.stderr + result.stdout)
+        assert not (tmp_path / "out.jsonl").exists()
+
+    def test_multishop_schema_exits_nonzero(self, tmp_path):
+        result = self._run(
+            "session: '2026-06-07'\nshops:\n  - shop: Lidl\n    items:\n      - {receipt_name: A, price: 1.0, qty: 1.0}\n",
+            tmp_path,
+        )
+        assert result.returncode != 0
+        assert "shops" in (result.stderr + result.stdout)
+        assert not (tmp_path / "out.jsonl").exists()
 
 
 class TestCombineDuplicateLines:

@@ -45,6 +45,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from shop_import import _iso_date, parse_price  # noqa: E402
+from staging import require_flat  # noqa: E402
 
 try:
     import yaml
@@ -250,7 +251,12 @@ def decathlon_purchase_to_rows(purchase: dict[str, Any], source: str | None = No
 
 
 def staging_to_rows(staging: dict[str, Any]) -> list[dict[str, Any]]:
-    """Convert a reviewed shop_import staging dict to ledger rows (fully populated)."""
+    """Convert a reviewed shop_import staging dict to ledger rows (fully populated).
+
+    Accepts only the canonical flat single-shop schema; raises ``ValueError`` on
+    the retired multi-shop ``shops:`` wrapper (see scripts/staging.py).
+    """
+    require_flat(staging)
     date = staging.get("session", "")
     shop = staging.get("shop", "")
     currency = staging.get("currency", "EUR")
@@ -500,7 +506,13 @@ def main() -> None:  # pragma: no cover - thin CLI wiring
         if yaml is None:
             sys.exit("pyyaml required for import-staging")
         staging = yaml.safe_load(args.staging.read_text(encoding="utf-8"))
-        _report(staging_to_rows(staging))
+        try:
+            rows = staging_to_rows(staging)
+        except ValueError as exc:
+            sys.exit(f"import-staging: {exc}")
+        if not rows:
+            sys.exit(f"import-staging: 0 rows parsed from {args.staging} — nothing imported (check the staging file)")
+        _report(rows)
     elif args.cmd == "query":
         rows = filter_rows(
             load_rows(args.ledger), category=args.category, since=args.since, until=args.until, shop=args.shop

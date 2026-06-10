@@ -42,6 +42,11 @@ and `docs/open-prices-integration.md`.
     --out $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml
 ```
 
+**One staging file per shop visit** (canonical flat single-shop schema —
+`session, shop, currency, items[]`; no multi-shop `shops:` wrapper). If a day
+has more than one visit, suffix the file with the shop, e.g.
+`shopping-YYYY-MM-DD-lidl.yaml`; the importer rejects a multi-shop file.
+
 Receipt source: a JSON file from a receipt parser, or OCR/read a photographed
 receipt into the same shape (`date, shop, total, items[name,price,quantity]`).
 The importer emits one row per line item with `ean_candidates`, a classified

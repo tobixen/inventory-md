@@ -136,20 +136,24 @@ def main() -> None:  # pragma: no cover - thin CLI / network wiring
 
     for p in products:
         body = build_body(p)
-        front = p.get("front_image")
+        images = _images(p)
         print(
             f"\n{'WRITE' if args.commit else 'DRY-RUN'} {body['code']}  {body.get('product_name_en') or body.get('product_name_bg', '')}"
         )
         for k, v in body.items():
             if k != "code":
                 print(f"    {k}: {v}")
-        print(f"    front_image: {front or '(none)'}")
+        if images:
+            for role, path in images.items():
+                print(f"    image[{role}]: {path}")
+        else:
+            print("    images: (none)")
         if not args.commit:
             continue
         resp = api.product.update(body)
         print(f"    update -> {resp}")
         lang = body.get("lang", "en")
-        for field, path in _images(p).items():
+        for field, path in images.items():
             if args.no_image:
                 break
             try:

@@ -24,8 +24,9 @@ These are sent verbatim (overriding the current tingbok name) whenever present.
 With ``--fill-missing`` the item's plain ``name`` is used as the tingbok name
 *only* for EANs tingbok doesn't know yet (it never overwrites an existing name).
 
-Both the flat single-shop schema (top-level ``shop`` + ``items``) and the
-multi-shop ``shops:`` list schema are accepted.
+The staging file is the canonical flat single-shop schema (one file per shop
+visit, top-level ``shop`` + ``items``); the retired multi-shop ``shops:`` list
+is rejected (see scripts/staging.py).
 
 Usage:
     tingbok_push.py STAGING.yaml              # dry run — show what would be sent
@@ -42,6 +43,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from staging import require_flat  # noqa: E402
 
 DEFAULT_TINGBOK = "https://tingbok.plann.no"
 
@@ -73,25 +77,17 @@ def _put(base: str, ean: str, payload: dict[str, Any]) -> tuple[bool, str]:
 
 
 def _shops(staging: dict[str, Any]) -> list[dict[str, Any]]:
-    """Normalise either schema into a list of {shop, currency, date, items}."""
-    date = staging.get("session", "")
-    if isinstance(staging.get("shops"), list):
-        out = []
-        for sh in staging["shops"]:
-            out.append(
-                {
-                    "shop": sh.get("shop", ""),
-                    "currency": sh.get("currency", "EUR"),
-                    "date": sh.get("session", date),
-                    "items": sh.get("items", []),
-                }
-            )
-        return out
+    """Wrap the flat single-shop staging in a one-element {shop, currency, date, items} list.
+
+    Raises ``ValueError`` on the retired multi-shop ``shops:`` schema (see
+    scripts/staging.py).
+    """
+    require_flat(staging)
     return [
         {
             "shop": staging.get("shop", ""),
             "currency": staging.get("currency", "EUR"),
-            "date": date,
+            "date": staging.get("session", ""),
             "items": staging.get("items", []),
         }
     ]
@@ -171,8 +167,13 @@ def main() -> int:
     staging = yaml.safe_load(args.staging.read_text(encoding="utf-8"))
     base = args.tingbok_url.rstrip("/")
 
+    try:
+        shop_blocks = _shops(staging)
+    except ValueError as exc:
+        sys.exit(f"tingbok_push: {exc}")
+
     pushed = skipped = failed = 0
-    for shop_block in _shops(staging):
+    for shop_block in shop_blocks:
         shop, currency, date = shop_block["shop"], shop_block["currency"], shop_block["date"]
         for item in shop_block["items"]:
             ean = item.get("ean")
