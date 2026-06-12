@@ -601,6 +601,7 @@ def load_local_vocabulary(path: Path, default_source: str = "local") -> dict[str
             description=concept_data.get("description"),
         )
 
+    create_broader_stubs(concepts)
     return concepts
 
 
@@ -761,7 +762,7 @@ def _infer_hierarchy(concepts: dict[str, Concept]) -> None:
                     parent.narrower.append(concept_id)
 
 
-def _create_broader_stubs(concepts: dict[str, Concept]) -> None:
+def create_broader_stubs(concepts: dict[str, Concept]) -> None:
     """Create stub Concept nodes for broader references pointing to non-existent IDs.
 
     Handles Wikidata taxonomy paths (e.g. "primary_commodity/raw_material/oil/cooking_oil")
@@ -924,7 +925,7 @@ def build_category_tree(vocabulary: dict[str, Concept], infer_hierarchy: bool = 
     if infer_hierarchy:
         _infer_hierarchy(concepts)
 
-    _create_broader_stubs(concepts)
+    create_broader_stubs(concepts)
     _add_category_by_source_nodes(concepts)
 
     # Find roots - concepts that should appear at the top level of the tree

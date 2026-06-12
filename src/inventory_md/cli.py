@@ -1339,9 +1339,7 @@ def _vocabulary_search_command(args, config: Config, directory: Path) -> int:
         print("No inventory.json found. Run 'inventory-md parse' first.")
         return 1
 
-    # Load vocabulary the same way generate_shopping_list does (DRY)
     concepts = vocabulary.load_local_vocabulary(vocab_json)
-    vocabulary._create_broader_stubs(concepts)
 
     # Resolve label → canonical concept ID (same as shopping list does for desired items)
     canonical = vocabulary.resolve_category(label, concepts, config.lang or "en")

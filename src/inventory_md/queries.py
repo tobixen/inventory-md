@@ -69,10 +69,7 @@ def bb_status(bb: str | None) -> str:
 
 def _load_food_vocabulary(inventory_path: Path) -> dict[str, vocabulary.Concept]:
     """Load vocabulary.json next to the inventory, with broader links made traversable."""
-    concepts = vocabulary.load_local_vocabulary(inventory_path.parent / "vocabulary.json")
-    if concepts:
-        vocabulary._create_broader_stubs(concepts)
-    return concepts
+    return vocabulary.load_local_vocabulary(inventory_path.parent / "vocabulary.json")
 
 
 def _is_food(categories: list[str], concepts: dict[str, vocabulary.Concept], lang: str) -> bool:

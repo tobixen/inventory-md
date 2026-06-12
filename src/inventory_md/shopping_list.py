@@ -281,25 +281,6 @@ def parse_inventory_for_shopping(
     return items
 
 
-def _is_descendant(
-    concept_id: str,
-    ancestor_id: str,
-    concepts: dict,
-    _visited: frozenset[str] | None = None,
-) -> bool:
-    """Return True if concept_id is the same as, or a transitive narrower of, ancestor_id."""
-    if concept_id == ancestor_id:
-        return True
-    visited = _visited or frozenset()
-    if concept_id in visited:
-        return False
-    concept = concepts.get(concept_id)
-    if not concept:
-        return False
-    visited = visited | {concept_id}
-    return any(_is_descendant(b, ancestor_id, concepts, visited) for b in concept.broader)
-
-
 def tag_matches(
     desired_tag: str,
     inventory_tag: str,
@@ -322,7 +303,7 @@ def tag_matches(
         for it in inventory_tags:
             if dt == it or it.startswith(dt + "/"):
                 return True
-            if concepts and _is_descendant(it, dt, concepts):
+            if concepts and vocab_module.is_descendant_of(it, dt, concepts):
                 return True
 
     return False
@@ -429,7 +410,6 @@ def generate_shopping_list(
     concepts = None
     if vocab_path is not None and vocab_path.exists():
         concepts = vocab_module.load_local_vocabulary(vocab_path)
-        vocab_module._create_broader_stubs(concepts)
 
     inventory_data = json.loads(inventory_json_path.read_text(encoding="utf-8"))
     inv_items = parse_inventory_for_shopping(inventory_data, concepts=concepts, lang=lang)

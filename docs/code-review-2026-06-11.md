@@ -141,13 +141,13 @@ rejected. No action needed.
 
 The dominant theme this round. In rough order of value to fix:
 
-1. **Language fallback chains now live in three places**: `config.DEFAULTS["language_fallbacks"]` (config.py:46), `vocabulary.DEFAULT_LANGUAGE_FALLBACKS` (vocabulary.py:326), and tingbok itself (per the May review). `Config.get_language_fallback_chain` and `vocabulary.get_fallback_chain` are parallel implementations. The vocabulary copy ignores user config entirely.
-2. **Descendant checks**: `shopping_list._is_descendant` (shopping_list.py:284) reimplements `vocabulary.is_descendant_of` (vocabulary.py:690), whose docstring even says category matching "lives here rather than in individual consumers".
+1. ~~**Language fallback chains now live in three places**~~ **FIXED 2026-06-12**: `DEFAULT_LANGUAGE_FALLBACKS` in `vocabulary.py` is now the single source of truth; `DEFAULTS["language_fallbacks"]` in `config.py` is built from it; `Config.get_language_fallback_chain` delegates to `vocabulary.get_fallback_chain`. Tingbok copy still separate (out of scope here).
+2. ~~**Descendant checks**: `shopping_list._is_descendant` (shopping_list.py:284) reimplements `vocabulary.is_descendant_of`~~ **FIXED 2026-06-12**: `_is_descendant` removed; `tag_matches()` now calls `vocabulary.is_descendant_of()` directly.
 3. **Lidl receipt parsing**: `ledger.lidl_receipt_to_rows` and `shop_import.parse_lidl_receipt` duplicate the line-item walk, `_KG_SUFFIX` constant included (ledger.py:55, shop_import.py:52). One should produce the canonical row and the other consume it.
 4. **api_server markdown surgery**: `add_child_to_item`, `add_item_to_container`, `remove_container`, `remove_item_from_container` each re-scan lines for `ID:<x>` headings and re-derive section bounds (~4 copies of the same loop, api_server.py:574-873). Extract a `find_container_section(lines, container_id) -> (start, end, level)` helper — `sync_eans_to_inventory.py` has a fifth variant of the same logic.
 5. **Quality checks**: `check_quality.check_duplicate_ids/check_missing_parents` duplicate `parser.validate_inventory`; `check_quality.load_inventory_lang` reimplements `Config`'s file discovery.
 6. **Barcode plumbing**: `sync_eans_to_inventory.py` duplicates `extract_barcodes.py`'s extraction and `is_ean` (without checksum validation) and queries OFF directly while everything else goes through tingbok.
-7. **Private API leakage**: `queries.py:74`, `cli.py:1344` and `shopping_list.py:432` all call `vocabulary._create_broader_stubs`. Three external callers means it isn't private — rename/expose it (e.g. as part of a `load_vocabulary_for_matching()` helper, which would also de-duplicate the load-then-stub pattern itself).
+7. ~~**Private API leakage**: `queries.py:74`, `cli.py:1344` and `shopping_list.py:432` all call `vocabulary._create_broader_stubs`~~ **FIXED 2026-06-12**: renamed to `create_broader_stubs` (public) and called automatically inside `load_local_vocabulary()`; all three external call sites removed.
 8. `_deep_copy` (config.py:127) reimplements `copy.deepcopy` for the limited case; fine, but the stdlib call is one line.
 9. `openprices_publish.py` defines both `OSM_CACHE` (XDG cache) and `SHOP_OSM` (XDG config) — two different files both named `shop-osm.json` holding different things (geocode cache vs confirmed shop locations). Rename one.
 
@@ -186,7 +186,10 @@ The dominant theme this round. In rough order of value to fix:
 | 1.5 | Retired default chat model; fake conversation_id; unbounded tool loop | Medium | api_server.py:158,1091,1099 |
 | 2.1 | No auth on mutating/chat endpoints; auto-push | Medium | api_server.py |
 | 1.6 | Sync blocking calls in async endpoints | Low-Med | api_server.py |
-| 3.1-3.7 | Duplication (fallback chains ×3, descendant check ×2, Lidl parse ×2, section-scan ×5, …) | Medium (aggregate) | see §3 |
+| ~~3.1~~ | ~~Fallback chains ×3~~ | ~~Medium~~ | **FIXED 2026-06-12** |
+| ~~3.2~~ | ~~Descendant check ×2~~ | ~~Medium~~ | **FIXED 2026-06-12** |
+| ~~3.7~~ | ~~`_create_broader_stubs` private leakage ×3~~ | ~~Medium~~ | **FIXED 2026-06-12** |
+| 3.3-3.6 | Duplication (Lidl parse ×2, section-scan ×5, quality checks, barcode plumbing) | Medium (aggregate) | see §3 |
 | 1.7 | `parent_id=None` → searches for `ID:None` | Low | api_server.py:598 |
 | 1.8 | `--suggest-from-photo` unreachable without ledger rows | Low | openprices_publish.py:247 |
 | 1.10 | Stale `__version__`, dead `show_date`, dead validate branch, no-op `--force` | Low | various |

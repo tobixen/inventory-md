@@ -18,6 +18,9 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .vocabulary import DEFAULT_LANGUAGE_FALLBACKS
+from .vocabulary import get_fallback_chain as _get_fallback_chain
+
 # Config filenames for current working directory (project-local config)
 # config.yaml/json preferred; inventory-md.yaml/json kept for backward compatibility
 CONFIG_FILENAMES = ["config.yaml", "config.json", "inventory-md.yaml", "inventory-md.json"]
@@ -41,31 +44,8 @@ DEFAULTS: dict[str, Any] = {
         "show_date": True,
         "duplicate_qr": False,
     },
-    # Language fallback chains for translations
-    # When a label isn't found in the preferred language, try these in order
-    "language_fallbacks": {
-        # Scandinavian - mutually intelligible cluster
-        "nb": ["no", "da", "nn", "sv"],
-        "nn": ["no", "nb", "sv", "da"],
-        "da": ["no", "nb", "sv", "nn"],
-        "sv": ["no", "nb", "da", "nn"],
-        "no": ["nb", "da", "nn", "sv"],
-        # Germanic
-        "de": ["de-AT", "de-CH", "nl"],
-        "nl": ["de"],
-        # Romance
-        "es": ["pt", "it", "fr"],
-        "pt": ["es", "it", "fr"],
-        "fr": ["es", "it", "pt"],
-        "it": ["es", "fr", "pt"],
-        # Slavic
-        "ru": ["uk", "be", "bg"],
-        "uk": ["ru", "be", "pl"],
-        "pl": ["cs", "sk"],
-        "cs": ["sk", "pl"],
-        # Final fallback for all languages
-        "_final_fallback": "en",
-    },
+    # Language fallback chains for translations — canonical data lives in vocabulary.py
+    "language_fallbacks": {**DEFAULT_LANGUAGE_FALLBACKS, "_final_fallback": "en"},
 }
 
 
@@ -437,10 +417,5 @@ class Config:
             List of language codes to try, in order (including the primary).
         """
         fallbacks = self.language_fallbacks
-        chain = [lang]
-        if lang in fallbacks:
-            chain.extend(fallbacks[lang])
         final = fallbacks.get("_final_fallback", "en")
-        if final not in chain:
-            chain.append(final)
-        return chain
+        return _get_fallback_chain(lang, fallbacks, final_fallback=final)
