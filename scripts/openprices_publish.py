@@ -205,9 +205,9 @@ def _token() -> str | None:
 
 def main() -> None:  # pragma: no cover - network / CLI wiring
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--shop", required=True, help="Ledger shop name, e.g. 'Billa Varna'")
-    parser.add_argument("--date", required=True, help="Ledger date YYYY-MM-DD")
-    parser.add_argument("--proof", type=Path, required=True, help="Receipt image to upload as proof")
+    parser.add_argument("--shop", default=None, help="Ledger shop name, e.g. 'Billa Varna'")
+    parser.add_argument("--date", default=None, help="Ledger date YYYY-MM-DD")
+    parser.add_argument("--proof", type=Path, default=None, help="Receipt image to upload as proof")
     parser.add_argument("--osm", help="Shop location as TYPE:ID (e.g. WAY:1016681733); confirmed & cached per shop")
     parser.add_argument("--proof-id", type=int, default=None, help="Reuse an already-uploaded proof id (skip upload)")
     parser.add_argument(
@@ -234,6 +234,23 @@ def main() -> None:  # pragma: no cover - network / CLI wiring
     parser.add_argument("--env", choices=["org", "net"], default="org")
     parser.add_argument("--commit", action="store_true")
     args = parser.parse_args()
+
+    # --suggest-from-photo: standalone mode — no shop/date/proof needed.
+    # (Unreliable: the photo may be taken away from the shop — confirm before use.)
+    if args.suggest_from_photo:
+        latlon = photo_latlon(args.suggest_from_photo)
+        if not latlon:
+            sys.exit(f"No GPS in {args.suggest_from_photo}")
+        hint = nominatim_reverse(*latlon)
+        print(f"Suggestion from {latlon}: {hint}")
+        print("Verify it's the right shop, then re-run with --osm TYPE:ID")
+        return
+
+    # Validate args required for normal publish flow.
+    missing = [f"--{f}" for f, v in [("shop", args.shop), ("date", args.date), ("proof", args.proof)] if v is None]
+    if missing:
+        parser.error(f"{', '.join(missing)} required for publishing")
+
     discounts = {ean: (gross, dtype) for ean, gross, dtype in (_parse_discount(s) for s in args.discount)}
     category_specs = [_parse_category_price(s) for s in args.category_price]
 
@@ -246,17 +263,6 @@ def main() -> None:  # pragma: no cover - network / CLI wiring
     )
     if not rows and not category_specs:
         sys.exit(f"Nothing to publish for shop={args.shop!r} date={args.date!r} (no EAN rows, no --category-price)")
-
-    # --suggest-from-photo: print an OSM hint from a photo's GPS, then stop.
-    # (Unreliable: the photo may be taken away from the shop — confirm before use.)
-    if args.suggest_from_photo:
-        latlon = photo_latlon(args.suggest_from_photo)
-        if not latlon:
-            sys.exit(f"No GPS in {args.suggest_from_photo}")
-        hint = nominatim_reverse(*latlon)
-        print(f"Suggestion from {latlon}: {hint}")
-        print("Verify it's the right shop, then re-run with --osm TYPE:ID")
-        return
 
     # Location must be explicitly confirmed (per shop), never auto-geocoded:
     # receipt photos are often taken away from the shop.

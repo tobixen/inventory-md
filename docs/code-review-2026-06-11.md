@@ -123,6 +123,10 @@ The "nothing to publish" exit (openprices_publish.py:247) runs *before* the
 required args — so the hint mode only works when a publishable ledger slice
 already exists. Hoist the suggestion branch above the row filtering.
 
+**Fixed**: `--suggest-from-photo` is now handled immediately after `parse_args()`
+before any ledger/row work; `--shop`/`--date`/`--proof` changed to optional with
+a manual validation step that only fires in the normal publish flow.
+
 ### 1.9 Metadata regex swallows URLs and times (LOW, known limitation?)
 `extract_metadata` (parser.py:159) matches `(\w+):(\S+)` style pairs, so an item
 description containing `https://example.com/x` gets a bogus `https` metadata key
