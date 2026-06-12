@@ -6,6 +6,7 @@ Provides conversational interface for querying inventory.
 """
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -154,15 +155,13 @@ class ChatMessage(BaseModel):
     """Chat message from user."""
 
     message: str
-    conversation_id: str | None = None
-    model: str = "claude-3-haiku-20240307"  # Default to cheapest model
+    model: str = "claude-haiku-4-5-20251001"  # Default to cheapest model
 
 
 class ChatResponse(BaseModel):
     """Chat response from Claude."""
 
     response: str
-    conversation_id: str
 
 
 # Tool definitions for Claude
@@ -1095,9 +1094,11 @@ Important notes:
         model=message.model, max_tokens=4096, tools=INVENTORY_TOOLS, system=system_prompt, messages=messages
     )
 
-    # Handle tool use loop
-    while response.stop_reason == "tool_use":
-        # Extract tool calls
+    # Handle tool use loop (cap at 10 rounds to prevent runaway token burn)
+    max_tool_rounds = 10
+    tool_rounds = 0
+    while response.stop_reason == "tool_use" and tool_rounds < max_tool_rounds:
+        tool_rounds += 1
         tool_results = []
 
         for block in response.content:
@@ -1107,14 +1108,15 @@ Important notes:
                     {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(tool_result)}
                 )
 
-        # Add assistant response and tool results to messages
         messages.append({"role": "assistant", "content": response.content})
         messages.append({"role": "user", "content": tool_results})
 
-        # Continue conversation
         response = client.messages.create(
             model=message.model, max_tokens=4096, tools=INVENTORY_TOOLS, system=system_prompt, messages=messages
         )
+
+    if tool_rounds >= max_tool_rounds and response.stop_reason == "tool_use":
+        logging.getLogger(__name__).warning("chat: tool-use loop hit %d-round cap", max_tool_rounds)
 
     # Extract final text response
     final_response = ""
@@ -1122,7 +1124,7 @@ Important notes:
         if hasattr(block, "text"):
             final_response += block.text
 
-    return ChatResponse(response=final_response, conversation_id=message.conversation_id or "default")
+    return ChatResponse(response=final_response)
 
 
 @app.get("/api/containers")

@@ -92,6 +92,10 @@ json-untouched invariant, and the missing-md warning.
 - `conversation_id` is accepted and echoed back, but every request builds a fresh single-message history (api_server.py:1091) — the API advertises statefulness it doesn't have. Either implement history or drop the field.
 - The tool-use loop (api_server.py:1099) has no iteration cap; a confused model can burn tokens indefinitely. Cap it (e.g. 10 rounds).
 
+**Fixed**: default model updated to `claude-haiku-4-5-20251001`; `conversation_id`
+dropped from `ChatMessage` and `ChatResponse` (field was unused in all templates);
+tool-use loop capped at 10 rounds with a `logging.warning` when the cap fires.
+
 ### 1.6 Blocking work inside async endpoints (LOW-MEDIUM)
 All `async def` endpoints call synchronous code: file I/O, `git pull`/`commit`/
 `push` subprocesses, full re-parse of the inventory, and the *synchronous*
