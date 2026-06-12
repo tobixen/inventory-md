@@ -111,11 +111,11 @@ def discover_images(container_id: str, base_path: Path) -> list[dict[str, str]]:
     return images
 
 
-def _normalize_bb_date(date_str: str) -> str:
+def normalize_bb_date(date_str: str) -> str:
     """Normalize a best-before date string to a full ISO date (YYYY-MM-DD).
 
     - ``YYYY-MM-DD`` is returned unchanged.
-    - ``YYYY-MM`` is extended to the last day of that month.
+    - ``YYYY-MM`` is extended to the last day of that month (conservative: still safe).
     - ``YYYY`` is extended to Dec 31.
     - Anything else is returned unchanged.
     """
@@ -132,6 +132,10 @@ def _normalize_bb_date(date_str: str) -> str:
     except (ValueError, IndexError):
         pass
     return date_str
+
+
+# Keep the private alias so any call-sites not yet updated continue to work.
+_normalize_bb_date = normalize_bb_date
 
 
 def extract_metadata(text: str) -> dict[str, Any]:

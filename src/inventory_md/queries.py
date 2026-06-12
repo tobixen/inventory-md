@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from . import vocabulary
+from .parser import normalize_bb_date
 
 
 def iter_items(data: dict) -> Iterator[tuple[dict, str, str, str]]:
@@ -36,15 +37,15 @@ def iter_items(data: dict) -> Iterator[tuple[dict, str, str, str]]:
 def normalize_bb(bb: str | None) -> str | None:
     """Normalize a best-before tag to an ISO ``YYYY-MM-DD`` string, or ``None``.
 
-    Strips a trailing ``:EST`` marker and pads bare ``YYYY`` / ``YYYY-MM`` values to
-    the first of the month. Returns ``None`` for empty or unparseable values.
+    Strips a trailing ``:EST`` marker, then delegates date padding to
+    ``parser.normalize_bb_date`` (``YYYY-MM`` → last day of month; ``YYYY`` →
+    Dec 31). Returns ``None`` for empty or unparseable values.
     """
     if not bb:
         return None
     if bb.endswith(":EST"):
         bb = bb[:-4]
-    while len(bb) in (4, 7):
-        bb = bb + "-01"
+    bb = normalize_bb_date(bb)
     try:
         date.fromisoformat(bb)
     except ValueError:

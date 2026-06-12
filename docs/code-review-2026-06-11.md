@@ -42,6 +42,10 @@ Fix options: emit `to_tingbok: true` (or `false`) in the scaffold so the reviewe
 flips it consciously, document it in `staging.py`'s schema docstring and the
 skill, and make `tingbok_push` warn loudly when *every* item was skipped.
 
+**Fixed** (commits bb60505): `shop_import._new_item_row()` now emits `to_tingbok: null`;
+`tingbok_push` warns to stderr when every item is skipped; `staging.py` docstring
+and `process-shopping.md` Stage 2 updated to require explicit true/false.
+
 ### 1.2 `_normalize_ean` strips all leading zeros (MEDIUM)
 `scripts/ledger.py:163`: `gtin[-13:].lstrip("0")` is presumably meant to convert
 a zero-padded GTIN-14 to EAN-13, but it removes *every* leading zero, so a
@@ -51,6 +55,9 @@ the `[-13:]` slice already does the truncation; the `lstrip("0")` should simply
 be dropped (UPC-A-as-EAN-13 keeps its leading zero in most databases) or
 restricted to stripping down to 12 digits for UPC-A normalisation — decide which
 convention tingbok uses and match it.
+
+**Fixed** (commit 7fef5ed): dropped `lstrip("0")` — `gtin[-13:]` alone is
+sufficient. Regression test added (`test_gtin_preserves_legitimate_leading_zero`).
 
 ### 1.3 Best-before normalisation: two implementations, opposite semantics (MEDIUM)
 - `parser._normalize_bb_date()` (parser.py:114) pads `2026-06` → `2026-06-30` (*last* day of month)
@@ -62,6 +69,11 @@ values gets a month-off-by-29-days answer. They also disagree on the EST marker
 (`bb:...:EST` suffix vs a standalone `EST` token). Pick one normaliser (the
 parser's last-day semantics is the conservative one for "best before") and one
 EST syntax, and have `queries` import it.
+
+**Fixed**: `parser._normalize_bb_date` renamed to `normalize_bb_date` (public);
+`queries.normalize_bb` now imports and delegates to it — single implementation,
+last-day semantics everywhere. `_normalize_bb_date` kept as alias for any
+existing callers. Tests updated with leap-year and year-only cases.
 
 ### 1.4 `check_quality.py --fix-categories` edits a generated file (MEDIUM)
 `apply_fixes()` (check_quality.py:399) rewrites **inventory.json**, which is
