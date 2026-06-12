@@ -198,6 +198,8 @@ def main() -> int:
 
     verb = "pushed" if args.commit else "would push"
     print(f"\n{verb}: {pushed if args.commit else '—'}  failed: {failed}  skipped (no ean / not to_tingbok): {skipped}")
+    if skipped > 0 and pushed == 0 and failed == 0:
+        print("WARNING: every item was skipped — did you set to_tingbok: true in the staging file?", file=sys.stderr)
     if not args.commit:
         print("DRY RUN — pass --commit to push")
     return 1 if failed else 0

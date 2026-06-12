@@ -58,8 +58,11 @@ flags. It never decides a match or invents a date.
 Edit the staging file: for each item pick the right `ean` from `ean_candidates`
 (or add one), set `name`, `category`, `bb` (from the photo's `bb` candidate, else
 `:EST`), `location`, and a unique `inventory_id`. Attach label `photos`. Clear
-`needs_review`. This is the checkpoint to fix mistakes **before** anything
-irreversible. Re-running stage 1 is safe (idempotent ledger; staging is yours).
+`needs_review`. **Set `to_tingbok: true` for items with a confirmed EAN,
+`to_tingbok: false` for by-weight produce and items without a barcode.** The
+importer scaffolds `to_tingbok: null` as a deliberate reminder — leave no item
+at `null` before committing. This is the checkpoint to fix mistakes **before**
+anything irreversible. Re-running stage 1 is safe (idempotent ledger; staging is yours).
 
 ## Stage 3 — commit (script + thin AI, gated)
 

@@ -78,6 +78,7 @@ class TestParseLidlReceipt:
             assert item[field] is None
         assert item["ean_candidates"] == []
         assert item["add_to_inventory"] is True
+        assert item["to_tingbok"] is None
         assert item["photos"] == []
         assert item["needs_review"] is True
 

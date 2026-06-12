@@ -89,6 +89,7 @@ def _new_item_row(receipt_name: str, price: float, qty: float, unit: str) -> dic
         "location": None,
         "inventory_id": None,
         "add_to_inventory": True,
+        "to_tingbok": None,
         "photos": [],
         "needs_review": True,
         "notes": "",

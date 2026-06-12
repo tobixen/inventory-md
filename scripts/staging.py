@@ -22,6 +22,15 @@ Per-item money/quantity fields (each entry of ``items:``):
   for weighed goods ``price * qty`` re-derives the total from rounded inputs and
   can be off by a cent. ``shop_import`` always emits ``line_total``; consumers
   fall back to ``round(price * qty, 2)`` only when it is missing.
+
+Per-item routing flags:
+
+* ``to_tingbok`` — set ``true`` to push a price/receipt-name observation to
+  tingbok, ``false`` to skip (e.g. no barcode, by-weight produce). Must be set
+  **explicitly** during the review step; ``shop_import`` emits ``null`` as a
+  deliberate reminder. ``tingbok_push.py`` skips items where this is falsy and
+  warns loudly if *every* item was skipped (which usually means the flag was
+  never filled in).
 """
 
 from __future__ import annotations
