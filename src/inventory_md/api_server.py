@@ -1017,7 +1017,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat(message: ChatMessage) -> ChatResponse:
+def chat(message: ChatMessage) -> ChatResponse:
     """Handle chat messages and return Claude's response."""
 
     # Check for API key
@@ -1128,7 +1128,7 @@ Important notes:
 
 
 @app.get("/api/containers")
-async def list_containers_api() -> dict:
+def list_containers_api() -> dict:
     """List all containers for dropdown selection."""
     if not inventory_data:
         raise HTTPException(status_code=500, detail="Inventory not loaded")
@@ -1142,7 +1142,7 @@ async def list_containers_api() -> dict:
 
 
 @app.post("/api/items")
-async def add_item_api(container_id: str = Form(...), item_description: str = Form(...), tags: str = Form("")) -> dict:
+def add_item_api(container_id: str = Form(...), item_description: str = Form(...), tags: str = Form("")) -> dict:
     """Add an item to a container (mobile-friendly endpoint)."""
     # Validate container_id
     try:
@@ -1165,7 +1165,7 @@ async def add_item_api(container_id: str = Form(...), item_description: str = Fo
 
 
 @app.post("/api/items/add-child")
-async def add_child_item_api(
+def add_child_item_api(
     container_id: str = Form(...), parent_item: str = Form(...), child_description: str = Form(...)
 ) -> dict:
     """Add a child item to a parent item (promotes parent to container if needed)."""
@@ -1190,7 +1190,7 @@ async def add_child_item_api(
 
 
 @app.delete("/api/items")
-async def remove_item_api(container_id: str, item_description: str) -> dict:
+def remove_item_api(container_id: str, item_description: str) -> dict:
     """Remove an item from a container (mobile-friendly endpoint)."""
     # Validate container_id
     try:
@@ -1210,7 +1210,7 @@ async def remove_item_api(container_id: str, item_description: str) -> dict:
 
 
 @app.delete("/api/containers")
-async def remove_container_api(container_id: str) -> dict:
+def remove_container_api(container_id: str) -> dict:
     """Remove an entire container from the inventory."""
     # Validate container_id
     try:
@@ -1227,7 +1227,7 @@ async def remove_container_api(container_id: str) -> dict:
 
 
 @app.post("/api/photos")
-async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(...)) -> dict:
+def upload_photo(container_id: str = Form(...), photo: UploadFile = File(...)) -> dict:
     """Upload a photo to a container."""
     if not inventory_path:
         raise HTTPException(status_code=500, detail="Inventory path not set")
@@ -1289,7 +1289,7 @@ async def upload_photo(container_id: str = Form(...), photo: UploadFile = File(.
 
 
 @app.get("/health")
-async def health() -> dict:
+def health() -> dict:
     """Health check endpoint."""
     return {
         "status": "ok",

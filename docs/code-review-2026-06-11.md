@@ -104,6 +104,10 @@ event loop — a slow `git push` freezes every other request, including `/health
 Either make the endpoints plain `def` (FastAPI then runs them in a threadpool)
 or move the heavy work to `run_in_executor`.
 
+**Fixed**: all route handler `async def`s converted to plain `def` — FastAPI
+runs them in a threadpool automatically. Only the `lifespan` context manager
+retains `async def` (required by Starlette).
+
 ### 1.7 `add_child_to_item`: `parent_id` can be `None` (LOW)
 api_server.py:598-625: when the parent item is found as a heading that contains
 no `ID:` token, `parent_id` stays `None` and `add_item_to_container(None, ...)`
