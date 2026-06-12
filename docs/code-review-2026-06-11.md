@@ -82,6 +82,11 @@ silently lost on the next parse. The fix must be applied to `inventory.md`
 (or this should become `inventory-md parse --fix-categories`, as the May review
 already suggested).
 
+**Fixed**: `apply_fixes` now edits `inventory.md` (derived from the `.json`
+path) via regex token-boundary substitution of `category:OLD` → `category:NEW`.
+Warns to stderr if the `.md` is missing. Tests added for the md-edit path, the
+json-untouched invariant, and the missing-md warning.
+
 ### 1.5 Chat endpoint: retired default model, fake conversations, unbounded loop (MEDIUM)
 - api_server.py:158: default model `claude-3-haiku-20240307` is retired; requests with the default will fail. Use a current alias (e.g. `claude-haiku-4-5-20251001`).
 - `conversation_id` is accepted and echoed back, but every request builds a fresh single-message history (api_server.py:1091) — the API advertises statefulness it doesn't have. Either implement history or drop the field.

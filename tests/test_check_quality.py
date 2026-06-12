@@ -3,7 +3,37 @@
 import sys
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
-from check_quality import _category_is_food, _is_food_concept, check_food_without_bb  # noqa: E402
+from check_quality import _category_is_food, _is_food_concept, apply_fixes, check_food_without_bb  # noqa: E402
+
+
+class TestApplyFixes:
+    def test_replaces_category_in_md(self, tmp_path):
+        md = tmp_path / "inventory.md"
+        md.write_text(
+            "* category:rice ID:item1 Some rice\n"
+            "* category:grain ID:item2 Grain\n"
+            "* category:rice-old ID:item3 Not matched\n"  # prefix match must not fire
+        )
+        count = apply_fixes(tmp_path / "inventory.json", {"rice": "food/grains/rice"})
+        assert count == 1
+        lines = md.read_text().splitlines()
+        assert "category:food/grains/rice" in lines[0]
+        assert "category:grain" in lines[1]  # unrelated line unchanged
+        assert "category:rice-old" in lines[2]  # prefix not clobbered
+
+    def test_does_not_touch_json(self, tmp_path):
+        md = tmp_path / "inventory.md"
+        md.write_text("* category:rice ID:r1 Rice\n")
+        json_path = tmp_path / "inventory.json"
+        original = '{"containers":[],"sentinel":"category:rice"}'
+        json_path.write_text(original)
+        apply_fixes(json_path, {"rice": "food/grains/rice"})
+        assert json_path.read_text() == original  # json untouched
+
+    def test_warns_when_md_missing(self, tmp_path, capsys):
+        count = apply_fixes(tmp_path / "inventory.json", {"rice": "food/grains/rice"})
+        assert count == 0
+        assert "inventory.md" in capsys.readouterr().err
 
 
 class TestCategoryIsFood:

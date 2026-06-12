@@ -25,6 +25,7 @@ Exit codes:
 """
 
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -397,30 +398,31 @@ def load_vocabulary(inventory_path: Path, tingbok_url: str | None) -> dict:
 
 
 def apply_fixes(inventory_path: Path, fix_map: dict[str, str]) -> int:
-    """Apply category replacements to inventory.json in-place.
+    """Apply category replacements to inventory.md in-place.
 
-    Returns the number of individual category strings replaced.
+    ``inventory_path`` is the ``.json`` path (as passed everywhere else);
+    the ``.md`` source file is derived from it.  Returns the number of
+    individual ``category:`` tags replaced.
+
+    Edits the markdown source rather than the generated JSON so fixes survive
+    the next ``inventory-md parse`` run.
     """
-    data = load_inventory(inventory_path)
+    md_path = inventory_path.with_suffix(".md")
+    if not md_path.exists():
+        print(f"apply_fixes: {md_path} not found — cannot apply fixes", file=sys.stderr)
+        return 0
+
+    text = md_path.read_text(encoding="utf-8")
     count = 0
+    for old, new in fix_map.items():
+        # Match category:OLD only at a token boundary (followed by whitespace or EOL)
+        # so category:rice doesn't clobber category:rice-old.
+        pattern = r"(?<=\bcategory:)" + re.escape(old) + r"(?=[\s\n]|$)"
+        replaced, n = re.subn(pattern, new, text)
+        count += n
+        text = replaced
 
-    for container in data.get("containers", []):
-        for item in container.get("items", []):
-            cats = item.get("metadata", {}).get("categories", [])
-            new_cats = []
-            for cat in cats:
-                if cat in fix_map:
-                    new_cats.append(fix_map[cat])
-                    count += 1
-                else:
-                    new_cats.append(cat)
-            if new_cats != cats:
-                item["metadata"]["categories"] = new_cats
-
-    with open(inventory_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-        f.write("\n")
-
+    md_path.write_text(text, encoding="utf-8")
     return count
 
 
