@@ -160,7 +160,7 @@ def _normalize_ean(serial: dict[str, Any]) -> str | None:
         return code
     gtin = serial.get("gtin")
     if gtin:
-        return gtin[-13:].lstrip("0") or gtin[-13:]
+        return gtin[-13:]
     return None
 
 

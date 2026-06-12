@@ -154,6 +154,29 @@ class TestDecathlonPurchaseToRows:
         }
         assert decathlon_purchase_to_rows(p)[0]["ean"] == "3583787174722"
 
+    def test_gtin_preserves_legitimate_leading_zero(self):
+        # UPC-A encoded as EAN-13 has a genuine leading zero; lstrip("0") must not eat it.
+        p = {
+            "purchase": {
+                "transaction": {
+                    "business_unit_name": "VARNA",
+                    "currency": "EUR",
+                    "transaction_date_time_iso": "2026-01-18T14:45:17Z",
+                    "sale_items": [
+                        {
+                            "unit_price": 1.0,
+                            "quantity": 1,
+                            "amount": 1.0,
+                            "product_name": "x",
+                            # GTIN-14 where the inner EAN-13 starts with 0
+                            "serial_number": {"gtin": "00012345678905"},
+                        }
+                    ],
+                }
+            }
+        }
+        assert decathlon_purchase_to_rows(p)[0]["ean"] == "0012345678905"
+
 
 class TestDecathlonOrderToRows:
     """The new order-detail format (orderProducts[].products[], no barcode)."""
