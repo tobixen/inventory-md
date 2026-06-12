@@ -53,6 +53,25 @@ def temp_inventory():
         yield tmppath
 
 
+class TestAddChildToItem:
+    def test_parent_heading_without_id_returns_error(self, temp_inventory):
+        """A heading match with no ID: token must return an error, not call add_item_to_container(None, ...)."""
+        from inventory_md import api_server
+
+        # Heading has no ID: token — parent_id will stay None after the search
+        (temp_inventory / "inventory.md").write_text("# Box A1 ID:A1\n\n## Shelf (no id here)\n\n* Some item\n")
+        api_server.inventory_path = temp_inventory / "inventory.json"
+
+        with patch.object(api_server, "git_pull"):
+            with patch.object(api_server, "add_item_to_container") as mock_add:
+                result = api_server.add_child_to_item("A1", "Shelf", "New child")
+
+        assert "error" in result
+        assert mock_add.call_args is None or mock_add.call_args[0][0] is not None, (
+            "add_item_to_container must not be called with parent_id=None"
+        )
+
+
 class TestRemoveItemFromContainer:
     """Tests for remove_item_from_container function."""
 

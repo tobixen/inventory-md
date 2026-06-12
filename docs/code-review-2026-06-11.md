@@ -114,6 +114,9 @@ no `ID:` token, `parent_id` stays `None` and `add_item_to_container(None, ...)`
 goes looking for the literal string `ID:None`. Return a clear error (or derive
 an ID) instead.
 
+**Fixed**: added a `parent_id is None` guard before the `add_item_to_container`
+call; returns a clear error message naming the offending heading. Test added.
+
 ### 1.8 `openprices_publish.py --suggest-from-photo` is unreachable without ledger rows (LOW)
 The "nothing to publish" exit (openprices_publish.py:247) runs *before* the
 `--suggest-from-photo` branch (line 252), and `--proof`/`--date`/`--shop` are

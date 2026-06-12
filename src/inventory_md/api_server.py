@@ -617,7 +617,8 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
 
         # Case 1: Parent is already a container (has heading)
         if parent_container_idx is not None:
-            # Simply add child to this container
+            if parent_id is None:
+                return {"error": f"Parent heading '{parent_item}' has no ID: token — cannot add child"}
             result = add_item_to_container(parent_id, child_description, None)
             if "error" in result:
                 return result
