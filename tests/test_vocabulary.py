@@ -2307,3 +2307,75 @@ class TestBroaderStubs:
         tree = vocabulary.build_category_tree(vocab)
 
         assert tree.concepts["food"].source != "inferred"
+
+
+class TestBuildLabelIndexCache:
+    """build_label_index returns cached object on repeated calls with same dict."""
+
+    def setup_method(self):
+        vocabulary._label_index_cache.clear()
+
+    def _make_concepts(self) -> dict[str, vocabulary.Concept]:
+        return {
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "drink": vocabulary.Concept(id="drink", prefLabel="Drink", altLabels={"en": ["beverage"]}),
+        }
+
+    def test_returns_same_object_on_second_call(self):
+        concepts = self._make_concepts()
+        first = vocabulary.build_label_index(concepts)
+        second = vocabulary.build_label_index(concepts)
+        assert first is second
+
+    def test_different_dict_returns_different_object(self):
+        a = self._make_concepts()
+        b = self._make_concepts()
+        assert a is not b
+        assert vocabulary.build_label_index(a) is not vocabulary.build_label_index(b)
+
+    def test_cache_is_populated(self):
+        concepts = self._make_concepts()
+        vocabulary.build_label_index(concepts)
+        assert id(concepts) in vocabulary._label_index_cache
+
+    def test_index_contains_expected_keys(self):
+        concepts = self._make_concepts()
+        idx = vocabulary.build_label_index(concepts)
+        assert idx["food"] == "food"
+        assert idx["drink"] == "drink"
+        assert idx["beverage"] == "drink"
+
+
+class TestBuildPathAliasMapCache:
+    """_build_path_alias_map returns cached object on repeated calls."""
+
+    def setup_method(self):
+        vocabulary._alias_map_cache.clear()
+
+    def _make_vocab(self) -> dict[str, vocabulary.Concept]:
+        c = vocabulary.Concept(id="food", prefLabel="Food")
+        c.path_aliases = {"en": ["food", "foods"]}
+        return {"food": c}
+
+    def test_returns_same_object_on_second_call(self):
+        vocab = self._make_vocab()
+        first = vocabulary._build_path_alias_map(vocab, "en")
+        second = vocabulary._build_path_alias_map(vocab, "en")
+        assert first is second
+
+    def test_different_lang_returns_different_object(self):
+        vocab = self._make_vocab()
+        en = vocabulary._build_path_alias_map(vocab, "en")
+        no = vocabulary._build_path_alias_map(vocab, "no")
+        assert en is not no
+
+    def test_cache_is_populated(self):
+        vocab = self._make_vocab()
+        vocabulary._build_path_alias_map(vocab, "en")
+        assert (id(vocab), "en") in vocabulary._alias_map_cache
+
+    def test_map_contains_expected_keys(self):
+        vocab = self._make_vocab()
+        m = vocabulary._build_path_alias_map(vocab, "en")
+        assert m["food"] == "food"
+        assert m["foods"] == "food"

@@ -41,6 +41,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+# Caches keyed by (id(vocab), lang) — valid as long as the vocab dict is not mutated.
+_alias_map_cache: dict[tuple, dict[str, str]] = {}
+_label_index_cache: dict[int, dict[str, str]] = {}
+
 if TYPE_CHECKING:
     import niquests
 
@@ -626,6 +630,7 @@ def build_label_index(concepts: dict[str, Concept]) -> dict[str, str]:
     """Build an index mapping all labels to concept IDs.
 
     Includes prefLabel and all altLabels, lowercased for case-insensitive lookup.
+    Result is cached by dict identity — valid as long as concepts is not mutated.
 
     Args:
         concepts: Dictionary of concepts.
@@ -633,15 +638,16 @@ def build_label_index(concepts: dict[str, Concept]) -> dict[str, str]:
     Returns:
         Dictionary mapping lowercase labels to concept IDs.
     """
+    key = id(concepts)
+    if key in _label_index_cache:
+        return _label_index_cache[key]
     index = {}
     for concept_id, concept in concepts.items():
-        # Add prefLabel
         index[concept.prefLabel.lower()] = concept_id
-        # Add all altLabels
         for alt_label in concept.get_all_alt_labels_flat():
             index[alt_label.lower()] = concept_id
-        # Also add the ID itself
         index[concept_id.lower()] = concept_id
+    _label_index_cache[key] = index
     return index
 
 
@@ -993,7 +999,12 @@ def _build_path_alias_map(vocab: dict[str, Concept], lang: str) -> dict[str, str
 
     Considers only aliases for the given language (treating 'no'/'nb'/'nn' as
     equivalent since they all refer to varieties of Norwegian).
+    Result is cached by (id(vocab), lang) — valid as long as vocab is not mutated.
     """
+    cache_key = (id(vocab), lang)
+    if cache_key in _alias_map_cache:
+        return _alias_map_cache[cache_key]
+
     _nb_langs = {"nb", "no", "nn"}
 
     def _matches(alias_lang: str) -> bool:
@@ -1007,6 +1018,7 @@ def _build_path_alias_map(vocab: dict[str, Concept], lang: str) -> dict[str, str
             if _matches(alias_lang):
                 for alias in aliases:
                     result[alias.lower()] = concept_id
+    _alias_map_cache[cache_key] = result
     return result
 
 
