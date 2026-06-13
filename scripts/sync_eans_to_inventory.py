@@ -25,36 +25,10 @@ import sys
 import time
 from pathlib import Path
 
+import extract_barcodes as _eb
+from extract_barcodes import is_ean, lookup_tingbok
+
 from inventory_md.parser import find_container_section
-
-try:
-    from PIL import Image
-    from pyzbar.pyzbar import decode
-except ImportError:
-    print("Error: Required packages not installed.", file=sys.stderr)
-    print("Run: pip install pyzbar pillow", file=sys.stderr)
-    sys.exit(1)
-
-try:
-    import niquests as requests
-
-    HAS_REQUESTS = True
-except ImportError:
-    try:
-        import requests
-    except ImportError:
-        HAS_REQUESTS = False
-
-
-def extract_barcodes_from_image(image_path: Path) -> list[dict]:
-    """Extract barcodes from a single image."""
-    try:
-        image = Image.open(image_path)
-        decoded = decode(image)
-        return [{"type": b.type, "data": b.data.decode("utf-8")} for b in decoded]
-    except Exception as e:
-        print(f"  Warning: Could not read {image_path.name}: {e}", file=sys.stderr)
-        return []
 
 
 def extract_barcodes_from_directory(photo_dir: Path) -> list[dict]:
@@ -64,46 +38,13 @@ def extract_barcodes_from_directory(photo_dir: Path) -> list[dict]:
 
     for ext in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
         for image_path in photo_dir.glob(ext):
-            for barcode in extract_barcodes_from_image(image_path):
+            for barcode in _eb.extract_barcodes(image_path):
                 if barcode["data"] not in seen:
                     seen.add(barcode["data"])
                     barcode["source_file"] = str(image_path)
                     barcodes.append(barcode)
 
     return barcodes
-
-
-def is_ean(barcode_type: str, data: str) -> bool:
-    """Check if barcode is a product EAN/UPC."""
-    if barcode_type in ("EAN13", "EAN8", "UPCA", "UPCE"):
-        return True
-    if barcode_type == "CODE128" and data.isdigit() and len(data) in (8, 12, 13):
-        return True
-    return False
-
-
-def lookup_ean(ean: str) -> dict | None:
-    """Look up EAN in Open Food Facts."""
-    if not HAS_REQUESTS:
-        return None
-
-    url = f"https://world.openfoodfacts.org/api/v2/product/{ean}.json"
-    try:
-        response = requests.get(url, timeout=10, headers={"User-Agent": "InventorySystem/1.0"})
-        response.raise_for_status()
-        data = response.json()
-
-        if data.get("status") != 1:
-            return None
-
-        product = data.get("product", {})
-        return {
-            "name": product.get("product_name") or product.get("product_name_en"),
-            "brand": product.get("brands"),
-            "quantity": product.get("quantity"),
-        }
-    except Exception:
-        return None
 
 
 def load_inventory_json(inventory_dir: Path) -> dict:
@@ -228,7 +169,7 @@ def main():
             # Look up product info
             product = None
             if do_lookup:
-                product = lookup_ean(ean)
+                product = lookup_tingbok(ean)
                 time.sleep(0.3)  # Rate limit
 
             line = format_inventory_line(ean, product)

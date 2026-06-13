@@ -199,6 +199,8 @@ The dominant theme this round. In rough order of value to fix:
 
    **Fixed**: `check_duplicate_ids` and `check_missing_parents` deleted from `check_quality.py`; `run_all_checks` now calls `_validate_inventory(data)` directly. `load_inventory_lang` now iterates `_CONFIG_FILENAMES` (imported from `inventory_md.config`) instead of a hardcoded tuple — fixing the priority order so `config.yaml` takes precedence over `inventory-md.yaml` (consistent with `Config`).
 6. **Barcode plumbing**: `sync_eans_to_inventory.py` duplicates `extract_barcodes.py`'s extraction and `is_ean` (without checksum validation) and queries OFF directly while everything else goes through tingbok.
+
+   **Fixed**: `extract_barcodes_from_image`, `is_ean`, and `lookup_ean` deleted from `sync_eans_to_inventory.py`. `extract_barcodes_from_directory` now calls `extract_barcodes.extract_barcodes()` (gains checksum validation via `is_ean` and tingbok lookup via `lookup_tingbok`). The PIL/pyzbar and requests import guards are also removed — `extract_barcodes.py` handles those.
 7. ~~**Private API leakage**: `queries.py:74`, `cli.py:1344` and `shopping_list.py:432` all call `vocabulary._create_broader_stubs`~~ **FIXED 2026-06-12**: renamed to `create_broader_stubs` (public) and called automatically inside `load_local_vocabulary()`; all three external call sites removed.
 8. `_deep_copy` (config.py:127) reimplements `copy.deepcopy` for the limited case; fine, but the stdlib call is one line.
 9. `openprices_publish.py` defines both `OSM_CACHE` (XDG cache) and `SHOP_OSM` (XDG config) — two different files both named `shop-osm.json` holding different things (geocode cache vs confirmed shop locations). Rename one.
