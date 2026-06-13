@@ -516,8 +516,11 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
     import http.server
     import os
     import socketserver
-    import urllib.error
-    import urllib.request
+
+    try:
+        import niquests as _requests
+    except ImportError:
+        import requests as _requests
 
     os.chdir(directory)
 
@@ -530,46 +533,25 @@ def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0
                 self.send_error(404, "API proxy not configured")
                 return
 
-            # Build the backend URL
             backend_url = f"http://{api_proxy}{self.path}"
 
-            # Read request body for POST/PUT
             content_length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(content_length) if content_length > 0 else None
 
-            # Create the proxy request
-            req = urllib.request.Request(backend_url, data=body, method=method)
-
-            # Copy relevant headers
-            for header, value in self.headers.items():
-                if header.lower() not in ("host", "content-length"):
-                    req.add_header(header, value)
+            fwd_headers = {k: v for k, v in self.headers.items() if k.lower() not in ("host", "content-length")}
 
             try:
-                with urllib.request.urlopen(req, timeout=90) as response:
-                    # Send response status
-                    self.send_response(response.status)
-
-                    # Copy response headers
-                    for header, value in response.headers.items():
-                        if header.lower() not in ("transfer-encoding", "connection"):
-                            self.send_header(header, value)
-                    self.end_headers()
-
-                    # Send response body
-                    self.wfile.write(response.read())
-
-            except urllib.error.HTTPError as e:
-                self.send_response(e.code)
-                for header, value in e.headers.items():
+                resp = _requests.request(method, backend_url, data=body, headers=fwd_headers, timeout=90)
+                self.send_response(resp.status_code)
+                for header, value in resp.headers.items():
                     if header.lower() not in ("transfer-encoding", "connection"):
                         self.send_header(header, value)
                 self.end_headers()
-                self.wfile.write(e.read())
-            except urllib.error.URLError as e:
-                self.send_error(502, f"Backend unavailable: {e.reason}")
+                self.wfile.write(resp.content)
+            except _requests.exceptions.ConnectionError as e:
+                self.send_error(502, f"Backend unavailable: {e}")
             except Exception as e:
-                self.send_error(500, f"Proxy error: {str(e)}")
+                self.send_error(500, f"Proxy error: {e}")
 
         def should_proxy(self) -> bool:
             """Check if this request should be proxied."""
