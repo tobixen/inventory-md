@@ -95,23 +95,17 @@ def format_inventory_line(ean: str, product: dict | None) -> str:
 
 
 def main():
-    args = sys.argv[1:]
+    import argparse
 
-    if "-h" in args or "--help" in args:
-        print(__doc__)
-        sys.exit(0)
+    parser = argparse.ArgumentParser(description="Sync EANs from photos to inventory.")
+    parser.add_argument("--apply", action="store_true", help="Apply changes (default is dry-run)")
+    parser.add_argument("--no-lookup", action="store_true", help="Skip product lookup")
+    parser.add_argument("--container", metavar="ID", help="Only process this container")
+    ns = parser.parse_args()
 
-    apply_changes = "--apply" in args
-    do_lookup = "--no-lookup" not in args
-    target_container = None
-
-    i = 0
-    while i < len(args):
-        if args[i] == "--container" and i + 1 < len(args):
-            target_container = args[i + 1]
-            i += 2
-        else:
-            i += 1
+    apply_changes = ns.apply
+    do_lookup = not ns.no_lookup
+    target_container = ns.container
 
     # Determine inventory directory (current directory)
     inventory_dir = Path.cwd()

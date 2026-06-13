@@ -464,31 +464,25 @@ def print_results(results: dict) -> bool:
 
 
 def main():
-    args = sys.argv[1:]
+    import argparse
 
-    fix_categories = "--fix-categories" in args
-    args = [a for a in args if a != "--fix-categories"]
+    parser = argparse.ArgumentParser(
+        description="Check inventory data quality.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("inventory", nargs="?", default="inventory.json", help="Path to inventory.json")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("--fix-categories", action="store_true", help="Apply suggested category fixes")
+    parser.add_argument("--no-tingbok", action="store_true", help="Skip tingbok vocabulary lookup")
+    parser.add_argument("--tingbok-url", default=DEFAULT_TINGBOK_URL, metavar="URL", help="Tingbok base URL")
+    ns = parser.parse_args()
 
-    args = [a for a in args if a not in ("-v", "--verbose")]
-
-    tingbok_url: str | None = DEFAULT_TINGBOK_URL
-    if "--no-tingbok" in args:
-        tingbok_url = None
-        args = [a for a in args if a != "--no-tingbok"]
-    elif "--tingbok-url" in args:
-        idx = args.index("--tingbok-url")
-        tingbok_url = args[idx + 1]
-        args = args[:idx] + args[idx + 2 :]
-
-    inventory_path = Path(args[0]) if args else Path("inventory.json")
+    tingbok_url: str | None = None if ns.no_tingbok else ns.tingbok_url
+    fix_categories = ns.fix_categories
+    inventory_path = Path(ns.inventory)
 
     if not inventory_path.exists():
-        print(f"Error: {inventory_path} not found", file=sys.stderr)
-        print(
-            f"Usage: {sys.argv[0]} [-v] [--tingbok-url URL] [--no-tingbok] [--fix-categories] [path/to/inventory.json]",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+        parser.error(f"{inventory_path} not found")
 
     lang = load_inventory_lang(inventory_path)
 

@@ -215,6 +215,8 @@ The dominant theme this round. In rough order of value to fix:
 ## 4. Consistency and ergonomics
 
 - **Argument parsing**: `check_quality.py` and `extract_barcodes.py` and `sync_eans_to_inventory.py` hand-roll `sys.argv` scanning (check_quality.py:482 will `IndexError` if `--tingbok-url` is the last arg) while every other script uses argparse. Converge on argparse.
+
+  **Fixed**: All three scripts now use `argparse`. The `--tingbok-url` IndexError is gone — argparse reports a proper error. `--bb` alias for `--best-before` preserved via `argparse` dest.
 - **HTTP stack**: niquests (most), requests-fallback (shop_import, extract_barcodes), raw urllib (tingbok_push, serve proxy). Pick niquests-with-fallback everywhere or accept urllib for the zero-dep scripts — but tingbok_push imports yaml anyway, so it isn't zero-dep.
 - **`parse` does much more than parse**: `parse_command` (cli.py:175-480) is ~300 lines that parse, thumbnail, generate listings, fetch vocabulary, look up EANs, **push observations to tingbok** (a remote write!), and generate the shopping list. A command named `parse` silently PUT-ing to a network service is surprising; consider `--no-push`/`--offline`, and split the function into testable stages. The `niquests.Session` opened there is also never closed.
 - **Performance** (matters as the inventory grows): `vocabulary.resolve_category` rebuilds the full path-alias map on every call (vocabulary.py:976) and `lookup_concept` rebuilds the label index per call — `parse_inventory_for_shopping` calls `resolve_category` once per category per item, making shopping-list generation quadratic-ish. Build the maps once and pass them down.

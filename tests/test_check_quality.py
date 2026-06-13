@@ -1,6 +1,9 @@
 """Tests for check_quality food best-before enforcement."""
 
 import sys
+from unittest.mock import patch
+
+import pytest
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
 from check_quality import (  # noqa: E402
@@ -10,6 +13,9 @@ from check_quality import (  # noqa: E402
     check_food_without_bb,
     load_inventory_lang,
     run_all_checks,
+)
+from check_quality import (
+    main as cq_main,
 )
 
 
@@ -180,3 +186,34 @@ class TestLoadInventoryLangUsesConfigFilenames:
     def test_default_en_when_no_config(self, tmp_path):
         inventory = tmp_path / "inventory.json"
         assert load_inventory_lang(inventory) == "en"
+
+
+class TestArgparse:
+    """main() must use argparse — validates that hand-rolled IndexError is gone."""
+
+    def _minimal_inventory(self, tmp_path):
+        inv = tmp_path / "inventory.json"
+        inv.write_text('{"containers":[]}')
+        return inv
+
+    def test_tingbok_url_as_last_arg_raises_systemexit_not_indexerror(self, tmp_path):
+        inv = self._minimal_inventory(tmp_path)
+        # Previously raised IndexError because args[idx+1] was out of range
+        with patch("sys.argv", ["check_quality.py", str(inv), "--tingbok-url"]):
+            with pytest.raises(SystemExit) as exc:
+                cq_main()
+            assert exc.value.code != 0  # argparse error, not success
+
+    def test_no_tingbok_runs_without_network(self, tmp_path):
+        inv = self._minimal_inventory(tmp_path)
+        with patch("sys.argv", ["check_quality.py", "--no-tingbok", str(inv)]):
+            with pytest.raises(SystemExit) as exc:
+                cq_main()
+            assert exc.value.code == 0  # clean run, no issues
+
+    def test_unknown_flag_raises_systemexit(self, tmp_path):
+        inv = self._minimal_inventory(tmp_path)
+        with patch("sys.argv", ["check_quality.py", "--bogus-flag", str(inv)]):
+            with pytest.raises(SystemExit) as exc:
+                cq_main()
+            assert exc.value.code != 0

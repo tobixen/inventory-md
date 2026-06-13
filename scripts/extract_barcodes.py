@@ -649,44 +649,29 @@ def format_for_inventory(barcode: dict, product: dict | None) -> str:
 
 
 def main():
-    args = sys.argv[1:]
+    import argparse
 
-    if not args or "-h" in args or "--help" in args:
-        print(__doc__)
-        sys.exit(0)
+    parser = argparse.ArgumentParser(description="Extract and look up barcodes from images.")
+    parser.add_argument("images", nargs="*", type=Path, metavar="IMAGE", help="Image file(s) to scan")
+    parser.add_argument("--no-lookup", action="store_true", help="Skip product lookup")
+    parser.add_argument("--no-cache", action="store_true", help="Ignore cached lookups")
+    parser.add_argument("--json", action="store_true", help="Output as JSON")
+    parser.add_argument("--ocr", action="store_true", help="Enable OCR fallback")
+    parser.add_argument("--ocr-only", action="store_true", help="Use OCR only (implies --ocr)")
+    parser.add_argument(
+        "--best-before", "--bb", dest="bb_mode", action="store_true", help="Extract best-before dates (implies --ocr)"
+    )
+    parser.add_argument("--lookup", metavar="CODE", help="Look up a single EAN/ISBN")
+    ns = parser.parse_args()
 
-    do_lookup = True
-    use_cache = True
-    output_json = False
-    single_lookup = None
-    enable_ocr = False
-    ocr_only = False
-    bb_mode = False
-    image_paths = []
-
-    i = 0
-    while i < len(args):
-        arg = args[i]
-        if arg == "--no-lookup":
-            do_lookup = False
-        elif arg == "--no-cache":
-            use_cache = False
-        elif arg == "--json":
-            output_json = True
-        elif arg == "--ocr":
-            enable_ocr = True
-        elif arg == "--ocr-only":
-            enable_ocr = True
-            ocr_only = True
-        elif arg in ("--best-before", "--bb"):
-            bb_mode = True
-            enable_ocr = True  # best-before extraction needs OCR
-        elif arg == "--lookup" and i + 1 < len(args):
-            i += 1
-            single_lookup = args[i]
-        elif not arg.startswith("-"):
-            image_paths.append(Path(arg))
-        i += 1
+    do_lookup = not ns.no_lookup
+    use_cache = not ns.no_cache
+    output_json = ns.json
+    single_lookup = ns.lookup
+    enable_ocr = ns.ocr or ns.ocr_only or ns.bb_mode
+    ocr_only = ns.ocr_only
+    bb_mode = ns.bb_mode
+    image_paths = ns.images
 
     # Load cache
     cache = load_cache(CACHE_FILE) if use_cache else {}
