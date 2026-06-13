@@ -16,7 +16,7 @@ import argcomplete
 
 from . import parser, queries, shopping_list, vocabulary
 from ._version import __version__
-from .config import Config
+from .config import Config, load_config
 
 
 def _parse_inventory_price(price_str: str | None, shop: str | None = None) -> dict | None:
@@ -196,7 +196,10 @@ def parse_command(
         # Add ID: prefixes to container headers if not validating
         if not validate_only:
             print("🔍 Checking for duplicate container IDs...")
-            changes, duplicates = parser.add_container_id_prefixes(md_file)
+            _cfg = load_config()
+            _sections_cfg = _cfg.get("sections", {})
+            _skip = [_sections_cfg.get("intro", "Intro"), _sections_cfg.get("numbering_scheme", "Nummereringsregime")]
+            changes, duplicates = parser.add_container_id_prefixes(md_file, skip_sections=_skip)
 
             if duplicates:
                 print("⚠️  Found duplicate container IDs:")

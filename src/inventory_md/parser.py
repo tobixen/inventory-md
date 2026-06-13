@@ -449,12 +449,24 @@ def parse_inventory(md_file: Path, config: dict[str, Any] | None = None) -> dict
     return result
 
 
-def add_container_id_prefixes(md_file: Path) -> tuple[int, dict[str, list[str]]]:
+def add_container_id_prefixes(
+    md_file: Path,
+    skip_sections: list[str] | None = None,
+) -> tuple[int, dict[str, list[str]]]:
     """
     Add ID: prefix to all container headers and handle duplicates.
 
+    Args:
+        md_file: Path to the inventory markdown file.
+        skip_sections: Top-level section names whose sub-headings should not
+            receive ID prefixes (e.g. intro and numbering-scheme sections).
+            Defaults to ``["Intro", "Nummereringsregime"]``.
+
     Returns: (num_changes, duplicate_map)
     """
+    if skip_sections is None:
+        skip_sections = ["Intro", "Nummereringsregime"]
+
     with open(md_file, encoding="utf-8") as f:
         lines = f.readlines()
 
@@ -464,11 +476,13 @@ def add_container_id_prefixes(md_file: Path) -> tuple[int, dict[str, list[str]]]
     in_intro_section = False
 
     for i, line in enumerate(lines):
-        # Track if we're in the Intro or Nummereringsregime sections
-        if line.startswith("# Intro") or line.startswith("# Nummereringsregime"):
-            in_intro_section = True
-            continue
-        elif line.startswith("# ") and not line.startswith("## "):
+        # Track if we're in a configured skip section
+        if line.startswith("# ") and not line.startswith("## "):
+            heading_text = line[2:].strip()
+            if any(heading_text == s or heading_text.startswith(s + " ") for s in skip_sections):
+                in_intro_section = True
+                continue
+        if line.startswith("# ") and not line.startswith("## "):
             in_intro_section = False
 
         if line.startswith("## ") and not line.startswith("### "):

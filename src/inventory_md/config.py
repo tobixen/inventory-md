@@ -9,6 +9,11 @@ Supports loading configuration from multiple locations, merged with precedence:
 All found config files are merged, with later files overriding earlier ones.
 YAML is checked before JSON at each location. Environment variables
 (INVENTORY_MD_*) have the highest priority.
+
+Note: the CWD search uses only ``inventory-md.yaml``/``inventory-md.json`` to
+avoid accidentally picking up an unrelated ``config.yaml`` from the project
+root.  System/user config directories (already namespaced as
+``/etc/inventory-md/`` etc.) use ``config.yaml``/``config.json``.
 """
 
 from __future__ import annotations
@@ -22,10 +27,10 @@ from typing import Any
 from .vocabulary import DEFAULT_LANGUAGE_FALLBACKS
 from .vocabulary import get_fallback_chain as _get_fallback_chain
 
-# Config filenames for current working directory (project-local config)
-# config.yaml/json preferred; inventory-md.yaml/json kept for backward compatibility
-CONFIG_FILENAMES = ["config.yaml", "config.json", "inventory-md.yaml", "inventory-md.json"]
-# Config filenames for system/user config directories
+# Config filenames for current working directory (project-local config).
+# Uses namespaced names only to avoid colliding with unrelated config.yaml files.
+CONFIG_FILENAMES = ["inventory-md.yaml", "inventory-md.json"]
+# Config filenames for system/user config directories (already namespaced by directory)
 CONFIG_USER_FILENAMES = ["config.yaml", "config.json"]
 
 DEFAULTS: dict[str, Any] = {
@@ -62,9 +67,9 @@ def find_config_files() -> list[Path]:
     """Find all existing config files, in merge order (lowest priority first).
 
     Searches in order:
-    1. /etc/inventory-md/config.yaml, config.json (lowest priority)
-    2. ~/.config/inventory-md/config.yaml, config.json
-    3. ./inventory-md.yaml, ./inventory-md.json (highest priority)
+    1. /etc/inventory-md/config.yaml or config.json (lowest priority)
+    2. ~/.config/inventory-md/config.yaml or config.json
+    3. ./inventory-md.yaml or ./inventory-md.json (highest priority)
 
     Returns list of found files. At each location, only the first found
     file (YAML before JSON) is included.

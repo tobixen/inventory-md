@@ -39,7 +39,7 @@ try:
     _VOCAB_AVAILABLE = True
 except ImportError:
     _VOCAB_AVAILABLE = False
-    _CONFIG_FILENAMES = ("config.yaml", "config.json", "inventory-md.yaml", "inventory-md.json")
+    _CONFIG_FILENAMES = ("inventory-md.yaml", "inventory-md.json")
     _validate_inventory = None
 
 DEFAULT_TINGBOK_URL = "https://tingbok.plann.no"

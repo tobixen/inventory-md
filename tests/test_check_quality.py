@@ -165,23 +165,24 @@ class TestRunAllChecksUsesValidateInventory:
 
 
 class TestLoadInventoryLangUsesConfigFilenames:
-    """load_inventory_lang must use CONFIG_FILENAMES order so config.yaml takes priority."""
+    """load_inventory_lang must use CONFIG_FILENAMES; only inventory-md.yaml/json in CWD."""
 
-    def test_reads_lang_from_config_yaml(self, tmp_path):
-        (tmp_path / "config.yaml").write_text("lang: fr\n")
+    def test_reads_lang_from_inventory_md_yaml(self, tmp_path):
+        (tmp_path / "inventory-md.yaml").write_text("lang: fr\n")
         inventory = tmp_path / "inventory.json"
         assert load_inventory_lang(inventory) == "fr"
 
-    def test_falls_back_to_inventory_md_yaml(self, tmp_path):
-        (tmp_path / "inventory-md.yaml").write_text("lang: de\n")
+    def test_reads_lang_from_inventory_md_json(self, tmp_path):
+        (tmp_path / "inventory-md.json").write_text('{"lang": "de"}')
         inventory = tmp_path / "inventory.json"
         assert load_inventory_lang(inventory) == "de"
 
-    def test_config_yaml_wins_over_inventory_md_yaml(self, tmp_path):
+    def test_config_yaml_in_cwd_is_ignored(self, tmp_path):
+        """config.yaml in CWD must NOT be picked up (avoid collisions)."""
         (tmp_path / "config.yaml").write_text("lang: no\n")
         (tmp_path / "inventory-md.yaml").write_text("lang: en\n")
         inventory = tmp_path / "inventory.json"
-        assert load_inventory_lang(inventory) == "no"
+        assert load_inventory_lang(inventory) == "en"
 
     def test_default_en_when_no_config(self, tmp_path):
         inventory = tmp_path / "inventory.json"

@@ -153,9 +153,9 @@ for both cases. Confirmed live in `furusetalle9-inventory/inventory.md` where
 - `update_template()`/`update_makefile()` accept a `force` parameter that is ignored (cli.py:155-172); the `--force` CLI flag is a no-op.
 
 ### 1.11 Config-vs-code mismatches (LOW)
-- `parser.add_container_id_prefixes()` (parser.py:434-447) hardcodes `# Intro`, `# Nummereringsregime` and the Norwegian "Oversikt..." heuristics, while `parse_inventory` reads section names from config. Non-Norwegian inventories get ID-prefixing applied inside their intro sections.
-- `config.py`'s module/`find_config_files` docstrings say the CWD is searched for `inventory-md.yaml/json`, but `CONFIG_FILENAMES` (config.py:23) also picks up generic `./config.yaml` / `./config.json` — surprising in a directory that has an unrelated `config.yaml`. Either document it prominently or drop the generic names for CWD.
-- `sync_eans_to_inventory.find_container_section()` (line 147) only matches `## ` headings; top-level `# ID:` containers (supported by the parser and api_server) are never found.
+- ~~`parser.add_container_id_prefixes()` (parser.py:434-447) hardcodes `# Intro`, `# Nummereringsregime` and the Norwegian "Oversikt..." heuristics, while `parse_inventory` reads section names from config. Non-Norwegian inventories get ID-prefixing applied inside their intro sections.~~ **Fixed**: `add_container_id_prefixes` now accepts a `skip_sections` list; `cli.py` passes the configured `sections.intro` and `sections.numbering_scheme` values. The "Oversikt…" heuristics (Norwegian-specific safety net) remain.
+- ~~`config.py`'s module/`find_config_files` docstrings say the CWD is searched for `inventory-md.yaml/json`, but `CONFIG_FILENAMES` (config.py:23) also picks up generic `./config.yaml` / `./config.json` — surprising in a directory that has an unrelated `config.yaml`. Either document it prominently or drop the generic names for CWD.~~ **Fixed**: `CONFIG_FILENAMES` now contains only `inventory-md.yaml`/`inventory-md.json`; CWD no longer picks up a stray `config.yaml`. System/user config dirs still use `config.yaml`/`config.json` (already namespaced by directory). `check_quality.py` fallback updated to match.
+- ~~`sync_eans_to_inventory.find_container_section()` (line 147) only matches `## ` headings; top-level `# ID:` containers (supported by the parser and api_server) are never found.~~ **Fixed 2026-06-12**: replaced by `from inventory_md.parser import find_container_section` which handles both levels.
 
 ---
 
@@ -268,7 +268,7 @@ The dominant theme this round. In rough order of value to fix:
 | 1.7 | `parent_id=None` → searches for `ID:None` | Low | api_server.py:598 |
 | 1.8 | `--suggest-from-photo` unreachable without ledger rows | Low | openprices_publish.py:247 |
 | 1.10 | Stale `__version__`, dead `show_date`, dead validate branch, no-op `--force` | Low | various |
-| 1.11 | Hardcoded Norwegian sections in `add_container_id_prefixes`; CWD `config.yaml` pickup | Low | parser.py:434, config.py:23 |
+| ~~1.11~~ | ~~Hardcoded Norwegian sections in `add_container_id_prefixes`; CWD `config.yaml` pickup~~ | ~~Low~~ | **FIXED 2026-06-13** |
 | 4 | argv parsing, HTTP stack mix, `parse` network side effects, quadratic category resolution, dev-extra weight | Low | see §4 |
 
 **Recommended order of attack:** 1.1 (one real data-loss-shaped pipeline gap),

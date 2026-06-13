@@ -410,3 +410,56 @@ class TestFindContainerSection:
         result = parser.find_container_section(self.LINES, "A1")
         _, end, _ = result
         assert end == 7  # ## headings at 3 and 5 are inside A1; only # at 7 ends it
+
+
+class TestAddContainerIdPrefixes:
+    """add_container_id_prefixes must skip configurable section names."""
+
+    def _write(self, tmp_path, content: str):
+        f = tmp_path / "inventory.md"
+        f.write_text(content)
+        return f
+
+    def test_skips_default_intro_section(self, tmp_path):
+        """Headings inside the default '# Intro' section are not prefixed."""
+        md = self._write(
+            tmp_path,
+            "# Intro\n\n## Box1\n\nSome text\n\n## ID:A1 Storage\n\nItem\n",
+        )
+        parser.add_container_id_prefixes(md)
+        content = md.read_text()
+        # Box1 is inside Intro — should not get ID: prefix
+        assert "## ID:Box1" not in content
+        # A1 was already prefixed — should remain unchanged
+        assert "## ID:A1 Storage" in content
+
+    def test_skips_custom_section_name(self, tmp_path):
+        """skip_sections overrides the default list."""
+        md = self._write(
+            tmp_path,
+            "# Introduction\n\n## Box2\n\nText\n\n## ID:A1 Storage\n\nItem\n",
+        )
+        parser.add_container_id_prefixes(md, skip_sections=["Introduction"])
+        content = md.read_text()
+        assert "## ID:Box2" not in content
+
+    def test_prefixes_heading_outside_skipped_section(self, tmp_path):
+        """Headings not in a skipped section do get prefixed."""
+        md = self._write(
+            tmp_path,
+            "# Intro\n\n## Box1\n\nText\n\n# Storage\n\n## Box5\n\n",
+        )
+        parser.add_container_id_prefixes(md)
+        content = md.read_text()
+        assert "ID:Box5" in content
+
+    def test_default_skip_includes_nummereringsregime(self, tmp_path):
+        """The default skip list includes 'Nummereringsregime'."""
+        md = self._write(
+            tmp_path,
+            "# Nummereringsregime\n\n## B1 Numbering\n\n# Storage\n\n## C1 Container\n\n",
+        )
+        parser.add_container_id_prefixes(md)
+        content = md.read_text()
+        assert "## ID:B1" not in content
+        assert "## ID:C1" in content
