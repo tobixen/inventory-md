@@ -32,11 +32,15 @@ from pathlib import Path
 
 try:
     from inventory_md import vocabulary as _vocabulary
+    from inventory_md.config import CONFIG_FILENAMES as _CONFIG_FILENAMES
     from inventory_md.config import Config as _Config
+    from inventory_md.parser import validate_inventory as _validate_inventory
 
     _VOCAB_AVAILABLE = True
 except ImportError:
     _VOCAB_AVAILABLE = False
+    _CONFIG_FILENAMES = ("config.yaml", "config.json", "inventory-md.yaml", "inventory-md.json")
+    _validate_inventory = None
 
 DEFAULT_TINGBOK_URL = "https://tingbok.plann.no"
 
@@ -50,10 +54,10 @@ def load_inventory(path: Path) -> dict:
 
 
 def load_inventory_lang(inventory_path: Path) -> str:
-    """Read the lang setting from inventory-md.yaml next to the inventory file."""
+    """Read the lang setting from a config file next to the inventory file."""
     if not _VOCAB_AVAILABLE:
         return "en"
-    for name in ("inventory-md.yaml", "inventory-md.json", "config.yaml", "config.json"):
+    for name in _CONFIG_FILENAMES:
         cfg_path = inventory_path.parent / name
         if cfg_path.exists():
             try:
@@ -102,27 +106,6 @@ def _is_valid_label_for_lang(label: str, concept_data: dict, lang: str) -> bool:
             if any(lbl.lower() == label_lower for lbl in labels):
                 return True
     return False
-
-
-def check_duplicate_ids(data: dict) -> list:
-    """Check for duplicate container IDs."""
-    containers = data.get("containers", [])
-    ids = [c["id"] for c in containers]
-    duplicates = [id for id, count in Counter(ids).items() if count > 1]
-    return [f"Duplicate container ID: {id}" for id in duplicates]
-
-
-def check_missing_parents(data: dict) -> list:
-    """Check for parent references that don't exist."""
-    containers = data.get("containers", [])
-    all_ids = {c["id"] for c in containers}
-
-    issues = []
-    for container in containers:
-        parent = container.get("parent")
-        if parent and parent not in all_ids:
-            issues.append(f"Missing parent: {container['id']} -> {parent} (not found)")
-    return issues
 
 
 def check_todo_items(data: dict) -> list:
@@ -443,7 +426,7 @@ def run_all_checks(data: dict, concepts: dict, lang: str, tingbok_url: str | Non
         warnings += check_food_without_bb(data, _make_food_classifier(base))
 
     results = {
-        "errors": check_duplicate_ids(data) + check_missing_parents(data),
+        "errors": _validate_inventory(data) if _validate_inventory else [],
         "warnings": warnings,
         "info": infos,
     }

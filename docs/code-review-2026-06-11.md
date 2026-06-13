@@ -196,6 +196,8 @@ The dominant theme this round. In rough order of value to fix:
 
    **Fixed**: `find_container_section(lines, container_id) -> (start, end, level) | None` added to `parser.py` (public). All four api_server.py loops replaced with calls to it. `sync_eans_to_inventory.py`'s local copy deleted; it now imports from `inventory_md.parser` — also fixes the bug where the local version only matched `## ` headings and silently missed top-level `# ID:` containers.
 5. **Quality checks**: `check_quality.check_duplicate_ids/check_missing_parents` duplicate `parser.validate_inventory`; `check_quality.load_inventory_lang` reimplements `Config`'s file discovery.
+
+   **Fixed**: `check_duplicate_ids` and `check_missing_parents` deleted from `check_quality.py`; `run_all_checks` now calls `_validate_inventory(data)` directly. `load_inventory_lang` now iterates `_CONFIG_FILENAMES` (imported from `inventory_md.config`) instead of a hardcoded tuple — fixing the priority order so `config.yaml` takes precedence over `inventory-md.yaml` (consistent with `Config`).
 6. **Barcode plumbing**: `sync_eans_to_inventory.py` duplicates `extract_barcodes.py`'s extraction and `is_ean` (without checksum validation) and queries OFF directly while everything else goes through tingbok.
 7. ~~**Private API leakage**: `queries.py:74`, `cli.py:1344` and `shopping_list.py:432` all call `vocabulary._create_broader_stubs`~~ **FIXED 2026-06-12**: renamed to `create_broader_stubs` (public) and called automatically inside `load_local_vocabulary()`; all three external call sites removed.
 8. `_deep_copy` (config.py:127) reimplements `copy.deepcopy` for the limited case; fine, but the stdlib call is one line.

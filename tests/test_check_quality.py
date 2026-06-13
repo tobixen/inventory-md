@@ -3,7 +3,14 @@
 import sys
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
-from check_quality import _category_is_food, _is_food_concept, apply_fixes, check_food_without_bb  # noqa: E402
+from check_quality import (  # noqa: E402
+    _category_is_food,
+    _is_food_concept,
+    apply_fixes,
+    check_food_without_bb,
+    load_inventory_lang,
+    run_all_checks,
+)
 
 
 class TestApplyFixes:
@@ -127,3 +134,49 @@ class TestCheckFoodWithoutBB:
         )
         issues = check_food_without_bb(data, _is_food)
         assert "2 items" in issues[0]
+
+
+class TestRunAllChecksUsesValidateInventory:
+    """run_all_checks must report duplicate IDs and missing parents via parser.validate_inventory."""
+
+    def _data(self, containers):
+        return {"containers": containers}
+
+    def test_duplicate_ids_reported_as_error(self):
+        data = self._data([{"id": "A"}, {"id": "A"}])
+        results, _ = run_all_checks(data, {}, "en", None)
+        assert any("A" in e and ("uplicate" in e or "⚠️" in e) for e in results["errors"])
+
+    def test_missing_parent_reported_as_error(self):
+        data = self._data([{"id": "A", "parent": "NONEXISTENT"}])
+        results, _ = run_all_checks(data, {}, "en", None)
+        assert any("NONEXISTENT" in e or "parent" in e.lower() for e in results["errors"])
+
+    def test_no_errors_on_valid_data(self):
+        data = self._data([{"id": "A"}, {"id": "B", "parent": "A"}])
+        results, _ = run_all_checks(data, {}, "en", None)
+        assert results["errors"] == []
+
+
+class TestLoadInventoryLangUsesConfigFilenames:
+    """load_inventory_lang must use CONFIG_FILENAMES order so config.yaml takes priority."""
+
+    def test_reads_lang_from_config_yaml(self, tmp_path):
+        (tmp_path / "config.yaml").write_text("lang: fr\n")
+        inventory = tmp_path / "inventory.json"
+        assert load_inventory_lang(inventory) == "fr"
+
+    def test_falls_back_to_inventory_md_yaml(self, tmp_path):
+        (tmp_path / "inventory-md.yaml").write_text("lang: de\n")
+        inventory = tmp_path / "inventory.json"
+        assert load_inventory_lang(inventory) == "de"
+
+    def test_config_yaml_wins_over_inventory_md_yaml(self, tmp_path):
+        (tmp_path / "config.yaml").write_text("lang: no\n")
+        (tmp_path / "inventory-md.yaml").write_text("lang: en\n")
+        inventory = tmp_path / "inventory.json"
+        assert load_inventory_lang(inventory) == "no"
+
+    def test_default_en_when_no_config(self, tmp_path):
+        inventory = tmp_path / "inventory.json"
+        assert load_inventory_lang(inventory) == "en"
