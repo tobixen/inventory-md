@@ -180,6 +180,7 @@ def parse_command(
     include_dated: bool = True,
     lang: str = None,
     tingbok_url: str | None = None,
+    no_push: bool = False,
 ) -> int:
     """Parse inventory markdown file and generate JSON."""
     md_file = Path(md_file).resolve()
@@ -385,34 +386,37 @@ def parse_command(
                         else:
                             print(f"   EAN:{ean} → not found in tingbok")
 
-                    # Report inventory observations back to tingbok for EANs that need it.
-                    # Skip EANs whose GET response already contains our observations
-                    # (meaning a previous run pushed successfully).
-                    print(f"\n📤 Checking {len(eans_found)} EAN observation(s) ...")
-                    reported = skipped = 0
-                    for ean, item in eans_found.items():
-                        meta = item.get("metadata", {})
-                        cats: list[str] = meta.get("categories") or []
-                        name: str | None = item.get("name") or None
-                        quantity: str | None = meta.get("mass") or meta.get("volume") or None
-                        price_dict = _parse_inventory_price(meta.get("price"))
-                        prices = [price_dict] if price_dict else []
-                        product = item.get("_product")  # stashed during the GET loop above
-                        if not vocabulary.ean_observation_needed(product, cats, name, quantity, prices):
-                            skipped += 1
-                            continue
-                        vocabulary.report_ean_to_tingbok(
-                            ean,
-                            cats,
-                            name,
-                            tingbok_url,
-                            session=tingbok_session,
-                            quantity=quantity,
-                            prices=prices,
-                            cache_dir=_tingbok_cache,
-                        )
-                        reported += 1
-                    print(f"   Pushed {reported} observation(s), {skipped} already up-to-date")
+                    if no_push:
+                        print("\n📤 Skipping EAN observation push (--no-push)")
+                    else:
+                        # Report inventory observations back to tingbok for EANs that need it.
+                        # Skip EANs whose GET response already contains our observations
+                        # (meaning a previous run pushed successfully).
+                        print(f"\n📤 Checking {len(eans_found)} EAN observation(s) ...")
+                        reported = skipped = 0
+                        for ean, item in eans_found.items():
+                            meta = item.get("metadata", {})
+                            cats: list[str] = meta.get("categories") or []
+                            name: str | None = item.get("name") or None
+                            quantity: str | None = meta.get("mass") or meta.get("volume") or None
+                            price_dict = _parse_inventory_price(meta.get("price"))
+                            prices = [price_dict] if price_dict else []
+                            product = item.get("_product")  # stashed during the GET loop above
+                            if not vocabulary.ean_observation_needed(product, cats, name, quantity, prices):
+                                skipped += 1
+                                continue
+                            vocabulary.report_ean_to_tingbok(
+                                ean,
+                                cats,
+                                name,
+                                tingbok_url,
+                                session=tingbok_session,
+                                quantity=quantity,
+                                prices=prices,
+                                cache_dir=_tingbok_cache,
+                            )
+                            reported += 1
+                        print(f"   Pushed {reported} observation(s), {skipped} already up-to-date")
 
             # Enrich EAN-derived category labels not yet in vocab (via /api/lookup).
             # Inventory categories were already resolved in the batch call above;
@@ -915,6 +919,11 @@ Examples:
         action="store_true",
         help="Auto-detect files: inventory.md and wanted-items.md in current directory",
     )
+    parse_parser.add_argument(
+        "--no-push",
+        action="store_true",
+        help="Skip pushing EAN observations back to tingbok (parse and look up only)",
+    )
     # Shopping-list command
     sl_parser = subparsers.add_parser(
         "shopping-list", help="Regenerate shopping-list.md from wanted-items.md and inventory.json"
@@ -1201,6 +1210,7 @@ Examples:
             include_dated,
             lang=config.lang,
             tingbok_url=config.tingbok_url,
+            no_push=getattr(args, "no_push", False),
         )
     elif args.command == "update-template":
         return update_template(args.directory, args.force)

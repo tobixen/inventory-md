@@ -359,6 +359,39 @@ class TestParseCommandEanLookup:
 
         assert result == 0
 
+    def test_no_push_suppresses_report_ean_to_tingbok(self, tmp_path, monkeypatch) -> None:
+        """--no-push skips report_ean_to_tingbok even when a tingbok_url is set."""
+        from unittest.mock import patch
+
+        from inventory_md import cli, vocabulary
+
+        inventory_md = self._write_inventory(
+            tmp_path,
+            "## ID:Box1 Test\n\n* EAN:7310865004703 Kalles Kaviar\n",
+        )
+        monkeypatch.chdir(tmp_path)
+
+        product = {
+            "ean": "7310865004703",
+            "name": "Kalles Kaviar",
+            "brand": "Abba",
+            "quantity": "300g",
+            "categories": ["spreads"],
+            "image_url": None,
+            "source": "openfoodfacts",
+        }
+
+        with self._tingbok_patches(vocabulary):
+            with patch.object(vocabulary, "lookup_ean_via_tingbok", return_value=product):
+                with patch.object(vocabulary, "report_ean_to_tingbok") as mock_report:
+                    cli.parse_command(
+                        inventory_md,
+                        tingbok_url="https://tingbok.plann.no",
+                        no_push=True,
+                    )
+
+        mock_report.assert_not_called()
+
 
 class TestShoppingListCommand:
     """Tests for the shopping-list subcommand."""

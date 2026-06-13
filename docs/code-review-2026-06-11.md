@@ -221,7 +221,11 @@ The dominant theme this round. In rough order of value to fix:
 
   **Fixed**: `tingbok_push.py` converted from `urllib` to `niquests`-with-`requests`-fallback. `cli.py`'s urllib use is inside the local dev proxy handler (no external dep warranted there).
 - **`parse` does much more than parse**: `parse_command` (cli.py:175-480) is ~300 lines that parse, thumbnail, generate listings, fetch vocabulary, look up EANs, **push observations to tingbok** (a remote write!), and generate the shopping list. A command named `parse` silently PUT-ing to a network service is surprising; consider `--no-push`/`--offline`, and split the function into testable stages. The `niquests.Session` opened there is also never closed.
+
+  **Partially fixed**: `--no-push` flag added to the `parse` command; suppresses EAN observation push to tingbok. Full architectural split and `--offline` mode remain out of scope; `niquests.Session` leak not yet addressed.
 - **Performance** (matters as the inventory grows): `vocabulary.resolve_category` rebuilds the full path-alias map on every call (vocabulary.py:976) and `lookup_concept` rebuilds the label index per call — `parse_inventory_for_shopping` calls `resolve_category` once per category per item, making shopping-list generation quadratic-ish. Build the maps once and pass them down.
+
+  **Fixed**: `_build_path_alias_map` and `build_label_index` now cache by `id(vocab)`/`id(concepts)` + `lang`; repeated calls within a `parse` run return the same object without rebuilding.
 - **`dev` extra weight**: `dev` includes `easyocr`, which drags in torch + multi-GB CUDA wheels. A plain `pip install -e .[dev]` to run unit tests downloads gigabytes (it exhausted the disk during this review). Move `easyocr` to its existing `ocr` extra only, and let CI/test runs skip it.
 
   **Fixed**: `easyocr` removed from `dev` extra; remains in `ocr` extra only.
