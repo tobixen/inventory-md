@@ -9,6 +9,9 @@ User=inventory-%i
 Group=inventory-%i
 EnvironmentFile=/etc/inventory-md/%i.conf
 Environment="ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
+# Optional: set API_TOKEN=<secret> in the .conf to require Bearer auth on all
+# mutating endpoints (/api/chat, /api/items, /api/photos, /api/containers DELETE).
+# Leave unset for trusted local/LAN use.
 ExecStart=/opt/inventory-md/venv/bin/inventory-md api ${INVENTORY_PATH} --port ${API_PORT} --host ${API_HOST}
 Restart=on-failure
 RestartSec=5s

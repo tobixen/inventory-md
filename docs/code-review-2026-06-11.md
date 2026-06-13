@@ -170,6 +170,11 @@ by a FastAPI dependency, value in the instance `.conf`) would close this cheaply
 Related: a successful mutation auto-pushes to the git remote (api_server.py:519)
 — combined with no auth, a network peer can publish commits.
 
+**Fixed**: `require_auth` FastAPI dependency added; checks `Authorization: Bearer`
+against `API_TOKEN` env var. Opt-in: unset = open access (backwards compatible).
+Wired to all mutating endpoints and `/api/chat`; read-only `/api/containers` and
+`/health` left open. `API_TOKEN` documented in the systemd service file. Tests added.
+
 ### 2.2 Path sanitisation checked, no issues
 `sanitize_path_component` was probed for bypasses (`....`, embedded separators,
 `fo..o`, dot-prefixes): deletion-based `..` collapsing cannot reconstruct a

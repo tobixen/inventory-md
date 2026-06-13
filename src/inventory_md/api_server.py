@@ -13,7 +13,7 @@ import shutil
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -128,6 +128,19 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     inventory_data = None
+
+
+def require_auth(authorization: str | None = Header(default=None)) -> None:
+    """FastAPI dependency: enforce Bearer token when API_TOKEN env var is set.
+
+    If API_TOKEN is not configured the server runs open (local / trusted-LAN use).
+    Set API_TOKEN in /etc/inventory-md/<instance>.conf to require authentication.
+    """
+    expected = os.environ.get("API_TOKEN")
+    if not expected:
+        return
+    if authorization != f"Bearer {expected}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 app = FastAPI(title="Inventory Chatbot Server", lifespan=lifespan)
@@ -1018,7 +1031,7 @@ def execute_tool(tool_name: str, tool_input: dict) -> dict:
 
 
 @app.post("/api/chat", response_model=ChatResponse)
-def chat(message: ChatMessage) -> ChatResponse:
+def chat(message: ChatMessage, _auth: None = Depends(require_auth)) -> ChatResponse:
     """Handle chat messages and return Claude's response."""
 
     # Check for API key
@@ -1143,7 +1156,12 @@ def list_containers_api() -> dict:
 
 
 @app.post("/api/items")
-def add_item_api(container_id: str = Form(...), item_description: str = Form(...), tags: str = Form("")) -> dict:
+def add_item_api(
+    container_id: str = Form(...),
+    item_description: str = Form(...),
+    tags: str = Form(""),
+    _auth: None = Depends(require_auth),
+) -> dict:
     """Add an item to a container (mobile-friendly endpoint)."""
     # Validate container_id
     try:
@@ -1167,7 +1185,10 @@ def add_item_api(container_id: str = Form(...), item_description: str = Form(...
 
 @app.post("/api/items/add-child")
 def add_child_item_api(
-    container_id: str = Form(...), parent_item: str = Form(...), child_description: str = Form(...)
+    container_id: str = Form(...),
+    parent_item: str = Form(...),
+    child_description: str = Form(...),
+    _auth: None = Depends(require_auth),
 ) -> dict:
     """Add a child item to a parent item (promotes parent to container if needed)."""
     # Validate container_id
@@ -1191,7 +1212,7 @@ def add_child_item_api(
 
 
 @app.delete("/api/items")
-def remove_item_api(container_id: str, item_description: str) -> dict:
+def remove_item_api(container_id: str, item_description: str, _auth: None = Depends(require_auth)) -> dict:
     """Remove an item from a container (mobile-friendly endpoint)."""
     # Validate container_id
     try:
@@ -1211,7 +1232,7 @@ def remove_item_api(container_id: str, item_description: str) -> dict:
 
 
 @app.delete("/api/containers")
-def remove_container_api(container_id: str) -> dict:
+def remove_container_api(container_id: str, _auth: None = Depends(require_auth)) -> dict:
     """Remove an entire container from the inventory."""
     # Validate container_id
     try:
@@ -1228,7 +1249,9 @@ def remove_container_api(container_id: str) -> dict:
 
 
 @app.post("/api/photos")
-def upload_photo(container_id: str = Form(...), photo: UploadFile = File(...)) -> dict:
+def upload_photo(
+    container_id: str = Form(...), photo: UploadFile = File(...), _auth: None = Depends(require_auth)
+) -> dict:
     """Upload a photo to a container."""
     if not inventory_path:
         raise HTTPException(status_code=500, detail="Inventory path not set")

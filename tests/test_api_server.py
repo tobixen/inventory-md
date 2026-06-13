@@ -1,5 +1,6 @@
 """Tests for api_server modifications functions."""
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -51,6 +52,42 @@ def temp_inventory():
 }""")
 
         yield tmppath
+
+
+class TestRequireAuth:
+    def test_no_token_configured_allows_all(self):
+        from inventory_md.api_server import require_auth
+
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("API_TOKEN", None)
+            require_auth(authorization=None)  # must not raise
+            require_auth(authorization="Bearer wrong")  # still must not raise
+
+    def test_correct_token_allowed(self):
+        from inventory_md.api_server import require_auth
+
+        with patch.dict("os.environ", {"API_TOKEN": "secret"}):
+            require_auth(authorization="Bearer secret")  # must not raise
+
+    def test_wrong_token_raises_401(self):
+        from fastapi import HTTPException
+
+        from inventory_md.api_server import require_auth
+
+        with patch.dict("os.environ", {"API_TOKEN": "secret"}):
+            with pytest.raises(HTTPException) as exc_info:
+                require_auth(authorization="Bearer wrong")
+            assert exc_info.value.status_code == 401
+
+    def test_missing_header_raises_401(self):
+        from fastapi import HTTPException
+
+        from inventory_md.api_server import require_auth
+
+        with patch.dict("os.environ", {"API_TOKEN": "secret"}):
+            with pytest.raises(HTTPException) as exc_info:
+                require_auth(authorization=None)
+            assert exc_info.value.status_code == 401
 
 
 class TestAddChildToItem:
