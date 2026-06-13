@@ -30,3 +30,9 @@ venv/
 env/
 ENV/
 ean_cache.json
+
+# Local overrides (personal instance names, paths)
+local.mk
+
+# uv lockfile — too large for the check-added-large-files hook (>500 KB)
+uv.lock

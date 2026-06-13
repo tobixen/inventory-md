@@ -219,8 +219,16 @@ The dominant theme this round. In rough order of value to fix:
 - **`parse` does much more than parse**: `parse_command` (cli.py:175-480) is ~300 lines that parse, thumbnail, generate listings, fetch vocabulary, look up EANs, **push observations to tingbok** (a remote write!), and generate the shopping list. A command named `parse` silently PUT-ing to a network service is surprising; consider `--no-push`/`--offline`, and split the function into testable stages. The `niquests.Session` opened there is also never closed.
 - **Performance** (matters as the inventory grows): `vocabulary.resolve_category` rebuilds the full path-alias map on every call (vocabulary.py:976) and `lookup_concept` rebuilds the label index per call — `parse_inventory_for_shopping` calls `resolve_category` once per category per item, making shopping-list generation quadratic-ish. Build the maps once and pass them down.
 - **`dev` extra weight**: `dev` includes `easyocr`, which drags in torch + multi-GB CUDA wheels. A plain `pip install -e .[dev]` to run unit tests downloads gigabytes (it exhausted the disk during this review). Move `easyocr` to its existing `ocr` extra only, and let CI/test runs skip it.
+
+  **Fixed**: `easyocr` removed from `dev` extra; remains in `ocr` extra only.
+
 - **Repo hygiene**: `uv.lock` is untracked but not gitignored — decide (commit it for reproducibility, or ignore it). Both `venv/` and `.venv/` exist locally. Editor backup files (`*~`) are correctly ignored.
+
+  **Fixed**: `uv.lock` added to `.gitignore` (pre-commit hook blocks files >500 KB; 557 KB at review time).
+
 - **Makefile**: personal instance names and paths (`furuset`, `solveig`, `/home/tobias/...inventory.git`) are baked into a published repo's Makefile (lines 9-10, 387-390). Works, but consider moving instance lists to an untracked include (`-include local.mk`).
+
+  **Fixed**: `INSTANCE`/`INSTANCES` defaulted to `default`; `-include local.mk` added; hardcoded `furusetalle9-inventory.git` path replaced with `$$HOME/$(INSTANCE)-inventory.git`. `local.mk` added to `.gitignore`.
 
 ---
 

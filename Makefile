@@ -5,12 +5,14 @@
 .PHONY: install install-templates create-instance start stop restart status logs enable disable list-instances install-hook install-hooks
 .PHONY: install-completion install-completion-user install-completion-system
 
-# Configuration
-INSTANCE ?= furuset
-INSTANCES = furuset solveig
+# Configuration — override in local.mk (not committed) for personal instance names
+INSTANCE ?= default
+INSTANCES ?= default
 PYTHON ?= python3
 VENV = venv
 EXAMPLE_PORT ?= 8000
+
+-include local.mk
 
 # Default target
 help:
@@ -384,11 +386,7 @@ install-hook:
 	fi
 	@# Determine paths based on instance
 	@PROD_DIR=$$(grep INVENTORY_PATH /etc/inventory-md/$(INSTANCE).conf | cut -d= -f2); \
-	if [ "$(INSTANCE)" = "furuset" ]; then \
-		BARE_REPO="/home/tobias/furusetalle9-inventory.git"; \
-	else \
-		BARE_REPO="/home/tobias/$(INSTANCE)-inventory.git"; \
-	fi; \
+	BARE_REPO="$${BARE_REPO:-$$HOME/$(INSTANCE)-inventory.git}"; \
 	if [ ! -d "$$BARE_REPO" ]; then \
 		echo "Error: Bare repo not found: $$BARE_REPO"; \
 		exit 1; \
