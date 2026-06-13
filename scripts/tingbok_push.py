@@ -39,10 +39,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
+
+try:
+    import niquests as requests
+except ImportError:
+    import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from staging import require_flat  # noqa: E402
@@ -52,26 +55,25 @@ DEFAULT_TINGBOK = "https://tingbok.plann.no"
 
 def _get(base: str, ean: str) -> dict[str, Any]:
     try:
-        with urllib.request.urlopen(f"{base}/api/ean/{ean}", timeout=15) as r:
-            return json.load(r)
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
+        r = requests.get(f"{base}/api/ean/{ean}", timeout=15)
+        if r.status_code == 404:
             return {}
-        return {"_error": f"HTTP {e.code}"}
+        r.raise_for_status()
+        return r.json()
     except Exception as e:  # noqa: BLE001 — network best-effort
         return {"_error": str(e)}
 
 
 def _put(base: str, ean: str, payload: dict[str, Any]) -> tuple[bool, str]:
-    req = urllib.request.Request(
-        f"{base}/api/ean/{ean}",
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="PUT",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
-            return True, str(r.status)
+        r = requests.put(
+            f"{base}/api/ean/{ean}",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            timeout=15,
+        )
+        r.raise_for_status()
+        return True, str(r.status_code)
     except Exception as e:  # noqa: BLE001
         return False, str(e)
 
