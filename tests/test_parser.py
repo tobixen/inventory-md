@@ -346,3 +346,21 @@ class TestExtractMetadataTypedFields:
         result = parser.extract_metadata("category:pasta qty:2 mass:500g bb:2026-03 EST Spaghetti")
         assert result["name"] == "Spaghetti"
         assert "EST" not in result["name"]
+
+
+class TestExtractMetadataKeyWhitelist:
+    """Unknown keys must not be swallowed as metadata."""
+
+    def test_url_not_parsed_as_key(self):
+        result = parser.extract_metadata("category:clothing Some shirt https://example.com/shirt")
+        assert "https" not in result["metadata"]
+        assert "https://example.com/shirt" in result["name"]
+
+    def test_time_not_parsed_as_key(self):
+        result = parser.extract_metadata("category:food Pasta ready in 12:30 min")
+        assert "12" not in result["metadata"]
+        assert "12:30" in result["name"]
+
+    def test_known_key_still_extracted(self):
+        result = parser.extract_metadata("EAN:1234567890123 category:food Pasta")
+        assert result["metadata"].get("ean") == "1234567890123"

@@ -138,6 +138,31 @@ def normalize_bb_date(date_str: str) -> str:
 _normalize_bb_date = normalize_bb_date
 
 
+# Keys recognised in bare `key:value` form.  Anything not in this set is left
+# in the item name so that URLs (https:…), times (12:30), and free-text colons
+# are not silently consumed as metadata.
+_KNOWN_METADATA_KEYS = frozenset(
+    {
+        "id",
+        "parent",
+        "type",
+        "ean",
+        "isbn",
+        "sku",
+        "category",
+        "tag",
+        "qty",
+        "mass",
+        "volume",
+        "bb",
+        "price",
+        "value",
+        "location",
+        "notes",
+    }
+)
+
+
 def extract_metadata(text: str) -> dict[str, Any]:
     """
     Extract all key:value pairs from text.
@@ -147,6 +172,9 @@ def extract_metadata(text: str) -> dict[str, Any]:
     - (key:value) (parenthesized)
     - Special handling for tags: tag:value1,value2,value3 becomes ["value1", "value2", "value3"]
     - Special handling for categories: category:path1,path2 becomes ["path1", "path2"]
+
+    Only keys in ``_KNOWN_METADATA_KEYS`` are extracted; unknown tokens such as
+    URLs (``https://…``) or times (``12:30``) are left in the item name.
 
     Returns: {
         "metadata": {"id": "...", "parent": "...", "type": "...", "tags": [...], "categories": [...]},
@@ -165,6 +193,8 @@ def extract_metadata(text: str) -> dict[str, Any]:
     matches = []
     for match in re.finditer(pattern, text):
         key = match.group(1).lower()
+        if key not in _KNOWN_METADATA_KEYS:
+            continue
         value = match.group(2).strip()
 
         # Special handling for tags: split by comma

@@ -136,6 +136,11 @@ consider a whitelist of known keys (the parser already special-cases most of
 them) or require the parenthesised form for non-standard keys. At minimum,
 document the limitation.
 
+**Fixed**: added `_KNOWN_METADATA_KEYS` frozenset; the extraction loop skips any
+key not in the whitelist, leaving URLs and times in the item name. Tests added
+for both cases. Confirmed live in `furusetalle9-inventory/inventory.md` where
+`https:` was silently consumed.
+
 ### 1.10 Dead code / stale artifacts (LOW)
 - `src/inventory_md/__init__.py:11` hardcodes `__version__ = "0.1.0"` while the real version comes from hatch-vcs `_version.py` (currently 0.13.x). `inventory_md.__version__` lies; import from `._version` instead.
 - `labels.show_date` config option is dead: `cli.labels_generate(show_date=...)` (cli.py:703) accepts it and never uses it; the date is always drawn.
