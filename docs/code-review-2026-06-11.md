@@ -203,7 +203,12 @@ The dominant theme this round. In rough order of value to fix:
    **Fixed**: `extract_barcodes_from_image`, `is_ean`, and `lookup_ean` deleted from `sync_eans_to_inventory.py`. `extract_barcodes_from_directory` now calls `extract_barcodes.extract_barcodes()` (gains checksum validation via `is_ean` and tingbok lookup via `lookup_tingbok`). The PIL/pyzbar and requests import guards are also removed — `extract_barcodes.py` handles those.
 7. ~~**Private API leakage**: `queries.py:74`, `cli.py:1344` and `shopping_list.py:432` all call `vocabulary._create_broader_stubs`~~ **FIXED 2026-06-12**: renamed to `create_broader_stubs` (public) and called automatically inside `load_local_vocabulary()`; all three external call sites removed.
 8. `_deep_copy` (config.py:127) reimplements `copy.deepcopy` for the limited case; fine, but the stdlib call is one line.
+
+   **Fixed**: `_deep_copy` deleted; `load_config` now calls `copy.deepcopy(DEFAULTS)`.
+
 9. `openprices_publish.py` defines both `OSM_CACHE` (XDG cache) and `SHOP_OSM` (XDG config) — two different files both named `shop-osm.json` holding different things (geocode cache vs confirmed shop locations). Rename one.
+
+   **Fixed**: `OSM_CACHE` renamed to `osm-geocode-cache.json`; `SHOP_OSM` keeps `shop-osm.json`.
 
 ---
 

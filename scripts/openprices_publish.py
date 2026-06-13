@@ -31,7 +31,7 @@ import niquests as requests
 
 BASES = {"org": "https://prices.openfoodfacts.org", "net": "https://prices.openfoodfacts.net"}
 TOKEN_PATH = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "inventory-md" / "openprices-token"
-OSM_CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "inventory-md" / "shop-osm.json"
+OSM_CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "inventory-md" / "osm-geocode-cache.json"
 USER_AGENT = "solveig-inventory/openprices_publish (tobixen)"
 
 

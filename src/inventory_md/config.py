@@ -13,6 +13,7 @@ YAML is checked before JSON at each location. Environment variables
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -103,17 +104,6 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return base
 
 
-def _deep_copy(d: dict) -> dict:
-    """Create a deep copy of a nested dict structure."""
-    result = {}
-    for key, value in d.items():
-        if isinstance(value, dict):
-            result[key] = _deep_copy(value)
-        else:
-            result[key] = value
-    return result
-
-
 def _load_config_file(path: Path) -> dict[str, Any]:
     """Load a single config file and return its contents.
 
@@ -165,7 +155,7 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
         json.JSONDecodeError: If JSON config file is malformed.
     """
     # Start with a deep copy of defaults
-    config = _deep_copy(DEFAULTS)
+    config = copy.deepcopy(DEFAULTS)
 
     if path is not None:
         # Explicit path provided - load only that file
