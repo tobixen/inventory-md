@@ -44,15 +44,13 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from shop_import import _iso_date, parse_price  # noqa: E402
+from shop_import import parse_lidl_receipt  # noqa: E402
 from staging import require_flat  # noqa: E402
 
 try:
     import yaml
 except ImportError:  # pragma: no cover
     yaml = None  # type: ignore[assignment]
-
-_KG_SUFFIX = "НА КГ"
 
 #: Fields that identify the same purchased line across re-imports. Deliberately
 #: excludes the enrichable fields below, so a raw receipt import and the later
@@ -129,27 +127,23 @@ def lidl_receipt_to_rows(
     receipt: dict[str, Any], shop: str = "Lidl Varna", source: str | None = None
 ) -> list[dict[str, Any]]:
     """Convert a raw Lidl receipt dict to ledger rows (EAN/inventory_id unknown)."""
-    date = _iso_date(receipt.get("purchase_date", ""))
+    staging = parse_lidl_receipt(receipt, shop=shop)
+    date = staging["session"]
     if source is None:
         source = f"lidl#{date}"
-    rows = []
-    for raw in receipt.get("items", []):
-        name = raw["name"]
-        unit_price = parse_price(raw["price"])
-        qty = parse_price(raw.get("quantity", "1"))
-        unit = "kg" if name.upper().rstrip().endswith(_KG_SUFFIX) else "pcs"
-        rows.append(
-            _row(
-                date=date,
-                shop=shop,
-                receipt_name=name,
-                qty=qty,
-                unit=unit,
-                unit_price=unit_price,
-                total_=round(unit_price * qty, 2),
-                source=source,
-            )
+    rows = [
+        _row(
+            date=date,
+            shop=shop,
+            receipt_name=item["receipt_name"],
+            qty=item["qty"],
+            unit=item["unit"],
+            unit_price=item["price"],
+            total_=item["line_total"],
+            source=source,
         )
+        for item in staging["items"]
+    ]
     return combine_duplicate_lines(rows)
 
 
