@@ -12,6 +12,7 @@ from ._version import __version__
 from .parser import (
     add_container_id_prefixes,
     extract_metadata,
+    find_container_section,
     load_json,
     parse_inventory,
     save_json,
@@ -22,6 +23,7 @@ __all__ = [
     "parse_inventory",
     "extract_metadata",
     "validate_inventory",
+    "find_container_section",
     "add_container_id_prefixes",
     "save_json",
     "load_json",

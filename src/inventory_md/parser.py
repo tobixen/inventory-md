@@ -529,6 +529,29 @@ def add_container_id_prefixes(md_file: Path) -> tuple[int, dict[str, list[str]]]
     return changes, duplicate_map
 
 
+def find_container_section(lines: list[str], container_id: str) -> tuple[int, int, str] | None:
+    """Locate a container heading in a list of lines by its ID token.
+
+    Returns (start, end, level) where start is the heading line index, end is
+    the exclusive index of the first line after the section (next heading of same
+    or higher level, or len(lines)), and level is "#" or "##".  Returns None if
+    no heading with ID:<container_id> is found.
+    """
+    for i, line in enumerate(lines):
+        if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
+            level = "#" if line.startswith("# ") else "##"
+            end = len(lines)
+            for j in range(i + 1, len(lines)):
+                if level == "#" and lines[j].startswith("# "):
+                    end = j
+                    break
+                elif level == "##" and (lines[j].startswith("# ") or lines[j].startswith("## ")):
+                    end = j
+                    break
+            return (i, end, level)
+    return None
+
+
 def validate_inventory(data: dict[str, Any]) -> list[str]:
     """
     Validate inventory data and return list of issues.

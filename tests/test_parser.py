@@ -364,3 +364,49 @@ class TestExtractMetadataKeyWhitelist:
     def test_known_key_still_extracted(self):
         result = parser.extract_metadata("EAN:1234567890123 category:food Pasta")
         assert result["metadata"].get("ean") == "1234567890123"
+
+
+class TestFindContainerSection:
+    """find_container_section(lines, container_id) -> (start, end, level) | None"""
+
+    LINES = [
+        "# Box A ID:A1\n",
+        "\n",
+        "* Hammer\n",
+        "## Shelf ID:S1\n",
+        "* Nails\n",
+        "## Shelf2 ID:S2\n",
+        "* Bolts\n",
+        "# Box B ID:B1\n",
+        "* Wrench\n",
+    ]
+
+    def test_level1_found(self):
+        result = parser.find_container_section(self.LINES, "A1")
+        assert result is not None
+        start, end, level = result
+        assert start == 0
+        assert level == "#"
+        assert end == 7  # stops at "# Box B"
+
+    def test_level2_found(self):
+        result = parser.find_container_section(self.LINES, "S1")
+        assert result is not None
+        start, end, level = result
+        assert start == 3
+        assert level == "##"
+        assert end == 5  # stops at next ## heading
+
+    def test_not_found_returns_none(self):
+        assert parser.find_container_section(self.LINES, "NOPE") is None
+
+    def test_last_container_end_is_eof(self):
+        result = parser.find_container_section(self.LINES, "B1")
+        assert result is not None
+        _, end, _ = result
+        assert end == len(self.LINES)
+
+    def test_level1_end_stops_at_level1_not_level2(self):
+        result = parser.find_container_section(self.LINES, "A1")
+        _, end, _ = result
+        assert end == 7  # ## headings at 3 and 5 are inside A1; only # at 7 ends it

@@ -17,6 +17,8 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from .parser import find_container_section
+
 # Global inventory data
 inventory_data: dict | None = None
 inventory_path: Path | None = None
@@ -583,33 +585,19 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
             lines = f.readlines()
 
         # Find the parent container
-        container_line_idx = None
-        container_level = None
-        for i, line in enumerate(lines):
-            if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
-                container_line_idx = i
-                container_level = "#" if line.startswith("# ") else "##"
-                break
-
-        if container_line_idx is None:
+        _cs = find_container_section(lines, container_id)
+        if _cs is None:
             return {"error": f"Container ID:{container_id} not found"}
+        container_line_idx, container_section_end, container_level = _cs
 
         # Check if parent item already exists as a container (heading)
         parent_id = None
         parent_container_idx = None
 
         # Look for parent as a heading first
-        for i in range(container_line_idx + 1, len(lines)):
-            # Stop at next heading of same or higher level
-            if container_level == "#" and lines[i].startswith("# "):
-                break
-            elif container_level == "##" and (lines[i].startswith("# ") or lines[i].startswith("## ")):
-                break
-
-            # Check if this heading matches the parent item
+        for i in range(container_line_idx + 1, container_section_end):
             if lines[i].startswith("## ") and parent_item.lower() in lines[i].lower():
                 parent_container_idx = i
-                # Extract ID from heading
                 if "ID:" in lines[i]:
                     parent_id = lines[i].split("ID:")[1].split()[0]
                 break
@@ -617,13 +605,7 @@ def add_child_to_item(container_id: str, parent_item: str, child_description: st
         # If parent not found as heading, look for it as a bullet item
         parent_bullet_idx = None
         if parent_container_idx is None:
-            for i in range(container_line_idx + 1, len(lines)):
-                # Stop at next heading
-                if container_level == "#" and lines[i].startswith("# "):
-                    break
-                elif container_level == "##" and (lines[i].startswith("# ") or lines[i].startswith("## ")):
-                    break
-
+            for i in range(container_line_idx + 1, container_section_end):
                 if lines[i].startswith("* ") and parent_item.lower() in lines[i].lower():
                     parent_bullet_idx = i
                     break
@@ -719,14 +701,10 @@ def add_item_to_container(container_id: str, item_description: str, tags: str | 
             lines = f.readlines()
 
         # Find the container (can be # or ## heading)
-        container_line_idx = None
-        for i, line in enumerate(lines):
-            if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
-                container_line_idx = i
-                break
-
-        if container_line_idx is None:
+        _cs = find_container_section(lines, container_id)
+        if _cs is None:
             return {"error": f"Container ID:{container_id} not found in markdown"}
+        container_line_idx = _cs[0]
 
         # Find where to insert the item (after the header, before next ## or end)
         insert_idx = container_line_idx + 1
@@ -792,26 +770,10 @@ def remove_container(container_id: str) -> dict:
             lines = f.readlines()
 
         # Find the container section (can be # or ## heading)
-        container_start_idx = None
-        container_level = None
-        for i, line in enumerate(lines):
-            if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
-                container_start_idx = i
-                container_level = "#" if line.startswith("# ") else "##"
-                break
-
-        if container_start_idx is None:
+        _cs = find_container_section(lines, container_id)
+        if _cs is None:
             return {"error": f"Container ID:{container_id} not found"}
-
-        # Find the end of this container (next heading of same or higher level, or end of file)
-        container_end_idx = len(lines)
-        for i in range(container_start_idx + 1, len(lines)):
-            if container_level == "#" and lines[i].startswith("# "):
-                container_end_idx = i
-                break
-            elif container_level == "##" and (lines[i].startswith("# ") or lines[i].startswith("## ")):
-                container_end_idx = i
-                break
+        container_start_idx, container_end_idx, _ = _cs
 
         # Remove the container section
         del lines[container_start_idx:container_end_idx]
@@ -857,33 +819,18 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
             lines = f.readlines()
 
         # Find the container section (can be # or ## heading)
-        container_line_idx = None
-        container_level = None
-        for i, line in enumerate(lines):
-            if (line.startswith("# ") or line.startswith("## ")) and f"ID:{container_id}" in line:
-                container_line_idx = i
-                container_level = "#" if line.startswith("# ") else "##"
-                break
-
-        if container_line_idx is None:
+        _cs = find_container_section(lines, container_id)
+        if _cs is None:
             return {"error": f"Container ID:{container_id} not found"}
+        container_line_idx, container_section_end, _ = _cs
 
         # Find and remove the item
         removed_item_text = None
-        i = container_line_idx + 1
-        while i < len(lines):
-            # Stop at next heading of same or higher level
-            if container_level == "#" and lines[i].startswith("# "):
-                break
-            elif container_level == "##" and (lines[i].startswith("# ") or lines[i].startswith("## ")):
-                break
-
+        for i in range(container_line_idx + 1, container_section_end):
             if lines[i].startswith("* ") and item_description.lower() in lines[i].lower():
-                # Save the actual item text (strip the "* " prefix and newline)
                 removed_item_text = lines[i][2:].strip()
                 del lines[i]
                 break
-            i += 1
 
         if removed_item_text is None:
             return {"error": f"Item '{item_description}' not found in container {container_id}"}

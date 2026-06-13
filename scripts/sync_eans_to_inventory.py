@@ -25,6 +25,8 @@ import sys
 import time
 from pathlib import Path
 
+from inventory_md.parser import find_container_section
+
 try:
     from PIL import Image
     from pyzbar.pyzbar import decode
@@ -134,28 +136,6 @@ def get_existing_eans(inventory_data: dict, container_id: str) -> set[str]:
                     eans.add(match.group(1))
 
     return eans
-
-
-def find_container_section(inventory_md: str, container_id: str) -> tuple[int, int] | None:
-    """Find the line range for a container in inventory.md."""
-    lines = inventory_md.split("\n")
-    start_line = None
-    end_line = None
-
-    for i, line in enumerate(lines):
-        # Match container header: ## ID:container-id or ## container-id
-        if re.match(rf"^##\s+.*\bID:{re.escape(container_id)}\b", line) or re.match(
-            rf"^##\s+{re.escape(container_id)}\b", line
-        ):
-            start_line = i
-        elif start_line is not None and line.startswith("## "):
-            end_line = i
-            break
-
-    if start_line is not None and end_line is None:
-        end_line = len(lines)
-
-    return (start_line, end_line) if start_line is not None else None
 
 
 def format_inventory_line(ean: str, product: dict | None) -> str:
@@ -293,12 +273,12 @@ def main():
 
     # Insert lines into each container section
     for container_id, new_lines in by_container.items():
-        section = find_container_section("\n".join(lines), container_id)
+        section = find_container_section(lines, container_id)
         if section is None:
             print(f"  Warning: Container {container_id} not found in inventory.md")
             continue
 
-        start, end = section
+        start, end, _ = section
 
         # Find the last item line in the section (starts with *)
         insert_pos = start + 1
