@@ -144,6 +144,10 @@ for both cases. Confirmed live in `furusetalle9-inventory/inventory.md` where
 ### 1.10 Dead code / stale artifacts (LOW)
 - `src/inventory_md/__init__.py:11` hardcodes `__version__ = "0.1.0"` while the real version comes from hatch-vcs `_version.py` (currently 0.13.x). `inventory_md.__version__` lies; import from `._version` instead.
 - `labels.show_date` config option is dead: `cli.labels_generate(show_date=...)` (cli.py:703) accepts it and never uses it; the date is always drawn.
+
+**Fixed**: `__init__.py` now imports `__version__` from `._version` (now returns
+`0.13.1.dev…` instead of `"0.1.0"`); `show_date` param removed from
+`labels_generate`, `DEFAULT_CONFIG`, and the `labels_show_date` config property.
 - `parser.validate_inventory` (parser.py:519): the multiple-parents check can never fire — each container dict has exactly one `parent`, so `containers_with_parents[id]` only grows via duplicate IDs, which are already reported separately.
 - `container["photos_link"]` is initialised to `""` and never set by the markdown-it parser, so the `photos_link`-based image-dir fallback (parser.py:407-409) is dead.
 - `update_template()`/`update_makefile()` accept a `force` parameter that is ignored (cli.py:155-172); the `--force` CLI flag is a no-op.

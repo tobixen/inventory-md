@@ -8,8 +8,7 @@ Features:
 - CLI tools for initialization, parsing, and serving
 """
 
-__version__ = "0.1.0"
-
+from ._version import __version__
 from .parser import (
     add_container_id_prefixes,
     extract_metadata,

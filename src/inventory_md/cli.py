@@ -700,7 +700,6 @@ def labels_generate(
     output: Path | None = None,
     output_format: str = "pdf",
     base_url: str = "https://inventory.example.com/search.html",
-    show_date: bool = True,
     custom_formats: dict | None = None,
     dupes: int | None = None,
 ) -> int:
@@ -1230,7 +1229,6 @@ Examples:
                 output=args.output,
                 output_format=args.format,
                 base_url=base_url,
-                show_date=config.labels_show_date,
                 custom_formats=config.labels_custom_formats,
                 dupes=args.dupes,
             )

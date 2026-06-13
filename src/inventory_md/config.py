@@ -41,7 +41,6 @@ DEFAULTS: dict[str, Any] = {
         "sheet_format": "48x25-40",
         "base_url": "https://inventory.example.com/search.html",
         "style": "standard",
-        "show_date": True,
         "duplicate_qr": False,
     },
     # Language fallback chains for translations — canonical data lives in vocabulary.py
@@ -367,11 +366,6 @@ class Config:
     def labels_style(self) -> str:
         """Return default label style."""
         return self.get("labels.style", "standard")
-
-    @property
-    def labels_show_date(self) -> bool:
-        """Return whether to show date on labels."""
-        return self.get("labels.show_date", True)
 
     @property
     def labels_duplicate_qr(self) -> bool:
