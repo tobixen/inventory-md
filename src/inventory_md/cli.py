@@ -152,7 +152,7 @@ def _update_from_template(source: Path, target: Path) -> int:
     return 0
 
 
-def update_template(directory: Path = None, force: bool = False) -> int:
+def update_template(directory: Path = None) -> int:
     """Update search.html to the latest version from the package."""
     if directory is None:
         directory = Path.cwd()
@@ -162,7 +162,7 @@ def update_template(directory: Path = None, force: bool = False) -> int:
     return _update_from_template(source, directory / "search.html")
 
 
-def update_makefile(directory: Path = None, force: bool = False) -> int:
+def update_makefile(directory: Path = None) -> int:
     """Update inventory Makefile to the latest version from the package."""
     if directory is None:
         directory = Path.cwd()
@@ -192,6 +192,7 @@ def parse_command(
     if output is None:
         output = md_file.parent / "inventory.json"
 
+    tingbok_session = None
     try:
         # Add ID: prefixes to container headers if not validating
         if not validate_only:
@@ -279,7 +280,7 @@ def parse_command(
             # Single multiplexed session for all tingbok HTTP calls this run.
             import niquests
 
-            tingbok_session: niquests.Session | None = niquests.Session(multiplexed=True) if tingbok_url else None
+            tingbok_session = niquests.Session(multiplexed=True) if tingbok_url else None
 
             # Client-side cache for EAN and category lookups (one-week TTL).
             from pathlib import Path as _Path
@@ -485,6 +486,9 @@ def parse_command(
         print(f"\n❌ Error parsing inventory: {e}")
         traceback.print_exc()
         return 1
+    finally:
+        if tingbok_session is not None:
+            tingbok_session.close()
 
 
 def serve_command(directory: Path = None, port: int = 8000, host: str = "127.0.0.1", api_proxy: str = None) -> int:
@@ -1001,13 +1005,11 @@ Examples:
     # Update-template command
     update_parser = subparsers.add_parser("update-template", help="Update search.html to latest version")
     update_parser.add_argument("directory", type=Path, nargs="?", help="Target directory (default: current directory)")
-    update_parser.add_argument("--force", "-f", action="store_true", help="Overwrite without prompting")
 
     update_mk_parser = subparsers.add_parser("update-makefile", help="Update inventory Makefile to latest version")
     update_mk_parser.add_argument(
         "directory", type=Path, nargs="?", help="Target directory (default: current directory)"
     )
-    update_mk_parser.add_argument("--force", "-f", action="store_true", help="Overwrite without prompting")
 
     # Serve command
     serve_parser = subparsers.add_parser("serve", help="Start local web server")
@@ -1198,9 +1200,9 @@ Examples:
             no_push=getattr(args, "no_push", False),
         )
     elif args.command == "update-template":
-        return update_template(args.directory, args.force)
+        return update_template(args.directory)
     elif args.command == "update-makefile":
-        return update_makefile(args.directory, args.force)
+        return update_makefile(args.directory)
     elif args.command == "serve":
         port = args.port if args.port is not None else config.serve_port
         host = args.host if args.host is not None else config.serve_host

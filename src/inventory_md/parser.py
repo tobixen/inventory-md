@@ -438,10 +438,6 @@ def parse_inventory(md_file: Path, config: dict[str, Any] | None = None) -> dict
             if container.get("metadata") and container["metadata"].get("photos"):
                 photo_dir = container["metadata"]["photos"]
             if not photo_dir:
-                photos_link = container.get("photos_link", "")
-                if photos_link:
-                    photo_dir = photos_link.replace("photos/", "").strip("/")
-            if not photo_dir:
                 photo_dir = container_id
             discovered_images = discover_images(photo_dir, base_path)
             container["images"] = discovered_images
@@ -574,7 +570,6 @@ def validate_inventory(data: dict[str, Any]) -> list[str]:
 
     # Build ID map of containers only (items with IDs are just references to containers)
     id_map = {}
-    containers_with_parents = defaultdict(list)  # container_id -> list of parents
 
     # Collect all containers
     for container in data.get("containers", []):
@@ -582,17 +577,6 @@ def validate_inventory(data: dict[str, Any]) -> list[str]:
             if container["id"] in id_map:
                 issues.append(f"⚠️  Duplicate container ID: {container['id']}")
             id_map[container["id"]] = container
-
-            # Track if this container has a parent
-            if container.get("parent"):
-                containers_with_parents[container["id"]].append(container["parent"])
-
-    # Check for containers with multiple parents
-    for container_id, parents in containers_with_parents.items():
-        if len(parents) > 1:
-            unique_parents = list(set(parents))
-            if len(unique_parents) > 1:
-                issues.append(f"⚠️  {container_id} has multiple parents: {', '.join(unique_parents)}")
 
     # Check parent references exist
     for container in data.get("containers", []):

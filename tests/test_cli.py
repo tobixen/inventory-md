@@ -180,7 +180,7 @@ class TestUpdateTemplate:
 
     def test_update_template_creates_file(self, tmp_path):
         """Test that update_template creates search.html."""
-        result = cli.update_template(tmp_path, force=True)
+        result = cli.update_template(tmp_path)
 
         assert result == 0
         assert (tmp_path / "search.html").exists()
@@ -214,14 +214,14 @@ class TestUpdateTemplate:
 
     def test_update_template_fails_for_nonexistent_directory(self, tmp_path):
         """Test that update_template fails if directory doesn't exist."""
-        result = cli.update_template(tmp_path / "nonexistent", force=True)
+        result = cli.update_template(tmp_path / "nonexistent")
         assert result == 1
 
     def test_update_template_uses_cwd_by_default(self, tmp_path, monkeypatch):
         """Test that update_template uses current directory by default."""
         monkeypatch.chdir(tmp_path)
 
-        result = cli.update_template(force=True)
+        result = cli.update_template()
 
         assert result == 0
         assert (tmp_path / "search.html").exists()
