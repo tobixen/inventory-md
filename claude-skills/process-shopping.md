@@ -21,6 +21,11 @@ and `docs/open-prices-integration.md`.
 - **Resumable.** The staging file carries a `status:` block; an interrupted run
   resumes from it. The ledger import is idempotent; diary/inventory/publish steps
   are guarded by the status flags.
+- **Read structure from `inventory.json`, never grep the markdown.** To find
+  containers, their locations, the `category`/`ID` conventions in use, or where
+  to insert a line, query the parsed `inventory.json` (`inventory-md parse` first
+  if stale). Section boundaries in the markdown are not regex-friendly; grepping
+  it misses items and wastes a round trip.
 
 ## Capture (at the shop)
 
@@ -53,6 +58,16 @@ The importer emits one row per line item with `ean_candidates`, a classified
 `loose_photos` list (each may carry a `bb` from the OCR pass), and `needs_review`
 flags. It never decides a match or invents a date.
 
+**Run the scripts first and wait for them — don't pre-empt them by eyeballing
+photos.** The whole point of `extract_barcodes.py`/`shop_import.py` is to make
+manual photo inspection unnecessary. Default assumption: each photo holds
+**nothing but a barcode and/or an expiry date**, and a product's best-before is
+either in its barcode photo, in the immediately following photo, or supplied by
+the user. Only open a photo yourself when a script genuinely fails on it (e.g. a
+barcode that won't decode) or when the user says a photo carries extra info
+(front/ingredients/nutrition for an OFF contribution). Do not hand-read EANs
+while the barcode job is still running.
+
 ## Stage 2 — review (you / AI, in an editor)
 
 Edit the staging file: for each item pick the right `ean` from `ean_candidates`
@@ -63,6 +78,20 @@ Edit the staging file: for each item pick the right `ean` from `ean_candidates`
 importer scaffolds `to_tingbok: null` as a deliberate reminder — leave no item
 at `null` before committing. This is the checkpoint to fix mistakes **before**
 anything irreversible. Re-running stage 1 is safe (idempotent ledger; staging is yours).
+
+**tingbok cross-check (gate — the user MUST respond to these before you proceed):**
+for every `ean` you assign, compare the tingbok record to what you bought:
+
+- tingbok **has** the EAN and its description **matches** the purchase → fine,
+  proceed silently.
+- tingbok has the EAN but its description **does not match** (wrong product,
+  wrong quantity) → **flag it and stop**; the user MUST confirm or correct the
+  EAN before anything irreversible.
+- the EAN is **not in tingbok** → **flag it**; the user MUST confirm the EAN.
+- a **food** product is not in tingbok → flag it and encourage the user to take
+  front/ingredients/nutrition/packaging photos so it can be posted to OFF.
+
+Batch these flags into one round of questions rather than asking item-by-item.
 
 ## Stage 3 — commit (script + thin AI, gated)
 

@@ -1,3 +1,25 @@
+## Shopping pipeline — streamlining (from staging/notes 2026-06-13)
+
+* **`inventory-md` command to add an item line to a section.** Adding items
+  currently means hand-editing `inventory.md` (find the container, anchor on the
+  last line, format the `* category:… ID:… EAN:… bb:… …` line by hand). Provide a
+  CLI that appends/inserts a line under a given container `ID:`, validating
+  category/ID/bb as it goes. This also folds the QA work (dup-ID check, food-bb
+  check, category resolution) into the write step instead of a separate
+  `check_quality.py` pass after the fact. Should be the write path the
+  process-shopping skill calls in Stage 3.
+* **Make manual photo inspection unnecessary in the shopping flow.** Goal: the
+  agent never opens a product photo. `extract_barcodes.py`/`shop_import.py` should
+  reliably (a) decode every barcode and (b) extract each best-before and attach it
+  to the right item by pairing a barcode photo with the expiry in *that* photo or
+  the *immediately following* photo. Today expiry OCR is hit-or-miss and the
+  agent falls back to reading photos. Improve OCR robustness (orientation, dotted
+  printer fonts, curved/foil surfaces) and the photo→item association so the
+  staging file arrives with `ean` + `bb` already populated; only unresolved items
+  get flagged for the user.
+
+
+
 * ~~Consider TODO-CATEGORIES.md - is there any tasks there that hasn't been processed?  Delete everything that is completed.~~ DONE 2026-05-26
 * ~~I'd like to be able to search for, look up, and browse categories and the category hiearchies from the CLI~~ DONE 2026-05-26: `vocabulary list/lookup/tree/search` all work offline from vocabulary.json; `lookup` falls back to tingbok for unknown categories.  `vocabulary search` now shows container location next to each item.
 * Getting the categories correct is quite high.  See TODO-CATEGORIES.md.
