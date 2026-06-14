@@ -36,35 +36,31 @@ Each line should have a unique ID.  If none is given, then use something readabl
 
 ## Categories
 
-A **category** classifies what an item IS — `milk`, `hammer`, `trousers`, `multimeter`. Every item should have at least one.
+A **category** classifies what an item IS — `milk`, `hammer`, `trousers`, `multimeter`. Every item should have at least one.  Tags rather than categories should be used for properties like ownership, color, condition, etc) can be
 
-Use the `category:` prefix. Simple labels are automatically expanded to a full SKOS path:
+Use the `category:` prefix.
 
 ```markdown
-* category:milk       → food/dairy/milk
-* category:hammer     → tool/hand_tool/hammer
-* category:potatoes   → food/vegetables/potatoes
+* category:milk
+* category:hammer
+* category:potatoes
 ```
 
-**Category sources** (priority order):
-1. **OFF (Open Food Facts)** — best for food (~14 K nodes, multilingual)
-2. **AGROVOC** — agricultural vocabulary (produce, farming terms)
-3. **DBpedia** — general knowledge (tools, equipment, non-food items)
-
 **Syntax details:**
-- Simple label: `category:potatoes` — expanded via SKOS lookup
-- Full path: `category:food/vegetables/potatoes` — kept as-is
+- Simple label: `category:potatoes` — preferred
+- Full path: `category:food/vegetables/potatoes` — allowed
 - Multiple categories: `category:oatmeal,breakfast` — comma-separated
-- Hierarchical disambiguation: `category:hardware/nut` vs `category:food/nuts`
+- Hierarchical disambiguation: use `category:hardware/nut` or `category:food/nuts` rather than `category:nuts`
 
 All categories should be resolvable through Tingbok:
 ```
 https://tingbok.plann.no/api/lookup/LABEL
 ```
 
-Be as specific as possible. Categories are what the item is; use `tag:` for everything else.
+**Be as specific as possible**.
 
 **Examples:**
+- **Don't use:** `category:vegetables`, `category:fruits`, `category:hardware`
 - Dairy: `category:milk`, `category:cheese`, `category:yogurt`
 - Vegetables: `category:potatoes`, `category:onions`, `category:carrots`
 - Bread: `category:bread`, `category:baguette`

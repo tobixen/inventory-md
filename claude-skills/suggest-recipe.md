@@ -41,6 +41,8 @@ Suggest recipes that prioritize using items from the inventory, especially items
 
 8. **Consider timing**.  Avoid surprises like "Fry on strong heat for 30s while constantly stirring" followed with a point "add three finely chopped onions".  Sometimes it may be needed to chop vegetables and other things before frying things, other times the chopping can be done in parallell.
 
+9. **Quantity should be repeated in the instruction**.  Rather than "add the chopped onions", write "add one medium-sized (~120g) chopped onion"
+
 ## Searching Inventory
 
 ### Using inventory.json (preferred)
@@ -91,7 +93,7 @@ wrappers around these subcommands and accept the same arguments.)
 
 ### Dated wanted-items format
 
-Filename: `wanted-items-YYYY-MM-DD-receipe-name.md`
+Filename: `wanted-items-YYYY-MM-DD-recipe-name.md`
 
 ```markdown
 # Items needed for [recipe name] [date].
@@ -100,7 +102,17 @@ Filename: `wanted-items-YYYY-MM-DD-receipe-name.md`
 * category:coriander - Fresh coriander/cilantro
 ```
 
-The file should contain items needed to be purchased as well as items already in the inventory.
+The purpose of the file is to aid the generation of the shopping list.  The shopping list generator goes by category, so the category field is the most important.  **Use a specific category**.  For instance, if the receipt needs onions, then use `category:onion`.  If `category:vegetables` is used, the shopping list generator may consider that it's no need to buy onions since we have carrots in the fridge).
+
+The file should be reusable, so it should contain all items needed, both those needed to be purchased and those already in the inventory.  (this will also remind me to buy *more* onions if all the onions I have will be used in the cooking).
+
+Resolve the category with the vocabulary tooling.
+
+```bash
+inventory-md vocabulary lookup lemon
+inventory-md vocabulary lookup "sweet pepper"
+inventory-md vocabulary lookup "onion"
+```
 
 ## Recipe File Format
 
