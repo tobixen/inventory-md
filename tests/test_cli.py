@@ -113,6 +113,27 @@ class TestExpiringAndLookupCommands:
         rc = cli.main(["expiring", str(tmp_path / "nope.json")])
         assert rc == 1
 
+    def test_expiring_category_filter(self, tmp_path, capsys):
+        inv = {
+            "containers": [
+                {
+                    "id": "pantry",
+                    "parent": "",
+                    "items": [
+                        {"id": "rice1", "name": "Basmati", "metadata": {"bb": "2020-01-01", "categories": ["rice"]}},
+                        {"id": "oats1", "name": "Oats", "metadata": {"bb": "2020-01-01", "categories": ["oats"]}},
+                    ],
+                }
+            ]
+        }
+        path = tmp_path / "inventory.json"
+        path.write_text(json.dumps(inv))
+        rc = cli.main(["expiring", str(path), "--category", "rice"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "rice1" in out
+        assert "oats1" not in out
+
     def test_lookup_by_match_includes_item_without_bb(self, tmp_path, capsys):
         path = self._write(tmp_path)
         rc = cli.main(["lookup", str(path), "--match", "onion"])

@@ -941,12 +941,23 @@ Examples:
   inventory-md expiring --limit 10         # top 10 items by expiry date
   inventory-md expiring --all              # all items with a best-before date
   inventory-md expiring --before 2026-06   # items expiring before June 2026
+  inventory-md expiring --category rice --all   # all rice packets, by expiry
+
+Note: --category matches the item's category metadata (hierarchy-aware via
+vocabulary.json), not its ID. Items not tagged with the category are not shown.
         """,
     )
     expiring_parser.add_argument(
         "file", type=Path, nargs="?", help="inventory.json to read (default: ./inventory.json)"
     )
     expiring_parser.add_argument("--food", action="store_true", help="Only show food items (uses vocabulary.json)")
+    expiring_parser.add_argument(
+        "--category",
+        "-c",
+        type=str,
+        metavar="CATEGORY",
+        help="Only show items in this category or a descendant of it (e.g. rice)",
+    )
     expiring_parser.add_argument("--limit", type=int, help="Show top N items sorted by expiry (no date filtering)")
     expiring_parser.add_argument(
         "--all", action="store_true", help="Show all items with expiry dates, not just expired"
@@ -1288,6 +1299,7 @@ Examples:
         return queries.expiring_command(
             args.file or Path("inventory.json"),
             food_only=args.food,
+            category=args.category,
             limit=args.limit,
             before=args.before,
             show_all=args.all,

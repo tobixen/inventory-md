@@ -146,6 +146,40 @@ class TestFindExpiringItems:
         assert "soy-soon" in ids
         assert "fender-old" not in ids
 
+    def test_category_filter_exact(self, inventory_dir: Path):
+        """--category soy-beans matches soy items, not the fender."""
+        items = queries.find_expiring_items(inventory_dir / "inventory.json", category="soy-beans")
+        ids = [i["id"] for i in items]
+        assert "soy-old" in ids
+        assert "soy-soon" in ids
+        assert "fender-old" not in ids
+
+    def test_category_filter_uses_hierarchy(self, inventory_dir: Path):
+        """A parent category (legumes) matches its descendant soy-bean items."""
+        items = queries.find_expiring_items(inventory_dir / "inventory.json", category="legumes")
+        ids = [i["id"] for i in items]
+        assert "soy-old" in ids
+        assert "fender-old" not in ids
+
+    def test_category_filter_substring_without_vocabulary(self, tmp_path: Path):
+        """Without vocabulary.json, fall back to a substring match on raw categories."""
+        inv = {
+            "containers": [
+                {
+                    "id": "b",
+                    "parent": "",
+                    "items": [
+                        {"id": "rice1", "name": "Basmati", "metadata": {"bb": _iso(5), "categories": ["food/rice"]}},
+                        {"id": "pasta1", "name": "Penne", "metadata": {"bb": _iso(5), "categories": ["food/pasta"]}},
+                    ],
+                }
+            ]
+        }
+        (tmp_path / "inventory.json").write_text(json.dumps(inv))
+        items = queries.find_expiring_items(tmp_path / "inventory.json", category="rice")
+        ids = [i["id"] for i in items]
+        assert ids == ["rice1"]
+
     def test_malformed_bb_skipped(self, tmp_path: Path):
         inv = {"containers": [{"id": "b", "parent": "", "items": [{"id": "bad", "metadata": {"bb": "13-13-13"}}]}]}
         (tmp_path / "inventory.json").write_text(json.dumps(inv))

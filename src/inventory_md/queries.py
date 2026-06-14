@@ -73,6 +73,24 @@ def _load_food_vocabulary(inventory_path: Path) -> dict[str, vocabulary.Concept]
     return vocabulary.load_local_vocabulary(inventory_path.parent / "vocabulary.json")
 
 
+def _category_matches(categories: list[str], target: str, concepts: dict[str, vocabulary.Concept], lang: str) -> bool:
+    """Return True if any of ``categories`` is ``target`` or a descendant of it.
+
+    With a vocabulary, matching is hierarchy-aware (e.g. ``food/grains/rice`` matches
+    ``rice``, and ``rice`` matches a parent like ``grains``). Without a vocabulary,
+    falls back to a case-insensitive substring match on the raw category strings.
+    """
+    if not concepts:
+        needle = target.lower()
+        return any(needle in cat.lower() for cat in categories)
+    target_id = vocabulary.resolve_category(target, concepts, lang) or target
+    for cat in categories:
+        cid = vocabulary.resolve_category(cat, concepts, lang) or cat
+        if vocabulary.is_descendant_of(cid, target_id, concepts):
+            return True
+    return False
+
+
 def _is_food(categories: list[str], concepts: dict[str, vocabulary.Concept], lang: str) -> bool:
     """Return True if any category is ``food`` or a descendant of it in the vocabulary.
 
@@ -80,27 +98,26 @@ def _is_food(categories: list[str], concepts: dict[str, vocabulary.Concept], lan
     """
     if not concepts:
         return bool(categories)
-    for cat in categories:
-        cid = vocabulary.resolve_category(cat, concepts, lang) or cat
-        if vocabulary.is_descendant_of(cid, "food", concepts):
-            return True
-    return False
+    return _category_matches(categories, "food", concepts, lang)
 
 
 def find_expiring_items(
     inventory_path: Path,
     food_only: bool = False,
+    category: str | None = None,
     lang: str = "en",
 ) -> list[dict[str, Any]]:
     """Return items that have a best-before date, sorted oldest-first.
 
     Each dict has: id, name, container, parent, location, bb, days, expired, inferred.
     Items with a malformed best-before date are skipped (a warning is printed).
+    ``food_only`` restricts to the food hierarchy; ``category`` restricts to a single
+    category (and its descendants). Both use ``vocabulary.json`` when present.
     """
     with open(inventory_path, encoding="utf-8") as f:
         data = json.load(f)
 
-    concepts = _load_food_vocabulary(inventory_path) if food_only else {}
+    concepts = _load_food_vocabulary(inventory_path) if (food_only or category) else {}
     today = date.today()
     items: list[dict[str, Any]] = []
 
@@ -108,6 +125,9 @@ def find_expiring_items(
         meta = item.get("metadata", {})
 
         if food_only and not _is_food(meta.get("categories", []), concepts, lang):
+            continue
+
+        if category and not _category_matches(meta.get("categories", []), category, concepts, lang):
             continue
 
         raw_bb = meta.get("bb")
@@ -268,6 +288,7 @@ def render_lookup(results: list[dict[str, Any]]) -> str:
 def expiring_command(
     inventory_path: Path,
     food_only: bool = False,
+    category: str | None = None,
     limit: int | None = None,
     before: str | None = None,
     show_all: bool = False,
@@ -279,7 +300,7 @@ def expiring_command(
         print("Run: inventory-md parse inventory.md", file=sys.stderr)
         return 1
 
-    items = find_expiring_items(inventory_path, food_only=food_only, lang=lang)
+    items = find_expiring_items(inventory_path, food_only=food_only, category=category, lang=lang)
     items = filter_expiring(items, before=before, limit=limit, show_all=show_all)
 
     if not items:
