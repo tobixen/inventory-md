@@ -14,7 +14,7 @@ from pathlib import Path
 
 import argcomplete
 
-from . import parser, queries, shopping_list, vocabulary
+from . import additem, parser, queries, shopping_list, vocabulary
 from ._version import __version__
 from .config import Config, load_config
 
@@ -1002,6 +1002,46 @@ Examples:
         "--no-children", action="store_true", help="List only the named container, not its sub-containers"
     )
 
+    # Add command — append an item line to a container in inventory.md
+    add_parser = subparsers.add_parser(
+        "add",
+        help="Add an item line to a container in inventory.md",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Append a validated item line under a container's section in inventory.md.
+Folds the quality checks into the write step: duplicate-ID detection, the
+food-without-best-before check, and category resolution against the local
+vocabulary.  If --id is omitted, a readable ID is generated (the category leaf,
+plus the date for food items, e.g. milk-2026-06-14).
+
+Examples:
+  inventory-md add food1 --category milk --bb 2026-07 --volume 1l "Whole milk"
+  inventory-md add food1 --category potatoes --bb 2026-09 --est --mass 1200g Potatoes
+  inventory-md add A2 --category hammer --id bosch-hammer "Bosch hammer"
+        """,
+    )
+    add_parser.add_argument("container_id", help="Container ID to add the item to (e.g. food1, A2)")
+    add_parser.add_argument("name", nargs="*", help="Human-readable description (rest of the line)")
+    add_parser.add_argument(
+        "--category", "-c", required=True, help="Category, e.g. milk or food/dairy/milk (comma-separated for several)"
+    )
+    add_parser.add_argument("--id", dest="item_id", help="Item ID (unique); auto-generated if omitted")
+    add_parser.add_argument("--ean", help="Product barcode")
+    add_parser.add_argument("--isbn", help="ISBN (for books)")
+    add_parser.add_argument("--bb", help="Best-before date: YYYY, YYYY-MM or YYYY-MM-DD")
+    add_parser.add_argument("--est", action="store_true", help="Mark the best-before date as estimated (:EST)")
+    add_parser.add_argument("--qty", help="Quantity of identical items")
+    add_parser.add_argument("--mass", help="Net mass per unit, e.g. 500g or 1.2kg")
+    add_parser.add_argument("--volume", help="Volume per unit, e.g. 1l or 400ml")
+    add_parser.add_argument("--price", help="Price at purchase, e.g. EUR:2.49/pcs")
+    add_parser.add_argument("--value", help="Subjective value estimate, e.g. NOK:200")
+    add_parser.add_argument("--tag", action="append", dest="tags", help="Tag (repeatable), e.g. condition:new")
+    add_parser.add_argument("--no-bb-check", action="store_true", help="Skip the food-without-best-before check")
+    add_parser.add_argument("--strict", action="store_true", help="Treat unresolved categories as errors, not warnings")
+    add_parser.add_argument(
+        "--file", type=Path, dest="file", help="inventory.md to edit (default: configured or ./inventory.md)"
+    )
+
     # Update-template command
     update_parser = subparsers.add_parser("update-template", help="Update search.html to latest version")
     update_parser.add_argument("directory", type=Path, nargs="?", help="Target directory (default: current directory)")
@@ -1261,9 +1301,62 @@ Examples:
             args.container_id,
             include_children=not args.no_children,
         )
+    elif args.command == "add":
+        return add_item_command(args, config)
     else:
         parser_cli.print_help()
         return 1
+
+
+def add_item_command(args, config: Config) -> int:
+    """Handle the `add` subcommand: append an item line to inventory.md."""
+    # Resolve the markdown source: --file, else configured inventory_file, else ./inventory.md
+    if args.file is not None:
+        md_path = args.file
+    elif config.inventory_file:
+        md_path = Path(config.inventory_file)
+    else:
+        md_path = Path("inventory.md")
+
+    if not md_path.exists():
+        print(f"❌ Error: {md_path} not found.")
+        return 1
+
+    name = " ".join(args.name).strip() if args.name else None
+
+    result = additem.add_item(
+        md_path,
+        container_id=args.container_id,
+        category=args.category,
+        item_id=args.item_id,
+        ean=args.ean,
+        isbn=args.isbn,
+        bb=args.bb,
+        bb_est=args.est,
+        qty=args.qty,
+        mass=args.mass,
+        volume=args.volume,
+        price=args.price,
+        value=args.value,
+        tags=args.tags,
+        name=name,
+        check_bb=not args.no_bb_check,
+        strict=args.strict,
+        lang=config.lang or "en",
+    )
+
+    for warning in result.warnings:
+        print(f"⚠️  {warning}")
+
+    if result.errors:
+        for error in result.errors:
+            print(f"❌ {error}")
+        return 1
+
+    print(f"✅ Added to {args.container_id}:\n   {result.item_line}")
+    print(f"   in {md_path}")
+    print("Run 'inventory-md parse' to refresh inventory.json.")
+    return 0
 
 
 def shopping_list_command(args, config: Config) -> int:

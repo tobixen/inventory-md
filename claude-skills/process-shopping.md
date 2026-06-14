@@ -14,22 +14,18 @@ and `docs/open-prices-integration.md`.
 - **Deterministic work in scripts; judgement in a reviewable file.** Receipt
   parsing, barcode/OCR extraction, EAN-candidate lookup, ledger writes,
   validation — all scripted. Matching an EAN, reading a best-before, choosing a
-  storage location — done by you/AI editing the staging file, then committed.
+  storage location — done by user/AI editing the staging file, then committed.
 - **Gate the irreversible steps.** tingbok PUT, Open Prices/OFF publishing, and
   git commits happen only after the staging file is reviewed and validated. If a
   product↔EAN mapping is unclear, **ask** — never post wrong data to tingbok/OFF.
 - **Resumable.** The staging file carries a `status:` block; an interrupted run
   resumes from it. The ledger import is idempotent; diary/inventory/publish steps
   are guarded by the status flags.
-- **Read structure from `inventory.json`, never grep the markdown.** To find
-  containers, their locations, the `category`/`ID` conventions in use, or where
-  to insert a line, query the parsed `inventory.json` (`inventory-md parse` first
-  if stale). Section boundaries in the markdown are not regex-friendly; grepping
-  it misses items and wastes a round trip.
+- It's better to read structure from `inventory.json` than grepping in `inventory.md`.  The commands `inventory-md lookup` and `inventory-md container` also does the right thing.
 
 ## Capture (at the shop)
 
-- Photograph the **receipt at the shop** so its EXIF GPS marks the location
+- User should photograph the **receipt at the shop** so its EXIF GPS marks the location
   (used for Open Prices). Photograph product labels **upright and legible** — the
   best-before date is read by OCR, which honours EXIF orientation but can't read
   faint/sideways print.
@@ -58,17 +54,11 @@ The importer emits one row per line item with `ean_candidates`, a classified
 `loose_photos` list (each may carry a `bb` from the OCR pass), and `needs_review`
 flags. It never decides a match or invents a date.
 
-**Run the scripts first and wait for them — don't pre-empt them by eyeballing
-photos.** The whole point of `extract_barcodes.py`/`shop_import.py` is to make
-manual photo inspection unnecessary. Default assumption: each photo holds
-**nothing but a barcode and/or an expiry date**, and a product's best-before is
-either in its barcode photo, in the immediately following photo, or supplied by
-the user. Only open a photo yourself when a script genuinely fails on it (e.g. a
-barcode that won't decode) or when the user says a photo carries extra info
-(front/ingredients/nutrition for an OFF contribution). Do not hand-read EANs
-while the barcode job is still running.
+Photos needs to be manually inspected for barcodes that don't resolves and best-before dates that cannot be read by the OCR.  Run the scripts first and wait for them — the whole point of `extract_barcodes.py`/`shop_import.py` is to make manual photo inspection unnecessary.
 
-## Stage 2 — review (you / AI, in an editor)
+Default assumption: each photo holds **nothing but a barcode and/or an expiry date**, and a product's best-before is either in its barcode photo, in the immediately following photo, or supplied by the user.
+
+## Stage 2 — review (AI, or by user in an editor)
 
 Edit the staging file: for each item pick the right `ean` from `ean_candidates`
 (or add one), set `name`, `category`, `bb` (from the photo's `bb` candidate, else
@@ -104,20 +94,24 @@ Batch these flags into one round of questions rather than asking item-by-item.
    Append-or-enrich: a raw row from a receipt importer is later filled in place
    with `ean`/`category`/`inventory_id` by the reviewed staging import (matched on
    `date, shop, receipt_name, qty, unit_price, total`; nulls never overwrite).
-3. **Inventory** — add lines to the right container in `inventory.md`:
-   ```
-   * category:CONCEPT ID:ITEM-ID EAN:CODE bb:YYYY-MM[:EST] qty:N mass:Xg volume:Xl price:CUR:X/pcs NAME
-   ```
-   See `docs/ADDING-ITEMS.md`. **Every** item needs an `ID:`; food items need a
-   `bb:` (estimate with `:EST` if unknown). To inspect a container — its existing
-   items, the `category`/`ID` conventions in use, where to insert — query the
-   parsed `inventory.json`, do **not** grep/awk the markdown (section boundaries
-   are not regex-friendly and you'll miss items):
+3. **Inventory** — write every reviewed row straight from the staging file with
+   one command; do **not** hand-edit `inventory.md`:
    ```bash
-   inventory-md parse inventory.md   # refresh inventory.json
-   jq -r '.. | objects | select(.id?=="food4" and .items?) | .items[].raw_text' inventory.json
+   ~/inventory-md/scripts/inventory_import.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml   # dry run — preview the plan
+   ~/inventory-md/scripts/inventory_import.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml --commit
    ```
-   Then anchor the `Edit` on the last existing item line in that container.
+   It reads each item's `location` (→ container), `category`, `inventory_id`,
+   `ean`, `bb` (`:EST` honoured), `qty`/`unit` (weighed lines → `mass`/`volume`)
+   and `price`, formats the line, inserts it in the right section, and runs the
+   QA checks as part of the write: duplicate `ID:`, food-without-`bb:` (hard
+   error; `--no-bb-check` to override for fresh produce), and category resolution
+   (`--strict` to fail on unresolved). `add_to_inventory: false` rows are skipped;
+   rows whose `inventory_id` already exists are reported as `exists` and skipped,
+   so re-running is safe. Missing `location` defaults to `floating`. So the review
+   step (Stage 2) must fill `location`, `category`, `bb` and a unique
+   `inventory_id` per row — there is nothing left to edit by hand here.
+   This is `inventory-md add` applied per row; see `docs/ADDING-ITEMS.md` for the
+   field reference and the single-item CLI.
 4. **Photos** — copy only **label** photos to `photos/LOCATION-ID/`; skip
    barcode/expiry close-ups; skip fast-consumed items. Never `git add` photos.
 5. **tingbok** — PUT observations for reviewed EANs (merges; prices/receipt_names

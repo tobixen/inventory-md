@@ -2,6 +2,27 @@
 
 This guide covers the data format and field conventions for inventory items. For step-by-step workflows (processing shopping receipts, processing photos, etc.) see the skill files under `claude-skills/`.
 
+## Adding an item from the CLI
+
+The preferred way to add an item is `inventory-md add`, which appends a
+correctly-formatted line to a container's section and runs the quality checks
+(duplicate `ID:`, food-without-`bb:`, category resolution) as part of the write:
+
+```bash
+inventory-md add food1 --category milk --bb 2026-07 --volume 1l "Whole milk 1l"
+inventory-md add food1 --category potatoes --bb 2026-09 --est --mass 1200g Potatoes
+inventory-md add A2 --category hammer --id bosch-hammer "Bosch hammer"
+```
+
+- `--id` is optional; if omitted a readable ID is generated from the category
+  leaf, with the date appended for food (e.g. `milk-2026-06-14`).
+- Food items without a `--bb` are rejected (pass `--no-bb-check` to override, e.g.
+  for fresh produce that will be dated later via `inventory-md lookup`).
+- An unresolved category is a warning; `--strict` turns it into an error.
+
+The rest of this document describes the underlying line format, for reference and
+for hand-editing.
+
 ## Item Line Format
 
 Items are bullet points inside a container section in `inventory.md`:

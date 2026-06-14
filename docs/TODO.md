@@ -1,13 +1,13 @@
 ## Shopping pipeline — streamlining (from staging/notes 2026-06-13)
 
-* **`inventory-md` command to add an item line to a section.** Adding items
-  currently means hand-editing `inventory.md` (find the container, anchor on the
-  last line, format the `* category:… ID:… EAN:… bb:… …` line by hand). Provide a
-  CLI that appends/inserts a line under a given container `ID:`, validating
-  category/ID/bb as it goes. This also folds the QA work (dup-ID check, food-bb
-  check, category resolution) into the write step instead of a separate
-  `check_quality.py` pass after the fact. Should be the write path the
-  process-shopping skill calls in Stage 3.
+* ~~**`inventory-md` command to add an item line to a section.**~~ DONE 2026-06-14:
+  `inventory-md add CONTAINER --category … [--id … --ean … --bb … …] NAME`
+  appends a validated line under a container `ID:`, folding the QA work (dup-ID,
+  food-bb, category resolution) into the write step; `--id` auto-generates a
+  readable id (category leaf + date for food). `scripts/inventory_import.py`
+  applies it across a whole reviewed staging file in one pass (import
+  `inventory_md.additem`, no CLI shell-out), so process-shopping Stage 3 no
+  longer hand-edits `inventory.md`. See `docs/ADDING-ITEMS.md`.
 * **Make manual photo inspection unnecessary in the shopping flow.** Goal: the
   agent never opens a product photo. `extract_barcodes.py`/`shop_import.py` should
   reliably (a) decode every barcode and (b) extract each best-before and attach it
@@ -18,7 +18,9 @@
   staging file arrives with `ean` + `bb` already populated; only unresolved items
   get flagged for the user.
 
+## Old stuff
 
+This needs to be cleaned up and organized, it's a mess
 
 * ~~Consider TODO-CATEGORIES.md - is there any tasks there that hasn't been processed?  Delete everything that is completed.~~ DONE 2026-05-26
 * ~~I'd like to be able to search for, look up, and browse categories and the category hiearchies from the CLI~~ DONE 2026-05-26: `vocabulary list/lookup/tree/search` all work offline from vocabulary.json; `lookup` falls back to tingbok for unknown categories.  `vocabulary search` now shows container location next to each item.

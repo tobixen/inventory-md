@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""Import reviewed shopping staging items into ``inventory.md``.
+
+Reads a reviewed staging YAML (the flat single-shop schema from
+``staging.py`` / ``shop_import.py``) and appends one item line per
+``add_to_inventory`` row to ``inventory.md`` via
+:mod:`inventory_md.additem`.  This is the Stage-3 *Inventory* step of the
+process-shopping skill, scripted: it folds in the quality checks
+(duplicate ``ID:``, food-without-``bb:``, category resolution) and removes the
+need to hand-edit the markdown item by item.
+
+The script imports ``inventory_md`` directly rather than shelling out to the
+``inventory-md add`` CLI.
+
+Usage::
+
+    inventory_import.py STAGING.yaml                       # dry run — show plan
+    inventory_import.py STAGING.yaml --commit              # write to inventory.md
+    inventory_import.py STAGING.yaml --inventory path/to/inventory.md --commit
+    inventory_import.py STAGING.yaml --no-bb-check --commit
+
+Each item is routed by its ``location`` (→ container ID); rows with no
+``location`` go to ``--default-container`` (``floating``, per the convention of
+keeping location-less items in the ``ID:floating`` section).  Re-running is safe:
+rows whose ``inventory_id`` already exists are reported as ``exists`` and skipped
+rather than failing on a duplicate ID.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from datetime import date
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from inventory_md import additem
+from inventory_md.parser import parse_inventory
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from staging import require_flat  # noqa: E402
+
+# Units that map to a per-unit mass / volume field rather than a piece count.
+_MASS_UNITS = {"kg", "g"}
+_VOLUME_UNITS = {"l", "ml", "cl", "dl"}
+
+
+def _num(value: Any) -> str:
+    """Render a number without a redundant trailing ``.0`` (1.0 → '1', 1.768 → '1.768')."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def staging_item_to_kwargs(
+    item: dict[str, Any],
+    currency: str,
+    default_container: str = "floating",
+) -> dict[str, Any] | None:
+    """Map a reviewed staging item to :func:`inventory_md.additem.add_item` kwargs.
+
+    Returns ``None`` when the item is flagged ``add_to_inventory: false`` (e.g.
+    fast-consumed goods, bags) and should be skipped silently.
+    """
+    if not item.get("add_to_inventory", True):
+        return None
+
+    # best-before: accept a ``:EST`` suffix or a bb_source that names an estimate.
+    bb = item.get("bb")
+    bb_est = False
+    if isinstance(bb, str) and bb.endswith(":EST"):
+        bb = bb[: -len(":EST")]
+        bb_est = True
+    source = (item.get("bb_source") or "").lower()
+    if any(token in source for token in ("est", "shelf", "inferred")):
+        bb_est = True
+
+    # quantity routing by unit
+    unit = (item.get("unit") or "pcs").lower()
+    qty = item.get("qty")
+    out_qty = mass = volume = None
+    if qty is not None:
+        if unit in _MASS_UNITS:
+            mass = f"{_num(qty)}{unit}"
+        elif unit in _VOLUME_UNITS:
+            volume = f"{_num(qty)}{unit}"
+        else:
+            out_qty = _num(qty)
+
+    price = item.get("price")
+    price_str = f"{currency}:{_num(price)}/{unit}" if price is not None else None
+
+    return {
+        "container_id": item.get("location") or default_container,
+        "category": item.get("category"),
+        "item_id": item.get("inventory_id"),
+        "ean": item.get("ean"),
+        "isbn": item.get("isbn"),
+        "bb": bb,
+        "bb_est": bb_est,
+        "qty": out_qty,
+        "mass": mass,
+        "volume": volume,
+        "price": price_str,
+        "name": item.get("name") or item.get("receipt_name"),
+    }
+
+
+def import_staging(
+    staging: dict[str, Any],
+    md_path: Path,
+    *,
+    commit: bool,
+    check_bb: bool = True,
+    strict: bool = False,
+    lang: str | None = None,
+    default_container: str = "floating",
+    today: date | None = None,
+) -> list[tuple[dict[str, Any], str, Any]]:
+    """Import all add-to-inventory rows; return one ``(item, action, detail)`` per row.
+
+    ``action`` is one of ``"add"`` (detail is the :class:`additem.AddResult`),
+    ``"skip"`` (detail is a reason string) or ``"exists"`` (detail is the
+    duplicate ``inventory_id``).  With ``commit=False`` nothing is written.
+    """
+    require_flat(staging)
+    currency = staging.get("currency", "EUR")
+
+    data = parse_inventory(md_path)
+    existing = additem.collect_existing_ids(data)
+
+    results: list[tuple[dict[str, Any], str, Any]] = []
+    for item in staging.get("items", []):
+        kwargs = staging_item_to_kwargs(item, currency, default_container)
+        if kwargs is None:
+            results.append((item, "skip", "add_to_inventory is false"))
+            continue
+
+        item_id = kwargs.get("item_id")
+        if item_id and item_id in existing:
+            results.append((item, "exists", item_id))
+            continue
+
+        res = additem.add_item(
+            md_path,
+            check_bb=check_bb,
+            strict=strict,
+            lang=lang,
+            today=today,
+            dry_run=not commit,
+            **kwargs,
+        )
+        # Reserve the id so later rows in the same batch see it (matters for the
+        # dry-run preview, where the file is not actually updated between rows).
+        if res.item_id and not res.errors:
+            existing.add(res.item_id)
+        results.append((item, "add", res))
+
+    return results
+
+
+def _print_report(results: list[tuple[dict[str, Any], str, Any]], commit: bool) -> int:
+    """Print a per-row report; return process exit code (1 if any row errored)."""
+    added = skipped = existed = errored = 0
+    for item, action, detail in results:
+        label = item.get("name") or item.get("receipt_name") or item.get("category") or "?"
+        if action == "skip":
+            skipped += 1
+            print(f"  · skip   {label} ({detail})")
+        elif action == "exists":
+            existed += 1
+            print(f"  = exists {label} (ID:{detail} already present)")
+        else:  # add
+            res = detail
+            if res.errors:
+                errored += 1
+                print(f"  ✗ ERROR  {label}: {'; '.join(res.errors)}")
+            else:
+                added += 1
+                for warning in res.warnings:
+                    print(f"    ⚠️  {warning}")
+                print(f"  + add    {res.item_line}")
+
+    verb = "Added" if commit else "Would add"
+    print(f"\n{verb} {added}, skipped {skipped}, already present {existed}, errors {errored}.")
+    if not commit:
+        print("DRY RUN — pass --commit to write inventory.md")
+    return 1 if errored else 0
+
+
+def main() -> int:  # pragma: no cover - thin CLI wiring
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("staging", type=Path, help="reviewed shopping staging YAML")
+    ap.add_argument("--inventory", type=Path, default=Path("inventory.md"), help="inventory.md to edit")
+    ap.add_argument("--commit", action="store_true", help="actually write (default: dry run)")
+    ap.add_argument("--no-bb-check", action="store_true", help="skip the food-without-best-before check")
+    ap.add_argument("--strict", action="store_true", help="treat unresolved categories as errors")
+    ap.add_argument("--lang", default=None, help="vocabulary language (default: en)")
+    ap.add_argument("--default-container", default="floating", help="container for rows without a location")
+    args = ap.parse_args()
+
+    if not args.inventory.exists():
+        print(f"❌ {args.inventory} not found", file=sys.stderr)
+        return 2
+
+    staging = yaml.safe_load(args.staging.read_text(encoding="utf-8"))
+    try:
+        results = import_staging(
+            staging,
+            args.inventory,
+            commit=args.commit,
+            check_bb=not args.no_bb_check,
+            strict=args.strict,
+            lang=args.lang,
+            default_container=args.default_container,
+        )
+    except ValueError as e:
+        print(f"❌ {e}", file=sys.stderr)
+        return 2
+
+    return _print_report(results, args.commit)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
