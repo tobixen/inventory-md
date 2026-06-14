@@ -155,9 +155,45 @@ def classify_photo_result(result: dict[str, Any]) -> dict[str, Any]:
     return {"file": filename, "kind": "label", "ocr_title": result.get("ocr_title") or result.get("data")}
 
 
+def _expiry_date(photo: dict[str, Any]) -> str | None:
+    """Best best-before date an expiry photo offers, or None.
+
+    Prefers the OCR pass's own ``bb`` pick; else the latest date candidate
+    (best-before is usually the furthest-out date on a pack — lot/production
+    dates are earlier).
+    """
+    if photo.get("bb"):
+        return photo["bb"]
+    dates = photo.get("ocr_date_candidates") or []
+    return max(dates) if dates else None
+
+
+def _pair_following_expiry(photos: list[dict[str, Any]]) -> None:
+    """Carry an expiry-only photo's date back onto the preceding barcode photo.
+
+    A best-before is often shot in the frame *immediately after* the barcode
+    rather than on the barcode itself. When a barcode photo has no ``bb`` of its
+    own and is directly followed by an ``expiry`` photo, attach that date as the
+    barcode's ``bb`` and record the source frame in ``bb_from`` (the pairing is
+    a positional guess, so the reviewer can see where it came from). Mutates in
+    place.
+    """
+    for prev, cur in zip(photos, photos[1:], strict=False):
+        if prev.get("kind") != "barcode" or prev.get("bb"):
+            continue
+        if cur.get("kind") != "expiry":
+            continue
+        date = _expiry_date(cur)
+        if date:
+            prev["bb"] = date
+            prev["bb_from"] = cur["file"]
+
+
 def build_loose_photos(barcode_results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Classify every barcode-extraction result into a loose_photos list."""
-    return [classify_photo_result(r) for r in barcode_results]
+    photos = [classify_photo_result(r) for r in barcode_results]
+    _pair_following_expiry(photos)
+    return photos
 
 
 def _tingbok_searcher(base_url: str = DEFAULT_TINGBOK_URL) -> Searcher:

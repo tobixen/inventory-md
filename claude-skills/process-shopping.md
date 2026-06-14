@@ -52,7 +52,10 @@ Receipt source: a JSON file from a receipt parser, or OCR/read a photographed
 receipt into the same shape (`date, shop, total, items[name,price,quantity]`).
 The importer emits one row per line item with `ean_candidates`, a classified
 `loose_photos` list (each may carry a `bb` from the OCR pass), and `needs_review`
-flags. It never decides a match or invents a date.
+flags. A barcode photo with no date of its own is paired with the date from the
+*immediately following* expiry photo, surfaced as `bb` with a `bb_from` pointer
+to the source frame; treat a `bb_from` date as a positional guess to sanity-check.
+It never decides a match or invents a date.
 
 Photos needs to be manually inspected for barcodes that don't resolves and best-before dates that cannot be read by the OCR.  Run the scripts first and wait for them — the whole point of `extract_barcodes.py`/`shop_import.py` is to make manual photo inspection unnecessary.
 

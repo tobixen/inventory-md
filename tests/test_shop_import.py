@@ -159,6 +159,44 @@ class TestBuildLoosePhotos:
         loose = build_loose_photos(results)
         assert [p["kind"] for p in loose] == ["barcode", "expiry"]
 
+    def test_following_expiry_photo_paired_to_barcode(self):
+        # A barcode shot with no date, followed by a separate expiry shot:
+        # the expiry date should be carried back onto the barcode photo.
+        results = [
+            {"file": "/p/IMG_1.jpg", "type": "EAN13", "data": "4056489080510", "product": None},
+            {"file": "/p/IMG_2.jpg", "type": "OCR", "data": "12.06.2026", "ocr_results": [{"text": "12.06.2026"}]},
+        ]
+        loose = build_loose_photos(results)
+        assert loose[0]["bb"] == "2026-06-12"
+        assert loose[0]["bb_from"] == "IMG_2.jpg"
+
+    def test_own_best_before_not_overwritten_by_following(self):
+        # A barcode photo that already carries its own bb keeps it and is not
+        # re-paired to a following expiry photo.
+        results = [
+            {
+                "file": "/p/IMG_1.jpg",
+                "type": "EAN13",
+                "data": "4056489080510",
+                "product": None,
+                "best_before": "2026-07-25",
+            },
+            {"file": "/p/IMG_2.jpg", "type": "OCR", "data": "12.06.2026", "ocr_results": [{"text": "12.06.2026"}]},
+        ]
+        loose = build_loose_photos(results)
+        assert loose[0]["bb"] == "2026-07-25"
+        assert "bb_from" not in loose[0]
+
+    def test_barcode_without_following_expiry_unpaired(self):
+        # Two consecutive barcode photos: neither gains a bb.
+        results = [
+            {"file": "/p/IMG_1.jpg", "type": "EAN13", "data": "4056489080510", "product": None},
+            {"file": "/p/IMG_2.jpg", "type": "EAN13", "data": "4056489693307", "product": None},
+        ]
+        loose = build_loose_photos(results)
+        assert "bb" not in loose[0]
+        assert "bb" not in loose[1]
+
 
 def _stub_searcher(receipt_name, shop=None):
     """Pretend tingbok knows the milk receipt name."""
