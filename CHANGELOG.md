@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **`find_container_section()` now locates nested (`###` and deeper) sub-containers** — it previously matched only `#`/`##` headings, so `inventory-md add` (and the pipeline's `inventory_import.py`) raised "Container ID:… not found" for any sub-container such as `pantry-fridge`. Heading depth is now computed generically and a section ends at the next heading of the same-or-higher level, so adds to nested containers work.
 - **`resolve_category()` now matches a category by its synonyms / singular-plural** — it falls back to the concept label index (prefLabel + altLabels, the same index `lookup_concept` uses) when a raw category string is neither a concept ID, path alias, nor leaf name. Tingbok folds variants like `vegetable` into the canonical `food/vegetables` concept's altLabels, so `inventory-md expiring --category vegetable` and `--category vegetables` (and likewise `vocabulary search`) now resolve to the same concept and surface the same items instead of disjoint sets. Requires re-running `parse` against a tingbok that folds variants into altLabels rather than emitting separate bridge concepts.
 
 ### Changed

@@ -411,6 +411,34 @@ class TestFindContainerSection:
         _, end, _ = result
         assert end == 7  # ## headings at 3 and 5 are inside A1; only # at 7 ends it
 
+    # Nested (### and deeper) sub-containers, e.g. pantry-fridge under a ## area.
+    LINES3 = [
+        "# Pantry ID:P1\n",
+        "## Fridge area ID:FA\n",
+        "### Fridge ID:pantry-fridge\n",
+        "* Milk\n",
+        "### Freezer ID:freezer\n",
+        "* Peas\n",
+        "## Other ID:O1\n",
+        "* Thing\n",
+    ]
+
+    def test_level3_found(self):
+        result = parser.find_container_section(self.LINES3, "pantry-fridge")
+        assert result is not None
+        start, end, level = result
+        assert start == 2
+        assert level == "###"
+        assert end == 4  # stops at the next ### heading (Freezer)
+
+    def test_level3_end_stops_at_higher_level(self):
+        result = parser.find_container_section(self.LINES3, "freezer")
+        assert result is not None
+        start, end, level = result
+        assert start == 4
+        assert level == "###"
+        assert end == 6  # stops at the higher-level "## Other"
+
 
 class TestAddContainerIdPrefixes:
     """add_container_id_prefixes must skip configurable section names."""
