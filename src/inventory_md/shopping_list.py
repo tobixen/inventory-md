@@ -4,8 +4,8 @@ Shopping list generator for inventory system.
 Compares wanted-items.md (target stock levels) with inventory.json to generate
 a shopping list organized by section.
 
-Supports dated wanted-items files (wanted-items-YYYY-MM-DD.md) for temporary
-shopping needs like recipe ingredients.
+Supports dated wanted-items files (wanted-items-YYYY-MM-DD[-recipe-name].md)
+for temporary shopping needs like recipe ingredients.
 """
 
 import glob
@@ -368,12 +368,12 @@ def evaluate_item(
 
 
 def find_dated_wanted_files(base_path: Path) -> list[Path]:
-    """Find dated wanted-items files (``wanted-items-YYYY-MM-DD.md``), sorted oldest first."""
+    """Find dated wanted-items files (``wanted-items-YYYY-MM-DD[-recipe-name].md``), sorted oldest first."""
     directory = base_path.parent
     dated_files = []
     for filepath in glob.glob(str(directory / "wanted-items-*.md")):
         path = Path(filepath)
-        if re.match(r"wanted-items-\d{4}-\d{2}-\d{2}\.md$", path.name):
+        if re.match(r"wanted-items-\d{4}-\d{2}-\d{2}(?:-.*)?\.md$", path.name):
             dated_files.append(path)
     return sorted(dated_files)
 

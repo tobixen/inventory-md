@@ -900,7 +900,9 @@ Examples:
     parse_parser.add_argument("--validate", action="store_true", help="Validate only, do not generate JSON")
     parse_parser.add_argument("--wanted-items", "-w", type=Path, help="Wanted items file to generate shopping list")
     parse_parser.add_argument(
-        "--no-dated", action="store_true", help="Exclude dated wanted-items files (wanted-items-YYYY-MM-DD.md)"
+        "--no-dated",
+        action="store_true",
+        help="Exclude dated wanted-items files (wanted-items-YYYY-MM-DD[-recipe-name].md)",
     )
     parse_parser.add_argument(
         "--auto",
@@ -921,7 +923,9 @@ Examples:
         "--wanted-items", "-w", type=Path, help="Wanted items file (default: auto-detect wanted-items.md)"
     )
     sl_parser.add_argument(
-        "--no-dated", action="store_true", help="Exclude dated wanted-items files (wanted-items-YYYY-MM-DD.md)"
+        "--no-dated",
+        action="store_true",
+        help="Exclude dated wanted-items files (wanted-items-YYYY-MM-DD[-recipe-name].md)",
     )
     sl_parser.add_argument(
         "--stdout", action="store_true", help="Print shopping list to stdout instead of writing file"

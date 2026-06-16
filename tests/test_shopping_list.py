@@ -8,6 +8,7 @@ from inventory_md.shopping_list import (
     DesiredItem,
     InventoryItem,
     evaluate_item,
+    find_dated_wanted_files,
     generate_shopping_list,
     parse_inventory_for_shopping,
     parse_wanted_items,
@@ -434,3 +435,35 @@ class TestBroaderStubMatching:
 
         result = generate_shopping_list(wanted, inventory_json)
         assert "[!]" not in result, "olive_oil should satisfy the cooking_oil desired item"
+
+
+class TestFindDatedWantedFiles:
+    def _touch(self, directory, name):
+        path = directory / name
+        path.write_text("## X\n\n* category:eggs - Eggs target:qty:6\n")
+        return path
+
+    def test_plain_dated_file_found(self, tmp_path):
+        wanted = tmp_path / "wanted-items.md"
+        wanted.write_text("")
+        dated = self._touch(tmp_path, "wanted-items-2026-06-16.md")
+        assert find_dated_wanted_files(wanted) == [dated]
+
+    def test_recipe_named_dated_file_found(self, tmp_path):
+        """Files of the form wanted-items-YYYY-MM-DD-recipe-name.md must be picked up."""
+        wanted = tmp_path / "wanted-items.md"
+        wanted.write_text("")
+        dated = self._touch(tmp_path, "wanted-items-2026-06-16-asparagus-frittata.md")
+        assert find_dated_wanted_files(wanted) == [dated]
+
+    def test_master_wanted_file_not_treated_as_dated(self, tmp_path):
+        wanted = tmp_path / "wanted-items.md"
+        wanted.write_text("")
+        assert find_dated_wanted_files(wanted) == []
+
+    def test_dated_files_sorted_oldest_first(self, tmp_path):
+        wanted = tmp_path / "wanted-items.md"
+        wanted.write_text("")
+        newer = self._touch(tmp_path, "wanted-items-2026-06-16-frittata.md")
+        older = self._touch(tmp_path, "wanted-items-2026-05-08-curry.md")
+        assert find_dated_wanted_files(wanted) == [older, newer]

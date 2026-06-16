@@ -88,7 +88,7 @@ wrappers around these subcommands and accept the same arguments.)
 1. Save full recipe to `$INVENTORY_DIR/recipes/` with filename `YYYY-MM-DD-recipe-name.md` (date first)
 2. Create a dated wanted-items file for shopping needs:
    ```
-   $INVENTORY_DIR/wanted-items-YYYY-MM-DD.md
+   $INVENTORY_DIR/wanted-items-YYYY-MM-DD-recipe-name.md
    ```
 
 ### Dated wanted-items format
