@@ -158,6 +158,26 @@ concepts:
         assert vocab["boat-equipment"].prefLabel == "Boat equipment"
         assert vocab["boat-equipment"].narrower == ["boat-equipment/safety"]
 
+    def test_altlabels_roundtrip_through_to_dict(self, tmp_path):
+        """altLabels written by Concept.to_dict (key 'altLabels') must load back.
+
+        Regression: the JSON serializer writes the plural "altLabels" while the
+        loader only read the singular "altLabel", so altLabels in generated
+        vocabulary.json were silently dropped — breaking synonym-based category
+        resolution.  A to_dict → load round-trip must preserve them.
+        """
+        original = vocabulary.Concept(
+            id="food/vegetables",
+            prefLabel="Vegetables",
+            altLabels={"en": ["vegetable", "veggies"]},
+        )
+        vocab_file = tmp_path / "vocabulary.json"
+        vocab_file.write_text(json.dumps({"concepts": {"food/vegetables": original.to_dict()}}))
+
+        loaded = vocabulary.load_local_vocabulary(vocab_file)
+        assert loaded["food/vegetables"].altLabels == {"en": ["vegetable", "veggies"]}
+        assert "vegetable" in loaded["food/vegetables"].get_all_alt_labels_flat()
+
     def test_load_nonexistent_file(self, tmp_path):
         """Test loading from nonexistent file returns empty dict."""
         vocab_file = tmp_path / "nonexistent.yaml"
@@ -2307,6 +2327,56 @@ class TestBroaderStubs:
         tree = vocabulary.build_category_tree(vocab)
 
         assert tree.concepts["food"].source != "inferred"
+
+
+class TestResolveCategoryViaAltLabel:
+    """resolve_category falls back to the altLabel index for raw category strings.
+
+    Tingbok folds synonym/number variants of a category into the canonical
+    concept's altLabels (e.g. ``food/vegetables`` carries ``vegetable`` and
+    ``veggies``).  resolve_category must consult those — reusing the same label
+    index ``lookup_concept`` uses — so an inventory category written as a synonym
+    or singular resolves to the canonical concept ID rather than falling through.
+    """
+
+    def _veg_vocab(self):
+        return {
+            "food": vocabulary.Concept(id="food", prefLabel="Food"),
+            "food/vegetables": vocabulary.Concept(
+                id="food/vegetables",
+                prefLabel="Vegetables",
+                broader=["food"],
+                altLabels={"en": ["vegetable", "veggies", "greens"]},
+            ),
+            "corn": vocabulary.Concept(id="corn", prefLabel="Corn", broader=["food/vegetables"]),
+        }
+
+    def test_plural_leaf_resolves_to_canonical(self):
+        # "vegetables" is the leaf of food/vegetables → resolved by the existing step.
+        assert vocabulary.resolve_category("vegetables", self._veg_vocab()) == "food/vegetables"
+
+    def test_singular_altlabel_resolves_to_canonical(self):
+        # "vegetable" is only an altLabel, not the leaf → needs the new index fallback.
+        assert vocabulary.resolve_category("vegetable", self._veg_vocab()) == "food/vegetables"
+
+    def test_other_altlabel_resolves_to_canonical(self):
+        assert vocabulary.resolve_category("veggies", self._veg_vocab()) == "food/vegetables"
+
+    def test_case_insensitive(self):
+        assert vocabulary.resolve_category("Vegetable", self._veg_vocab()) == "food/vegetables"
+
+    def test_singular_and_plural_match_same_items(self):
+        # End-to-end: both spellings resolve to the same canonical, so descendant
+        # checks against either one behave identically.
+        vocab = self._veg_vocab()
+        sing = vocabulary.resolve_category("vegetable", vocab)
+        plur = vocabulary.resolve_category("vegetables", vocab)
+        assert sing == plur == "food/vegetables"
+        assert vocabulary.is_descendant_of("corn", sing, vocab)
+        assert vocabulary.is_descendant_of("corn", plur, vocab)
+
+    def test_unknown_label_still_returns_none(self):
+        assert vocabulary.resolve_category("definitely-not-a-category", self._veg_vocab()) is None
 
 
 class TestBuildLabelIndexCache:

@@ -42,8 +42,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 # Caches keyed by (id(vocab), lang) — valid as long as the vocab dict is not mutated.
+# Safe in normal use because the vocabulary dict is loaded once and lives for the
+# process; short-lived dicts (mostly in tests) can however reuse a freed id() and
+# get a stale hit — call clear_caches() between such uses.
 _alias_map_cache: dict[tuple, dict[str, str]] = {}
 _label_index_cache: dict[int, dict[str, str]] = {}
+
+
+def clear_caches() -> None:
+    """Drop the id()-keyed label/alias index caches.
+
+    Only relevant when many short-lived vocabulary dicts are created in one
+    process (e.g. a test suite), where a reused id() could otherwise return a
+    cached index built for a different, already-collected dict.
+    """
+    _alias_map_cache.clear()
+    _label_index_cache.clear()
+
 
 if TYPE_CHECKING:
     import niquests
@@ -564,8 +579,12 @@ def load_local_vocabulary(path: Path, default_source: str = "local") -> dict[str
         if concept_data is None:
             concept_data = {}
 
-        # Handle altLabel as string, list, or dict
-        raw_alt = concept_data.get("altLabel", {})
+        # Handle altLabels as string, list, or dict.  Hand-written YAML uses the
+        # singular "altLabel"; machine-generated vocabulary.json (Concept.to_dict)
+        # uses the plural "altLabels" — accept either (preferring the plural).
+        raw_alt = concept_data.get("altLabels")
+        if raw_alt is None:
+            raw_alt = concept_data.get("altLabel", {})
         if isinstance(raw_alt, str):
             alt_labels = {"en": [raw_alt]}
         elif isinstance(raw_alt, list):
@@ -990,6 +1009,15 @@ def resolve_category(
             continue
         if concept_id.split("/")[-1] == cat_lower:
             return concept_id
+
+    # 4. prefLabel / altLabel index.  Tingbok folds synonym and singular/plural
+    # variants of a category into the canonical concept's altLabels (e.g.
+    # food/vegetables carries "vegetable"), so a raw category string that is a
+    # synonym resolves to the canonical concept.  Reuses the same label index as
+    # lookup_concept rather than re-implementing label matching here.
+    matched = build_label_index(concepts).get(cat_lower)
+    if matched is not None and not matched.startswith(CATEGORY_BY_SOURCE_ID):
+        return matched
 
     return None
 

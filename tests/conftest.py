@@ -2,6 +2,22 @@
 
 import pytest
 
+from inventory_md import vocabulary
+
+
+@pytest.fixture(autouse=True)
+def _clear_vocabulary_caches():
+    """Clear the id()-keyed vocabulary index caches around every test.
+
+    Tests build many short-lived vocabulary dicts; a reused id() could otherwise
+    return an index cached for a different, already-collected dict, making
+    label/altLabel resolution order-dependent.
+    """
+    vocabulary.clear_caches()
+    yield
+    vocabulary.clear_caches()
+
+
 _TINGBOK_URL = "https://tingbok.plann.no"
 _tingbok_reachable: bool | None = None
 

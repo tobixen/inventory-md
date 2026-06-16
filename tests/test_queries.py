@@ -180,6 +180,57 @@ class TestFindExpiringItems:
         ids = [i["id"] for i in items]
         assert ids == ["rice1"]
 
+    def test_singular_and_plural_category_surface_same_items(self, tmp_path: Path):
+        """Regression: --category vegetable and --category vegetables agree.
+
+        Mirrors the real bug — one item tagged with the singular ``vegetable``
+        and another with the plural ``vegetables``.  Against a folded vocabulary
+        (the singular is an altLabel of ``food/vegetables``, the plural its
+        prefLabel/leaf), both spellings of the filter must surface *both* items.
+        """
+        vocab = {
+            "concepts": {
+                "food": {"id": "food", "prefLabel": "Food", "broader": [], "narrower": ["food/vegetables"]},
+                "food/vegetables": {
+                    "id": "food/vegetables",
+                    "prefLabel": "Vegetables",
+                    "altLabels": {"en": ["vegetable", "veggies", "greens"]},
+                    "broader": ["food"],
+                    "narrower": [],
+                },
+            }
+        }
+        inv = {
+            "containers": [
+                {
+                    "id": "fridge",
+                    "parent": "",
+                    "items": [
+                        {
+                            "id": "asparagus",
+                            "name": "Green asparagus",
+                            "metadata": {"id": "asparagus", "bb": _iso(3), "categories": ["vegetable"]},
+                        },
+                        {
+                            "id": "corn",
+                            "name": "Sweetcorn",
+                            "metadata": {"id": "corn", "bb": _iso(400), "categories": ["vegetables"]},
+                        },
+                    ],
+                }
+            ]
+        }
+        (tmp_path / "inventory.json").write_text(json.dumps(inv))
+        (tmp_path / "vocabulary.json").write_text(json.dumps(vocab))
+
+        ids_singular = sorted(
+            i["id"] for i in queries.find_expiring_items(tmp_path / "inventory.json", category="vegetable")
+        )
+        ids_plural = sorted(
+            i["id"] for i in queries.find_expiring_items(tmp_path / "inventory.json", category="vegetables")
+        )
+        assert ids_singular == ids_plural == ["asparagus", "corn"]
+
     def test_malformed_bb_skipped(self, tmp_path: Path):
         inv = {"containers": [{"id": "b", "parent": "", "items": [{"id": "bad", "metadata": {"bb": "13-13-13"}}]}]}
         (tmp_path / "inventory.json").write_text(json.dumps(inv))
