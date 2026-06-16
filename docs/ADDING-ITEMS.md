@@ -1,6 +1,10 @@
 # Adding Items to the Inventory
 
-This guide covers the data format and field conventions for inventory items. For step-by-step workflows (processing shopping receipts, processing photos, etc.) see the skill files under `claude-skills/`.
+This guide covers the data format and field conventions for inventory items, and
+how to add a single found item and (optionally) contribute it upstream — without
+going through the full shopping pipeline. For the bulk, receipt-driven workflows
+(processing a shopping trip, processing a batch of container photos) see the skill
+files under `claude-skills/`.
 
 ## Adding an item from the CLI
 
@@ -22,6 +26,30 @@ inventory-md add A2 --category hammer --id bosch-hammer "Bosch hammer"
 
 The rest of this document describes the underlying line format, for reference and
 for hand-editing.
+
+## Looking up a barcode (EAN)
+
+Before adding a barcoded item, check whether the product is already known. Ask
+**tingbok** — it is the single source: it answers from its own records and
+transparently delegates to Open Food Facts when it doesn't know, so there is no
+need to query OFF directly. This is **product/EAN** lookup — distinct from the
+`/api/lookup/LABEL` *category* resolution described under
+[Categories](#categories); do not use the category endpoint for an EAN.
+
+```bash
+curl -s https://tingbok.plann.no/api/ean/EAN                        # one product
+curl -s "https://tingbok.plann.no/api/ean/search?receipt_name=NAME"   # by receipt name
+```
+
+From a photo, extract the barcode and look it up in one step:
+```bash
+scripts/extract_barcodes.py --lookup EAN
+scripts/extract_barcodes.py --best-before PHOTO.jpg --json   # also OCRs the best-before
+```
+
+If tingbok returns "not found" (it found nothing and OFF has nothing either), the
+product is new: add it to the inventory now (above), and consider contributing it
+upstream ([below](#publishing-a-found-item-upstream)).
 
 ## Item Line Format
 
@@ -162,3 +190,67 @@ the same arguments and call these subcommands.
 When buying a bundle, record the **net per-unit price** (total paid ÷ quantity), not the list price.
 
 The value of an item is of course non-trivial.  The real value may even be negative if it's difficult to discard the item.  The subjective value may be higher than the market value, nobody may want to buy your old sleeping bag, but if you use it often it may be almost as valuable as a new sleeping bag, as the alternative to using the old one may be to buy a new one.
+
+## Publishing a found item upstream
+
+You do **not** need the `/process-shopping` skill to record a single item you
+found. After `inventory-md add`, optionally share the product so future lookups
+resolve. Both targets are **public / irreversible-ish** — only post data you have
+verified against the physical product.
+
+### tingbok — for any barcoded product
+
+The shopping pipeline's pusher, `scripts/tingbok_push.py`, is not coupled to the
+rest of the pipeline — it reads a staging YAML and PUTs a merge (existing
+prices/receipt_names are appended to, not overwritten). For a single found item,
+hand-write a minimal staging file and run it directly:
+```yaml
+# found-item.yaml
+session: 2026-06-15
+shop: ""                 # found at home — no shop/price/receipt
+currency: EUR
+items:
+  - ean: "3800214924577"
+    to_tingbok: true
+    tingbok_name: <name>
+    tingbok_categories: [meats, dry sausages]
+    tingbok_quantity: 550g
+```
+```bash
+scripts/tingbok_push.py found-item.yaml            # dry run
+scripts/tingbok_push.py found-item.yaml --commit   # actually PUT
+```
+An item with no `receipt_name`/`price` pushes only name/categories/quantity (no
+empty receipt or price rows). Drop in `receipt_name`, `price` and `unit` if you do
+have a receipt.
+
+### Open Food Facts — food only, when tingbok didn't have the EAN
+
+Curate a YAML and run `off_upload.py` (dry run first, then `--commit`):
+```bash
+scripts/off_upload.py --products off-products.yaml            # dry run
+scripts/off_upload.py --products off-products.yaml --commit   # writes to OFF
+```
+```yaml
+products:
+  - code: "3800214924577"          # EAN, as a string
+    lang: bg                       # product's own language
+    product_name_bg: <name as printed>
+    product_name_en: <English name>
+    brands: <brand>
+    quantity: 550 g
+    categories: Meats, Prepared meats, Sausages, Dry sausages
+    stores: <shop>
+    countries: Bulgaria
+    images:
+      front:       /path/to/front.jpg
+      ingredients: /path/to/ingredients.jpg
+      nutrition:   /path/to/nutrition.jpg
+      packaging:   /path/to/packaging.jpg
+```
+For a **new** OFF product, photograph **front, ingredients, nutrition and
+packaging/recycling** info — legible and upright (OCR honours EXIF orientation
+but can't read faint/sideways print). For a product that **already exists** in
+OFF, one barcode photo plus one best-before photo is enough (a single photo if
+both are legible in one frame). Auth uses your logged-in OFF browser-session
+cookie — no password in the script.

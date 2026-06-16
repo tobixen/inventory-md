@@ -28,6 +28,24 @@ The staging file is the canonical flat single-shop schema (one file per shop
 visit, top-level ``shop`` + ``items``); the retired multi-shop ``shops:`` list
 is rejected (see scripts/staging.py).
 
+This script is *not* coupled to the rest of the shopping pipeline — it only reads
+a staging YAML. To push a single found item (no receipt, no price) without running
+the whole pipeline, hand-write a minimal staging file and run it directly::
+
+    session: 2026-06-15
+    shop: ""
+    currency: EUR
+    items:
+      - ean: "3800214924577"
+        to_tingbok: true
+        tingbok_name: ...
+        tingbok_categories: [meats, dry sausages]
+        tingbok_quantity: 550g
+
+Items without a ``receipt_name`` push no ``receipt_names`` row, and items without
+a ``price`` push no ``prices`` row, so an ad-hoc push carries only name/category
+/quantity data.
+
 Usage:
     tingbok_push.py STAGING.yaml              # dry run — show what would be sent
     tingbok_push.py STAGING.yaml --commit     # actually PUT
@@ -104,16 +122,19 @@ def build_payload(
     fill_missing: bool,
 ) -> dict[str, Any]:
     price = item.get("price")
-    payload: dict[str, Any] = {
-        "receipt_names": [
+    payload: dict[str, Any] = {}
+    # A receipt-name observation only makes sense when there is a receipt name;
+    # an ad-hoc found item (no receipt) must not push a null-named row.
+    receipt_name = item.get("receipt_name")
+    if receipt_name:
+        payload["receipt_names"] = [
             {
-                "name": item.get("receipt_name"),
+                "name": receipt_name,
                 "shop": shop,
                 "first_seen": date,
                 "last_seen": date,
             }
-        ],
-    }
+        ]
     if price is not None:
         payload["prices"] = [
             {

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **`tingbok_push.py` usable for single found items, not just shopping trips** — items with no `receipt_name` no longer push an empty (null-named) `receipt_names` row, and items with no `price` push no `prices` row, so a minimal hand-written staging file can record an ad-hoc found product without running the rest of the pipeline. `docs/ADDING-ITEMS.md` now documents the standalone add-and-publish flow: EAN lookup via tingbok (`GET /api/ean/{ean}`, which delegates to OFF — distinct from the `/api/lookup/` *category* endpoint), pushing with `tingbok_push.py`, and contributing missing food to OFF with `off_upload.py`. First tests for `tingbok_push.py`.
 - **Deduplication: `_is_descendant` removed from `shopping_list.py`** — `tag_matches()` now calls `vocabulary.is_descendant_of()` directly (code-review-2026-06-11 §3.2).
 - **`create_broader_stubs()` made public and auto-called** — renamed from `_create_broader_stubs`, now called automatically at the end of `load_local_vocabulary()` so callers don't need to invoke it manually; three redundant call sites in `queries.py`, `shopping_list.py`, `cli.py` removed (code-review-2026-06-11 §3.7).
 - **Language fallback data deduplicated** — `DEFAULT_LANGUAGE_FALLBACKS` in `vocabulary.py` is now the single source of truth; `config.py`'s `DEFAULTS["language_fallbacks"]` is built from it, and `Config.get_language_fallback_chain()` delegates to `vocabulary.get_fallback_chain()` (code-review-2026-06-11 §3.1).
