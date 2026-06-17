@@ -1,13 +1,16 @@
 # Process Shopping
 
 Staged, resumable workflow for turning a shopping trip into: a spending **ledger**,
-**inventory** entries, a **diary** expense line, **tingbok** product observations,
-and (optionally) **Open Food Facts** product data + **Open Prices** prices.
+**inventory** entries, **tingbok** product observations, and (optionally) **Open
+Food Facts** product data + **Open Prices** prices. (A personal workflow may also
+record a diary expense line — that step lives in the personal skill, not here.)
 
 Generic guide — uses `$INVENTORY_DIR`, `$PHOTO_DIR`, `$LEDGER` as placeholders;
 your personal skill fills in real paths, shops, and credentials. Item format:
 `docs/ADDING-ITEMS.md`. Design rationale: `docs/shopping-workflow-redesign-2026-06-06.md`
 and `docs/open-prices-integration.md`.
+
+TODO: perhaps those directories should go into a config file?
 
 ## Principles
 
@@ -19,7 +22,7 @@ and `docs/open-prices-integration.md`.
   git commits happen only after the staging file is reviewed and validated. If a
   product↔EAN mapping is unclear, **ask** — never post wrong data to tingbok/OFF.
 - **Resumable.** The staging file carries a `status:` block; an interrupted run
-  resumes from it. The ledger import is idempotent; diary/inventory/publish steps
+  resumes from it. The ledger import is idempotent; inventory/publish steps
   are guarded by the status flags.
 - It's better to read structure from `inventory.json` than grepping in `inventory.md`.  The commands `inventory-md lookup` and `inventory-md container` also does the right thing.
 
@@ -71,6 +74,27 @@ Edit the staging file: for each item pick the right `ean` from `ean_candidates`
 importer scaffolds `to_tingbok: null` as a deliberate reminder — leave no item
 at `null` before committing. This is the checkpoint to fix mistakes **before**
 anything irreversible. Re-running stage 1 is safe (idempotent ledger; staging is yours).
+
+**Categories — be specific.** Use the most specific leaf category, not a broad
+bucket (`tomatoes`, not `vegetables`/`vegetable`; `cheese/kashkaval`, not
+`cheese`; `food/eggs`, `fresh-milk`). Broad buckets are useless for the
+shopping-list generator and expiry tracking, and `check_quality.py` **fails**
+on them (`vegetables`, `fruit`, `nuts`, `meat`, `dairy`, `cheese`, `misc`, …).
+A broad/parent category is allowed only when no narrower concept fits — then
+exempt that item with the tag `category-broad-ok` (or run with
+`--allow-broad-categories`). Get the canonical slug from tingbok:
+`GET /api/lookup/{term}` returns the `id` to use. A category new to your
+inventory won't be in the local `vocabulary.json` yet — that's expected; ask
+tingbok, don't invent one. Watch mistranslated receipt names (Bulgarian
+`КАРТОФИ ЛИЛАВИ` "purple potatoes" were actually purple **sweet** potatoes).
+
+**Quantities — count, not weight.** For by-weight produce, `qty` is the piece
+**count** (3 peppers), never the kg weight (`qty: 0.543` is wrong). Put the
+**total** weight in `mass:` (`543g`) and the per-kg price in `price` with
+`price_unit: kg`; the importer writes `qty:3 mass:543g/3 price:EUR:.../kg`
+(single piece → bare `mass:543g`). Packaged multi-buys use the total too
+(2×1l milk → `volume: 2l` → `volume:2l/2`). **Ask the user for the count**
+when it isn't obvious from the receipt.
 
 **tingbok cross-check (gate — the user MUST respond to these before you proceed):**
 for every `ean` you assign, compare the tingbok record to what you bought:
@@ -130,12 +154,9 @@ Batch these flags into one round of questions rather than asking item-by-item.
    ```bash
    inventory-md parse inventory.md && ~/inventory-md/scripts/check_quality.py inventory.json
    ```
-7. **Diary** — one expense line per shop (separate git repo):
-   ```bash
-   diary-update -d YYYY-MM-DD -a AMOUNT -c EUR -t food --description "Shop (items…)"
-   ```
-8. **Commit** `inventory.md` (+ staging file, + photo-registry.md if used). Diary
-   and ledger are committed in their own repos.
+7. **Commit** `inventory.md` (+ staging file, + photo-registry.md if used). The
+   ledger is committed in its own repo. (Personal workflows may add a diary
+   expense line as part of this stage — see the personal skill.)
 
 ## Stage 4 — contribute upstream (optional, gated)
 

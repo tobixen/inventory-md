@@ -80,6 +80,8 @@ def staging_item_to_kwargs(
     # quantity routing by unit
     unit = (item.get("unit") or "pcs").lower()
     qty = item.get("qty")
+    mass_total = item.get("mass")  # explicit TOTAL mass, e.g. "543g" / "0.5kg"
+    volume_total = item.get("volume")  # explicit TOTAL volume, e.g. "3l"
     out_qty = mass = volume = None
     if qty is not None:
         if unit in _MASS_UNITS:
@@ -89,8 +91,21 @@ def staging_item_to_kwargs(
         else:
             out_qty = _num(qty)
 
+    # A piece count combined with an explicit TOTAL mass/volume is written as
+    # "<total>/<count>" so the per-piece size stays recoverable — e.g. 3 peppers
+    # weighing 543 g → "qty:3 mass:543g/3", 6 cans totalling 3 l → "volume:3l/6".
+    # A single piece keeps the bare total.
+    def _per_count(total: str) -> str:
+        return f"{total}/{out_qty}" if out_qty and out_qty != "1" else total
+
+    if mass is None and mass_total:
+        mass = _per_count(mass_total)
+    if volume is None and volume_total:
+        volume = _per_count(volume_total)
+
     price = item.get("price")
-    price_str = f"{currency}:{_num(price)}/{unit}" if price is not None else None
+    price_unit = (item.get("price_unit") or unit).lower()
+    price_str = f"{currency}:{_num(price)}/{price_unit}" if price is not None else None
 
     return {
         "container_id": item.get("location") or default_container,

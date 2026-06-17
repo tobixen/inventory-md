@@ -7,9 +7,12 @@ import pytest
 
 sys.path.insert(0, str(__file__).rsplit("/tests/", 1)[0] + "/scripts")
 from check_quality import (  # noqa: E402
+    DEFAULT_BROAD_CATEGORIES,
+    OVERRIDE_BROAD_TAGS,
     _category_is_food,
     _is_food_concept,
     apply_fixes,
+    check_broad_categories,
     check_food_without_bb,
     load_inventory_lang,
     run_all_checks,
@@ -17,6 +20,35 @@ from check_quality import (  # noqa: E402
 from check_quality import (
     main as cq_main,
 )
+
+
+class TestBroadCategories:
+    @staticmethod
+    def _inv(items):
+        return {"containers": [{"id": "c1", "items": items}]}
+
+    def test_bare_broad_flagged(self):
+        data = self._inv([{"id": "veg-1", "metadata": {"categories": ["vegetables"]}}])
+        assert check_broad_categories(data, DEFAULT_BROAD_CATEGORIES)
+
+    def test_food_rooted_broad_path_flagged(self):
+        data = self._inv([{"id": "veg-2", "metadata": {"categories": ["food/vegetables"]}}])
+        assert check_broad_categories(data, DEFAULT_BROAD_CATEGORIES)
+
+    def test_specific_leaf_ok(self):
+        data = self._inv([{"id": "tom", "metadata": {"categories": ["tomatoes"]}}])
+        assert check_broad_categories(data, DEFAULT_BROAD_CATEGORIES) == []
+
+    def test_nonfood_path_leaf_collision_ok(self):
+        # 'hardware/nut' must not be flagged just because 'nut' is a food bucket
+        data = self._inv([{"id": "nut-1", "metadata": {"categories": ["hardware/nut"]}}])
+        assert check_broad_categories(data, DEFAULT_BROAD_CATEGORIES) == []
+
+    def test_override_tag_exempts(self):
+        data = self._inv(
+            [{"id": "veg-3", "metadata": {"categories": ["vegetables"], "tags": [OVERRIDE_BROAD_TAGS[0]]}}]
+        )
+        assert check_broad_categories(data, DEFAULT_BROAD_CATEGORIES) == []
 
 
 class TestApplyFixes:

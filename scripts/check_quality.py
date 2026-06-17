@@ -44,6 +44,53 @@ except ImportError:
 
 DEFAULT_TINGBOK_URL = "https://tingbok.plann.no"
 
+# Categories considered too broad to be useful: a more specific child should be
+# preferred (e.g. ``tomatoes`` instead of ``vegetables``). Broad categories are
+# nearly useless for the shopping-list generator and expiry tracking, so by
+# default they fail QA. A product may legitimately fall back to a broad/parent
+# category when *no* narrower concept fits — exempt that item with one of
+# OVERRIDE_BROAD_TAGS, or disable the check globally with
+# --allow-broad-categories. Extend this set as needed; matching is on the
+# category's leaf component (the part after the last "/"), case-insensitively.
+DEFAULT_BROAD_CATEGORIES = {
+    "food",
+    "foods",
+    "drink",
+    "drinks",
+    "beverage",
+    "beverages",
+    "vegetable",
+    "vegetables",
+    "fruit",
+    "fruits",
+    "nut",
+    "nuts",
+    "meat",
+    "meats",
+    "fish",
+    "seafood",
+    "dairy",
+    "cheese",
+    "grain",
+    "grains",
+    "cereal",
+    "cereals",
+    "legume",
+    "legumes",
+    "bread",
+    "bakery",
+    "snack",
+    "snacks",
+    "sweets",
+    "candy",
+    "produce",
+    "groceries",
+    "misc",
+}
+
+# Per-item metadata tags that exempt an item from the broad-category check.
+OVERRIDE_BROAD_TAGS = ("category-broad-ok", "broad-category-ok")
+
 _NB_LANGS = {"nb", "no", "nn"}
 
 
@@ -129,6 +176,43 @@ def check_items_without_category(data: dict) -> list:
     if not count:
         return []
     return [f"Items without category: {count} items have no category"]
+
+
+def check_broad_categories(data: dict, broad: set[str]) -> list:
+    """Flag items whose category is too broad to be useful.
+
+    A category is too broad when its leaf component (after the last ``/``) is in
+    ``broad`` — e.g. ``vegetables`` or ``food/vegetables``. Broad buckets are
+    almost useless for the shopping-list generator and expiry tracking, so a
+    specific child (``tomatoes``) should be preferred. An item may legitimately
+    keep a broad/parent category when *no* narrower concept fits; exempt it with
+    one of OVERRIDE_BROAD_TAGS, or disable the check with --allow-broad-categories.
+    """
+    offenders: list[str] = []
+    for container in data.get("containers", []):
+        for item in container.get("items", []):
+            md = item.get("metadata", {})
+            if any(t in md.get("tags", []) for t in OVERRIDE_BROAD_TAGS):
+                continue
+            for cat in md.get("categories", []):
+                parts = cat.strip().lower().split("/")
+                leaf = parts[-1]
+                # Broad if the leaf is a broad bucket AND it's either a bare
+                # category or rooted at ``food`` — so a non-food path like
+                # ``hardware/nut`` is NOT broad even though its leaf ("nut")
+                # collides with food "nuts".
+                if leaf in broad and (len(parts) == 1 or parts[0] == "food"):
+                    ident = item.get("id") or (item.get("name") or "")[:30]
+                    offenders.append(f"{ident} (category:{cat})")
+                    break
+    if not offenders:
+        return []
+    sample = "; ".join(offenders[:8])
+    more = "" if len(offenders) <= 8 else f"; … (+{len(offenders) - 8} more)"
+    return [
+        f"Broad categories ({len(offenders)}): use a specific child or exempt with "
+        f"tag {OVERRIDE_BROAD_TAGS[0]!r} (or --allow-broad-categories) — {sample}{more}"
+    ]
 
 
 def _is_food_concept(concept_data: dict | None) -> bool:
@@ -409,7 +493,15 @@ def apply_fixes(inventory_path: Path, fix_map: dict[str, str]) -> int:
     return count
 
 
-def run_all_checks(data: dict, concepts: dict, lang: str, tingbok_url: str | None) -> tuple[dict, dict[str, str]]:
+def run_all_checks(
+    data: dict,
+    concepts: dict,
+    lang: str,
+    tingbok_url: str | None,
+    *,
+    allow_broad: bool = False,
+    broad_categories: set[str] | None = None,
+) -> tuple[dict, dict[str, str]]:
     """Run all quality checks and return (results, fix_map)."""
     warnings = list(check_todo_items(data)) + list(check_items_without_category(data))
     infos = check_empty_containers(data) + check_missing_descriptions(data) + check_containers_without_images(data)
@@ -425,8 +517,12 @@ def run_all_checks(data: dict, concepts: dict, lang: str, tingbok_url: str | Non
         base = tingbok_url.rstrip("/")
         warnings += check_food_without_bb(data, _make_food_classifier(base))
 
+    errors = list(_validate_inventory(data)) if _validate_inventory else []
+    if not allow_broad:
+        errors += check_broad_categories(data, broad_categories or DEFAULT_BROAD_CATEGORIES)
+
     results = {
-        "errors": _validate_inventory(data) if _validate_inventory else [],
+        "errors": errors,
         "warnings": warnings,
         "info": infos,
     }
@@ -475,6 +571,12 @@ def main():
     parser.add_argument("--fix-categories", action="store_true", help="Apply suggested category fixes")
     parser.add_argument("--no-tingbok", action="store_true", help="Skip tingbok vocabulary lookup")
     parser.add_argument("--tingbok-url", default=DEFAULT_TINGBOK_URL, metavar="URL", help="Tingbok base URL")
+    parser.add_argument(
+        "--allow-broad-categories",
+        action="store_true",
+        help="Don't fail on too-broad categories (vegetables, fruit, meat, …). "
+        f"Per-item override: tag the item {OVERRIDE_BROAD_TAGS[0]!r}.",
+    )
     ns = parser.parse_args()
 
     tingbok_url: str | None = None if ns.no_tingbok else ns.tingbok_url
@@ -496,7 +598,7 @@ def main():
 
     data = load_inventory(inventory_path)
     concepts = load_vocabulary(inventory_path, tingbok_url)
-    results, fix_map = run_all_checks(data, concepts, lang, tingbok_url)
+    results, fix_map = run_all_checks(data, concepts, lang, tingbok_url, allow_broad=ns.allow_broad_categories)
     print_results(results)
 
     if fix_categories:

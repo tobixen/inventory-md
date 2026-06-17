@@ -75,6 +75,41 @@ def test_kwargs_weighed_line_becomes_mass():
     assert kw["price"] == "EUR:2.79/kg"
 
 
+def test_kwargs_count_with_total_mass_and_price_unit():
+    # by-weight produce sold as a piece count: qty=count, mass=total → total/count,
+    # priced per kg via price_unit
+    item = {
+        "category": "tomatoes",
+        "qty": 3,
+        "unit": "pcs",
+        "mass": "543g",
+        "price": 4.59,
+        "price_unit": "kg",
+        "location": "floating",
+        "bb": "2026-06:EST",
+    }
+    kw = staging_item_to_kwargs(item, "EUR")
+    assert kw["qty"] == "3"
+    assert kw["mass"] == "543g/3"
+    assert kw["price"] == "EUR:4.59/kg"
+
+
+def test_kwargs_single_piece_total_mass_is_bare():
+    item = {"category": "onions", "qty": 1, "unit": "pcs", "mass": "436g", "price": 0.66, "price_unit": "kg"}
+    kw = staging_item_to_kwargs(item, "EUR")
+    assert kw["qty"] == "1"
+    assert kw["mass"] == "436g"  # single piece → no "/1"
+    assert kw["price"] == "EUR:0.66/kg"
+
+
+def test_kwargs_count_with_total_volume():
+    item = {"category": "beer", "qty": 6, "unit": "pcs", "volume": "3l", "price": 0.51}
+    kw = staging_item_to_kwargs(item, "EUR")
+    assert kw["qty"] == "6"
+    assert kw["volume"] == "3l/6"
+    assert kw["price"] == "EUR:0.51/pcs"  # price_unit defaults to unit
+
+
 def test_kwargs_bb_est_suffix_split():
     item = {"category": "potatoes", "bb": "2026-09:EST", "unit": "kg", "qty": 1.2, "location": "floating"}
     kw = staging_item_to_kwargs(item, "EUR")
