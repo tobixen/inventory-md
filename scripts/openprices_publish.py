@@ -274,13 +274,24 @@ def main() -> None:  # pragma: no cover - network / CLI wiring
     if args.commit and not _token():
         sys.exit("No token — run op_auth.py first (or set OPENPRICES_TOKEN).")
 
+    # The proof carries the receipt's own currency/date/location; Open Prices
+    # reconciles each price to its proof, so a proof missing these blanks out the
+    # prices' currency/date in the UI. Stamp them at upload time.
+    proof_currency = (rows[0].get("currency") if rows else None) or "EUR"
+
     proof_id = args.proof_id
     if args.commit and proof_id is None:
         with args.proof.open("rb") as f:
             up = requests.post(
                 f"{base}/api/v1/proofs/upload",
                 files={"file": (args.proof.name, f, "image/jpeg")},
-                data={"type": "RECEIPT"},
+                data={
+                    "type": "RECEIPT",
+                    "currency": proof_currency,
+                    "date": args.date,
+                    "location_osm_id": str(osm_id),
+                    "location_osm_type": osm_type,
+                },
                 headers=headers,
                 timeout=120,
             )
