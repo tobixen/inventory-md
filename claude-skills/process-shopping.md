@@ -1,56 +1,40 @@
 # Process Shopping
 
-Staged, resumable workflow for turning a shopping trip into: a spending **ledger**,
-**inventory** entries, **tingbok** product observations, and (optionally) **Open
-Food Facts** product data + **Open Prices** prices. (A personal workflow may also
-record a diary expense line — that step lives in the personal skill, not here.)
+## Meta
 
-Generic guide — uses `$INVENTORY_DIR`, `$PHOTO_DIR`, `$LEDGER` as placeholders;
-your personal skill fills in real paths, shops, and credentials. Item format:
-`docs/ADDING-ITEMS.md`. Design rationale: `docs/shopping-workflow-redesign-2026-06-06.md`
-and `docs/open-prices-integration.md`.
+This is a staged, resumable workflow for turning a shopping trip into:
 
-TODO: perhaps those directories should go into a config file?
+* a spending **ledger**
+* **inventory** entries
+* **tingbok** product observations
+* **Open Food Facts** product data (optional)
+* **Open Prices** prices.
 
-## Principles
+This is the generic guide — uses `$INVENTORY_DIR`, `$PHOTO_DIR`, `$LEDGER` as placeholders;
+your personal skill fills in real paths, shops, and credentials.  (TODO: perhaps those directories should go into a config file?)
 
-- **Deterministic work in scripts; judgement in a reviewable file.** Receipt
-  parsing, barcode/OCR extraction, EAN-candidate lookup, ledger writes,
-  validation — all scripted. Matching an EAN, reading a best-before, choosing a
-  storage location — done by user/AI editing the staging file, then committed.
-- **Gate the irreversible steps.** tingbok PUT, Open Prices/OFF publishing, and
-  git commits happen only after the staging file is reviewed and validated. If a
-  product↔EAN mapping is unclear, **ask** — never post wrong data to tingbok/OFF.
-- **Resumable.** The staging file carries a `status:` block; an interrupted run
-  resumes from it. The ledger import is idempotent; inventory/publish steps
-  are guarded by the status flags.
-- It's better to read structure from `inventory.json` than grepping in `inventory.md`.  The commands `inventory-md lookup` and `inventory-md container` also does the right thing.
+## Important
 
-## Non-interactive operation (the allowlist contract)
+All commands explicitly listed in the procedure-section should pass straight through without any need of human approvals, and the procedure is also meant to be optimized for minimal AI-usage.  For this to work:
 
-This workflow is meant to run without per-action approval. Claude Code grants
-that by pre-approving a list of command **prefixes** (one rule per script /
-`inventory-md` subcommand). Two rules follow from how that matching works:
+* The procedure in this file should be followed **point by point**.
+* **Do not** run commands like git, grep, sed to check the status - use the commands provided in the procedure.
+* **Do not** chain together commands.
 
-- **One command per shell call. Never chain with `&&`, `|`, `;`, or `$( )`.** A
-  chained command is matched as a single opaque string, matches no prefix rule,
-  and forces an approval prompt — even when each part would be allowed alone.
-  Run the steps as separate calls (or let `pipeline.py` sequence them for you).
-- **Read state through scripts, not ad-hoc shell.** Use `shopping_context.py`,
-  `inventory-md container`, `inventory-md lookup`, and the `Read` tool — not
-  `grep`/`cat`/`awk`/`find` over the markdown, config, or diary. Those probes
-  are exactly what an allowlist can't pre-approve.
-- **The staging file is the one human gate.** Everything irreversible
-  (inventory write, tingbok PUT, OFF/Open Prices publish, git commit) happens
-  *after* the staging file is reviewed. Get the review, then the scripts run
-  unattended.
+Exceptions may apply - but if it's needed to run extra commands, it should be considered (together with the user) to improve the documentation, skill files or scripts.
+
+It's allowed to ask the user questions if needed.
+
+The staging file should be the last human gate - it should be approved by the user.  Everything that cannot be reversed trivially (inventory write, tingbok PUT, OFF/Open Prices publish, git commit) happens *after* the staging file is reviewed.
+
+## Procedure
 
 Start a trip with the context command instead of grepping for conventions:
 ```bash
-~/inventory-md/scripts/shopping_context.py "SHOP" --diary DIARY_FILE
+~/inventory-md/scripts/shopping_context.py "SHOP"
 ```
-It prints the shop's cached OSM, recent staging files (a schema example to
-copy), and recent diary lines for the shop.
+It prints the shop's cached OSM and recent staging files for the shop (a schema
+example to copy).
 
 ## Capture (at the shop)
 
@@ -149,7 +133,7 @@ then validates (`parse` + `check_quality`):
 A `status:` value of `done` skips a stage; `skipped` skips it permanently (e.g.
 `tingbok_push: skipped` for non-food hardware). On a stage failure it stops and
 leaves the status unchanged, so re-running resumes there. `--from STAGE`
-force-restarts at a stage. The remaining steps (photos, diary, publishing,
+force-restarts at a stage. The remaining steps (photos, publishing,
 commit) stay manual — see below. The numbered steps that follow are *what the
 driver runs*; run them individually only to debug.
 
@@ -200,8 +184,8 @@ driver runs*; run them individually only to debug.
    ~/inventory-md/scripts/check_quality.py inventory.json
    ```
 7. **Commit** (manual) `inventory.md` (+ staging file, + photo-registry.md if used).
-   The ledger is committed in its own repo. (Personal workflows may add a diary
-   expense line as part of this stage — see the personal skill.)
+   The ledger is committed in its own repo. (Personal workflows may add extra
+   steps here — see the personal skill.)
 
 ## Stage 4 — contribute upstream (optional, gated)
 
@@ -238,7 +222,7 @@ category/inventory_id) through the reviewed staging flow.
 
 | Script (`~/inventory-md/scripts/`) | Role |
 |---|---|
-| `shopping_context.py` | read-only trip context: shop OSM, recent staging, diary lines |
+| `shopping_context.py` | read-only trip context: shop OSM, recent staging |
 | `extract_barcodes.py --best-before` | barcodes + best-before OCR per photo |
 | `bb_dates.py` | OCR-text → best-before date candidates (library) |
 | `shop_import.py` | receipt + photos → staging YAML |
