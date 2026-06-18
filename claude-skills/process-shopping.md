@@ -26,6 +26,32 @@ TODO: perhaps those directories should go into a config file?
   are guarded by the status flags.
 - It's better to read structure from `inventory.json` than grepping in `inventory.md`.  The commands `inventory-md lookup` and `inventory-md container` also does the right thing.
 
+## Non-interactive operation (the allowlist contract)
+
+This workflow is meant to run without per-action approval. Claude Code grants
+that by pre-approving a list of command **prefixes** (one rule per script /
+`inventory-md` subcommand). Two rules follow from how that matching works:
+
+- **One command per shell call. Never chain with `&&`, `|`, `;`, or `$( )`.** A
+  chained command is matched as a single opaque string, matches no prefix rule,
+  and forces an approval prompt — even when each part would be allowed alone.
+  Run the steps as separate calls (or let `pipeline.py` sequence them for you).
+- **Read state through scripts, not ad-hoc shell.** Use `shopping_context.py`,
+  `inventory-md container`, `inventory-md lookup`, and the `Read` tool — not
+  `grep`/`cat`/`awk`/`find` over the markdown, config, or diary. Those probes
+  are exactly what an allowlist can't pre-approve.
+- **The staging file is the one human gate.** Everything irreversible
+  (inventory write, tingbok PUT, OFF/Open Prices publish, git commit) happens
+  *after* the staging file is reviewed. Get the review, then the scripts run
+  unattended.
+
+Start a trip with the context command instead of grepping for conventions:
+```bash
+~/inventory-md/scripts/shopping_context.py "SHOP" --diary DIARY_FILE
+```
+It prints the shop's cached OSM, recent staging files (a schema example to
+copy), and recent diary lines for the shop.
+
 ## Capture (at the shop)
 
 - User should photograph the **receipt at the shop** so its EXIF GPS marks the location
@@ -112,8 +138,24 @@ Batch these flags into one round of questions rather than asking item-by-item.
 
 ## Stage 3 — commit (script + thin AI, gated)
 
+**Drive it with `pipeline.py` — one command, not a hand-chained pipeline.**
+Once the staging file is reviewed, `pipeline.py` runs the ledger → inventory →
+tingbok steps in order (reading/advancing the `status:` block, resumable) and
+then validates (`parse` + `check_quality`):
+```bash
+~/inventory-md/scripts/pipeline.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml           # dry run — plan + previews
+~/inventory-md/scripts/pipeline.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml --commit  # run pending stages + validate
+```
+A `status:` value of `done` skips a stage; `skipped` skips it permanently (e.g.
+`tingbok_push: skipped` for non-food hardware). On a stage failure it stops and
+leaves the status unchanged, so re-running resumes there. `--from STAGE`
+force-restarts at a stage. The remaining steps (photos, diary, publishing,
+commit) stay manual — see below. The numbered steps that follow are *what the
+driver runs*; run them individually only to debug.
+
 1. **Validate** — every item complete; every item has a unique `ID`; food items
-   have a `bb` (or `:EST`); no duplicate IDs.
+   have a `bb` (or `:EST`); no duplicate IDs. (Folded into the inventory write
+   and the final quality gate.)
 2. **Ledger** — append/enrich `$LEDGER` (one row per line item):
    ```bash
    ~/inventory-md/scripts/ledger.py import-staging $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml --ledger $LEDGER
@@ -121,10 +163,10 @@ Batch these flags into one round of questions rather than asking item-by-item.
    Append-or-enrich: a raw row from a receipt importer is later filled in place
    with `ean`/`category`/`inventory_id` by the reviewed staging import (matched on
    `date, shop, receipt_name, qty, unit_price, total`; nulls never overwrite).
-3. **Inventory** — write every reviewed row straight from the staging file with
-   one command; do **not** hand-edit `inventory.md`:
+3. **Inventory** — write every reviewed row straight from the staging file; do
+   **not** hand-edit `inventory.md`:
    ```bash
-   ~/inventory-md/scripts/inventory_import.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml   # dry run — preview the plan
+   ~/inventory-md/scripts/inventory_import.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml            # dry run — preview the plan
    ~/inventory-md/scripts/inventory_import.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml --commit
    ```
    It reads each item's `location` (→ container), `category`, `inventory_id`,
@@ -139,23 +181,26 @@ Batch these flags into one round of questions rather than asking item-by-item.
    `inventory_id` per row — there is nothing left to edit by hand here.
    This is `inventory-md add` applied per row; see `docs/ADDING-ITEMS.md` for the
    field reference and the single-item CLI.
-4. **Photos** — copy only **label** photos to `photos/LOCATION-ID/`; skip
+4. **Photos** (manual) — copy only **label** photos to `photos/LOCATION-ID/`; skip
    barcode/expiry close-ups; skip fast-consumed items. Never `git add` photos.
-5. **tingbok** — PUT observations for reviewed EANs (merges; prices/receipt_names
-   appended):
+5. **tingbok** — push price + receipt-name observations for reviewed EANs (a
+   merge PUT; prices/receipt_names appended, re-running is safe). Use the script,
+   never a raw `curl`:
    ```bash
-   curl -s -X PUT https://tingbok.plann.no/api/ean/EAN -H 'Content-Type: application/json' -d '{
-     "name":"...","categories":["food/dairy"],"quantity":"1l",
-     "prices":[{"date":"YYYY-MM-DD","shop":"Shop","price":1.02,"currency":"EUR","unit":"pcs"}],
-     "receipt_names":[{"name":"AS PRINTED","shop":"Shop","first_seen":"YYYY-MM-DD","last_seen":"YYYY-MM-DD"}]}'
+   ~/inventory-md/scripts/tingbok_push.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml            # dry run
+   ~/inventory-md/scripts/tingbok_push.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml --commit
    ```
+   It pushes only items with `to_tingbok: true` and an `ean`; per-item
+   `tingbok_name`/`tingbok_categories`/`tingbok_quantity` override a poor or
+   missing tingbok name.
 6. **Quality gate** — regenerate and check (flags food without best-before,
-   duplicate IDs, unresolvable categories):
+   duplicate IDs, unresolvable categories). Two separate commands, not chained:
    ```bash
-   inventory-md parse inventory.md && ~/inventory-md/scripts/check_quality.py inventory.json
+   inventory-md parse inventory.md
+   ~/inventory-md/scripts/check_quality.py inventory.json
    ```
-7. **Commit** `inventory.md` (+ staging file, + photo-registry.md if used). The
-   ledger is committed in its own repo. (Personal workflows may add a diary
+7. **Commit** (manual) `inventory.md` (+ staging file, + photo-registry.md if used).
+   The ledger is committed in its own repo. (Personal workflows may add a diary
    expense line as part of this stage — see the personal skill.)
 
 ## Stage 4 — contribute upstream (optional, gated)
@@ -193,10 +238,14 @@ category/inventory_id) through the reviewed staging flow.
 
 | Script (`~/inventory-md/scripts/`) | Role |
 |---|---|
+| `shopping_context.py` | read-only trip context: shop OSM, recent staging, diary lines |
 | `extract_barcodes.py --best-before` | barcodes + best-before OCR per photo |
 | `bb_dates.py` | OCR-text → best-before date candidates (library) |
 | `shop_import.py` | receipt + photos → staging YAML |
+| `pipeline.py` | drive Stage-3 commit (ledger→inventory→tingbok→validate) from `status:` |
 | `ledger.py` | purchases.jsonl: import / query / consumed |
+| `inventory_import.py` | write reviewed staging rows into `inventory.md` |
+| `tingbok_push.py` | push reviewed price/receipt-name observations to tingbok |
 | `check_quality.py` | validation gate (food-bb, dup IDs, categories) |
 | `off_upload.py` | create missing OFF products |
 | `openprices_publish.py` / `op_auth.py` | publish prices / mint token |
