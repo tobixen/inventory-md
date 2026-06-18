@@ -195,7 +195,7 @@ def main() -> int:
     except ValueError as exc:
         sys.exit(f"tingbok_push: {exc}")
 
-    pushed = skipped = failed = 0
+    pushed = skipped = failed = candidates = 0
     for shop_block in shop_blocks:
         shop, currency, date = shop_block["shop"], shop_block["currency"], shop_block["date"]
         for item in shop_block["items"]:
@@ -210,6 +210,7 @@ def main() -> int:
             cur_name = current.get("name") or "(empty)"
             note = f"  +{','.join(extra)}" if extra else ""
             print(f"{ean:<14} {cur_name[:48]:<48} ← {item.get('receipt_name')} @ {item.get('price')}{note}")
+            candidates += 1
             if not args.commit:
                 continue
             ok, msg = _put(base, ean, payload)
@@ -220,9 +221,11 @@ def main() -> int:
                 print(f"               PUT FAILED: {msg}")
 
     verb = "pushed" if args.commit else "would push"
-    print(f"\n{verb}: {pushed if args.commit else '—'}  failed: {failed}  skipped (no ean / not to_tingbok): {skipped}")
-    if skipped > 0 and pushed == 0 and failed == 0:
-        print("WARNING: every item was skipped — did you set to_tingbok: true in the staging file?", file=sys.stderr)
+    print(
+        f"\n{verb}: {pushed if args.commit else candidates}  failed: {failed}  skipped (no ean / not to_tingbok): {skipped}"
+    )
+    if candidates == 0 and skipped > 0 and failed == 0:
+        print("WARNING: no items to push — did you set to_tingbok: true in the staging file?", file=sys.stderr)
     if not args.commit:
         print("DRY RUN — pass --commit to push")
     return 1 if failed else 0
