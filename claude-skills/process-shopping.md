@@ -11,19 +11,23 @@ This is a staged, resumable workflow for turning a shopping trip into:
 * **Open Prices** prices.
 
 This is the generic guide — uses `$INVENTORY_DIR`, `$PHOTO_DIR`, `$LEDGER` as placeholders;
-your personal skill fills in real paths, shops, and credentials.  (TODO: perhaps those directories should go into a config file?)
+your personal skill fills in real paths, shops, and credentials.
+
+User may provide information on where things was purchased, what was purchased, etc
 
 ## Important
 
-All commands explicitly listed in the procedure-section should pass straight through without any need of human approvals, and the procedure is also meant to be optimized for minimal AI-usage.  For this to work:
+(This is highlighted as "important" not because it is very important, but because the rules are broken on almost every run - and that's annoying).
 
-* The procedure in this file should be followed **point by point**.
+The procedure is optimized for minimal AI-usage, and a minimum of permission-prompts for the user, but **only if those rules are followed**:
+
+* The procedure in this file should be followed **point by point**.  Commands not listed in the procedure should only be run if the user requests it.
 * **Do not** run commands like git, grep, sed to check the status - use the commands provided in the procedure.
 * **Do not** chain together commands.
 
 Exceptions may apply - but if it's needed to run extra commands, it should be considered (together with the user) to improve the documentation, skill files or scripts.
 
-It's allowed to ask the user questions if needed.
+It's allowed to ask the user questions when needed.
 
 The staging file should be the last human gate - it should be approved by the user.  Everything that cannot be reversed trivially (inventory write, tingbok PUT, OFF/Open Prices publish, git commit) happens *after* the staging file is reviewed.
 
@@ -36,7 +40,7 @@ Start a trip with the context command instead of grepping for conventions:
 It prints the shop's cached OSM and recent staging files for the shop (a schema
 example to copy).
 
-## Capture (at the shop)
+## User instructions
 
 - User should photograph the **receipt at the shop** so its EXIF GPS marks the location
   (used for Open Prices). Photograph product labels **upright and legible** — the
@@ -48,7 +52,7 @@ example to copy).
 
 ```bash
 # Barcodes + best-before OCR on every photo (barcode shots included):
-~/inventory-md/scripts/extract_barcodes.py --best-before $PHOTO_DIR/IMG_*.jpg --json > barcodes.json
+~/inventory-md/scripts/extract_barcodes.py --best-before $PHOTO_DIR/IMG_*.jpg --json --out barcodes.json
 
 # Receipt + photos -> human-correctable staging file (EAN candidates via tingbok
 # reverse receipt-name search; photos classified barcode/expiry/label):
@@ -115,6 +119,8 @@ for every `ean` you assign, compare the tingbok record to what you bought:
   wrong quantity) → **flag it and stop**; the user MUST confirm or correct the
   EAN before anything irreversible.
 - the EAN is **not in tingbok** → **flag it**; the user MUST confirm the EAN.
+  This applies to **any** barcoded item, food or not — push it once confirmed
+  (use `tingbok_name`/`tingbok_categories` so the new tingbok entry is useful).
 - a **food** product is not in tingbok → flag it and encourage the user to take
   front/ingredients/nutrition/packaging photos so it can be posted to OFF.
 
@@ -131,7 +137,10 @@ then validates (`parse` + `check_quality`):
 ~/inventory-md/scripts/pipeline.py $INVENTORY_DIR/staging/shopping-YYYY-MM-DD.yaml --commit  # run pending stages + validate
 ```
 A `status:` value of `done` skips a stage; `skipped` skips it permanently (e.g.
-`tingbok_push: skipped` for non-food hardware). On a stage failure it stops and
+`tingbok_push: skipped` only when the visit has **no barcoded items at all** —
+NOT for non-food hardware. tingbok is the general EAN/category/**price**
+aggregator: barcoded tools, batteries, adhesives and chemicals all belong there
+(the food-vs-non-food split governs only OFF vs Open Products Facts). On a stage failure it stops and
 leaves the status unchanged, so re-running resumes there. `--from STAGE`
 force-restarts at a stage. The remaining steps (photos, publishing,
 commit) stay manual — see below. The numbered steps that follow are *what the
@@ -236,3 +245,17 @@ category/inventory_id) through the reviewed staging flow.
 
 `tingbok` (`GET/PUT /api/ean/{ean}`, `GET /api/ean/search?receipt_name=`) is the
 EAN/category/price aggregator. There is **no `ean_cache.json`** — use tingbok.
+
+## TODO
+
+This skill and the scripts are quite fresh.  For each run, try to pinpoint problems and choke-points and suggest ways to improve the procedure.  Some thoughts:
+
+* Almost every time I run the skill, the Claude agent goes off and breaks all the rules in the "important"-section, why is that and how can it be improved?
+* Perhaps the directories above should go into a config file?
+* On the previous shopping trip, there was some confusion about quantity and mass, we need to find some smarter solution for this:
+  * In the receipts, some items may be sold by mass (456 grams of onions), and the "quantity" on the receipt may then be given in kilograms - but in the inventory the quantity should be the count (3 onions).  Probably the qty in the ledger should read purchase-qty instead of just qty?
+  * If I bought three packages with 150 grams in each, the inventory should read `qty:3 mass:150g`.
+  * If I bought three onions with total mass 456 grams (but some of the onions may be smaller than others), the inventory should read `qty:3 mass:456gram`.
+  * The difference is often weather the product has an EAN/barcode or not.  If I bought two packs of onions with an EAN and given weight 500g pr pack, then it should by `qty:2 mass:500g` even if the pack may contain several onions.
+  * User should be encouraged to count the vegetables (Perhaps with some AI-considerations - I'm not going to count cherries or anything like that).
+* The shop cache now has an entry "lidl" with coordinates.  This doesn't work out very well, since Lidl has many locations both locally in my area and world-wide.

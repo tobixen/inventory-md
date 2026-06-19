@@ -91,7 +91,7 @@ def grep_diary_lines(diary_text: str, shop: str) -> list[str]:
 
 NEXT_COMMANDS = """\
 Canonical next commands (run ONE per shell call — never chain with && / | / ;):
-  1. extract_barcodes.py --best-before PHOTOS --json > staging/barcodes-DATE.json
+  1. extract_barcodes.py --best-before PHOTOS --json --out staging/barcodes-DATE.json
   2. shop_import.py --receipt R.json --barcodes-json staging/barcodes-DATE.json \\
          --out staging/shopping-DATE[-shop].yaml
   3. (review the staging file by hand — the one human gate)

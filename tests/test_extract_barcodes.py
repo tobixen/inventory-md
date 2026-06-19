@@ -468,3 +468,20 @@ class TestLookupNbNo:
 
             assert result["author"] == "Author One, Author Two, Author Three"
             assert len(result["authors"]) == 3
+
+
+class TestOutOption:
+    """--out writes results to a file instead of stdout (so the pipeline needs no
+    shell `>` redirect, which breaks Bash-allowlist prefix matching)."""
+
+    def test_out_writes_to_file_not_stdout(self, tmp_path, capsys):
+        from extract_barcodes import main
+
+        out_file = tmp_path / "barcodes.json"
+        missing = tmp_path / "does-not-exist.jpg"  # no barcode work needed to test plumbing
+        argv = ["extract_barcodes.py", "--no-lookup", "--json", "--out", str(out_file), str(missing)]
+        with patch.object(sys, "argv", argv):
+            main()
+
+        assert out_file.read_text().strip() == "[]"  # JSON payload landed in the file
+        assert capsys.readouterr().out == ""  # ... and nothing leaked to stdout

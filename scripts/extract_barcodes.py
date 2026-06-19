@@ -21,6 +21,8 @@ Options:
     --best-before   OCR every image (barcode ones too) and attach best_before
         --bb        date candidates — the date is usually on the barcode photo
     --json          Output as JSON
+    --out PATH      Write output to PATH instead of stdout (avoids a shell
+                    `>` redirect, which breaks Bash allowlist prefix-matching)
     -h, --help      Show this help message
 
 Supported barcodes:
@@ -656,6 +658,12 @@ def main():
     parser.add_argument("--no-lookup", action="store_true", help="Skip product lookup")
     parser.add_argument("--no-cache", action="store_true", help="Ignore cached lookups")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
+    parser.add_argument(
+        "--out",
+        metavar="PATH",
+        type=Path,
+        help="Write output to PATH instead of stdout (avoids a shell > redirect)",
+    )
     parser.add_argument("--ocr", action="store_true", help="Enable OCR fallback")
     parser.add_argument("--ocr-only", action="store_true", help="Use OCR only (implies --ocr)")
     parser.add_argument(
@@ -806,34 +814,39 @@ def main():
     if cache_modified:
         save_cache(cache, CACHE_FILE)
 
-    if output_json:
-        print(json.dumps(all_results, indent=2))
-    else:
-        # Human-readable output
-        seen_eans = set()
+    out_stream = open(ns.out, "w", encoding="utf-8") if ns.out else sys.stdout
+    try:
+        if output_json:
+            print(json.dumps(all_results, indent=2), file=out_stream)
+        else:
+            # Human-readable output
+            seen_eans = set()
 
-        for result in all_results:
-            data = result["data"]
+            for result in all_results:
+                data = result["data"]
 
-            # Handle OCR results differently
-            if result["type"] == "OCR":
-                print("* tag:TODO (OCR detected text)")
-                if result.get("ocr_title"):
-                    print(f"    # Possible title: {result['ocr_title']}")
-                else:
-                    print(f"    # Text detected: {data[:80]}...")
-                print(f"    # Found in: {result['file']}")
-                print()
-                continue
+                # Handle OCR results differently
+                if result["type"] == "OCR":
+                    print("* tag:TODO (OCR detected text)", file=out_stream)
+                    if result.get("ocr_title"):
+                        print(f"    # Possible title: {result['ocr_title']}", file=out_stream)
+                    else:
+                        print(f"    # Text detected: {data[:80]}...", file=out_stream)
+                    print(f"    # Found in: {result['file']}", file=out_stream)
+                    print(file=out_stream)
+                    continue
 
-            if data in seen_eans:
-                continue
-            seen_eans.add(data)
+                if data in seen_eans:
+                    continue
+                seen_eans.add(data)
 
-            barcode = {"type": result["type"], "data": data}
-            print(format_for_inventory(barcode, result.get("product")))
-            print(f"    # Found in: {result['file']}")
-            print()
+                barcode = {"type": result["type"], "data": data}
+                print(format_for_inventory(barcode, result.get("product")), file=out_stream)
+                print(f"    # Found in: {result['file']}", file=out_stream)
+                print(file=out_stream)
+    finally:
+        if ns.out:
+            out_stream.close()
 
 
 if __name__ == "__main__":
