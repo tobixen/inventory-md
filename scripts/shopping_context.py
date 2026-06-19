@@ -40,11 +40,24 @@ def load_osm_cache(path: Path) -> dict[str, Any]:
         return {}
 
 
+def shop_osm_candidates(cache: dict[str, Any], shop: str) -> list[str]:
+    """Cache keys whose name overlaps *shop* by substring (either direction)."""
+    if not shop:
+        return []
+    want = shop.casefold()
+    return [key for key in cache if want in key.casefold() or key.casefold() in want]
+
+
 def match_shop_osm(cache: dict[str, Any], shop: str) -> dict[str, Any] | None:
     """Find a cached OSM entry whose key matches *shop* (case-insensitive).
 
-    Tries an exact (case-insensitive) match first, then a substring match in
-    either direction, so ``"lidl"`` finds ``"Lidl Varna"``.
+    Exact (case-insensitive) match wins. Otherwise fall back to a substring
+    match in either direction (so ``"lidl"`` finds ``"Lidl Varna"``) — but only
+    when it is *unambiguous*. A chain like Lidl has many branches; once two
+    (``"Lidl Varna"``, ``"Lidl Sofia"``) are cached, a bare ``"lidl"`` must not
+    silently resolve to whichever happens to come first — Open Prices
+    coordinates have to point at one real store. Ambiguous → ``None`` (the
+    caller lists the candidates and asks for the exact name).
     """
     if not shop:
         return None
@@ -52,10 +65,9 @@ def match_shop_osm(cache: dict[str, Any], shop: str) -> dict[str, Any] | None:
     for key, val in cache.items():
         if key.casefold() == want:
             return val
-    for key, val in cache.items():
-        kf = key.casefold()
-        if want in kf or kf in want:
-            return val
+    hits = shop_osm_candidates(cache, shop)
+    if len(hits) == 1:
+        return cache[hits[0]]
     return None
 
 
@@ -89,6 +101,28 @@ def grep_diary_lines(diary_text: str, shop: str) -> list[str]:
     return [line.strip() for line in diary_text.splitlines() if want in line.casefold()]
 
 
+def recent_ledger_rows(ledger_text: str, shop: str, limit: int) -> list[dict[str, Any]]:
+    """Most recent ledger rows (JSONL) whose ``shop`` matches *shop* (substring).
+
+    Surfacing these in the context command removes the reason an agent reaches
+    for ``tail``/``grep`` on ``purchases.jsonl``: prior prices, EANs and the
+    naming/category convention for this shop are right here, allowlisted.
+    """
+    want = shop.casefold()
+    rows: list[dict[str, Any]] = []
+    for line in ledger_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if want in str(row.get("shop", "")).casefold():
+            rows.append(row)
+    return rows[-limit:]
+
+
 NEXT_COMMANDS = """\
 Canonical next commands (run ONE per shell call — never chain with && / | / ;):
   1. extract_barcodes.py --best-before PHOTOS --json --out staging/barcodes-DATE.json
@@ -98,7 +132,13 @@ Canonical next commands (run ONE per shell call — never chain with && / | / ;)
   4. pipeline.py staging/shopping-DATE[-shop].yaml            # dry run
   5. pipeline.py staging/shopping-DATE[-shop].yaml --commit   # ledger+inventory+tingbok+validate
   6. diary-update --directory DIARY_DIR -d DATE -a AMOUNT -c CUR -t TYPE --description "..."
-  7. (optional, public) off_upload.py / openprices_publish.py --commit"""
+  7. (optional, public) off_upload.py / openprices_publish.py --commit
+
+To look something up in the inventory, DON'T grep inventory.md — use the parsed
+JSON via the purpose-built commands (allowlisted, exact):
+  · inventory-md lookup --match TERM   # find existing items by id/name (e.g. an EAN already stocked)
+  · inventory-md container ID          # what's in a section/container (e.g. 'floating')
+  · jq ... inventory.json              # anything else structured"""
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -107,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--staging-dir", type=Path, default=Path("staging"))
     ap.add_argument("--osm-cache", type=Path, default=DEFAULT_OSM_CACHE)
     ap.add_argument("--diary", type=Path, help="Diary file to grep for prior expense lines")
+    ap.add_argument("--ledger", type=Path, help="Ledger JSONL to show recent rows for this shop")
     ap.add_argument("--limit", type=int, default=2, help="How many recent staging files to show")
     ap.add_argument("--no-content", action="store_true", help="List staging files without dumping their content")
     args = ap.parse_args(argv)
@@ -115,11 +156,19 @@ def main(argv: list[str] | None = None) -> int:
 
     print("## Shop OSM (Open Prices --osm)")
     if args.shop:
-        hit = match_shop_osm(load_osm_cache(args.osm_cache), args.shop)
+        cache = load_osm_cache(args.osm_cache)
+        hit = match_shop_osm(cache, args.shop)
         if hit:
             print(f"  {args.shop} → {hit.get('osm_type')}:{hit.get('osm_id')}")
         else:
-            print(f"  not cached for '{args.shop}' — pass --osm TYPE:ID to openprices_publish once (it caches).")
+            cands = shop_osm_candidates(cache, args.shop)
+            if len(cands) > 1:
+                print(
+                    f"  '{args.shop}' is ambiguous — matches {', '.join(cands)}. "
+                    "A chain has many branches; pass the exact cached name (or --osm TYPE:ID for the right one)."
+                )
+            else:
+                print(f"  not cached for '{args.shop}' — pass --osm TYPE:ID to openprices_publish once (it caches).")
     else:
         cache = load_osm_cache(args.osm_cache)
         for k, v in cache.items():
@@ -137,6 +186,22 @@ def main(argv: list[str] | None = None) -> int:
         if not args.no_content:
             print(f.read_text(encoding="utf-8").rstrip())
     print()
+
+    if args.ledger and args.shop:
+        print(f"## Recent ledger rows for '{args.shop}' (prices / EANs / naming)")
+        try:
+            rows = recent_ledger_rows(args.ledger.read_text(encoding="utf-8"), args.shop, args.limit * 4)
+            for r in rows:
+                ean = r.get("ean") or "-"
+                print(
+                    f"  {r.get('date')}  {r.get('total')} {r.get('currency', '')}"
+                    f"  ean:{ean}  {r.get('receipt_name', '')}"
+                )
+            if not rows:
+                print("  (none)")
+        except OSError as exc:
+            print(f"  (could not read ledger: {exc})")
+        print()
 
     if args.diary and args.shop:
         print(f"## Recent diary lines mentioning '{args.shop}'")

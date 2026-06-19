@@ -35,10 +35,21 @@ The staging file should be the last human gate - it should be approved by the us
 
 Start a trip with the context command instead of grepping for conventions:
 ```bash
-~/inventory-md/scripts/shopping_context.py "SHOP"
+~/inventory-md/scripts/shopping_context.py "SHOP" --ledger $LEDGER --diary $DIARY
 ```
-It prints the shop's cached OSM and recent staging files for the shop (a schema
-example to copy).
+It prints, for the shop: the cached Open Prices OSM object, recent staging files
+(a schema example to copy), recent **ledger rows** (prior prices, EANs and the
+receipt-name/category convention), and recent diary expense lines. That is
+deliberately everything you'd otherwise `tail`/`grep` for — so don't.
+
+**Looking something up in the inventory itself** (does an item already exist?
+what's in a section?) — use the parsed JSON, never `grep inventory.md`:
+```bash
+inventory-md lookup --match TERM   # existing items by id/name (e.g. an EAN already stocked)
+inventory-md container ID          # contents of a section/container (e.g. 'floating')
+```
+`jq` on `inventory.json` covers anything else structured. These are exact and
+allowlisted; grepping the markdown is neither.
 
 ## User instructions
 
@@ -251,11 +262,29 @@ EAN/category/price aggregator. There is **no `ean_cache.json`** — use tingbok.
 This skill and the scripts are quite fresh.  For each run, try to pinpoint problems and choke-points and suggest ways to improve the procedure.  Some thoughts:
 
 * Almost every time I run the skill, the Claude agent goes off and breaks all the rules in the "important"-section, why is that and how can it be improved?
+  * Root cause (2026-06-19): louder warnings don't help — the agent greps because
+    `shopping_context.py` didn't surface everything it reaches for, and the rules
+    live in a *second* file it reads only after it has already grepped on instinct.
+  * Done: `shopping_context.py` now also prints recent **ledger rows** for the shop
+    (`--ledger`), so there is no reason to `tail purchases.jsonl`; and the Procedure
+    section now points inventory lookups at `inventory-md lookup`/`container` + `jq`,
+    never `grep inventory.md`.
+  * Still open: hoisting the one hard rule to the very top of the loaded artifact
+    (personal SKILL.md / command body), so it is seen *before* the first action.
 * Perhaps the directories above should go into a config file?
-* On the previous shopping trip, there was some confusion about quantity and mass, we need to find some smarter solution for this:
-  * In the receipts, some items may be sold by mass (456 grams of onions), and the "quantity" on the receipt may then be given in kilograms - but in the inventory the quantity should be the count (3 onions).  Probably the qty in the ledger should read purchase-qty instead of just qty?
-  * If I bought three packages with 150 grams in each, the inventory should read `qty:3 mass:150g`.
-  * If I bought three onions with total mass 456 grams (but some of the onions may be smaller than others), the inventory should read `qty:3 mass:456gram`.
-  * The difference is often weather the product has an EAN/barcode or not.  If I bought two packs of onions with an EAN and given weight 500g pr pack, then it should by `qty:2 mass:500g` even if the pack may contain several onions.
-  * User should be encouraged to count the vegetables (Perhaps with some AI-considerations - I'm not going to count cherries or anything like that).
-* The shop cache now has an entry "lidl" with coordinates.  This doesn't work out very well, since Lidl has many locations both locally in my area and world-wide.
+  * Still open. Would let `shopping_context.py`/`pipeline.py` find `$LEDGER`/`$DIARY`
+    without the caller passing them each run. Mild win; only pursue if the path-passing
+    keeps biting.
+* Quantity vs mass — **mostly resolved** by the Stage-2 "Quantities — count, not weight"
+  section (qty = piece count; total weight in `mass:`; per-kg price with `price_unit: kg`;
+  packaged multi-buys use the total; ask the user for the count). Remaining decision:
+  * Pin down per-unit vs total notation: the importer writes `mass:450g/3` (total/count),
+    while `qty:3 mass:150g` (per-pack) was the original wish — pick one and document it.
+  * The "rename ledger `qty`→`purchase-qty`" idea is **not** worth doing: the importer
+    already distinguishes `mass`/`volume` from the count, so it would be churn.
+* Shop OSM cache too coarse — Lidl/Billa have **many branches per city**, so even
+  "Lidl Varna" names one specific store.
+  * Done: `match_shop_osm` now refuses to silently pick among multiple matches (returns
+    nothing and lists the candidates); cache keys re-keyed to include the branch street.
+  * When caching a new shop, key it by branch (shop + street), and confirm the OSM object
+    is that exact store before publishing Open Prices.

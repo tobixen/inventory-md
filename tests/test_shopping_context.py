@@ -8,7 +8,9 @@ from shopping_context import (  # noqa: E402
     find_staging_files,
     grep_diary_lines,
     match_shop_osm,
+    recent_ledger_rows,
     shop_of,
+    shop_osm_candidates,
 )
 
 
@@ -22,10 +24,33 @@ class TestMatchShopOsm:
         assert match_shop_osm(self.CACHE, "Lidl Varna")["osm_id"] == 235500005
 
     def test_case_insensitive_substring(self):
+        # One Lidl cached → a bare "lidl" still resolves unambiguously.
         assert match_shop_osm(self.CACHE, "lidl")["osm_id"] == 235500005
 
     def test_no_match(self):
         assert match_shop_osm(self.CACHE, "Praktiker Varna") is None
+
+    def test_ambiguous_substring_refuses_to_guess(self):
+        # Two branches of the same chain: a bare "lidl" must NOT silently pick one.
+        cache = {
+            "Lidl Varna Вл. Варненчик": {"osm_type": "WAY", "osm_id": 235500005},
+            "Lidl Varna Цар Освободител": {"osm_type": "WAY", "osm_id": 999999999},
+        }
+        assert match_shop_osm(cache, "lidl") is None
+        assert match_shop_osm(cache, "lidl varna") is None
+        # …but the exact branch name still resolves.
+        assert match_shop_osm(cache, "Lidl Varna Цар Освободител")["osm_id"] == 999999999
+
+    def test_candidates_lists_all_matches(self):
+        cache = {
+            "Lidl Varna Вл. Варненчик": {"osm_type": "WAY", "osm_id": 235500005},
+            "Lidl Varna Цар Освободител": {"osm_type": "WAY", "osm_id": 999999999},
+            "Billa Varna": {"osm_type": "WAY", "osm_id": 1016681733},
+        }
+        assert sorted(shop_osm_candidates(cache, "lidl")) == [
+            "Lidl Varna Вл. Варненчик",
+            "Lidl Varna Цар Освободител",
+        ]
 
 
 class TestStagingFiles:
@@ -80,3 +105,26 @@ class TestGrepDiary:
 
     def test_empty_when_no_match(self):
         assert grep_diary_lines(self.DIARY, "Decathlon") == []
+
+
+class TestRecentLedgerRows:
+    LEDGER = "\n".join(
+        [
+            '{"date": "2026-06-13", "shop": "Praktiker Varna", "receipt_name": "THINNER", "total": 4.99, "currency": "EUR", "ean": "3800045022060"}',
+            '{"date": "2026-06-18", "shop": "Lidl Varna", "receipt_name": "MLYAKO", "total": 1.43, "currency": "EUR", "ean": "4056489108160"}',
+            "",  # blank lines are skipped
+            '{"date": "2026-06-19", "shop": "Praktiker Varna", "receipt_name": "SOUDAL", "total": 9.99, "currency": "EUR", "ean": null}',
+            "not json — tolerated and skipped",
+        ]
+    )
+
+    def test_filters_by_shop_and_keeps_newest(self):
+        rows = recent_ledger_rows(self.LEDGER, "praktiker", limit=10)
+        assert [r["receipt_name"] for r in rows] == ["THINNER", "SOUDAL"]
+
+    def test_limit_keeps_the_last_n(self):
+        rows = recent_ledger_rows(self.LEDGER, "praktiker", limit=1)
+        assert [r["receipt_name"] for r in rows] == ["SOUDAL"]
+
+    def test_no_match_is_empty(self):
+        assert recent_ledger_rows(self.LEDGER, "Decathlon", limit=10) == []
