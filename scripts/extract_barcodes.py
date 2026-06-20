@@ -45,10 +45,16 @@ from pathlib import Path
 try:
     from PIL import Image
     from pyzbar.pyzbar import decode
+
+    HAS_BARCODE_DEPS = True
 except ImportError:
-    print("Error: Required packages not installed.", file=sys.stderr)
-    print("Run: pip install pyzbar pillow", file=sys.stderr)
-    sys.exit(1)
+    # Don't sys.exit at import time — that turns into a SystemExit during pytest
+    # collection (and kills any importer). Degrade gracefully like the niquests /
+    # easyocr blocks below; the CLI re-checks and exits with a friendly message,
+    # and extract_barcodes() raises a clear error if actually called.
+    Image = None
+    decode = None
+    HAS_BARCODE_DEPS = False
 
 try:
     import niquests as requests
@@ -107,6 +113,8 @@ def extract_barcodes(image_path: Path) -> list[dict]:
 
     Returns list of dicts with: type, data, polygon
     """
+    if not HAS_BARCODE_DEPS:
+        raise RuntimeError("Barcode scanning requires pyzbar and pillow (pip install pyzbar pillow)")
     try:
         image = Image.open(image_path)
     except Exception as e:
@@ -652,6 +660,11 @@ def format_for_inventory(barcode: dict, product: dict | None) -> str:
 
 def main():
     import argparse
+
+    if not HAS_BARCODE_DEPS:
+        print("Error: Required packages not installed.", file=sys.stderr)
+        print("Run: pip install pyzbar pillow", file=sys.stderr)
+        sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Extract and look up barcodes from images.")
     parser.add_argument("images", nargs="*", type=Path, metavar="IMAGE", help="Image file(s) to scan")
