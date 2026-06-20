@@ -4,6 +4,13 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+# sync_eans_to_inventory imports extract_barcodes, which hard-exits at import
+# time when pyzbar (optional, needs system libzbar0) is missing — skip the whole
+# module in that case, mirroring tests/test_extract_barcodes.py.
+pytest.importorskip("pyzbar", reason="pyzbar not installed")
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 import sync_eans_to_inventory as sync  # noqa: E402
