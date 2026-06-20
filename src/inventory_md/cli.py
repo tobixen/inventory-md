@@ -1184,6 +1184,11 @@ Examples:
     vocab_lookup = vocab_subparsers.add_parser("lookup", help="Look up a concept by label")
     vocab_lookup.add_argument("label", help="Label to look up (prefLabel or altLabel)")
     vocab_lookup.add_argument("--directory", "-d", type=Path, help="Inventory directory (default: current)")
+    vocab_lookup.add_argument(
+        "--lang",
+        "-l",
+        help="Language code for the tingbok lookup (e.g. nb, en). Default: from config.",
+    )
 
     # vocabulary tree
     vocab_tree = vocab_subparsers.add_parser("tree", help="Show category hierarchy as tree")
@@ -1587,12 +1592,13 @@ def vocabulary_command(args, config: Config) -> int:
         if not config.tingbok_url:
             return 1
 
-        print(f"Querying tingbok for '{label}' ...")
+        lang = getattr(args, "lang", None) or config.lang or "en"
+        print(f"Querying tingbok for '{label}' (lang={lang}) ...")
         try:
             resolved, _ = vocabulary.enrich_categories_via_lookup(
                 [label],
                 tingbok_url=config.tingbok_url,
-                lang=config.lang or "en",
+                lang=lang,
             )
         except Exception as e:
             print(f"Tingbok lookup failed: {e}")

@@ -866,3 +866,35 @@ class TestVocabularyOffline:
 
         assert result.returncode != 0
         assert "not found in local vocabulary" in result.stdout.lower() or "⚠" in result.stdout
+
+    def test_vocabulary_lookup_lang_flag_overrides_config(self, tmp_path) -> None:
+        """vocabulary lookup --lang overrides config.lang in the tingbok query."""
+        from inventory_md import config as config_mod
+        from inventory_md import vocabulary
+
+        args = argparse.Namespace(vocab_command="lookup", label="soppsanking", directory=tmp_path, lang="nb")
+        cfg = config_mod.Config()
+        cfg._data = {"lang": "en", "tingbok": {"url": "https://tingbok.example"}}
+
+        with patch.object(vocabulary, "enrich_categories_via_lookup", return_value=({}, {})) as mock_enrich:
+            rc = cli.vocabulary_command(args, cfg)
+
+        assert rc == 1  # not resolved -> exit 1
+        mock_enrich.assert_called_once()
+        assert mock_enrich.call_args.kwargs["lang"] == "nb"
+
+    def test_vocabulary_lookup_lang_defaults_to_config(self, tmp_path) -> None:
+        """Without --lang, the tingbok query uses config.lang."""
+        from inventory_md import config as config_mod
+        from inventory_md import vocabulary
+
+        args = argparse.Namespace(vocab_command="lookup", label="soppsanking", directory=tmp_path, lang=None)
+        cfg = config_mod.Config()
+        cfg._data = {"lang": "de", "tingbok": {"url": "https://tingbok.example"}}
+
+        with patch.object(vocabulary, "enrich_categories_via_lookup", return_value=({}, {})) as mock_enrich:
+            rc = cli.vocabulary_command(args, cfg)
+
+        assert rc == 1
+        mock_enrich.assert_called_once()
+        assert mock_enrich.call_args.kwargs["lang"] == "de"
