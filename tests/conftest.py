@@ -2,7 +2,7 @@
 
 import pytest
 
-from inventory_md import vocabulary
+from inventory_md import tingbok_embedded, vocabulary
 
 
 @pytest.fixture(autouse=True)
@@ -16,6 +16,18 @@ def _clear_vocabulary_caches():
     vocabulary.clear_caches()
     yield
     vocabulary.clear_caches()
+
+
+@pytest.fixture(autouse=True)
+def _no_embedded_tingbok(monkeypatch):
+    """Make the in-process tingbok fallback look uninstalled, unless a test opts in.
+
+    Tests of the "tingbok is unreachable" paths expect them to fail; with the
+    ``tingbok`` package installed alongside (as on the host that runs tingbok)
+    the fallback answers instead and those tests fail.  Tests of the fallback
+    itself install a stand-in or call ``tingbok_embedded.reset()``.
+    """
+    monkeypatch.setattr(tingbok_embedded, "_module", False)
 
 
 _TINGBOK_URL = "https://tingbok.plann.no"
