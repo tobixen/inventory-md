@@ -129,3 +129,25 @@ def test_move_item_dry_run_leaves_file(md_path: Path):
 def test_move_item_reports_source_container(md_path: Path):
     result = moveitem.move_item(md_path, item_id="pasta-1", container_id="box2")
     assert result.from_container == "box1"
+
+
+def test_move_item_into_parent_does_not_descend_into_sub_containers(tmp_path: Path):
+    """Moving into a container with sub-containers lands in the parent itself.
+
+    Regression: ``move`` shares ``add``'s insertion rule, which picked the last
+    bullet of the last sub-container (``food2-lost``).
+    """
+    md = tmp_path / "inventory.md"
+    md.write_text(
+        "# ID:food1 Pantry\n\n* category:milk ID:milk-1 Milk\n\n"
+        "# ID:food2 Food box\n\n## ID:food2-bottom Bottom\n\n* category:rice ID:rice-2 Rice\n\n"
+        "## ID:food2-lost Lost\n\n* category:peanuts ID:peanuts-old Peanuts\n",
+        encoding="utf-8",
+    )
+    result = moveitem.move_item(md, item_id="milk-1", container_id="food2")
+    assert not result.errors
+    lines = md.read_text(encoding="utf-8").splitlines()
+    idx = next(i for i, line in enumerate(lines) if "ID:milk-1" in line)
+    heading = next(line for line in reversed(lines[:idx]) if line.startswith("#"))
+    assert heading.startswith("# ID:food2 ")
+    assert not lines[idx + 1].startswith("#")

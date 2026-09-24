@@ -233,14 +233,21 @@ def format_item_line(
 def insertion_index(lines: list[str], container_id: str) -> int:
     """Return the line index at which a new bullet should be spliced.
 
-    The slot is after the last existing list item in the container's section,
-    or immediately after the heading (and its blank line) if the container has
-    no items yet.  Raises :class:`ValueError` if the container is not found.
+    The slot is after the last existing list item in the container's own
+    part.  With no items of its own yet it is after any description text, or
+    immediately after the heading (and its blank line) if there is none.  The
+    own part stops at the first sub-heading: the section also spans the
+    sub-containers, and scanning into them filed ``location: food2`` under its
+    last sub-container, ``food2-lost``.  An ID-less heading stops it too: the
+    parser treats one as a grouping header ("#### English children's books")
+    whose items belong to the container, and a new item is not known to belong
+    to that group.  Raises :class:`ValueError` if the container is not found.
     """
     located = _parser.find_container_section(lines, container_id)
     if located is None:
         raise ValueError(f"Container ID:{container_id} not found")
     start, end, _level = located
+    end = next((i for i in range(start + 1, end) if _parser._heading_level(lines[i])), end)
 
     last_bullet = None
     for i in range(start + 1, end):
@@ -250,7 +257,12 @@ def insertion_index(lines: list[str], container_id: str) -> int:
 
     if last_bullet is not None:
         return last_bullet + 1
-    # No items yet: insert right after the heading, skipping one blank line
+    # No items yet, but a description: go after it (insert_lines keeps a blank
+    # line between them), or markdown reads the text as part of the bullet.
+    last_text = next((i for i in range(end - 1, start, -1) if lines[i].strip()), None)
+    if last_text is not None:
+        return last_text + 1
+    # Nothing at all: insert right after the heading, skipping one blank line
     # so the bullet doesn't glue onto the heading.
     insert_at = start + 1
     if insert_at < end and not lines[insert_at].strip():
@@ -266,8 +278,24 @@ def insert_item_line(lines: list[str], container_id: str, item_line: str) -> lis
     container has no items yet.  Raises :class:`ValueError` if the container is
     not found.
     """
+    return insert_lines(lines, container_id, [item_line])
+
+
+def insert_lines(lines: list[str], container_id: str, block: list[str]) -> list[str]:
+    """Return ``lines`` with ``block`` spliced in at :func:`insertion_index`.
+
+    Shared by ``add`` and ``move``.  When the slot is directly before a
+    sub-heading (a container with no items of its own), a blank line is kept
+    between the block and the heading; likewise after description text.
+    """
     insert_at = insertion_index(lines, container_id)
-    return lines[:insert_at] + [item_line] + lines[insert_at:]
+    new = list(block)
+    if insert_at < len(lines) and _parser._heading_level(lines[insert_at]):
+        new.append("")
+    before = lines[insert_at - 1] if insert_at > 0 else ""
+    if before.strip() and not before.lstrip().startswith(("* ", "- ")) and not _parser._heading_level(before):
+        new.insert(0, "")
+    return lines[:insert_at] + new + lines[insert_at:]
 
 
 def add_item(

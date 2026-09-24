@@ -183,6 +183,81 @@ def test_insert_item_line_empty_container():
     assert "* category:milk ID:m1" in new
 
 
+_MD_NESTED = """# ID:food2 Food box
+
+{own}## ID:food2-bottom Bottom
+
+* category:rice ID:rice-2 Rice
+
+## ID:food2-lost Lost
+
+This has either been eaten, or disappeared into food1.
+
+* category:peanuts ID:peanuts-old Peanuts
+"""
+
+
+def _owner_of(lines: list[str], item_id: str) -> str:
+    """ID of the nearest heading above the line carrying ``ID:item_id``."""
+    idx = next(i for i, line in enumerate(lines) if f"ID:{item_id}" in line and line.lstrip().startswith("*"))
+    heading = next(line for line in reversed(lines[:idx]) if line.startswith("#"))
+    return heading.split("ID:")[1].split()[0]
+
+
+@pytest.mark.parametrize(
+    "own",
+    ["", "* category:beans ID:beans-1 Beans\n\n"],
+    ids=["no-own-items", "own-items"],
+)
+def test_insert_item_line_does_not_descend_into_sub_containers(own: str):
+    """`location: food2` must land in food2 itself, not in its last sub-container.
+
+    Regression: the section of ``# ID:food2`` spans its sub-headings, so the
+    "after the last bullet" rule picked the last bullet of ``food2-lost`` and
+    newly bought food was filed as already lost.
+    """
+    lines = _MD_NESTED.format(own=own).splitlines()
+    new = additem.insert_item_line(lines, "food2", "* category:milk ID:milk-new Milk")
+    assert _owner_of(new, "milk-new") == "food2"
+    # the bullet must not be glued onto the following sub-heading
+    idx = next(i for i, line in enumerate(new) if "ID:milk-new" in line)
+    assert not new[idx + 1].startswith("#")
+
+
+def test_insert_after_parent_description_not_glued_to_it():
+    """A parent with prose but no bullets of its own gets the item after the prose.
+
+    Inserting straight after the heading put the bullet on the line before the
+    description, which markdown then reads as a continuation of the bullet.
+    """
+    lines = _MD_NESTED.format(own="This box sits under the bench.\n\n").splitlines()
+    new = additem.insert_item_line(lines, "food2", "* category:milk ID:milk-new Milk")
+    assert _owner_of(new, "milk-new") == "food2"
+    idx = next(i for i, line in enumerate(new) if "ID:milk-new" in line)
+    prose = new.index("This box sits under the bench.")
+    assert prose < idx, "the item goes after the description"
+    assert new[idx - 1] == "", "a blank line separates it from the description"
+    assert new[idx + 1] == "", "and from the following sub-heading"
+
+
+def test_insert_stops_at_an_id_less_grouping_heading():
+    """An ID-less heading inside a container is a grouping header ("#### English
+    children's books"): its items belong to the container, but a new item is not
+    known to belong to that group, so it goes into the container's own part."""
+    lines = """# ID:shelf Book shelf
+
+* ID:atlas Atlas
+
+#### English children's books
+
+* ID:gruffalo The Gruffalo
+""".splitlines()
+    new = additem.insert_item_line(lines, "shelf", "* ID:new-book New book")
+    idx = next(i for i, line in enumerate(new) if "ID:new-book" in line)
+    assert idx < new.index("#### English children's books")
+    assert new[idx - 1] == "* ID:atlas Atlas"
+
+
 # --- end-to-end command -----------------------------------------------------
 
 

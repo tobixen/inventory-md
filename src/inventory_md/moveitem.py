@@ -6,7 +6,7 @@ recurring chore; doing it by hand-editing the markdown is error-prone — it is
 easy to duplicate a line instead of moving it, or to orphan an item's indented
 sub-bullets.  ``move_item`` locates the bullet by its ``ID:`` token, carries any
 deeper-indented continuation lines with it, and splices the block into the target
-container using the same insertion rule as ``add`` (:func:`additem.insertion_index`).
+container using the same insertion rule as ``add`` (:func:`additem.insert_lines`).
 
 Only items that exist as a single ``ID:``-tagged bullet can be moved; free-text
 list entries without an ID are out of scope.
@@ -135,12 +135,11 @@ def move_item(
 
     remaining = lines[:start] + lines[end:]
     try:
-        insert_at = _additem.insertion_index(remaining, container_id)
+        new_lines = _additem.insert_lines(remaining, container_id, moved)
     except ValueError as exc:
         result.errors.append(str(exc))
         return result
 
-    new_lines = remaining[:insert_at] + moved + remaining[insert_at:]
     new_text = "\n".join(new_lines)
     if had_trailing_newline:
         new_text += "\n"
