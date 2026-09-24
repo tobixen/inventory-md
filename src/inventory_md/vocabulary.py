@@ -1650,11 +1650,14 @@ def report_ean_to_tingbok(
     quantity: str | None = None,
     prices: list[dict] | None = None,
     cache_dir: Path | None = None,
-) -> None:
+) -> bool | None:
     """PUT inventory-sourced observations for *ean* to tingbok.
 
     Sends ``PUT {tingbok_url}/api/ean/{ean}`` with category, name, quantity
-    and price data from the inventory.  Failures are silently ignored.
+    and price data from the inventory.  Failures are logged, not raised.
+
+    Returns ``True`` when tingbok stored the observation, ``False`` when the
+    PUT failed, and ``None`` when there was nothing to send.
 
     When *cache_dir* is provided, the EAN GET cache is invalidated after a
     successful PUT so the next :func:`lookup_ean_via_tingbok` call fetches
@@ -1675,7 +1678,7 @@ def report_ean_to_tingbok(
     import niquests
 
     if not categories and not name and not quantity and not prices:
-        return
+        return None
 
     putter = session.put if session is not None else niquests.put
     base = tingbok_url.rstrip("/")
@@ -1692,11 +1695,16 @@ def report_ean_to_tingbok(
         response = putter(f"{base}/api/ean/{ean}", json=payload, timeout=5.0)
         if not response.ok:
             logger.warning("EAN PUT %s → HTTP %s: %s", ean, response.status_code, response.text[:500])
-            return
-        logger.debug("Reported EAN %s to tingbok: %s", ean, payload)
-        if cache_dir is not None:
-            cache_path = cache_dir / f"{ean}.json"
-            if cache_path.exists():
-                cache_path.unlink()
+            return False
     except Exception as exc:
         logger.warning("Failed to report EAN %s to tingbok: %s", ean, exc)
+        return False
+    logger.debug("Reported EAN %s to tingbok: %s", ean, payload)
+    # Outside the try: tingbok has stored it, so a stale cache entry must not
+    # turn a success into a reported failure.
+    if cache_dir is not None:
+        try:
+            (cache_dir / f"{ean}.json").unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("Could not invalidate EAN cache for %s: %s", ean, exc)
+    return True

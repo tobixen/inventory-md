@@ -2316,6 +2316,52 @@ class TestEanCache:
         assert mock_put.call_count == 2
 
 
+class TestReportEanResult:
+    """report_ean_to_tingbok says whether the observation was stored."""
+
+    EAN = "7310865004703"
+    TINGBOK_URL = "https://tingbok.plann.no"
+
+    def test_returns_true_on_success(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        with patch("niquests.put", return_value=MagicMock(ok=True, status_code=200)):
+            assert vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL) is True
+
+    def test_returns_false_on_http_error(self) -> None:
+        """Regression: tingbok answered every PUT with 500 and the run reported them as pushed."""
+        from unittest.mock import MagicMock, patch
+
+        with patch("niquests.put", return_value=MagicMock(ok=False, status_code=500, text="Internal Server Error")):
+            assert vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL) is False
+
+    def test_returns_false_on_exception(self) -> None:
+        from unittest.mock import patch
+
+        with patch("niquests.put", side_effect=TimeoutError("timed out")):
+            assert vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL) is False
+
+    def test_stored_put_is_success_even_if_cache_invalidation_fails(self, tmp_path) -> None:
+        from unittest.mock import MagicMock, patch
+
+        (tmp_path / f"{self.EAN}.json").write_text("{}")
+        with (
+            patch("niquests.put", return_value=MagicMock(ok=True, status_code=200)),
+            patch("pathlib.Path.unlink", side_effect=PermissionError("denied")),
+        ):
+            assert (
+                vocabulary.report_ean_to_tingbok(self.EAN, ["food"], "Kaviar", self.TINGBOK_URL, cache_dir=tmp_path)
+                is True
+            )
+
+    def test_returns_none_when_nothing_to_send(self) -> None:
+        from unittest.mock import patch
+
+        with patch("niquests.put") as mock_put:
+            assert vocabulary.report_ean_to_tingbok(self.EAN, [], None, self.TINGBOK_URL) is None
+        mock_put.assert_not_called()
+
+
 class TestEanObservationNeeded:
     """Tests for ean_observation_needed() comparison helper."""
 

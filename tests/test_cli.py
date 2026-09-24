@@ -413,6 +413,29 @@ class TestParseCommandEanLookup:
 
         mock_report.assert_not_called()
 
+    def test_push_summary_counts_failures(self, tmp_path, monkeypatch, capsys) -> None:
+        """A failed PUT is counted as failed, not as pushed."""
+        from unittest.mock import patch
+
+        from inventory_md import cli, vocabulary
+
+        inventory_md = self._write_inventory(
+            tmp_path,
+            "## ID:Box1 Test\n\n* EAN:7310865004703 Kalles Kaviar\n* EAN:7021110120016 Something else\n",
+        )
+        monkeypatch.chdir(tmp_path)
+
+        with self._tingbok_patches(vocabulary):
+            with (
+                patch.object(vocabulary, "lookup_ean_via_tingbok", return_value=None),
+                patch.object(vocabulary, "ean_observation_needed", return_value=True),
+                patch.object(vocabulary, "report_ean_to_tingbok", side_effect=[True, False]),
+            ):
+                cli.parse_command(inventory_md, tingbok_url="https://tingbok.plann.no")
+
+        out = capsys.readouterr().out
+        assert "Pushed 1 observation(s), 1 failed, 0 already up-to-date" in out
+
 
 class TestShoppingListCommand:
     """Tests for the shopping-list subcommand."""

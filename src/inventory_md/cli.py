@@ -405,7 +405,7 @@ def parse_command(
                         # Skip EANs whose GET response already contains our observations
                         # (meaning a previous run pushed successfully).
                         print(f"\n📤 Checking {len(eans_found)} EAN observation(s) ...")
-                        reported = skipped = 0
+                        reported = failed = skipped = 0
                         for ean, item in eans_found.items():
                             meta = item.get("metadata", {})
                             cats: list[str] = meta.get("categories") or []
@@ -417,7 +417,7 @@ def parse_command(
                             if not vocabulary.ean_observation_needed(product, cats, name, quantity, prices):
                                 skipped += 1
                                 continue
-                            vocabulary.report_ean_to_tingbok(
+                            ok = vocabulary.report_ean_to_tingbok(
                                 ean,
                                 cats,
                                 name,
@@ -427,8 +427,11 @@ def parse_command(
                                 prices=prices,
                                 cache_dir=_tingbok_cache,
                             )
-                            reported += 1
-                        print(f"   Pushed {reported} observation(s), {skipped} already up-to-date")
+                            if ok is False:
+                                failed += 1
+                            elif ok:
+                                reported += 1
+                        print(f"   Pushed {reported} observation(s), {failed} failed, {skipped} already up-to-date")
 
             # Enrich EAN-derived category labels not yet in vocab (via /api/lookup).
             # Inventory categories were already resolved in the batch call above;
