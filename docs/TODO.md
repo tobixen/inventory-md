@@ -159,6 +159,26 @@ The June review added `--no-push` and fixed the leaked `niquests.Session`, but
 explicitly left the rest: split the function into testable stages, and add an
 `--offline` mode that means it.
 
+The network work is also what makes it slow: on 2026-10-04, over the boat's
+mobile link, the closing `parse` of a shopping run resolved 625 category labels
+and 292 EANs against tingbok and took more than ten minutes.
+
+### Read commands disagree on how they are told where the inventory is
+
+Three conventions for one question:
+
+- `lookup`, `container`, `expiring` take a positional `inventory.json` path;
+- `ean`, `vocabulary` take `--directory/-d DIR`;
+- `add`, `edit`, `move` take `--file inventory.md`, falling back to the
+  configured `inventory_file`, which the read commands ignore.
+
+Every caller not sitting in the inventory directory has to remember which is
+which. The shopping skill runs from the diary repo, so it trips on this every
+time (2026-10-04: `lookup` failed outright, `vocabulary lookup` silently fell
+back to tingbok). Give all of them one `-d DIR` (keeping the old forms as
+aliases) and let the read commands honour `inventory_file` too. A global default
+in `~/.config` is not the answer: one user may keep several inventories.
+
 ### Odds and ends in `api_server.py`
 
 Module-level mutable state — `inventory_data`, `inventory_path`, `aliases`
