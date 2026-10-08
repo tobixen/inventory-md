@@ -17,6 +17,7 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from . import moveitem, removeitem
 from .parser import find_container_section
 
 # Global inventory data
@@ -801,8 +802,42 @@ def remove_container(container_id: str) -> dict:
         return {"error": f"Failed to remove container: {str(e)}"}
 
 
+_ITEM_ID_RE = re.compile(r"(?:^|\s)ID:(\S+)")
+
+
+def _find_item_line(lines: list[str], container_id: str, item_description: str) -> tuple[int, str | None] | dict:
+    """Index of the first top-level item in ``container_id`` matching
+    ``item_description`` (case-insensitive substring), plus its ``ID:`` if it
+    has one; an ``{"error": ...}`` dict when there is no such container or item."""
+    _cs = find_container_section(lines, container_id)
+    if _cs is None:
+        return {"error": f"Container ID:{container_id} not found"}
+    container_line_idx, container_section_end, _ = _cs
+    for i in range(container_line_idx + 1, container_section_end):
+        if lines[i].startswith("* ") and item_description.lower() in lines[i].lower():
+            m = _ITEM_ID_RE.search(lines[i])
+            return i, m.group(1) if m else None
+    return {"error": f"Item '{item_description}' not found in container {container_id}"}
+
+
+def _refresh_after_write(markdown_path: Path, commit_message: str) -> None:
+    """Regenerate JSON and photo listings, reload, and commit after inventory.md changed."""
+    from inventory_md import parser
+
+    data = parser.parse_inventory(markdown_path)
+    parser.save_json(data, inventory_path)
+    parser.generate_photo_listings(markdown_path.parent)
+    reload_inventory()
+    git_commit(commit_message)
+
+
 def remove_item_from_container(container_id: str, item_description: str) -> dict:
-    """Remove an item from a container by modifying the markdown file."""
+    """Remove an item from a container by modifying the markdown file.
+
+    An ``ID:``-tagged item goes through :func:`removeitem.remove_item`, so its
+    sub-bullets go with it and a bullet holding other ID'd items is refused.
+    The whole line is removed whatever its ``qty`` — the API has always done so.
+    """
     if not inventory_path:
         return {"error": "Inventory path not set"}
 
@@ -814,43 +849,25 @@ def remove_item_from_container(container_id: str, item_description: str) -> dict
     git_pull()
 
     try:
-        # Read markdown file
         with open(markdown_path, encoding="utf-8") as f:
             lines = f.readlines()
 
-        # Find the container section (can be # or ## heading)
-        _cs = find_container_section(lines, container_id)
-        if _cs is None:
-            return {"error": f"Container ID:{container_id} not found"}
-        container_line_idx, container_section_end, _ = _cs
+        found = _find_item_line(lines, container_id, item_description)
+        if isinstance(found, dict):
+            return found
+        index, item_id = found
+        removed_item_text = lines[index][2:].strip()
 
-        # Find and remove the item
-        removed_item_text = None
-        for i in range(container_line_idx + 1, container_section_end):
-            if lines[i].startswith("* ") and item_description.lower() in lines[i].lower():
-                removed_item_text = lines[i][2:].strip()
-                del lines[i]
-                break
+        if item_id:
+            result = removeitem.remove_item(markdown_path, item_id=item_id, remove_all=True)
+            if result.errors:
+                return {"error": "; ".join(result.errors)}
+        else:
+            del lines[index]
+            with open(markdown_path, "w", encoding="utf-8") as f:
+                f.writelines(lines)
 
-        if removed_item_text is None:
-            return {"error": f"Item '{item_description}' not found in container {container_id}"}
-
-        # Write back
-        with open(markdown_path, "w", encoding="utf-8") as f:
-            f.writelines(lines)
-
-        # Regenerate JSON and photo listings
-        from inventory_md import parser
-
-        data = parser.parse_inventory(markdown_path)
-        parser.save_json(data, inventory_path)
-        parser.generate_photo_listings(markdown_path.parent)
-
-        # Reload
-        reload_inventory()
-
-        # Git commit
-        git_commit(f"Remove item from {container_id}: {removed_item_text[:50]}")
+        _refresh_after_write(markdown_path, f"Remove item from {container_id}: {removed_item_text[:50]}")
 
         return {
             "success": True,
@@ -910,10 +927,68 @@ def add_todo(task_description: str, priority: str = "medium") -> dict:
         return {"error": f"Failed to add TODO: {str(e)}"}
 
 
+def _move_id_item(
+    markdown_path: Path, item_id: str, source_container_id: str, destination_container_id: str, tags: str | None
+) -> dict:
+    """Move ``item_id`` with :func:`moveitem.move_item`, refusing a copy of the
+    ID found outside ``source_container_id``."""
+    check = moveitem.move_item(markdown_path, item_id=item_id, container_id=destination_container_id, dry_run=True)
+    if check.errors:
+        return {"error": "; ".join(check.errors)}
+    if check.from_container != source_container_id:
+        return {
+            "error": f"ID:{item_id} is first found in container {check.from_container}, "
+            f"not {source_container_id}; is the ID duplicated?"
+        }
+    result = moveitem.move_item(markdown_path, item_id=item_id, container_id=destination_container_id)
+    if result.errors:
+        return {"error": "; ".join(result.errors)}
+    if tags:
+        lines = markdown_path.read_text(encoding="utf-8").split("\n")
+        block = moveitem.find_item_block(lines, item_id)
+        if block is not None:
+            line = lines[block[0]]
+            bullet_end = len(line) - len(line.lstrip()) + 2
+            lines[block[0]] = f"{line[:bullet_end]}tag:{tags} {line[bullet_end:]}"
+            markdown_path.write_text("\n".join(lines), encoding="utf-8")
+    moved = result.item_line.strip()[2:] if result.item_line else item_id
+    _refresh_after_write(
+        markdown_path, f"Move item from {source_container_id} to {destination_container_id}: {moved[:50]}"
+    )
+    return {
+        "success": True,
+        "message": f"Moved '{moved}' from {source_container_id} to {destination_container_id}",
+        "source": source_container_id,
+        "destination": destination_container_id,
+        "item": moved,
+    }
+
+
 def move_item(
     source_container_id: str, destination_container_id: str, item_description: str, tags: str | None = None
 ) -> dict:
-    """Move an item from one container to another."""
+    """Move an item from one container to another.
+
+    An ``ID:``-tagged item is relocated by :func:`moveitem.move_item`, carrying
+    its sub-bullets along, and ``tags`` are prefixed to its line; a free-text
+    item is removed and re-added by text.
+    """
+    if inventory_path:
+        markdown_path = inventory_path.parent / "inventory.md"
+        if markdown_path.exists():
+            git_pull()
+            try:
+                found = _find_item_line(
+                    markdown_path.read_text(encoding="utf-8").splitlines(), source_container_id, item_description
+                )
+                if isinstance(found, dict):
+                    return {"error": f"Failed to remove item from {source_container_id}: {found['error']}"}
+                _, item_id = found
+                if item_id:
+                    return _move_id_item(markdown_path, item_id, source_container_id, destination_container_id, tags)
+            except Exception as e:
+                return {"error": f"Failed to move item: {str(e)}"}
+
     # First, remove from source
     remove_result = remove_item_from_container(source_container_id, item_description)
     if "error" in remove_result:
@@ -1023,7 +1098,7 @@ When users ask about their inventory:
 
 When users want to modify the inventory:
 1. For simple changes (add/remove items): Use add_item or remove_item tools directly
-2. For moving items between containers: Use remove_item from the source, then add_item to the destination (or use move_item if available)
+2. For moving items between containers: Use move_item (never remove_item + add_item, which loses sub-bullets and records the item as consumed)
 3. For complex changes you CANNOT handle (moving photos between containers, reorganizing container structure, changing container metadata): Use add_todo to create a task
 4. Always confirm what was done and mention that it has been committed to git
 
@@ -1036,7 +1111,7 @@ IMPORTANT: If a user asks you to do something that requires:
 Use the add_todo tool to record the request in TODO.md. Explain to the user that this requires manual intervention and you've added it to the TODO list.
 
 You CAN directly handle:
-- Moving items/boxes between containers (use remove_item + add_item, or move_item)
+- Moving items/boxes between containers (use move_item)
 - Adding new items
 - Removing items
 - Searching and querying

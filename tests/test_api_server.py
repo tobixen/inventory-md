@@ -152,6 +152,90 @@ class TestRemoveItemFromContainer:
         assert result["removed_item"] == "Hammer"
 
 
+_ID_MD = """# Box A1 ID:A1
+
+* category:hammer ID:hammer-1 Hammer
+* category:peel-ply ID:peel-1 Peel ply
+  * 83 g/m2 plain
+* ID:shelf-1 Shelf
+  * category:wrench ID:wrench-1 Wrench
+
+# Box B2 ID:B2
+
+* Empty box
+"""
+
+
+@pytest.fixture
+def id_inventory(temp_inventory):
+    from inventory_md import api_server
+
+    (temp_inventory / "inventory.md").write_text(_ID_MD, encoding="utf-8")
+    api_server.inventory_path = temp_inventory / "inventory.json"
+    with patch.object(api_server, "git_pull"), patch.object(api_server, "git_commit"):
+        with patch.object(api_server, "reload_inventory"):
+            yield temp_inventory / "inventory.md"
+
+
+class TestRemoveIdItemUsesRemoveitem:
+    """An ID-tagged item goes through removeitem: sub-bullets along, containers refused."""
+
+    def test_subbullets_removed_with_item(self, id_inventory):
+        from inventory_md import api_server
+
+        result = api_server.remove_item_from_container("A1", "Peel ply")
+        assert result.get("success") is True
+        text = id_inventory.read_text(encoding="utf-8")
+        assert "peel-1" not in text
+        assert "g/m2" not in text
+
+    def test_bullet_container_refused(self, id_inventory):
+        from inventory_md import api_server
+
+        result = api_server.remove_item_from_container("A1", "Shelf")
+        assert "error" in result
+        assert "wrench-1" in result["error"]
+        assert id_inventory.read_text(encoding="utf-8") == _ID_MD
+
+
+class TestMoveIdItemUsesMoveitem:
+    def test_subbullets_move_along(self, id_inventory):
+        from inventory_md import api_server
+
+        result = api_server.move_item("A1", "B2", "Peel ply")
+        assert result.get("success") is True
+        box1, box2 = id_inventory.read_text(encoding="utf-8").split("# Box B2")
+        assert "peel-1" not in box1
+        assert "g/m2" not in box1
+        assert "* category:peel-ply ID:peel-1 Peel ply\n  * 83 g/m2 plain" in box2
+
+    def test_tags_keep_subbullets(self, id_inventory):
+        from inventory_md import api_server
+
+        result = api_server.move_item("A1", "B2", "Peel ply", tags="x")
+        assert result.get("success") is True
+        box1, box2 = id_inventory.read_text(encoding="utf-8").split("# Box B2")
+        assert "peel-1" not in box1
+        assert "* tag:x category:peel-ply ID:peel-1 Peel ply\n  * 83 g/m2 plain" in box2
+
+    def test_duplicate_id_elsewhere_not_moved(self, id_inventory):
+        from inventory_md import api_server
+
+        md = "# Box C3 ID:C3\n\n* category:peel-ply ID:peel-1 Peel ply copy\n\n" + _ID_MD
+        id_inventory.write_text(md, encoding="utf-8")
+        result = api_server.move_item("A1", "B2", "Peel ply")
+        assert "error" in result
+        assert id_inventory.read_text(encoding="utf-8") == md
+
+    def test_exception_becomes_error(self, id_inventory):
+        from inventory_md import api_server
+
+        with patch.object(api_server.moveitem, "move_item", side_effect=RuntimeError("boom")):
+            result = api_server.move_item("A1", "B2", "Peel ply")
+        assert "boom" in result["error"]
+        assert id_inventory.read_text(encoding="utf-8") == _ID_MD
+
+
 class TestAddTodo:
     """Tests for add_todo function."""
 
