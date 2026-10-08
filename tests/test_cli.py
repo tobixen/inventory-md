@@ -960,6 +960,41 @@ class TestMoveCommand:
         assert md.read_text(encoding="utf-8") == self._MD
 
 
+class TestRemoveCommand:
+    """Integration tests for the `remove` subcommand wiring."""
+
+    _MD = "# ID:box1 First box\n\n* category:hammer ID:hammer-1 A hammer\n* category:lubricant ID:wd40 WD-40 spray\n"
+
+    def test_remove_deletes_and_reports(self, tmp_path, capsys) -> None:
+        md = tmp_path / "inventory.md"
+        md.write_text(self._MD, encoding="utf-8")
+        rc = cli.main(["remove", "wd40", "--file", str(md)])
+        assert rc == 0
+        assert "Removed wd40 from box1" in capsys.readouterr().out
+        assert "wd40" not in md.read_text(encoding="utf-8")
+
+    def test_remove_unknown_item_exits_1(self, tmp_path) -> None:
+        md = tmp_path / "inventory.md"
+        md.write_text(self._MD, encoding="utf-8")
+        assert cli.main(["remove", "nope", "--file", str(md)]) == 1
+        assert md.read_text(encoding="utf-8") == self._MD
+
+    def test_remove_dry_run_leaves_file(self, tmp_path) -> None:
+        md = tmp_path / "inventory.md"
+        md.write_text(self._MD, encoding="utf-8")
+        assert cli.main(["remove", "wd40", "--file", str(md), "--dry-run"]) == 0
+        assert md.read_text(encoding="utf-8") == self._MD
+
+    def test_remove_qty_refused_then_all(self, tmp_path) -> None:
+        md = tmp_path / "inventory.md"
+        text = self._MD.replace("ID:wd40", "ID:wd40 qty:2")
+        md.write_text(text, encoding="utf-8")
+        assert cli.main(["remove", "wd40", "--file", str(md)]) == 1
+        assert md.read_text(encoding="utf-8") == text
+        assert cli.main(["remove", "wd40", "--all", "--file", str(md)]) == 0
+        assert "wd40" not in md.read_text(encoding="utf-8")
+
+
 class TestEditCommand:
     """Integration tests for the `edit` subcommand wiring."""
 

@@ -75,6 +75,28 @@ inventory-md move sealant-soudal TB-24 --dry-run   # preview source → destinat
 - `--dry-run` reports the source and destination container and the line that would
   move, without writing.
 
+## Removing an item
+
+When something is used up, thrown away or given away, delete its line with
+`inventory-md remove` rather than by hand:
+
+```bash
+inventory-md remove milk-2026-07-21                 # delete the line and its sub-bullets
+inventory-md remove eggs-2026-07-21 --all --dry-run # preview removing a qty>1 item
+```
+
+- Anything not in the inventory counts as consumed. There is no separate log:
+  the git history of `inventory.md` records when each `ID:` disappeared, and
+  purchase-pipeline's `ledger.py consumed` joins that to the purchase. Commit
+  after removing.
+- An item with `qty` above 1, or a `qty` that is not a plain number (`qty:4-5`),
+  is refused unless `--all` is given. To use up part of it, use
+  `inventory-md edit ID --qty N`.
+- A bullet with other `ID:` items nested under it is a container, and is refused
+  outright: move or remove those items first, or they would all be counted as
+  consumed.
+- Unknown or duplicated IDs are errors; `--dry-run` shows what would go.
+
 ## Looking up a barcode (EAN)
 
 Before adding a barcoded item, check whether the product is already known. Ask

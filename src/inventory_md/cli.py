@@ -14,7 +14,7 @@ from pathlib import Path
 
 import argcomplete
 
-from . import additem, barcodes, edititem, moveitem, parser, queries, shopping_list, vocabulary
+from . import additem, barcodes, edititem, moveitem, parser, queries, removeitem, shopping_list, vocabulary
 from ._version import __version__
 from .config import Config, load_config
 
@@ -1153,6 +1153,35 @@ Examples:
         "--file", type=Path, dest="file", help="inventory.md to edit (default: configured or ./inventory.md)"
     )
 
+    # Remove command
+    remove_parser = subparsers.add_parser(
+        "remove",
+        help="Remove an existing item from inventory.md (used up, discarded, given away)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Delete an existing ID:-tagged item bullet, together with any indented
+sub-bullets.  Anything not in the inventory counts as consumed: the git history
+of inventory.md is the record of when it went, so commit after removing.
+
+An item with qty above 1 (or a qty that is not a plain number) is refused
+unless --all is given; to record using up part of it, use
+`inventory-md edit ID --qty N` instead.  A bullet with other ID: items nested
+under it is a container and is refused: move or remove those first.
+
+Examples:
+  inventory-md remove milk-2026-07-21
+  inventory-md remove eggs-2026-07-21 --all --dry-run
+        """,
+    )
+    remove_parser.add_argument("item_id", help="ID of the item to remove (e.g. milk-2026-07-21)")
+    remove_parser.add_argument("--all", action="store_true", dest="remove_all", help="Remove even if qty is above 1")
+    remove_parser.add_argument(
+        "--dry-run", action="store_true", help="Validate and report the removal without writing the file"
+    )
+    remove_parser.add_argument(
+        "--file", type=Path, dest="file", help="inventory.md to edit (default: configured or ./inventory.md)"
+    )
+
     # Ean command — ad-hoc barcode lookup
     ean_parser = subparsers.add_parser(
         "ean",
@@ -1453,6 +1482,8 @@ Examples:
         return edit_item_command(args, config)
     elif args.command == "move":
         return move_item_command(args, config)
+    elif args.command == "remove":
+        return remove_item_command(args, config)
     else:
         parser_cli.print_help()
         return 1
@@ -1597,6 +1628,34 @@ def move_item_command(args, config: Config) -> int:
         return 0
 
     print(f"✅ Moved {args.item_id} from {src} to {args.container_id}:\n   {result.item_line}")
+    print(f"   in {md_path}")
+    print("Run 'inventory-md parse' to refresh inventory.json.")
+    return 0
+
+
+def remove_item_command(args, config: Config) -> int:
+    """Handle the `remove` subcommand: delete an item line and its sub-bullets."""
+    md_path = _resolve_md_path(args, config)
+
+    result = removeitem.remove_item(
+        md_path,
+        item_id=args.item_id,
+        remove_all=args.remove_all,
+        dry_run=args.dry_run,
+    )
+
+    if result.errors:
+        for error in result.errors:
+            print(f"❌ {error}")
+        return 1
+
+    src = result.from_container or "?"
+    removed = "\n   ".join(result.removed)
+    if args.dry_run:
+        print(f"🔎 Would remove {args.item_id} from {src}:\n   {removed}")
+        return 0
+
+    print(f"✅ Removed {args.item_id} from {src}:\n   {removed}")
     print(f"   in {md_path}")
     print("Run 'inventory-md parse' to refresh inventory.json.")
     return 0
