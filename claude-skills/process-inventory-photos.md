@@ -128,6 +128,12 @@ cp SOURCE_PHOTOS $INVENTORY_DIR/photos/CONTAINER-ID/
 
 Add items with categories, IDs, quantities, and measurements. See `docs/ADDING-ITEMS.md` for full field reference.
 
+Write through the CLI rather than editing the markdown by hand: `inventory-md add`
+for new items, `edit` to correct a line, `move` for an item found in another
+container, and `remove` for one that is gone (used up, discarded, given away).
+An item missing from the inventory counts as consumed, and the git history is
+the record of when, so don't leave a line behind for something no longer there.
+
 ```markdown
 * category:concept ID:item-id qty:N mass:Xg Item description (brand, model)
 ```
