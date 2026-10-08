@@ -1,7 +1,7 @@
 # TODO — inventory-md
 
 **Scope.** This project owns the inventory format and its tooling: parsing,
-`add`/`edit`/`move`/`lookup`/`container`/`ean`, the vocabulary system,
+`add`/`edit`/`move`/`remove`/`lookup`/`container`/`ean`, the vocabulary system,
 `check_quality`, labels, the web UI, and barcode/best-before extraction from
 photos. Identifying a physical object is inventory's business; deciding what a
 *purchase* means is not — the receipt → ledger → publish layer lives in
@@ -273,6 +273,16 @@ labelling a container on every side. The second letter and the digit increment.
 ---
 
 ## Inventory format and data model
+
+### Item blocks leave indented non-bullet lines behind
+
+`moveitem.find_item_blocks()`, which `move`, `edit` and `remove` all use, only
+extends an item's block over deeper-indented *bullets*.  An indented plain-text
+continuation line, or sub-bullets separated by a blank line, stay where they
+are and end up attached to the previous item — permanently, with `remove`.  Its
+docstring claims continuation lines are included.  Either extend the block over
+deeper-indented non-blank lines too, or correct the docstring.  Not seen in the
+real inventories yet.
 
 ### Age ranges for children's items
 
