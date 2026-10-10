@@ -39,9 +39,13 @@ Suggest recipes that prioritize using items from the inventory, especially items
    > **Note:** Traditional Greek fava uses no garlic, but it adds depth — omit if you prefer authentic.
    ```
 
-8. **Consider timing**.  Avoid surprises like "Fry on strong heat for 30s while constantly stirring" followed with a point "add three finely chopped onions".  Sometimes it may be needed to chop vegetables and other things before frying things, other times the chopping can be done in parallell.
+8. **Consider timing**.  Avoid surprises like "Fry on strong heat for 30s while constantly stirring" followed with a point "add three finely chopped onions", but "chop everything in advance" is also not a good solution, particularly in a small kitchen.  It's needed to find a balance.
 
 9. **Quantity should be repeated in the instruction**.  Rather than "add the chopped onions", write "add one medium-sized (~120g) chopped onion"
+
+10. **Make a checkbox list** - allowing the user to tick off boxes as the things are done.
+
+11. **One instruction, one bullet point**.  "Chop 300g of carrots and 200g of onion" goes as two bullet points.  "Add cumin, chili, thyme into the casserole" goes as three points.
 
 ## Searching Inventory
 
