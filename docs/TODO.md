@@ -335,6 +335,18 @@ as are `G5`/`G05` and `G6`/`G06`. That is a labelling problem to fix on the
 boxes themselves, not something the code should be taught to support;
 `find-space-in-series.py` warns when it sees such a pair.
 
+### Make the per-unit size explicit in `mass:`/`volume:`
+
+Today `mass:`/`volume:` is the size *per unit* for uniform items
+(`qty:3 volume:100ml` is three 100 ml glasses) and `total/count` for
+non-uniform ones (`qty:4 mass:1200g/6`). Read cold, `qty:3 volume:100ml` is
+easily taken for 100 ml in total; a reviewer did exactly that on 2026-10-14
+and asked for `volume:300ml/3`. Consider allowing or requiring the explicit
+form `qty:3 volume:100ml/1` for uniform items, so the line says on its face
+that each container holds 100 ml. Settle whether the parser should accept
+it, whether `inventory-md add` should write it, and whether existing lines
+are migrated, before touching `ADDING-ITEMS.md`.
+
 ---
 
 ## Web UI and deployment
