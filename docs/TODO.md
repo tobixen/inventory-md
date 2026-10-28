@@ -250,6 +250,28 @@ Two things that half now expects of this one:
   downstream invents one, which is why the accuracy of this half is now the whole
   of what stands between a trip and a staging file nobody had to open a photo for.
 
+### A confident misread passes as a clean decode
+
+Lidl trip 2026-10-28: `IMG_20261028_170524.jpg`, a slightly blurred but legible
+Верея milk bottle, `3800748051206`, came back as a single, checksum-valid
+`3200742057806`. No conflict, nothing else flagged, so only a reviewer who opened
+the photo could tell. Second case after the Parodontax read on 2026-07-26
+(see purchase-pipeline's guide). A decode in a prefix that no GS1 member
+organisation issues (`140`–`199`, say) could at least be marked
+`needs_review`, but that would not have caught this one: `320` is GS1
+France, so the misread looks like any French product.
+
+Same run, worse: a sharp Krina pearl-rice label printed `3800106400011` gave a
+conflict between `3800106400073` and `3800706400077`. Both are wrong, and the
+first is a real product (Krina risoni) that tingbok resolves. A conflict's
+candidates are not a shortlist that contains the answer.
+
+The same run gives an OCR baseline: of 83 product photos, best-before was read
+on 7. 20 close-ups with plainly printed dates (`18.04.2027`, `14.01.27`,
+`23/11/26`, `28.07.2028`, `01.09.2027`, …) came back empty. The dates confirmed
+by hand are recorded in that trip's staging files (`bb_source`), so they can
+serve as a regression set.
+
 ---
 
 ## Labels
