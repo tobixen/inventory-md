@@ -390,6 +390,40 @@ class TestExtractMetadataTypedFields:
         result = parser.extract_metadata("mass:500g Pasta")
         assert result["metadata"]["mass_g"] == 500.0
 
+    def test_mass_divisor_gives_per_unit_mass(self):
+        # mass:TOTAL/COUNT is the documented notation for non-uniform items
+        result = parser.extract_metadata("qty:1 mass:142g/4 Garlic")
+        assert result["metadata"]["mass_g"] == pytest.approx(35.5)
+        assert "mass" not in result["metadata"]
+
+    def test_volume_divisor_gives_per_unit_volume(self):
+        result = parser.extract_metadata("qty:11 volume:5.5l/11 Passata")
+        assert result["metadata"]["volume_l"] == pytest.approx(0.5)
+        assert "volume" not in result["metadata"]
+
+    @pytest.mark.parametrize(
+        ("text", "key", "expected"),
+        [
+            ("mass:1.2kg/3", "mass_g", 400.0),
+            ("volume:600ml/3", "volume_l", 0.2),
+            ("volume:30cl/3", "volume_l", 0.1),
+            ("volume:6dl/2", "volume_l", 0.3),
+        ],
+    )
+    def test_divisor_with_other_units(self, text, key, expected):
+        result = parser.extract_metadata(f"{text} Item")
+        assert result["metadata"][key] == pytest.approx(expected)
+
+    @pytest.mark.parametrize("bad", ["100g/0", "100g/-2", "100g/nan", "100g/inf", "100g/", "100g/abc", "1l/0"])
+    def test_bad_divisor_is_kept_raw_not_guessed(self, bad):
+        # A typo must never crash the parse or invent an amount
+        key = "volume" if bad.startswith("1l") else "mass"
+        result = parser.extract_metadata(f"{key}:{bad} Item")
+        md = result["metadata"]
+        assert md[key] == bad
+        assert "mass_g" not in md
+        assert "volume_l" not in md
+
     def test_volume_ml_normalized_to_liters(self):
         result = parser.extract_metadata("volume:500ml Juice")
         assert result["metadata"]["volume_l"] == pytest.approx(0.5)

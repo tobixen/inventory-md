@@ -467,3 +467,34 @@ class TestFindDatedWantedFiles:
         newer = self._touch(tmp_path, "wanted-items-2026-06-16-frittata.md")
         older = self._touch(tmp_path, "wanted-items-2026-05-08-curry.md")
         assert find_dated_wanted_files(wanted) == [older, newer]
+
+
+def test_divisor_mass_is_counted_once_end_to_end():
+    """qty:2 mass:200g/2 is 200 g in total, not 400 g (the old double count)."""
+    from inventory_md import parser
+
+    md = parser.extract_metadata("category:chocolate qty:2 mass:200g/2 Chocolate")["metadata"]
+    inv = parse_inventory_for_shopping(
+        {"containers": [{"id": "c1", "items": [{"id": "choc", "name": "Chocolate", "metadata": md}]}]}
+    )
+    desired = DesiredItem(tag="chocolate", description="Chocolate", target_mass_g=300.0)
+    status, detail = evaluate_item(desired, inv)
+    assert status == "low"
+    assert "200" in detail
+
+
+def test_raw_mass_with_bad_divisor_is_not_counted():
+    """A raw mass string the parser could not read must not be taken as a per-unit mass."""
+    inv = parse_inventory_for_shopping(
+        {
+            "containers": [
+                {
+                    "id": "c1",
+                    "items": [
+                        {"id": "x", "name": "X", "metadata": {"categories": ["rice"], "qty": 2.0, "mass": "100g/abc"}}
+                    ],
+                }
+            ]
+        }
+    )
+    assert inv[0].mass_g is None

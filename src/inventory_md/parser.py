@@ -15,6 +15,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from .amounts import parse_amount
+
 
 class AmbiguousContainerError(ValueError):
     """A container ID matched several containers and none of them exactly.
@@ -234,32 +236,16 @@ def extract_metadata(text: str) -> dict[str, Any]:
                 metadata["qty"] = float(value)
             except ValueError:
                 metadata["qty"] = value
-        elif key == "mass":
-            v = value.lower()
-            try:
-                if v.endswith("kg"):
-                    metadata["mass_g"] = float(v[:-2]) * 1000
-                elif v.endswith("g"):
-                    metadata["mass_g"] = float(v[:-1])
-                else:
-                    metadata["mass"] = value  # unknown unit, keep as-is
-            except ValueError:
-                metadata["mass"] = value
-        elif key == "volume":
-            v = value.lower()
-            try:
-                if v.endswith("ml"):
-                    metadata["volume_l"] = float(v[:-2]) / 1000
-                elif v.endswith("cl"):
-                    metadata["volume_l"] = float(v[:-2]) / 100
-                elif v.endswith("dl"):
-                    metadata["volume_l"] = float(v[:-2]) / 10
-                elif v.endswith("l"):
-                    metadata["volume_l"] = float(v[:-1])
-                else:
-                    metadata["volume"] = value  # unknown unit, keep as-is
-            except ValueError:
-                metadata["volume"] = value
+        elif key in ("mass", "volume"):
+            # Stored per unit as mass_g / volume_l; anything unreadable is kept
+            # as written so a typo neither crashes the parse nor invents an amount.
+            amount, unit = parse_amount(value)
+            if key == "mass" and unit == "g" and amount is not None:
+                metadata["mass_g"] = amount
+            elif key == "volume" and unit == "l" and amount is not None:
+                metadata["volume_l"] = amount
+            else:
+                metadata[key] = value
         elif key == "bb":
             metadata["bb"] = _normalize_bb_date(value)
         else:

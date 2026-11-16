@@ -16,39 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 from . import vocabulary as vocab_module
-
-
-def parse_amount(value: str | None) -> tuple[float | None, str | None]:
-    """Parse a mass/volume string into (amount, unit).
-
-    Volume is normalized to liters (``"l"``), mass to grams (``"g"``).
-    Returns ``(None, None)`` for invalid or missing input.
-    """
-    if not value:
-        return None, None
-
-    value = value.lower().strip()
-    match = re.match(r"^([\d.]+)\s*([a-z]*)", value)
-    if not match:
-        return None, None
-
-    amount = float(match.group(1))
-    unit = match.group(2) or None
-
-    if unit == "kg":
-        return amount * 1000, "g"
-    elif unit == "ml":
-        return amount / 1000, "l"
-    elif unit == "cl":
-        return amount / 100, "l"
-    elif unit == "dl":
-        return amount / 10, "l"
-    elif unit in ("g", "l"):
-        return amount, unit
-    elif unit is None:
-        return amount, None
-    else:
-        return amount, unit
+from .amounts import parse_amount
 
 
 def format_amount(amount: float, unit: str | None) -> str:
