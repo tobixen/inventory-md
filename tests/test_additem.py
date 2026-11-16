@@ -325,6 +325,36 @@ def test_add_item_food_without_bb_allowed_with_flag(inventory_dir: Path):
     assert "milk-x" in md_path.read_text(encoding="utf-8")
 
 
+def test_add_item_food_without_mass_or_volume_warns(inventory_dir: Path):
+    md_path = inventory_dir / "inventory.md"
+    result = additem.add_item(md_path, container_id="food1", category="milk", item_id="milk-x", bb="2027-01")
+    assert not result.errors
+    assert any(_NO_AMOUNT in w for w in result.warnings)
+
+
+_NO_AMOUNT = "has no mass or volume"
+
+
+@pytest.mark.parametrize(("field", "value"), [("volume", "1l"), ("mass", "500g"), ("mass", "1200g/6")])
+def test_add_item_food_with_amount_no_amount_warning(inventory_dir: Path, field: str, value: str):
+    md_path = inventory_dir / "inventory.md"
+    result = additem.add_item(
+        md_path, container_id="food1", category="milk", item_id="milk-x", bb="2027-01", **{field: value}
+    )
+    assert not any(_NO_AMOUNT in w for w in result.warnings)
+    assert not any("cannot read" in w for w in result.warnings)
+
+
+@pytest.mark.parametrize("value", ["1lb", "abc", "100g/0"])
+def test_add_item_unreadable_mass_warns(inventory_dir: Path, value: str):
+    """add and check_quality agree: an amount the parser cannot read is no amount."""
+    md_path = inventory_dir / "inventory.md"
+    result = additem.add_item(
+        md_path, container_id="food1", category="milk", item_id="milk-x", bb="2027-01", mass=value
+    )
+    assert any("cannot read" in w and value in w for w in result.warnings)
+
+
 def test_add_item_nonfood_without_bb_ok(inventory_dir: Path):
     md_path = inventory_dir / "inventory.md"
     result = additem.add_item(

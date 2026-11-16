@@ -12,6 +12,7 @@ from inventory_md.check_quality import (
     _is_food_concept,
     apply_fixes,
     check_broad_categories,
+    check_food_without_amount,
     check_food_without_bb,
     check_shop_specific_eans,
     load_inventory_lang,
@@ -177,6 +178,40 @@ class TestCheckFoodWithoutBB:
         )
         issues = check_food_without_bb(data, _is_food)
         assert "2 items" in issues[0]
+
+
+class TestCheckFoodWithoutAmount:
+    """Food needs mass or volume, else the shopping list counts it as zero."""
+
+    def test_food_without_mass_or_volume_flagged(self):
+        data = _inv([{"id": "tea-x", "metadata": {"categories": ["rice"], "qty": 6.0}}])
+        issues = check_food_without_amount(data, _is_food)
+        assert issues
+        assert "1 items" in issues[0]
+        assert "tea-x" in issues[0]
+
+    def test_food_with_mass_or_volume_ok(self):
+        data = _inv(
+            [
+                {"id": "rice-x", "metadata": {"categories": ["rice"], "mass_g": 500.0}},
+                {"id": "cream-x", "metadata": {"categories": ["rice"], "volume_l": 0.2}},
+            ]
+        )
+        assert check_food_without_amount(data, _is_food) == []
+
+    def test_non_food_ignored(self):
+        data = _inv([{"id": "epoxy-x", "metadata": {"categories": ["epoxy"]}}])
+        assert check_food_without_amount(data, _is_food) == []
+
+    def test_zero_mass_counts_as_an_amount(self):
+        data = _inv([{"id": "x", "metadata": {"categories": ["rice"], "mass_g": 0.0}}])
+        assert check_food_without_amount(data, _is_food) == []
+
+    def test_run_all_checks_reports_it(self):
+        data = _inv([{"id": "tea-x", "metadata": {"categories": ["rice"], "bb": "2027"}}])
+        with patch.object(check_quality, "_make_food_classifier", return_value=_is_food):
+            results, _ = run_all_checks(data, {}, "en", "https://tingbok.example.com")
+        assert any("without mass or volume" in w for w in results["warnings"])
 
 
 class TestRunAllChecksUsesValidateInventory:

@@ -268,6 +268,31 @@ def check_food_without_bb(data: dict, is_food) -> list:
     return [f"Food items without best-before: {len(offenders)} items — e.g. {sample}{more}"]
 
 
+def check_food_without_amount(data: dict, is_food) -> list:
+    """Flag food items that have no readable mass or volume.
+
+    The shopping list compares wanted mass/volume targets against these
+    fields; an item without them counts as zero and makes a stocked product
+    look missing. ``is_food`` is the same classifier as for
+    :func:`check_food_without_bb`.
+    """
+    offenders: list[str] = []
+    for container in data.get("containers", []):
+        for item in container.get("items", []):
+            md = item.get("metadata", {})
+            if md.get("mass_g") is not None or md.get("volume_l") is not None:
+                continue
+            if any(is_food(cat) for cat in md.get("categories", [])):
+                offenders.append(item.get("id") or md.get("id") or (item.get("name") or "")[:30])
+    if not offenders:
+        return []
+    sample = ", ".join(offenders[:5])
+    more = "" if len(offenders) <= 5 else ", …"
+    return [
+        f"Food items without mass or volume (or one that cannot be read): {len(offenders)} items — e.g. {sample}{more}"
+    ]
+
+
 def _category_is_food(cat: str, resolve, ancestors_of=None) -> bool:
     """Whether a category string denotes food.
 
@@ -684,7 +709,9 @@ def run_all_checks(
 
     if tingbok_url:
         base = tingbok_url.rstrip("/")
-        warnings += check_food_without_bb(data, _make_food_classifier(base))
+        is_food = _make_food_classifier(base)
+        warnings += check_food_without_bb(data, is_food)
+        warnings += check_food_without_amount(data, is_food)
 
     errors = list(_validate_inventory(data)) if _validate_inventory else []
     if not allow_broad:

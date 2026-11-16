@@ -26,6 +26,7 @@ from typing import Any
 from . import parser as _parser
 from . import queries as _queries
 from . import vocabulary as _vocabulary
+from .amounts import parse_amount
 
 # YYYY, YYYY-MM, YYYY-MM-DD or YYYY-MM-DDTHH:MM
 _BB_RE = re.compile(r"^\d{4}(-\d{2}(-\d{2}(T\d{2}:\d{2})?)?)?$")
@@ -371,6 +372,22 @@ def add_item(
             f"food item '{category}' has no best-before (bb:); supply bb:YYYY-MM "
             "(append :EST to estimate) or pass --no-bb-check"
         )
+
+    if is_food:
+        # Same reading as the parser, so add and check_quality agree on what an amount is
+        readable = False
+        for field, value, unit in (("mass", mass, "g"), ("volume", volume, "l")):
+            if not value:
+                continue
+            amount, got = parse_amount(value)
+            if amount is not None and got == unit:
+                readable = True
+            else:
+                result.warnings.append(f"cannot read {field}:{value} (use e.g. 500g, 1.2kg, 400ml, or TOTAL/COUNT)")
+        if not readable and not mass and not volume:
+            result.warnings.append(
+                f"food item '{category}' has no mass or volume; mass/volume targets in wanted-items will count it as zero"
+            )
 
     # ID: validate or generate.
     if item_id is None:
