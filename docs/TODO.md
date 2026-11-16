@@ -382,6 +382,25 @@ properly (categories, expiry, search, labels, photos).
 
 ---
 
+## Shopping list: stock in the wrong dimension counts as zero
+
+`evaluate_item()` (`shopping_list.py`) compares one dimension: a wanted line
+with a mass target sums `mass_g`, one with a volume target sums `volume_l`.
+An item that carries only the other dimension (passata stocked as
+`volume:500ml` against `target:mass:1kg`) counts as zero, so stocked goods
+show up as missing. `check_food_without_amount` does not catch it, since the
+item does have an amount. Options: a quality check that compares each
+matching item's dimension with its wanted target, and/or a conversion with a
+per-category density (water-like foods 1 kg/l) where the mismatch is benign.
+
+## EAN push sends no quantity for parsed amounts
+
+The EAN observations pushed to tingbok during `parse` (`cli.py`, around the
+`quantity` field) take `meta.get("mass") or meta.get("volume")`. Those raw
+strings only survive when the parser could *not* read the amount; a readable
+one is stored as `mass_g`/`volume_l`, so tingbok gets no quantity for any
+normal item. Format the parsed per-unit amount instead (`500g`, `1l`).
+
 ## Ideas, not yet tasks
 
 * **Immich integration** — no defined scope. Photos are synced outside git and
