@@ -83,6 +83,68 @@ def test_rewrite_leaves_other_fields_byte_identical():
     assert out.replace("2028-02", "2027-01") == line
 
 
+def test_rewrite_category_replaces_every_category_token():
+    # category repeats on a line; replacing it must drop the later tokens too,
+    # or the old categories survive next to the new one.
+    line = "* category:canning category:dinner ID:vl-1 bb:2027-01 Stuffed vine leaves"
+    out = edititem.rewrite_item_line(line, {"category": "canning,dolma"})
+    assert out == "* category:canning,dolma ID:vl-1 bb:2027-01 Stuffed vine leaves"
+
+
+def test_rewrite_fills_an_empty_placeholder_field():
+    # "EAN:" with no value is a placeholder for a barcode still to be read; the
+    # value goes there instead of a second EAN: field being added.
+    line = "* category:tinned-meat ID:hash-1 Beef hash bb:2026-06-01:EST EAN:"
+    out = edititem.rewrite_item_line(line, {"ean": "3850104020353"})
+    assert out == "* category:tinned-meat ID:hash-1 Beef hash bb:2026-06-01:EST EAN:3850104020353"
+
+
+def test_rewrite_category_drops_non_adjacent_category_tokens():
+    line = "* category:a ID:x category:b Foo category:c"
+    out = edititem.rewrite_item_line(line, {"category": "d"})
+    assert out == "* category:d ID:x Foo"
+
+
+def test_rewrite_removing_a_field_removes_its_empty_placeholder():
+    line = "* category:tinned-meat ID:hash-1 Beef hash EAN:"
+    out = edititem.rewrite_item_line(line, {"ean": None})
+    assert out == "* category:tinned-meat ID:hash-1 Beef hash"
+
+
+@pytest.mark.parametrize(
+    ("line", "expected"),
+    [
+        # "Notes:"/"Type:" end in a colon but are words of the name, as the parser
+        # reads them; a new name replaces them with the rest.
+        ("* category:x ID:a Box Notes: fragile", "* category:x ID:a New name"),
+        ("* category:x ID:a Type: B cable", "* category:x ID:a New name"),
+        # An empty "ID:" in the name must not hide the real ID behind it.
+        ("* category:x Garmin ID: sticker ID:gps-1", "* category:x ID:gps-1 New name"),
+    ],
+)
+def test_rewrite_name_replaces_colon_words_in_the_name(line: str, expected: str):
+    assert edititem.rewrite_item_line(line, {}, name="New name") == expected
+
+
+def test_rewrite_does_not_fill_a_capitalised_word_in_the_name():
+    # Only the canonical spelling ("price:", "EAN:") is a placeholder; "Price:" in
+    # prose stays prose and the field goes in its canonical place.
+    line = "* category:knife ID:a Price: high-end knife"
+    out = edititem.rewrite_item_line(line, {"price": "EUR:5/pcs"})
+    assert out == "* category:knife ID:a price:EUR:5/pcs Price: high-end knife"
+
+
+def test_rewrite_fills_placeholder_and_replaces_name_together():
+    line = "* category:x ID:a Beef hash EAN:"
+    out = edititem.rewrite_item_line(line, {"ean": "123"}, name="Hash")
+    assert out == "* category:x ID:a EAN:123 Hash"
+
+
+def test_field_value_skips_an_empty_placeholder():
+    line = "* category:x ID:a bb: bb:2026-01 Foo"
+    assert edititem.field_value(line, "bb") == "2026-01"
+
+
 def test_rewrite_does_not_touch_colon_tokens_in_the_name():
     # A second ID: inside the description is free text, not a field (same rule as
     # the parser); editing must not rewrite or consume it.
@@ -115,6 +177,27 @@ def test_edit_item_updates_ean(md_path: Path):
     assert result.written
     assert "EAN:1234567890128" in md_path.read_text(encoding="utf-8")
     assert result.before != result.after
+
+
+def test_edit_item_fills_ean_placeholder(md_path: Path):
+    md_path.write_text("# ID:box1 Box\n\n* category:hammer ID:hammer-1 A hammer EAN:\n", encoding="utf-8")
+    result = edititem.edit_item(md_path, item_id="hammer-1", ean="1234567890128")
+    assert not result.errors
+    assert result.after == "* category:hammer ID:hammer-1 A hammer EAN:1234567890128"
+
+
+def test_edit_item_category_replaces_every_category(md_path: Path):
+    md_path.write_text("# ID:box1 Box\n\n* category:hammer category:tool ID:hammer-1 A hammer\n", encoding="utf-8")
+    result = edititem.edit_item(md_path, item_id="hammer-1", category="hammer")
+    assert not result.errors
+    assert result.after == "* category:hammer ID:hammer-1 A hammer"
+
+
+def test_edit_item_name_over_an_empty_id_word(md_path: Path):
+    md_path.write_text("# ID:box1 Box\n\n* category:hammer Garmin ID: sticker ID:hammer-1\n", encoding="utf-8")
+    result = edititem.edit_item(md_path, item_id="hammer-1", name="A hammer")
+    assert not result.errors
+    assert result.after == "* category:hammer ID:hammer-1 A hammer"
 
 
 def test_edit_item_reports_before_and_after(md_path: Path):

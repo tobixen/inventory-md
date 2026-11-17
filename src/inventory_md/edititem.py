@@ -77,6 +77,12 @@ class _Token:
     end: int
     text: str
     key: str | None  # lowercase field key, or None for free-text (name) tokens
+    # For a free-text token that is a field key with no value, spelled the way
+    # the field is written ("EAN:"): the key it holds a place for.  The parser
+    # reads it as part of the name, and so does everything here but filling a
+    # field, which writes the value into the placeholder instead of adding a
+    # second field next to it.
+    placeholder: str | None = None
 
 
 def _split_bullet(line: str) -> tuple[str, str]:
@@ -104,7 +110,12 @@ def _tokenize(body: str) -> list[_Token]:
             key = None
         if key is not None and key not in _REPEATABLE:
             seen.add(key)
-        tokens.append(_Token(m.start(), m.end(), text, key))
+        placeholder = None
+        if key is None and text.endswith(":"):
+            bare = text[:-1].lower()
+            if bare in _CANONICAL_SPELLING and text[:-1] == _CANONICAL_SPELLING[bare]:
+                placeholder = bare
+        tokens.append(_Token(m.start(), m.end(), text, key, placeholder))
     return tokens
 
 
@@ -173,15 +184,22 @@ def rewrite_item_line(
             return (token.start, end, "")
         return (start, token.end, "")
 
+    filled: set[int] = set()  # placeholders that became fields; not name any more
     for key, value in changes.items():
         existing = [t for t in tokens if t.key == key]
-        if existing:
-            token = existing[0]
-            if value is None:
-                edits.append(_delete(token))
-            else:
-                edits.append((token.start, token.end, f"{_CANONICAL_SPELLING[key]}:{value}"))
-        elif value is not None:
+        placeholders = [t for t in tokens if t.placeholder == key]
+        if value is None:
+            # Removing a field also removes an empty placeholder for it.
+            edits.extend(_delete(t) for t in existing + placeholders)
+        elif existing or placeholders:
+            token = (existing or placeholders)[0]
+            edits.append((token.start, token.end, f"{_CANONICAL_SPELLING[key]}:{value}"))
+            filled.add(token.start)
+            # Every other token of the key goes: the later category: tokens, which
+            # would otherwise keep the old values next to the new one, and any
+            # placeholder left beside a real field.
+            edits.extend(_delete(t) for t in existing[1:] + placeholders if t is not token)
+        else:
             at = _insert_at(tokens, key, len(body))
             text = f"{_CANONICAL_SPELLING[key]}:{value}"
             edits.append((at, at, f" {text}" if at > 0 else f"{text} "))
@@ -195,7 +213,7 @@ def rewrite_item_line(
             edits.append((at, at, f" {text}" if at > 0 else f"{text} "))
 
     if name is not None:
-        for token in [t for t in tokens if t.key is None]:
+        for token in [t for t in tokens if t.key is None and t.start not in filled]:
             edits.append(_delete(token))
         if name.strip():
             edits.append((len(body), len(body), f" {name.strip()}"))
