@@ -61,9 +61,10 @@ groups have both spellings marked tingbok-sourced**. `bike_hardware` is in
 tingbok's `vocabulary.yaml` and `bike-hardware` is not — the inventory wrote the
 latter, tingbok resolved it on its own, and the result is two concepts. So this
 is not only about labels tingbok failed to resolve; it is also about labels it
-resolved twice. Which spelling is canonical (dashes or underscores, singular or
-plural) is an open question in `~/tingbok/TODO.md`, and normalising in this
-project would decide it by accident — hence a report and not a rewrite.
+resolved twice. Dashes over underscores was decided on 2026-11-17 (see "Category
+IDs use dashes, never underscores" below). Singular or plural is still an open
+question in `~/tingbok/TODO.md`, and normalising that in this project would
+decide it by accident — hence a report and not a rewrite.
 
 ### Auto-write `category:` back into the inventory markdown
 
@@ -400,6 +401,31 @@ The EAN observations pushed to tingbok during `parse` (`cli.py`, around the
 strings only survive when the parser could *not* read the amount; a readable
 one is stored as `mass_g`/`volume_l`, so tingbok gets no quantity for any
 normal item. Format the parsed per-unit amount instead (`500g`, `1l`).
+
+## Category IDs use dashes, never underscores
+
+Decided 2026-11-17: a category ID never contains an underscore.  This
+settles the dashes-or-underscores question that "Categories and the
+vocabulary system" above leaves open, and that `~/tingbok/TODO.md` already
+leans towards.  Two reasons: one spelling per concept, so stock is not split
+between `butternut-squash` and `butternut_squash`; and the inventory is a
+markdown document, where an unescaped underscore is markup.
+
+The work, in this order:
+
+1. **tingbok**: make the dashed form the canonical concept ID, and keep the
+   underscore spellings as aliases that resolve to it.  Upstream taxonomies
+   and EAN data use underscores (`tool/physical_tool/...`), and so does
+   tingbok's own `vocabulary.yaml` (`bike_hardware`), so existing
+   inventories and EAN lookups that return underscores must keep resolving.
+2. **inventory-md**: `inventory-md-check-quality` warns about any
+   `category:` value with an underscore, naming the dashed spelling, and
+   `docs/ADDING-ITEMS.md` states the rule.  The near-duplicate report then
+   loses the underscore/dash pairs; joined-word variants (`cling-film` and
+   `clingfilm`) and plural forms remain.
+3. **Inventories**: rename the underscore categories.  One real inventory has
+   about 70 uses of 38 distinct ones.  Check each rename for a dashed twin
+   that already exists, so that two halves of the stock merge on purpose.
 
 ## Ideas, not yet tasks
 
