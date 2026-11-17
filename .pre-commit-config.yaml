@@ -27,7 +27,9 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: pytest
+        # No test here is async; a system-wide pytest-asyncio would otherwise
+        # warn about its unset loop scope, which filterwarnings makes fatal.
+        entry: pytest -p no:asyncio
         language: system
         pass_filenames: false
         always_run: true
